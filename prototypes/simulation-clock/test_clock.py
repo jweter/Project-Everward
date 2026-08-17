@@ -1,0 +1,115 @@
+from __future__ import annotations
+
+from fractions import Fraction
+import unittest
+
+from clock import SimulationClock, days, julian_years, seconds
+
+
+class SimulationClockTests(unittest.TestCase):
+    def test_simultaneous_events_preserve_insertion_order(self) -> None:
+        clock = SimulationClock()
+        clock.schedule_at(100, "first", {"value": 1})
+        clock.schedule_at(100, "second", {"value": 2})
+        clock.schedule_at(100, "third", {"value": 3})
+
+        processed = clock.advance_to(100)
+
+        self.assertEqual(processed, 3)
+        self.assertEqual([item.kind for item in clock.history], ["first", "second", "third"])
+        self.assertEqual(clock.tick, 100)
+
+    def test_sparse_timeline_jumps_to_long_future_event(self) -> None:
+        clock = SimulationClock()
+        target = julian_years(10_000)
+        clock.schedule_at(target, "deep_future")
+
+        processed = clock.run_until_idle()
+
+        self.assertEqual(processed, 1)
+        self.assertEqual(clock.tick, target)
+        self.assertEqual(clock.history[0].kind, "deep_future")
+
+    def test_handler_can_schedule_followup_event(self) -> None:
+        clock = SimulationClock()
+
+        def first_handler(sim: SimulationClock, _event) -> None:
+            sim.schedule_after(seconds(5), "followup", {"origin": "first"})
+
+        clock.register_handler("first", first_handler)
+        clock.schedule_after(seconds(2), "first")
+
+        processed = clock.run_until_idle()
+
+        self.assertEqual(processed, 2)
+        self.assertEqual([item.kind for item in clock.history], ["first", "followup"])
+        self.assertEqual(clock.tick, seconds(7))
+
+    def test_pause_prevents_wall_time_advance(self) -> None:
+        clock = SimulationClock()
+        clock.set_paused(True)
+
+        clock.advance_wall_ticks(seconds(10))
+
+        self.assertEqual(clock.tick, 0)
+
+    def test_rational_time_scale_is_exact_across_step_chunking(self) -> None:
+        one_step = SimulationClock()
+        many_steps = SimulationClock()
+        one_step.set_time_scale(7, 3)
+        many_steps.set_time_scale(7, 3)
+
+        one_step.advance_wall_ticks(10_000)
+        for _ in range(10_000):
+            many_steps.advance_wall_ticks(1)
+
+        self.assertEqual(one_step.tick, many_steps.tick)
+        self.assertEqual(one_step.time_scale, Fraction(7, 3))
+
+    def test_event_results_are_independent_of_wall_step_chunking(self) -> None:
+        def make_clock() -> SimulationClock:
+            clock = SimulationClock()
+            clock.set_time_scale(100, 1)
+            clock.schedule_at(seconds(1), "scan_complete")
+            clock.schedule_at(seconds(3), "mining_complete")
+            clock.schedule_at(seconds(10), "message_arrival")
+            return clock
+
+        coarse = make_clock()
+        fine = make_clock()
+
+        coarse.advance_wall_ticks(seconds(1) // 10)
+        for _ in range(100):
+            fine.advance_wall_ticks(seconds(1) // 1_000)
+
+        self.assertEqual(coarse.tick, fine.tick)
+        self.assertEqual(coarse.history, fine.history)
+
+    def test_fixed_scenario_replays_identically(self) -> None:
+        def scenario() -> tuple[int, tuple]:
+            clock = SimulationClock()
+            clock.schedule_at(days(3), "scan", {"target": "asteroid-01"})
+            clock.schedule_at(days(3), "telemetry", {"probe": "origin"})
+            clock.schedule_at(julian_years(14), "arrival", {"system": "EV-002"})
+            clock.advance_to(julian_years(20))
+            return clock.tick, clock.history
+
+        self.assertEqual(scenario(), scenario())
+
+    def test_rejects_backward_time(self) -> None:
+        clock = SimulationClock(start_tick=100)
+        with self.assertRaises(ValueError):
+            clock.advance_to(99)
+        with self.assertRaises(ValueError):
+            clock.schedule_at(99, "past")
+
+    def test_zero_scale_freezes_wall_time_without_marking_paused(self) -> None:
+        clock = SimulationClock()
+        clock.set_time_scale(0)
+        clock.advance_wall_ticks(seconds(5))
+        self.assertEqual(clock.tick, 0)
+        self.assertFalse(clock.paused)
+
+
+if __name__ == "__main__":
+    unittest.main()
