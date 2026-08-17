@@ -1,0 +1,43 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs and temporary output
+*.log
+.tmp/
+tmp/
+
+# Python tooling (offline tools / prototypes)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Godot generated/imported state
+.godot/
+.import/
+
+# Unreal generated state
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+
+# Build / benchmark output
+build/
+dist/
+artifacts/
+benchmark-results/local/
+
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
