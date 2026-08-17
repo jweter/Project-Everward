@@ -6,20 +6,29 @@ Provide evidence for the production-engine decision by building approximately th
 
 This prototype is an **evidence gate**, not an engine-selection shortcut. `benchmark.py` defines the comparison contract so both implementations must report the same normalized criteria before ADR-0001 can use the results.
 
-## Benchmark scene
+## Canonical benchmark scenario
 
-A probe mines an icy asteroid near a large planet. The scene includes:
+`scenario.json` is the authoritative engine-neutral scene contract. Both implementations must target that same versioned scenario rather than independently interpreting a prose brief. `scenario.py` validates the contract, and CI rejects accidental removal of required capture fields or fairness constraints.
 
-- stellar illumination,
-- large planetary backdrop,
-- volumetric/environmental effects where appropriate,
-- particles/debris,
+The current scenario is a probe mining an icy asteroid near a large planet. It requires:
+
+- stellar directional illumination,
+- a large planetary backdrop,
+- an icy asteroid surface,
 - moving mining machinery,
+- particle debris,
+- environmental volumetrics,
 - interactive HUD telemetry,
-- accelerated simulation time,
-- camera movement from local machinery toward broader astronomical context.
+- an accelerated simulation clock,
+- the same three-stage camera sequence from local machinery to planetary context.
 
-## Required evidence
+The canonical run target is 2560×1440 at a 60 FPS target over a 120-second capture window. These values define comparison conditions, not production performance requirements.
+
+## Required raw capture
+
+Both engine runs must retain the raw evidence named by `scenario.json`, including engine/OS/hardware versions, project settings, CPU and GPU frame times, peak memory, implementation effort, build size, screenshots, and notes. Raw measurements are recorded before any normalized 0–10 scoring.
+
+## Required normalized evidence
 
 Both engine implementations must report every metric in `REQUIRED_METRICS` on a normalized 0–10 scale where higher is better. Raw measurements and notes must be retained alongside the normalized score so the normalization can be audited.
 
@@ -43,7 +52,7 @@ The default weights intentionally emphasize visual fidelity, simulation-core int
 
 ## Comparison discipline
 
-1. Use the same benchmark scene goals and equivalent quality target in both engines.
+1. Use the same versioned `scenario.json` in both engines.
 2. Record hardware, engine version, project settings, resolution, and test conditions.
 3. Capture raw CPU/GPU frame-time and memory measurements before normalization.
 4. Explain every subjective score with short evidence notes.
@@ -63,4 +72,4 @@ Do not intentionally make one implementation more polished than the other. Compa
 
 ## Gate
 
-Results feed ADR-0001. Engine choice occurs only after this benchmark and the other Phase 1 proofs provide enough measured evidence. Until both implementations contain complete, auditable results, the engine decision remains open.
+Results feed ADR-0001. Engine choice occurs only after this benchmark and the other Phase 1 proofs provide enough measured evidence. Until both engine implementations contain complete, auditable results for the same scenario version, the engine decision remains open.
