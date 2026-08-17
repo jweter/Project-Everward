@@ -41,3 +41,6 @@ jobs:
 
       - name: Test headless simulation prototype
         run: python -m unittest discover -s prototypes/headless-simulation -p 'test_*.py' -v
+
+      - name: Test rendering benchmark evidence contract
+        run: python -m unittest discover -s prototypes/rendering-benchmark -p 'test_*.py' -v
