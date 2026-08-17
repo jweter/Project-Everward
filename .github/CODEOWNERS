@@ -1,0 +1,8 @@
+# Everward is currently owned and maintained by Jeremy Weter.
+* @jweter
+
+# Project constitution and architecture require explicit owner review.
+/docs/ @jweter
+/.github/ @jweter
+/LICENSE @jweter
+/THIRD_PARTY_NOTICES.md @jweter
