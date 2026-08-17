@@ -23,7 +23,6 @@ _CLOCK_MODULE = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_CLOCK_MODULE)
 
 SimulationClock = _CLOCK_MODULE.SimulationClock
-ScheduledEvent = _CLOCK_MODULE.ScheduledEvent
 TICKS_PER_JULIAN_YEAR = _CLOCK_MODULE.TICKS_PER_JULIAN_YEAR
 
 _PERIOD_YEARS = {
@@ -39,6 +38,10 @@ class HeadlessState:
     survey_cycles: int = 0
     archive_cycles: int = 0
     deterministic_accumulator: int = 0
+
+    @property
+    def processed_events(self) -> int:
+        return self.maintenance_cycles + self.survey_cycles + self.archive_cycles
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,7 +183,7 @@ class HeadlessSimulation:
             "seed": self.seed,
             "requested_years": self.requested_years,
             "final_tick": self.clock.tick,
-            "processed_events": len(self.clock.history),
+            "processed_events": self.state.processed_events,
             "pending_events": self.clock.pending_event_count,
             "maintenance_cycles": self.state.maintenance_cycles,
             "survey_cycles": self.state.survey_cycles,
