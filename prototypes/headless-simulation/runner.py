@@ -12,6 +12,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import sys
 from typing import Any
 
 
@@ -20,6 +21,7 @@ _SPEC = importlib.util.spec_from_file_location("everward_simulation_clock", _CLO
 if _SPEC is None or _SPEC.loader is None:  # pragma: no cover - environment guard
     raise RuntimeError(f"unable to load simulation clock from {_CLOCK_PATH}")
 _CLOCK_MODULE = importlib.util.module_from_spec(_SPEC)
+sys.modules[_SPEC.name] = _CLOCK_MODULE
 _SPEC.loader.exec_module(_CLOCK_MODULE)
 
 SimulationClock = _CLOCK_MODULE.SimulationClock
