@@ -4,26 +4,70 @@
 
 Prove that Everward's authoritative simulation can run without graphics and can advance very long time horizons efficiently and deterministically.
 
-## Minimum proof
+This prototype composes the existing deterministic simulation clock rather than creating a second time model. The headless layer owns scenario state, checkpoint data, and canonical result fingerprints; the clock remains the authoritative scheduler.
 
-- run a fixed scenario from a seed,
-- execute without presentation/rendering,
-- advance thousands of simulated years,
-- emit a canonical state summary/hash,
-- repeat with the same result,
-- save/load during the run and verify equivalent final state,
-- measure simulation throughput and memory growth.
+## Current proof
 
-## Desired developer interface
+The reference workload runs three deterministic periodic event streams:
 
-Conceptually:
+- maintenance every simulated year,
+- survey work every 10 simulated years,
+- archive work every 100 simulated years.
 
-```text
-everward-sim --years 10000 --seed 847291
+A 10,000-year run therefore processes 11,100 scheduled events while jumping directly between due times rather than iterating every simulation tick.
+
+The scenario is intentionally small. Its purpose is architectural evidence, not gameplay simulation.
+
+## Developer interface
+
+From the repository root:
+
+```bash
+python prototypes/headless-simulation/run_demo.py --years 10000 --seed 847291
+python prototypes/headless-simulation/benchmark.py
+python -m unittest discover -s prototypes/headless-simulation -p 'test_*.py' -v
 ```
 
-The exact executable, language, and command surface remain open until the architecture/engine decision.
+The demo emits a canonical JSON summary and SHA-256 fingerprint. The benchmark reports wall time, event throughput, and Python `tracemalloc` peak memory without turning machine-dependent performance into a flaky CI threshold.
+
+## Checkpoint / restore contract
+
+The headless layer serializes only simulation-authoritative state needed to resume:
+
+- seed,
+- current and horizon ticks,
+- deterministic scenario counters/state,
+- next due tick for each periodic event stream.
+
+Restoring creates a fresh `SimulationClock` at the saved tick and reconstructs pending events from that canonical checkpoint. Tests require a checkpointed run to produce exactly the same final canonical summary and fingerprint as an uninterrupted run.
+
+This is deliberately a prototype checkpoint format, not the production save schema defined in `docs/SAVE_FORMAT.md`.
+
+## Tests prove
+
+- identical seed and horizon replay exactly,
+- changing the seed changes deterministic state,
+- 10,000 simulated years reach the exact integer-tick horizon,
+- the expected 11,100 sparse events execute,
+- checkpoint JSON round-trips and resumed execution matches uninterrupted execution,
+- next-event schedules survive checkpointing,
+- invalid horizons are rejected.
 
 ## Acceptance criteria
 
-Headless execution is a supported architecture path, not a hacked test mode coupled to a running renderer.
+- [x] run a fixed scenario from a seed,
+- [x] execute with no renderer or engine runtime,
+- [x] advance 10,000 simulated years,
+- [x] emit a canonical state summary and fingerprint,
+- [x] replay identical inputs with identical output,
+- [x] checkpoint/restore during the run with equivalent final state,
+- [x] provide throughput and peak-memory instrumentation,
+- [ ] establish production performance budgets only after representative workloads exist.
+
+## Production boundary
+
+This prototype does **not** commit Everward to Python, to these event types, or to this checkpoint representation. It proves a stronger architectural rule:
+
+> The authoritative simulation must be able to execute and reproduce long-running campaigns without a presentation layer.
+
+That requirement must survive the later engine and simulation-architecture decision.
