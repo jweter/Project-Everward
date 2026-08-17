@@ -1,0 +1,81 @@
+name: Foundation checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  repository-constitution:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify required foundation files
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            README.md
+            LICENSE
+            CONTRIBUTING.md
+            docs/VISION.md
+            docs/DESIGN_PILLARS.md
+            docs/GAMEPLAY_LOOP.md
+            docs/SIMULATION_PHILOSOPHY.md
+            docs/VISUAL_DIRECTION.md
+            docs/AUDIO_DIRECTION.md
+            docs/TECHNOLOGY_DECISIONS.md
+            docs/IP_AND_LICENSES.md
+            docs/GLOSSARY.md
+            docs/ROADMAP.md
+            docs/ARCHITECTURE.md
+            docs/TESTING_STRATEGY.md
+            docs/SAVE_FORMAT.md
+            docs/PERFORMANCE_BUDGETS.md
+            docs/DECISION_LOG.md
+            prototypes/simulation-clock/README.md
+            prototypes/procedural-system/README.md
+            prototypes/coordinate-scale/README.md
+            prototypes/headless-simulation/README.md
+            prototypes/rendering-benchmark/README.md
+            src/README.md
+            tests/README.md
+            tools/README.md
+            assets/README.md
+          )
+
+          missing=0
+          for path in "${required[@]}"; do
+            if [[ ! -f "$path" ]]; then
+              echo "Missing required foundation file: $path"
+              missing=1
+            fi
+          done
+
+          exit "$missing"
+
+      - name: Reject unresolved conflict markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -n -E '^(<<<<<<<|=======|>>>>>>>)' -- ':!*.png' ':!*.jpg' ':!*.jpeg'; then
+            echo 'Unresolved merge conflict marker found.'
+            exit 1
+          fi
+
+      - name: Validate documentation is non-empty
+        shell: bash
+        run: |
+          set -euo pipefail
+          find docs -type f -name '*.md' -print0 | while IFS= read -r -d '' file; do
+            if [[ ! -s "$file" ]]; then
+              echo "Documentation file is empty: $file"
+              exit 1
+            fi
+          done
