@@ -30,6 +30,18 @@ This glossary establishes project terminology so design and implementation discu
 
 **Behavior parameter** — A continuous or discrete value influencing autonomous decisions, such as risk tolerance or curiosity.
 
+**Behavior Profile** — The versioned structured data describing a probe's directives, priorities, traits, constraints, communication style, quirks, stress responses, and generator provenance.
+
+**Behavior Generator** — The player-assistance system that creates editable Behavior Profiles from deterministic seeds, presets, constraints, locked traits, and optional natural-language intent.
+
+**Quirk** — A lower-priority preference, routine, habit, or expressive tendency that makes a descendant memorable without normally overriding mission-critical directives.
+
+**Behavior seed** — Deterministic seed used with generator version and constraints to reproduce a generated Behavior Profile.
+
+**Generator version** — Version identifier for Behavior Generator logic so generated profiles can remain reproducible across software changes.
+
+**Locked trait** — A player-selected behavior element preserved while other profile sections are regenerated.
+
 ## Simulation terms
 
 **Simulation truth** — Authoritative mechanical state determined by deterministic game systems.
