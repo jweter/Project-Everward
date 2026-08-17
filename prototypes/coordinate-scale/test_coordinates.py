@@ -1,15 +1,6 @@
-import importlib.util
-import pathlib
 import unittest
 
-MODULE_PATH = pathlib.Path(__file__).with_name("coordinates.py")
-spec = importlib.util.spec_from_file_location("coordinates", MODULE_PATH)
-coordinates = importlib.util.module_from_spec(spec)
-assert spec.loader is not None
-spec.loader.exec_module(coordinates)
-
-CELL_SIZE_MM = coordinates.CELL_SIZE_MM
-SpatialPosition = coordinates.SpatialPosition
+from coordinates import CELL_SIZE_MM, SpatialPosition
 
 
 class SpatialPositionTests(unittest.TestCase):
