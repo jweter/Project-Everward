@@ -1,0 +1,62 @@
+name: Feature or design proposal
+description: Propose a scoped change that advances an Everward success gate or technical proof.
+title: "[Proposal] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / opportunity
+      description: What player, simulation, engineering, or production problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the smallest useful version of the change.
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Roadmap relevance
+      options:
+        - Phase 0 — Project Constitution
+        - Phase 1 — Technical Proofs
+        - Phase 2 — One Probe
+        - Phase 3 — One Star System
+        - Phase 4 — Industrial Bootstrap
+        - Later roadmap phase
+        - Research / decision gate
+    validations:
+      required: true
+  - type: textarea
+    id: pillars
+    attributes:
+      label: Design-pillar impact
+      description: Which governing pillars does this support, constrain, or potentially conflict with?
+    validations:
+      required: true
+  - type: textarea
+    id: truth
+    attributes:
+      label: Simulation / persistence impact
+      description: Note determinism, save compatibility, procedural generation, latency/local-knowledge, entity identity, or history effects.
+  - type: textarea
+    id: performance
+    attributes:
+      label: Performance / scale impact
+  - type: textarea
+    id: licensing
+    attributes:
+      label: Dependency / IP impact
+      description: Identify any proposed third-party code, asset, data, engine feature, patent/trademark concern, or redistribution obligation.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What evidence proves this proposal works?
+    validations:
+      required: true
