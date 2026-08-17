@@ -1,0 +1,34 @@
+# Normalize text files across development environments.
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Treat common binary media/project artifacts as binary so Git does not alter them.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.wav binary
+*.flac binary
+*.ogg binary
+*.mp3 binary
+*.mp4 binary
+*.mov binary
+*.fbx binary
+*.blend binary
+*.glb binary
+*.gltf binary
+*.exr binary
+*.hdr binary
+*.ttf binary
+*.otf binary
+*.uasset binary
+*.umap binary
+
+# Git LFS policy is intentionally not enabled globally yet. Once the production
+# engine and asset pipeline are selected, track the specific large-file types
+# through Git LFS and commit the generated LFS attributes here.
