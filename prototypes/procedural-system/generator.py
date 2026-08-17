@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import hashlib
 import json
+import math
 from typing import Iterable
 
 GENERATOR_VERSION = 1
@@ -217,8 +218,11 @@ def _planet_properties(stream: DeterministicStream, planet_type: str) -> tuple[i
 
 
 def _temperature_k(luminosity_milli: int, axis_milli_au: int) -> int:
-    luminosity_factor = max(1, int((luminosity_milli * 1000) ** 0.25))
-    distance_factor = max(1, int(axis_milli_au ** 0.5))
+    # Deliberately integer-only: fourth root of scaled luminosity divided by
+    # square root of distance. This is a simplified equilibrium-temperature
+    # proxy, not a final astrophysics model.
+    luminosity_factor = max(1, math.isqrt(math.isqrt(luminosity_milli * 1000)))
+    distance_factor = max(1, math.isqrt(axis_milli_au))
     return max(3, 278 * luminosity_factor // distance_factor)
 
 
