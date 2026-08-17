@@ -30,9 +30,15 @@ Aliens, warfare, megastructures, multiplayer, and infinite late-game progression
 
 ```text
 Project-Everward/
+├── .github/                # CI, ownership, issue/PR templates
+├── .editorconfig
+├── .gitattributes
+├── .gitignore
 ├── README.md
-├── LICENSE
+├── LICENSE                 # proprietary project notice
 ├── CONTRIBUTING.md
+├── SECURITY.md
+├── THIRD_PARTY_NOTICES.md
 ├── docs/
 │   ├── VISION.md
 │   ├── DESIGN_PILLARS.md
@@ -48,7 +54,8 @@ Project-Everward/
 │   ├── TESTING_STRATEGY.md
 │   ├── SAVE_FORMAT.md
 │   ├── PERFORMANCE_BUDGETS.md
-│   └── DECISION_LOG.md
+│   ├── DECISION_LOG.md
+│   └── REPOSITORY_SETTINGS.md
 ├── prototypes/
 │   ├── simulation-clock/
 │   ├── procedural-system/
@@ -78,6 +85,16 @@ The simulation owns truth. Presentation renders truth.
 
 The renderer, UI, narration, or future AI-assisted presentation layer must never decide whether a mechanical event occurred. Simulation state and deterministic rules determine outcomes; presentation explains or visualizes them.
 
+## Local foundation check
+
+Before opening or merging a project-foundation change, run:
+
+```text
+python tools/check_foundation.py
+```
+
+This is the same portable validation entry point used by GitHub Actions.
+
 ## Status
 
-Private pre-production repository. Commercial release decisions, public branding, Steam presence, and final engine selection remain future gates.
+Private proprietary pre-production repository. Commercial release decisions, public branding, Steam presence, contributor agreements, Git LFS asset rules, and final engine selection remain future gates.
