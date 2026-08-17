@@ -32,3 +32,6 @@ jobs:
 
       - name: Test deterministic simulation clock prototype
         run: python -m unittest discover -s prototypes/simulation-clock -p 'test_*.py' -v
+
+      - name: Test coordinate scale prototype
+        run: python -m unittest discover -s prototypes/coordinate-scale -p 'test_*.py' -v
