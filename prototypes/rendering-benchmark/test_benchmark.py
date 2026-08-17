@@ -1,11 +1,13 @@
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 
 MODULE_PATH = Path(__file__).with_name("benchmark.py")
 spec = importlib.util.spec_from_file_location("rendering_benchmark", MODULE_PATH)
 benchmark = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = benchmark
 assert spec.loader is not None
 spec.loader.exec_module(benchmark)
 
