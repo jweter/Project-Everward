@@ -1,0 +1,45 @@
+{
+  "scenario_version": 1,
+  "name": "icy-asteroid-mining",
+  "target_resolution": [2560, 1440],
+  "target_fps": 60,
+  "duration_seconds": 120,
+  "camera_sequence": [
+    "local_mining_closeup",
+    "probe_and_asteroid_medium",
+    "planetary_context_wide"
+  ],
+  "required_scene_features": [
+    "stellar_directional_illumination",
+    "large_planet_backdrop",
+    "icy_asteroid_surface",
+    "moving_mining_mechanism",
+    "particle_debris",
+    "environmental_volumetrics",
+    "interactive_hud_telemetry",
+    "accelerated_simulation_clock"
+  ],
+  "required_capture": [
+    "engine_version",
+    "os_version",
+    "cpu_model",
+    "gpu_model",
+    "ram_gib",
+    "project_settings",
+    "cpu_frame_time_ms",
+    "gpu_frame_time_ms",
+    "peak_memory_mib",
+    "implementation_hours",
+    "build_size_mib",
+    "screenshots",
+    "notes"
+  ],
+  "fairness_rules": [
+    "same_scene_goals",
+    "same_resolution",
+    "same_camera_sequence",
+    "equivalent_visual_quality_target",
+    "no_engine_specific_feature_omission_without_note",
+    "record_raw_measurements_before_normalization"
+  ]
+}
