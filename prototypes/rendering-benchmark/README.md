@@ -28,6 +28,10 @@ The canonical run target is 2560×1440 at a 60 FPS target over a 120-second capt
 
 Both engine runs must retain the raw evidence named by `scenario.json`, including engine/OS/hardware versions, project settings, CPU and GPU frame times, peak memory, implementation effort, build size, screenshots, and notes. Raw measurements are recorded before any normalized 0–10 scoring.
 
+`run_record.py` is the audit boundary for that evidence. Each captured engine run must identify its scenario version and name, candidate engine, capture timestamp, and the complete raw evidence object. The validator rejects scenario drift, missing or unexpected capture fields, invalid measurements, empty screenshot evidence, and unsupported engine labels before those measurements can be normalized or compared.
+
+Raw run records are evidence, not scores. A run record must remain independently inspectable even if the normalization model or benchmark weights later change.
+
 ## Required normalized evidence
 
 Both engine implementations must report every metric in `REQUIRED_METRICS` on a normalized 0–10 scale where higher is better. Raw measurements and notes must be retained alongside the normalized score so the normalization can be audited.
@@ -55,10 +59,11 @@ The default weights intentionally emphasize visual fidelity, simulation-core int
 1. Use the same versioned `scenario.json` in both engines.
 2. Record hardware, engine version, project settings, resolution, and test conditions.
 3. Capture raw CPU/GPU frame-time and memory measurements before normalization.
-4. Explain every subjective score with short evidence notes.
-5. Do not omit an unfavorable metric. Incomplete evidence is rejected by the scorer.
-6. A weighted score difference below 0.25 is reported as `too_close_to_call`; it must not force an engine decision.
-7. The weighted score is decision support, not an automatic ADR. Material workflow or licensing constraints may still control the final decision if documented explicitly.
+4. Validate each raw run record before producing normalized scores.
+5. Explain every subjective score with short evidence notes.
+6. Do not omit an unfavorable metric. Incomplete evidence is rejected by the scorer.
+7. A weighted score difference below 0.25 is reported as `too_close_to_call`; it must not force an engine decision.
+8. The weighted score is decision support, not an automatic ADR. Material workflow or licensing constraints may still control the final decision if documented explicitly.
 
 ## Running the contract tests
 
