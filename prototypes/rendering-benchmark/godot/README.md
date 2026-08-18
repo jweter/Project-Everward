@@ -19,13 +19,17 @@ Open this directory as a Godot 4 project and run `main.tscn`. The adapter:
 - validates handoff version 2 and the canonical `icy-asteroid-mining` scenario;
 - places the asteroid, probe, planet, and directional star light from the handoff;
 - executes the canonical camera sequence and stage durations;
-- derives animation phase only from benchmark elapsed time and handoff periods;
+- derives asteroid and mining-mechanism animation phase only from benchmark elapsed time and handoff periods;
 - displays the handoff-defined accelerated simulation time in HUD telemetry.
 
-The current geometry is intentionally a scene shell, not final visual evidence. It proves that Godot can consume the same deterministic scene truth that Unreal will receive without moving authoritative simulation behavior into engine objects.
+## Visual-feature shell
+
+The scene now contains concrete Godot implementations for every canonical presentation class needed before profiling: stellar directional illumination, the large planet backdrop, an icy asteroid material, visible moving mining machinery, GPU debris particles, environmental volumetric fog, and HUD telemetry. The mining arm motion is still deterministic and derives from the canonical `mining_mechanism` animation period; particles and volumetrics are presentation-only and do not alter benchmark truth.
+
+This remains a benchmark shell rather than final decision-grade art. Placeholder geometry and materials must be brought to an equivalent visual-quality target in both engines before comparative screenshots or performance measurements are accepted.
 
 ## Next benchmark work
 
-Replace placeholder meshes/materials with equivalent-quality benchmark presentation while preserving the adapter boundary. Add the required debris particles and environmental volumetrics, then capture profiler, memory, build-size, implementation-time, screenshot, save/load, procedural-scene, and large-coordinate evidence according to `../CAPTURE_RUNBOOK.md`.
+Run the Godot project on benchmark hardware, refine equivalent-quality presentation without changing the canonical workload, and capture profiler, memory, build-size, implementation-time, screenshot, save/load, procedural-scene, and large-coordinate evidence according to `../CAPTURE_RUNBOOK.md`. The Unreal candidate must implement the same required feature set from the same handoff before engine scoring.
 
-Do not score or claim the Godot result until the scene satisfies every canonical required feature and the completed run record validates.
+Do not score or claim the Godot result until the scene satisfies every canonical required feature at the agreed visual quality and the completed run record validates.

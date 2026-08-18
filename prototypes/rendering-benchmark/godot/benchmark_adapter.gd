@@ -6,6 +6,8 @@ const EXPECTED_SCENARIO_NAME := "icy-asteroid-mining"
 
 @onready var asteroid: MeshInstance3D = $Asteroid
 @onready var probe: MeshInstance3D = $Probe
+@onready var mining_arm: MeshInstance3D = $Probe/MiningArm
+@onready var mining_debris: GPUParticles3D = $MiningDebris
 @onready var planet: MeshInstance3D = $Planet
 @onready var star_light: DirectionalLight3D = $StarLight
 @onready var benchmark_camera: Camera3D = $BenchmarkCamera
@@ -85,6 +87,7 @@ func _apply_static_scene_truth() -> void:
     asteroid.position = _vec3(objects["asteroid"]["position_m"])
     probe.position = _vec3(objects["probe"]["position_m"])
     planet.position = _vec3(objects["planet"]["position_m"])
+    mining_debris.position = probe.position + Vector3(0.0, -1.5, 28.0)
 
     var direction := _vec3(objects["star_light"]["direction"]).normalized()
     star_light.look_at(star_light.global_position + direction, Vector3.UP)
@@ -115,7 +118,8 @@ func _apply_deterministic_animation(elapsed: float) -> void:
     asteroid.rotation.y = asteroid_phase * TAU
 
     var mining_phase := fmod(elapsed, float(periods["mining_mechanism"])) / float(periods["mining_mechanism"])
-    probe.rotation.z = sin(mining_phase * TAU) * 0.08
+    mining_arm.rotation.x = sin(mining_phase * TAU) * 0.42
+    mining_arm.position.z = 17.0 + sin(mining_phase * TAU) * 3.0
 
 
 func _update_hud(elapsed: float) -> void:
