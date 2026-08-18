@@ -1,0 +1,59 @@
+{
+  "manifest_version": 1,
+  "scenario_name": "icy-asteroid-mining",
+  "scenario_version": 1,
+  "coordinate_unit": "meter",
+  "objects": {
+    "asteroid": {
+      "kind": "icy_asteroid",
+      "position_m": [0.0, 0.0, 0.0],
+      "radius_m": 420.0
+    },
+    "probe": {
+      "kind": "mining_probe",
+      "position_m": [0.0, 35.0, 470.0],
+      "forward": [0.0, -0.075, -0.997]
+    },
+    "planet": {
+      "kind": "large_planet_backdrop",
+      "position_m": [1800000.0, 450000.0, -3600000.0],
+      "radius_m": 620000.0
+    },
+    "star_light": {
+      "kind": "stellar_directional_illumination",
+      "direction": [-0.63, -0.27, -0.73]
+    }
+  },
+  "cameras": {
+    "local_mining_closeup": {
+      "position_m": [32.0, 18.0, 515.0],
+      "target_m": [0.0, 20.0, 448.0],
+      "vertical_fov_degrees": 52.0
+    },
+    "probe_and_asteroid_medium": {
+      "position_m": [720.0, 310.0, 980.0],
+      "target_m": [0.0, 30.0, 120.0],
+      "vertical_fov_degrees": 48.0
+    },
+    "planetary_context_wide": {
+      "position_m": [2600.0, 1250.0, 4200.0],
+      "target_m": [100.0, 100.0, 0.0],
+      "vertical_fov_degrees": 44.0
+    }
+  },
+  "animation": {
+    "mining_mechanism_period_seconds": 4.0,
+    "debris_pulse_period_seconds": 2.5,
+    "asteroid_rotation_period_seconds": 180.0
+  },
+  "feature_bindings": {
+    "stellar_directional_illumination": "objects.star_light",
+    "large_planet_backdrop": "objects.planet",
+    "icy_asteroid_surface": "objects.asteroid",
+    "moving_mining_mechanism": "objects.probe",
+    "particle_debris": "animation.debris_pulse_period_seconds",
+    "environmental_volumetrics": "presentation_required",
+    "interactive_hud_telemetry": "scene_state.hud",
+    "accelerated_simulation_clock": "playback.elapsed_simulation_seconds"
+  }
+}
