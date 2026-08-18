@@ -31,3 +31,12 @@ This ledger records verified development and CI failures whose root causes are u
 - **Scope:** benchmark metadata correction only; renderer-neutral scene truth remains unchanged.
 - **Prevention:** every new persisted artifact that binds to a versioned canonical contract must copy its identity from the current authoritative contract at creation time and include a CI test that validates the binding before any deeper behavior assertions. Treat version mismatch as a hard failure, never an implicit migration.
 - **Verification:** fresh GitHub Actions run required on the updated PR head.
+
+## 2026-08-18 — Capture readiness audit referenced stale Unreal source filenames
+
+- **Observed failure risk:** the Phase 1 hardware-capture readiness contract required `BenchmarkCaptureSession.h/.cpp`, but the merged Unreal implementation uses `BenchmarkCaptureSessionComponent.h/.cpp`. The synthetic test fixture created whatever paths the contract requested, so CI could pass while the audit remained inconsistent with the real repository layout.
+- **Root cause:** the readiness file list was authored against an earlier Unreal capture-session name and the fixture tests derived their filesystem entirely from that same list, creating a self-consistent but stale test oracle.
+- **Fix:** update the Unreal required paths to `BenchmarkCaptureSessionComponent.h/.cpp` and add a regression test that asserts every engine-required path exists in the real repository tree.
+- **Scope:** readiness-audit and regression-test correction only; engine runtime, benchmark measurements, simulation truth, and scoring logic are unchanged.
+- **Prevention:** structural readiness tests must validate declared paths against the real checked-in repository layout in addition to isolated synthetic fixtures. Do not let the configuration under test also generate the only source of truth used to verify itself.
+- **Verification:** fresh Foundation checks required on the corrective PR head before merge.

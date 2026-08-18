@@ -24,8 +24,8 @@ ENGINE_REQUIRED_FILES = {
         "unreal/Source/EverwardBenchmark/EverwardBenchmark.Build.cs",
         "unreal/Source/EverwardBenchmark/BenchmarkAdapter.h",
         "unreal/Source/EverwardBenchmark/BenchmarkAdapter.cpp",
-        "unreal/Source/EverwardBenchmark/BenchmarkCaptureSession.h",
-        "unreal/Source/EverwardBenchmark/BenchmarkCaptureSession.cpp",
+        "unreal/Source/EverwardBenchmark/BenchmarkCaptureSessionComponent.h",
+        "unreal/Source/EverwardBenchmark/BenchmarkCaptureSessionComponent.cpp",
     ),
 }
 
