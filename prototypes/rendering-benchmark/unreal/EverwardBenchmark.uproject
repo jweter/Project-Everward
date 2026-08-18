@@ -1,0 +1,13 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.4",
+  "Category": "Everward Phase 1 Prototype C",
+  "Description": "Renderer adapter for the canonical Everward rendering benchmark.",
+  "Modules": [
+    {
+      "Name": "EverwardBenchmark",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}
