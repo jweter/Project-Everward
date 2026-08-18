@@ -15,10 +15,44 @@ It deliberately does **not** invent benchmark measurements, choose an engine wit
 
 The existing normalization layer derives objective scores from raw capture fields and preserves qualitative evidence. The existing weighted comparison contract then evaluates the complete 13-metric result.
 
+Each qualitative evidence document used by the finalizer is engine-bound and has this shape:
+
+```json
+{
+  "assessment_version": 1,
+  "engine": "godot",
+  "metrics": {
+    "visual_fidelity": {
+      "score": 8.0,
+      "evidence": "A/B screenshot review and notes"
+    }
+  }
+}
+```
+
+`metrics` must contain exactly every qualitative metric declared by `normalization.QUALITATIVE_METRICS`; every entry must contain `score` and `evidence`. The normalizer remains responsible for validating the 0..10 score range and non-empty evidence.
+
+## Finalization command
+
+After both engine captures have been assembled into complete run records and qualitative reviews are complete, generate the single decision artifact with:
+
+```text
+python prototypes/rendering-benchmark/finalize_engine_decision.py \
+  --scenario <canonical-scenario.json> \
+  --left-record <godot-run-record.json> \
+  --right-record <unreal-run-record.json> \
+  --left-qualitative <godot-qualitative.json> \
+  --right-qualitative <unreal-qualitative.json> \
+  --output <phase1-engine-decision.json>
+```
+
+The command rejects qualitative evidence assigned to the wrong engine, incomplete/unknown qualitative metric sets, invalid scenario data, invalid run records, and any downstream normalization or comparison contract violation. It does not mutate the evidence inputs.
+
 ## Output
 
-The packet records:
+The final artifact records:
 
+- artifact type/version and the exact evidence paths supplied to finalization,
 - scenario identity,
 - normalized weighted comparison,
 - decision status,
@@ -36,4 +70,4 @@ If the result falls inside the tie threshold, the packet is marked `additional_e
 
 ## Scope boundary
 
-This is still technical-proof tooling. It does not complete Prototype C by itself. Everward still needs representative Godot and Unreal implementations of the canonical scene and real captured evidence before TD-001 can be closed and Phase 2 may begin.
+This is still technical-proof tooling. It does not complete Prototype C by itself. Everward still needs representative Godot and Unreal executions on the same benchmark hardware plus real captured evidence before TD-001 can be closed and Phase 2 may begin.
