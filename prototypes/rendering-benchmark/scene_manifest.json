@@ -1,7 +1,7 @@
 {
   "manifest_version": 1,
   "scenario_name": "icy-asteroid-mining",
-  "scenario_version": 1,
+  "scenario_version": 2,
   "coordinate_unit": "meter",
   "objects": {
     "asteroid": {
