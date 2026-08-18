@@ -7,6 +7,7 @@ import unittest
 
 
 ROOT = Path(__file__).parent
+SCENARIO = json.loads((ROOT / "scenario.json").read_text(encoding="utf-8"))
 for module_name in (
     "benchmark",
     "scenario",
@@ -33,8 +34,8 @@ class RenderingBenchmarkPipelineTests(unittest.TestCase):
         return {
             "record_version": 1,
             "engine": engine,
-            "scenario_version": 1,
-            "scenario_name": "icy_asteroid_mining_v1",
+            "scenario_version": SCENARIO["scenario_version"],
+            "scenario_name": SCENARIO["name"],
             "captured_at_utc": "2026-08-18T00:00:00Z",
             "capture": {
                 "engine_version": "test",
@@ -89,7 +90,7 @@ class RenderingBenchmarkPipelineTests(unittest.TestCase):
 
         self.assertEqual(packet["status"], "decision_ready")
         self.assertEqual(packet["recommendation"], "godot")
-        self.assertEqual(packet["scenario_name"], "icy_asteroid_mining_v1")
+        self.assertEqual(packet["scenario_name"], SCENARIO["name"])
 
     def test_missing_qualitative_metric_is_rejected_before_scoring(self):
         assessments = self.qualitative(8.0)
