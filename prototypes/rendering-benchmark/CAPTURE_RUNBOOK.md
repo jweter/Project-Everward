@@ -71,11 +71,23 @@ Target capture conditions are 2560×1440, 60 FPS target, and a 120-second measur
 
 ## Evidence recording
 
-Use the generated run-record files as the exact field scaffold for each engine. Fill every field with real captured evidence. `notes` may be empty only when there truly is nothing additional to record.
+Each engine capture session writes an observation containing the measurements that candidate can collect reliably plus an explicit `manual_evidence_still_required` list. Treat the observation as immutable measured evidence; do not copy those measured values into a hand-edited record and do not override them manually.
 
-Required evidence includes engine/OS/hardware versions, project settings, CPU and GPU frame times, peak memory, implementation hours, build size, screenshots, and notes.
+Create a separate JSON object containing exactly the manual fields listed by that observation. Then assemble the decision-grade record with:
 
-Do not convert measurements into normalized scores manually. After capture, validate the completed object with `run_record.py`; only validated raw records may flow into normalization and the decision packet.
+```bash
+python prototypes/rendering-benchmark/assemble_run_record.py \
+  --scenario prototypes/rendering-benchmark/scenario.json \
+  --observation path/to/engine_capture_observation.json \
+  --manual-evidence path/to/engine_manual_evidence.json \
+  --output prototypes/rendering-benchmark/captures/engine-run-record.json
+```
+
+The assembler rejects scenario/version drift, incomplete evidence partitions, missing manual fields, unexpected manual fields, and attempts to override engine-measured values. The completed output must also pass the strict `run_record.py` contract before it is written successfully.
+
+For Godot, decision-grade peak process memory remains manual because its current capture adapter records static memory only as diagnostic context. For Unreal, peak process physical memory is captured automatically and therefore cannot be replaced by manual evidence. GPU frame time remains manual for both candidates and must come from engine-native profiling.
+
+Required final evidence includes engine/OS/hardware versions, project settings, CPU and GPU frame times, peak memory, implementation hours, build size, screenshots, and notes. Do not convert measurements into normalized scores manually; only validated raw records may flow into normalization and the decision packet.
 
 ## Pair-comparison gate
 
