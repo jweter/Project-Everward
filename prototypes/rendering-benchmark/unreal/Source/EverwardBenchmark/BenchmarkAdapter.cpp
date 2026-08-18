@@ -2,14 +2,18 @@
 
 #include "Camera/CameraComponent.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Dom/JsonObject.h"
+#include "Engine/StaticMesh.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "UObject/ConstructorHelpers.h"
 
 ABenchmarkAdapter::ABenchmarkAdapter()
 {
@@ -30,14 +34,22 @@ ABenchmarkAdapter::ABenchmarkAdapter()
     Planet = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Planet"));
     Planet->SetupAttachment(SceneRoot);
 
+    DebrisParticles = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("DebrisParticles"));
+    DebrisParticles->SetupAttachment(SceneRoot);
+
     StarLight = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("StarLight"));
     StarLight->SetupAttachment(SceneRoot);
+
+    VolumetricFog = CreateDefaultSubobject<UExponentialHeightFogComponent>(TEXT("VolumetricFog"));
+    VolumetricFog->SetupAttachment(SceneRoot);
 
     BenchmarkCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("BenchmarkCamera"));
     BenchmarkCamera->SetupAttachment(SceneRoot);
 
     Telemetry = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Telemetry"));
-    Telemetry->SetupAttachment(SceneRoot);
+    Telemetry->SetupAttachment(BenchmarkCamera);
+
+    ConfigureVisualFeatureShell();
 }
 
 void ABenchmarkAdapter::BeginPlay()
@@ -51,6 +63,7 @@ void ABenchmarkAdapter::BeginPlay()
     }
 
     ApplyStaticSceneTruth();
+    PopulateDeterministicDebris();
     RestartCanonicalPlayback();
 }
 
@@ -139,6 +152,73 @@ bool ABenchmarkAdapter::LoadAndValidateHandoff()
     return true;
 }
 
+void ABenchmarkAdapter::ConfigureVisualFeatureShell()
+{
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+
+    if (SphereMesh.Succeeded())
+    {
+        Asteroid->SetStaticMesh(SphereMesh.Object);
+        Planet->SetStaticMesh(SphereMesh.Object);
+        DebrisParticles->SetStaticMesh(SphereMesh.Object);
+    }
+    if (CubeMesh.Succeeded())
+    {
+        Probe->SetStaticMesh(CubeMesh.Object);
+    }
+    if (CylinderMesh.Succeeded())
+    {
+        MiningArm->SetStaticMesh(CylinderMesh.Object);
+    }
+
+    // Renderer-owned presentation only. Canonical positions and timing still come from the handoff.
+    Asteroid->SetWorldScale3D(FVector(8.5, 7.2, 6.8));
+    Probe->SetWorldScale3D(FVector(0.35, 0.55, 0.25));
+    MiningArm->SetWorldScale3D(FVector(0.12, 0.12, 0.8));
+    Planet->SetWorldScale3D(FVector(180.0));
+    DebrisParticles->SetWorldScale3D(FVector(0.025));
+
+    StarLight->SetIntensity(8.0f);
+    StarLight->SetLightColor(FLinearColor(1.0f, 0.94f, 0.84f));
+    StarLight->SetCastShadows(true);
+
+    VolumetricFog->SetFogDensity(0.0025f);
+    VolumetricFog->SetFogHeightFalloff(0.08f);
+    VolumetricFog->SetVolumetricFog(true);
+    VolumetricFog->SetVolumetricFogExtinctionScale(0.35f);
+
+    BenchmarkCamera->bConstrainAspectRatio = true;
+    BenchmarkCamera->AspectRatio = 2560.0f / 1440.0f;
+
+    Telemetry->SetRelativeLocation(FVector(180.0, -78.0, -42.0));
+    Telemetry->SetRelativeRotation(FRotator(0.0, 180.0, 0.0));
+    Telemetry->SetWorldSize(18.0f);
+    Telemetry->SetHorizontalAlignment(EHTA_Left);
+}
+
+void ABenchmarkAdapter::PopulateDeterministicDebris()
+{
+    DebrisParticles->ClearInstances();
+
+    // Fixed low-discrepancy placement gives both repeatability and a particle-like field without RNG.
+    const FVector AsteroidCenter = Asteroid->GetComponentLocation();
+    for (int32 Index = 0; Index < DebrisParticleCount; ++Index)
+    {
+        const double T = static_cast<double>(Index) / static_cast<double>(DebrisParticleCount);
+        const double Angle = T * UE_TWO_PI * 7.0;
+        const double RadiusM = 9.0 + static_cast<double>((Index * 37) % 29) * 0.18;
+        const double HeightM = -2.0 + static_cast<double>((Index * 19) % 23) * 0.18;
+        const FVector Offset(
+            FMath::Cos(Angle) * RadiusM * MetersToCentimeters,
+            FMath::Sin(Angle) * RadiusM * MetersToCentimeters,
+            HeightM * MetersToCentimeters);
+        const FTransform InstanceTransform(FRotator::ZeroRotator, AsteroidCenter + Offset, FVector(1.0));
+        DebrisParticles->AddInstance(InstanceTransform, true);
+    }
+}
+
 void ABenchmarkAdapter::ApplyStaticSceneTruth()
 {
     const TSharedPtr<FJsonObject> Objects = Handoff->GetObjectField(TEXT("objects"));
@@ -194,13 +274,17 @@ void ABenchmarkAdapter::ApplyDeterministicAnimation(double ElapsedSeconds)
     const double Wave = FMath::Sin(MiningPhase * UE_TWO_PI);
     MiningArm->SetRelativeRotation(FRotator(Wave * 24.0, 0.0, 0.0));
     MiningArm->SetRelativeLocation(FVector(0.0, 0.0, (17.0 + Wave * 3.0) * MetersToCentimeters));
+
+    // Debris motion is deterministic presentation derived from canonical playback time, never RNG.
+    const FRotator DebrisRotation(0.0, FMath::Fmod(ElapsedSeconds * 3.0, 360.0), 0.0);
+    DebrisParticles->SetWorldRotation(DebrisRotation);
 }
 
 void ABenchmarkAdapter::UpdateTelemetry(double ElapsedSeconds)
 {
     const double SimulatedSeconds = ElapsedSeconds * Handoff->GetNumberField(TEXT("simulation_seconds_per_real_second"));
     Telemetry->SetText(FText::FromString(FString::Printf(
-        TEXT("EVERWARD // UNREAL PROTOTYPE C\ncamera: %s\nreal: %.3f s   simulated: %.3f s"),
+        TEXT("EVERWARD // UNREAL PROTOTYPE C\ncamera: %s\nreal: %.3f s   simulated: %.3f s\nrender: stellar light / volumetric fog / deterministic debris"),
         *ActiveCameraStage,
         ElapsedSeconds,
         SimulatedSeconds)));
