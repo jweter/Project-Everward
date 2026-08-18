@@ -10,6 +10,7 @@ ROOT = Path(__file__).parent
 for module_name in (
     "benchmark",
     "scenario",
+    "playback",
     "scene_state",
     "export_handoff",
     "evidence_template",
@@ -48,8 +49,7 @@ class HardwareCapturePreparationTests(unittest.TestCase):
             unreal = json.loads((output_dir / "unreal-run-record.json").read_text(encoding="utf-8"))
 
             for payload in (handoff, godot, unreal):
-                scenario_name_key = "scenario_name"
-                self.assertEqual(payload[scenario_name_key], scenario["name"])
+                self.assertEqual(payload["scenario_name"], scenario["name"])
                 self.assertEqual(payload["scenario_version"], scenario["scenario_version"])
 
     def test_existing_handoff_is_not_overwritten_by_default(self):
