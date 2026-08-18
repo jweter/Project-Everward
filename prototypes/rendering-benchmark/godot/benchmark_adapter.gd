@@ -37,6 +37,13 @@ func _process(delta: float) -> void:
     _update_hud(elapsed_real_seconds)
 
 
+func restart_canonical_playback() -> void:
+    elapsed_real_seconds = 0.0
+    _apply_camera_stage(_camera_stage_at(0.0))
+    _apply_deterministic_animation(0.0)
+    _update_hud(0.0)
+
+
 func _load_handoff(path: String) -> Dictionary:
     if not FileAccess.file_exists(path):
         push_error("Missing canonical benchmark handoff: %s" % path)
