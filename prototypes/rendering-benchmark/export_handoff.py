@@ -37,14 +37,24 @@ def build_handoff_bundle(
 
     frames = [scene_state(scenario, manifest, value) for value in times]
     return {
-        "handoff_version": 1,
+        "handoff_version": 2,
         "scenario_name": scenario["name"],
         "scenario_version": scenario["scenario_version"],
         "duration_seconds": scenario["duration_seconds"],
         "target_resolution": scenario["target_resolution"],
         "target_fps": scenario["target_fps"],
         "simulation_seconds_per_real_second": scenario["simulation_seconds_per_real_second"],
+        "camera_sequence": scenario["camera_sequence"],
+        "camera_stage_durations_seconds": scenario["camera_stage_durations_seconds"],
         "required_scene_features": scenario["required_scene_features"],
+        "objects": manifest["objects"],
+        "cameras": manifest["cameras"],
+        "animation_periods_seconds": {
+            "mining_mechanism": manifest["animation"]["mining_mechanism_period_seconds"],
+            "debris_pulse": manifest["animation"]["debris_pulse_period_seconds"],
+            "asteroid_rotation": manifest["animation"]["asteroid_rotation_period_seconds"],
+        },
+        "feature_bindings": manifest["feature_bindings"],
         "sample_times_seconds": list(times),
         "frames": frames,
     }

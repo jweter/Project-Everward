@@ -47,6 +47,25 @@ class EngineHandoffBundleTests(unittest.TestCase):
         self.assertEqual(bundle["target_resolution"], self.scenario["target_resolution"])
         self.assertEqual(bundle["target_fps"], self.scenario["target_fps"])
 
+    def test_bundle_is_self_contained_for_continuous_engine_playback(self):
+        bundle = export_handoff.build_handoff_bundle(self.scenario, self.manifest)
+        self.assertEqual(bundle["camera_sequence"], self.scenario["camera_sequence"])
+        self.assertEqual(
+            bundle["camera_stage_durations_seconds"],
+            self.scenario["camera_stage_durations_seconds"],
+        )
+        self.assertEqual(bundle["objects"], self.manifest["objects"])
+        self.assertEqual(bundle["cameras"], self.manifest["cameras"])
+        self.assertEqual(bundle["feature_bindings"], self.manifest["feature_bindings"])
+        self.assertEqual(
+            bundle["animation_periods_seconds"],
+            {
+                "mining_mechanism": self.manifest["animation"]["mining_mechanism_period_seconds"],
+                "debris_pulse": self.manifest["animation"]["debris_pulse_period_seconds"],
+                "asteroid_rotation": self.manifest["animation"]["asteroid_rotation_period_seconds"],
+            },
+        )
+
     def test_rejects_out_of_range_or_unsorted_samples(self):
         with self.assertRaisesRegex(ValueError, "within benchmark duration"):
             export_handoff.build_handoff_bundle(self.scenario, self.manifest, [0.0, 120.0])
@@ -67,7 +86,7 @@ class EngineHandoffBundleTests(unittest.TestCase):
             second = output.read_text(encoding="utf-8")
         self.assertEqual(first, second)
         parsed = json.loads(first)
-        self.assertEqual(parsed["handoff_version"], 1)
+        self.assertEqual(parsed["handoff_version"], 2)
         self.assertEqual(len(parsed["frames"]), len(export_handoff.DEFAULT_SAMPLE_TIMES))
 
 
