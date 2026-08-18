@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "BenchmarkAdapter.generated.h"
 
+class UBenchmarkCaptureSessionComponent;
 class UCameraComponent;
 class UDirectionalLightComponent;
 class UExponentialHeightFogComponent;
@@ -25,6 +26,11 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Everward Benchmark")
     void RestartCanonicalPlayback();
+
+    bool IsCanonicalHandoffReady() const;
+    double GetCanonicalDurationSeconds() const;
+    FString GetCanonicalScenarioName() const;
+    int32 GetCanonicalScenarioVersion() const;
 
 protected:
     virtual void BeginPlay() override;
@@ -64,6 +70,9 @@ private:
 
     UPROPERTY(VisibleAnywhere)
     TObjectPtr<UTextRenderComponent> Telemetry;
+
+    UPROPERTY(VisibleAnywhere)
+    TObjectPtr<UBenchmarkCaptureSessionComponent> CaptureSession;
 
     TSharedPtr<FJsonObject> Handoff;
     double ElapsedRealSeconds = 0.0;
