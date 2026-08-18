@@ -46,11 +46,23 @@ Relevant categories include:
 
 Engine choice remains open. Record the exact production-engine version and applicable license terms after the engine decision. Do not assume that an engine's license automatically covers third-party assets or plugins distributed with it.
 
-## Repository license
+## Repository visibility and license posture
 
-The repository is private and intended for proprietary commercial development. The root `LICENSE` file therefore reserves rights rather than granting an open-source license unless an explicit future decision changes that status.
+The repository is intentionally **public** for operational reasons while Everward remains **proprietary commercial software and creative work**.
 
-Individual third-party components retain their own licenses and must be documented here or in a dedicated dependency/asset manifest.
+Public visibility is not an open-source license grant. Viewing, cloning, or otherwise accessing a public repository does not by itself grant permission to copy, modify, redistribute, sublicense, sell, commercialize, or create derivative works from Everward's original materials.
+
+The root `LICENSE` reserves rights rather than granting an open-source license unless an explicit future decision changes that status. Keep that notice prominent and do not add an incompatible open-source project license covering Everward's original work.
+
+Individual third-party components retain their own licenses and must be documented here, in `THIRD_PARTY_NOTICES.md`, or in a dedicated dependency/asset manifest. Their terms may grant rights independently for those specific components and do not alter ownership of Everward's original material.
+
+Because the repository is public:
+
+- never commit secrets, credentials, private keys, store credentials, signing material, or private personal data;
+- never commit third-party material that cannot legally be redistributed publicly;
+- keep private/generated source material out of the repository where its terms or provenance require that;
+- review external contributions for IP provenance before acceptance;
+- do not imply that public source availability authorizes public contribution, redistribution, or derivative commercial use.
 
 ## AI-assisted content
 
