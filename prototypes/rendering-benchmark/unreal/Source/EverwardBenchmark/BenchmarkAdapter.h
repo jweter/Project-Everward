@@ -6,6 +6,8 @@
 
 class UCameraComponent;
 class UDirectionalLightComponent;
+class UExponentialHeightFogComponent;
+class UInstancedStaticMeshComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 class USceneComponent;
@@ -31,6 +33,7 @@ private:
     static constexpr int32 ExpectedHandoffVersion = 2;
     static constexpr const TCHAR* ExpectedScenarioName = TEXT("icy-asteroid-mining");
     static constexpr double MetersToCentimeters = 100.0;
+    static constexpr int32 DebrisParticleCount = 96;
 
     UPROPERTY(VisibleAnywhere)
     TObjectPtr<USceneComponent> SceneRoot;
@@ -48,7 +51,13 @@ private:
     TObjectPtr<UStaticMeshComponent> Planet;
 
     UPROPERTY(VisibleAnywhere)
+    TObjectPtr<UInstancedStaticMeshComponent> DebrisParticles;
+
+    UPROPERTY(VisibleAnywhere)
     TObjectPtr<UDirectionalLightComponent> StarLight;
+
+    UPROPERTY(VisibleAnywhere)
+    TObjectPtr<UExponentialHeightFogComponent> VolumetricFog;
 
     UPROPERTY(VisibleAnywhere)
     TObjectPtr<UCameraComponent> BenchmarkCamera;
@@ -61,6 +70,8 @@ private:
     FString ActiveCameraStage;
 
     bool LoadAndValidateHandoff();
+    void ConfigureVisualFeatureShell();
+    void PopulateDeterministicDebris();
     void ApplyStaticSceneTruth();
     void ApplyCameraStage(const FString& Stage);
     void ApplyDeterministicAnimation(double ElapsedSeconds);

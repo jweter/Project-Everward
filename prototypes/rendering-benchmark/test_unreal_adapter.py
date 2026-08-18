@@ -58,6 +58,37 @@ class UnrealBenchmarkAdapterTests(unittest.TestCase):
         self.assertIn("ApplyDeterministicAnimation(0.0)", source)
         self.assertIn("UpdateTelemetry(0.0)", source)
 
+    def test_visual_shell_exercises_required_presentation_systems(self):
+        source = HEADER.read_text(encoding="utf-8") + ADAPTER.read_text(encoding="utf-8")
+        for token in (
+            "UDirectionalLightComponent",
+            "UExponentialHeightFogComponent",
+            "UInstancedStaticMeshComponent",
+            "SetVolumetricFog(true)",
+            "DebrisParticleCount = 96",
+            "Telemetry->SetText",
+        ):
+            self.assertIn(token, source)
+
+    def test_visual_shell_assigns_engine_geometry_for_major_scene_objects(self):
+        source = ADAPTER.read_text(encoding="utf-8")
+        for engine_mesh in (
+            "/Engine/BasicShapes/Sphere.Sphere",
+            "/Engine/BasicShapes/Cube.Cube",
+            "/Engine/BasicShapes/Cylinder.Cylinder",
+        ):
+            self.assertIn(engine_mesh, source)
+        for component in ("Asteroid", "Probe", "MiningArm", "Planet", "DebrisParticles"):
+            self.assertIn(f"{component}->SetStaticMesh", source)
+
+    def test_debris_field_is_deterministic_and_rng_free(self):
+        source = ADAPTER.read_text(encoding="utf-8")
+        self.assertIn("PopulateDeterministicDebris", source)
+        self.assertIn("Index * 37", source)
+        self.assertIn("Index * 19", source)
+        self.assertNotIn("FMath::Rand", source)
+        self.assertNotIn("FRandomStream", source)
+
 
 if __name__ == "__main__":
     unittest.main()
