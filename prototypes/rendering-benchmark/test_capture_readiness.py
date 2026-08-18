@@ -40,6 +40,12 @@ class CaptureReadinessTests(unittest.TestCase):
         (root / "handoff.json").write_text(json.dumps(handoff), encoding="utf-8")
         return root
 
+    def test_required_engine_paths_match_real_repository_layout(self):
+        for engine, required in MODULE.ENGINE_REQUIRED_FILES.items():
+            for relative in required:
+                with self.subTest(engine=engine, relative=relative):
+                    self.assertTrue((ROOT / relative).is_file(), f"stale readiness path: {engine}: {relative}")
+
     def test_complete_repository_is_ready_for_hardware_capture(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = self.build_fixture(Path(temp_dir))
