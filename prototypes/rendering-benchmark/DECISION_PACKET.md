@@ -15,6 +15,18 @@ It deliberately does **not** invent benchmark measurements, choose an engine wit
 
 The existing normalization layer derives objective scores from raw capture fields and preserves qualitative evidence. The existing weighted comparison contract then evaluates the complete 13-metric result.
 
+Before scoring, `validate_capture_pair(...)` should be used to prove that the two records are genuinely comparable. It rejects pairs unless both captures share:
+
+- the same source revision,
+- the same canonical handoff SHA-256 digest,
+- the same operating-system version,
+- the same CPU model,
+- the same GPU model,
+- the same installed RAM quantity,
+- the same canonical scenario identity.
+
+This is an evidence-integrity boundary, not a scoring rule. A faster result from different hardware or a different source revision is not decision-grade Everward engine evidence.
+
 Each qualitative evidence document used by the finalizer is engine-bound and has this shape:
 
 ```json
@@ -34,7 +46,7 @@ Each qualitative evidence document used by the finalizer is engine-bound and has
 
 ## Finalization command
 
-After both engine captures have been assembled into complete run records and qualitative reviews are complete, generate the single decision artifact with:
+After both engine captures have been assembled into complete run records, the pair-provenance gate has passed, and qualitative reviews are complete, generate the single decision artifact with:
 
 ```text
 python prototypes/rendering-benchmark/finalize_engine_decision.py \
