@@ -66,7 +66,7 @@ class UnrealBenchmarkAdapterTests(unittest.TestCase):
             "UInstancedStaticMeshComponent",
             "SetVolumetricFog(true)",
             "DebrisParticleCount = 96",
-            "interactive HUD",
+            "Telemetry->SetText",
         ):
             self.assertIn(token, source)
 
