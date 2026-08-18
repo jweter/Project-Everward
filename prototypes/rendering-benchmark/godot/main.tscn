@@ -1,6 +1,7 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://benchmark_adapter.gd" id="1_adapter"]
+[ext_resource type="Script" path="res://capture_session.gd" id="2_capture"]
 
 [sub_resource type="SphereMesh" id="Sphere_asteroid"]
 radius = 420.0
@@ -64,6 +65,9 @@ volumetric_fog_length = 2400.0
 
 [node name="BenchmarkRoot" type="Node3D"]
 script = ExtResource("1_adapter")
+
+[node name="CaptureSession" type="Node" parent="."]
+script = ExtResource("2_capture")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_space")
