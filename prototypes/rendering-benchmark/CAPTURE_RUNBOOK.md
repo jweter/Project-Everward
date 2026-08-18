@@ -24,6 +24,25 @@ This creates `godot-run-record.json` and `unreal-run-record.json` with the same 
 
 The generated files are intentionally incomplete and are not decision-grade evidence until real measurements replace the blank fields and `run_record.py` accepts them.
 
+## Generate and audit the engine handoff
+
+Generate the self-contained renderer handoff immediately before the real hardware run:
+
+```bash
+python prototypes/rendering-benchmark/export_handoff.py \
+  --output prototypes/rendering-benchmark/handoff.json
+```
+
+Then run the structural readiness audit:
+
+```bash
+python prototypes/rendering-benchmark/capture_readiness.py
+```
+
+The audit verifies that both engine adapters, both capture-session implementations, the evidence-assembly/decision pipeline, and a handoff v2 artifact bound to the current canonical scenario are present. A zero exit status means the repository is structurally ready to begin hardware capture; it does **not** mean either engine has been executed or that benchmark evidence exists.
+
+If the audit fails, resolve the listed blocker rather than compensating manually during capture. This is specifically intended to catch stale handoff artifacts and missing engine-side files before implementation time or measurements are spent.
+
 ## Canonical playback contract
 
 Both engine implementations must now use the timing values in `scenario.json`; engine-local timing constants are not authoritative.
