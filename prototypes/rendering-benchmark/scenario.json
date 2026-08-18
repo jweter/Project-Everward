@@ -1,14 +1,16 @@
 {
-  "scenario_version": 1,
+  "scenario_version": 2,
   "name": "icy-asteroid-mining",
   "target_resolution": [2560, 1440],
   "target_fps": 60,
   "duration_seconds": 120,
+  "simulation_seconds_per_real_second": 86400,
   "camera_sequence": [
     "local_mining_closeup",
     "probe_and_asteroid_medium",
     "planetary_context_wide"
   ],
+  "camera_stage_durations_seconds": [40, 40, 40],
   "required_scene_features": [
     "stellar_directional_illumination",
     "large_planet_backdrop",
@@ -38,6 +40,8 @@
     "same_scene_goals",
     "same_resolution",
     "same_camera_sequence",
+    "same_camera_timing",
+    "same_simulation_time_scale",
     "equivalent_visual_quality_target",
     "no_engine_specific_feature_omission_without_note",
     "record_raw_measurements_before_normalization"

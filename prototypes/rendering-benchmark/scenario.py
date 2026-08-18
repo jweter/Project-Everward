@@ -13,7 +13,9 @@ REQUIRED_TOP_LEVEL = {
     "target_resolution",
     "target_fps",
     "duration_seconds",
+    "simulation_seconds_per_real_second",
     "camera_sequence",
+    "camera_stage_durations_seconds",
     "required_scene_features",
     "required_capture",
     "fairness_rules",
@@ -53,7 +55,7 @@ def validate_scenario(data: Mapping[str, Any]) -> None:
     if unexpected:
         raise ValueError(f"unknown scenario fields: {', '.join(unexpected)}")
 
-    if data["scenario_version"] != 1:
+    if data["scenario_version"] != 2:
         raise ValueError("unsupported scenario_version")
     if not isinstance(data["name"], str) or not data["name"].strip():
         raise ValueError("scenario name must be non-empty")
@@ -66,7 +68,7 @@ def validate_scenario(data: Mapping[str, Any]) -> None:
     ):
         raise ValueError("target_resolution must contain two positive integers")
 
-    for field in ("target_fps", "duration_seconds"):
+    for field in ("target_fps", "duration_seconds", "simulation_seconds_per_real_second"):
         if not isinstance(data[field], int) or data[field] <= 0:
             raise ValueError(f"{field} must be a positive integer")
 
@@ -78,6 +80,16 @@ def validate_scenario(data: Mapping[str, Any]) -> None:
             raise ValueError(f"{field} entries must be non-empty strings")
         if len(values) != len(set(values)):
             raise ValueError(f"{field} entries must be unique")
+
+    stage_durations = data["camera_stage_durations_seconds"]
+    if (
+        not isinstance(stage_durations, list)
+        or len(stage_durations) != len(data["camera_sequence"])
+        or any(not isinstance(value, int) or value <= 0 for value in stage_durations)
+    ):
+        raise ValueError("camera_stage_durations_seconds must contain one positive integer per camera stage")
+    if sum(stage_durations) != data["duration_seconds"]:
+        raise ValueError("camera_stage_durations_seconds must sum to duration_seconds")
 
     capture = data["required_capture"]
     if not isinstance(capture, list):
