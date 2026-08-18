@@ -40,3 +40,12 @@ This ledger records verified development and CI failures whose root causes are u
 - **Scope:** readiness-audit and regression-test correction only; engine runtime, benchmark measurements, simulation truth, and scoring logic are unchanged.
 - **Prevention:** structural readiness tests must validate declared paths against the real checked-in repository layout in addition to isolated synthetic fixtures. Do not let the configuration under test also generate the only source of truth used to verify itself.
 - **Verification:** fresh Foundation checks required on the corrective PR head before merge.
+
+## 2026-08-18 — Phase 1 exit gate audit had no CI coverage
+
+- **Observed failure risk:** `prototypes/phase1_exit_gate.py` is the executable contract for the Phase 1 → Phase 2 gate, and `prototypes/test_phase1_exit_gate.py` fully unit-tests it and passed locally, but `Foundation checks` only ran `unittest discover` scoped to each individual prototype subdirectory (`simulation-clock`, `procedural-system`, `coordinate-scale`, `headless-simulation`, `rendering-benchmark`). The top-level `prototypes/test_phase1_exit_gate.py` was never discovered or executed in CI, so a regression in the gate script itself could merge without any independent verification.
+- **Root cause:** the workflow was written prototype-by-prototype before the cross-cutting exit-gate audit and its test file were added at `prototypes/` root, and no step was added to cover that location.
+- **Fix:** add a `Test Phase 1 exit gate audit` step running `python -m unittest discover -s prototypes -p 'test_*.py' -t prototypes -v`. Confirmed this scope discovers only `test_phase1_exit_gate.py` (the hyphenated prototype subdirectories are not importable Python packages, so `unittest discover` does not descend into them and no test is run twice).
+- **Scope:** CI coverage only; `phase1_exit_gate.py` behavior is unchanged.
+- **Prevention:** when a new cross-cutting script and test file are added outside the existing per-prototype directories, add an explicit CI discovery step for that location rather than assuming an existing step already covers it.
+- **Verification:** fresh GitHub Actions run required on the updated PR head.

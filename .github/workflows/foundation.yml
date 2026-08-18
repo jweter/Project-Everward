@@ -44,3 +44,6 @@ jobs:
 
       - name: Test rendering benchmark evidence contract
         run: python -m unittest discover -s prototypes/rendering-benchmark -p 'test_*.py' -v
+
+      - name: Test Phase 1 exit gate audit
+        run: python -m unittest discover -s prototypes -p 'test_*.py' -t prototypes -v
