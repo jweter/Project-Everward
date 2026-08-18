@@ -10,6 +10,20 @@ Use the same physical computer, display resolution, operating-system power mode,
 
 If any material condition differs, record it in `capture.notes` and treat the pair as non-equivalent until the difference is understood.
 
+## Prepare capture records
+
+Before opening either engine, generate both scenario-bound evidence scaffolds from the canonical scenario in one command:
+
+```bash
+python prototypes/rendering-benchmark/prepare_capture.py \
+  --scenario prototypes/rendering-benchmark/scenario.json \
+  --output-dir prototypes/rendering-benchmark/captures
+```
+
+This creates `godot-run-record.json` and `unreal-run-record.json` with the same authoritative scenario name/version and identical required capture fields. The command refuses to overwrite existing evidence by default so an accidental rerun cannot silently erase measurements.
+
+The generated files are intentionally incomplete and are not decision-grade evidence until real measurements replace the blank fields and `run_record.py` accepts them.
+
 ## Before implementation
 
 1. Record the engine version and OS version.
@@ -43,7 +57,7 @@ Target capture conditions are 2560×1440, 60 FPS target, and a 120-second measur
 
 ## Evidence recording
 
-Use `evidence_template.create_evidence_template()` to create the exact field scaffold for `godot` or `unreal`. Fill every real evidence field. `notes` may be empty only when there truly is nothing additional to record.
+Use the generated run-record files as the exact field scaffold for each engine. Fill every field with real captured evidence. `notes` may be empty only when there truly is nothing additional to record.
 
 Required evidence includes engine/OS/hardware versions, project settings, CPU and GPU frame times, peak memory, implementation hours, build size, screenshots, and notes.
 
