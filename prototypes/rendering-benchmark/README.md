@@ -71,6 +71,35 @@ The default weights intentionally emphasize visual fidelity, simulation-core int
 7. A weighted score difference below 0.25 is reported as `too_close_to_call`; it must not force an engine decision.
 8. The weighted score is decision support, not an automatic ADR. Material workflow or licensing constraints may still control the final decision if documented explicitly.
 
+## End-to-end decision pipeline
+
+Once both engine implementations have complete raw run records and explicit qualitative evidence, `pipeline.py` turns those files into a reproducible decision packet without inventing missing measurements or judgments.
+
+Each qualitative JSON file must contain every metric listed in `QUALITATIVE_METRICS`, with exactly:
+
+```json
+{
+  "visual_fidelity": {
+    "score": 8.5,
+    "evidence": "Side-by-side captures at the canonical camera positions."
+  }
+}
+```
+
+Run the pipeline with:
+
+```bash
+python prototypes/rendering-benchmark/pipeline.py \
+  --scenario prototypes/rendering-benchmark/scenario.json \
+  --left-record evidence/godot-run.json \
+  --right-record evidence/unreal-run.json \
+  --left-qualitative evidence/godot-qualitative.json \
+  --right-qualitative evidence/unreal-qualitative.json \
+  --output evidence/engine-decision-packet.json
+```
+
+The command validates the scenario, both raw records, and both qualitative evidence sets before normalization. Its output contains the weighted comparison, top differentiators, normalization audit, and ADR-ready decision fields. A near-tie still produces `additional_evidence_required`; the CLI cannot override the benchmark's decision threshold.
+
 ## Running the contract tests
 
 ```bash
