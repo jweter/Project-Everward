@@ -24,6 +24,12 @@ The current scenario is a probe mining an icy asteroid near a large planet. It r
 
 The canonical run target is 2560×1440 at a 60 FPS target over a 120-second capture window. These values define comparison conditions, not production performance requirements.
 
+## Capture execution
+
+`CAPTURE_RUNBOOK.md` is the operator procedure for producing comparable Godot and Unreal evidence on real hardware. It fixes the fairness controls, scene-acceptance checklist, measurement sequence, evidence-recording rules, and pair-comparison gate.
+
+`evidence_template.py` creates a scenario-bound scaffold with exactly the fields required by the canonical scenario. The scaffold is intentionally incomplete and is **not** valid benchmark evidence until real measurements replace its placeholders and `run_record.py` accepts the completed record.
+
 ## Required raw capture
 
 Both engine runs must retain the raw evidence named by `scenario.json`, including engine/OS/hardware versions, project settings, CPU and GPU frame times, peak memory, implementation effort, build size, screenshots, and notes. Raw measurements are recorded before any normalized 0–10 scoring.
