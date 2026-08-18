@@ -1,5 +1,6 @@
 #include "BenchmarkAdapter.h"
 
+#include "BenchmarkCaptureSessionComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
@@ -18,6 +19,8 @@
 ABenchmarkAdapter::ABenchmarkAdapter()
 {
     PrimaryActorTick.bCanEverTick = true;
+
+    CreateDefaultSubobject<UBenchmarkCaptureSessionComponent>(TEXT("CaptureSession"));
 
     SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
     SetRootComponent(SceneRoot);

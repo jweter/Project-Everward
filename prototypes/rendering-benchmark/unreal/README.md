@@ -12,7 +12,9 @@ The adapter must not introduce random scene-state behavior. Asteroid rotation, m
 
 ## Current slice
 
-The Unreal candidate now includes a first visual-feature shell in addition to the deterministic adapter boundary. `ABenchmarkAdapter` assigns engine-provided primitive geometry for the major scene objects and exercises the canonical presentation categories needed for the comparison:
+The Unreal candidate now includes both the deterministic visual-feature shell and first capture instrumentation.
+
+`ABenchmarkAdapter` exercises:
 
 - stellar directional illumination;
 - a large planetary backdrop;
@@ -24,7 +26,20 @@ The Unreal candidate now includes a first visual-feature shell in addition to th
 
 The debris field deliberately uses fixed index-derived placement rather than renderer-local RNG. The exact positions are presentation detail, but repeatability is required so performance and screenshots are not influenced by a different random field between runs.
 
-This is still **not decision-grade Unreal rendering evidence**. The primitive geometry is a functional visual shell, not final benchmark art. Material/shader refinement, more representative icy-surface treatment, capture instrumentation, profiling, screenshots, build-size measurement, implementation-time evidence, and a real Unreal compile/run remain required by the canonical capture runbook.
+`UBenchmarkCaptureSessionComponent` is attached to the benchmark adapter. It:
+
+1. loads the same canonical handoff used by presentation;
+2. waits for a 5-second warmup;
+3. restarts canonical playback at benchmark time zero;
+4. observes the full handoff-defined capture duration;
+5. records game-thread timing samples from `GGameThreadTime`;
+6. records peak used physical memory from `FPlatformMemory`;
+7. records engine, OS, CPU, GPU, and installed-memory metadata;
+8. writes `Saved/unreal_capture_observation.json`.
+
+The observation includes a `run_record_prefill` object for measurements that the instrumentation can support directly. It deliberately leaves GPU frame time, project settings, implementation hours, build size, screenshots, and notes explicit as manual evidence. GPU timing must come from Unreal Insights, `stat GPU`, or equivalent engine-native profiling; it is never inferred from CPU timing.
+
+This is still **not decision-grade Unreal rendering evidence** until the project has been compiled and run in Unreal Engine 5.4 on the benchmark machine, the remaining manual evidence has been captured, and the completed raw run record passes the repository validator.
 
 ## Preparing the handoff
 
@@ -34,8 +49,14 @@ Generate the self-contained handoff from the repository-level rendering benchmar
 
 Do not hand-edit the bundle to make Unreal behavior differ from Godot. If the renderer needs additional truth, update the renderer-neutral handoff contract first and apply that same revision to both candidates.
 
+## Capture workflow
+
+Run the benchmark from a clean Unreal application start under the fairness controls in `../CAPTURE_RUNBOOK.md`. The capture component warms up automatically and then restarts canonical playback before measuring the handoff-defined run.
+
+After completion, retain `Saved/unreal_capture_observation.json` with the run evidence. Transfer only supported `run_record_prefill` values into the Unreal raw evidence record, complete every still-manual field using real profiler/build/screenshots/work-log evidence, and validate the record with `run_record.py` before normalization.
+
 ## Verification
 
-The repository's rendering-benchmark unittest discovery includes `test_unreal_adapter.py`. Those tests protect the handoff boundary, explicit metre-to-centimetre conversion, deterministic playback, required visual-system shell, engine-provided geometry assignment, and RNG-free debris field even on CI hosts that do not have Unreal Engine installed.
+The repository's rendering-benchmark unittest discovery includes `test_unreal_adapter.py` and `test_unreal_capture.py`. These tests protect the handoff boundary, explicit metre-to-centimetre conversion, deterministic playback, required visual-system shell, RNG-free debris field, canonical capture timing, measurement provenance, and the rule that GPU timing remains manual until measured.
 
 A real Unreal Engine 5.4 compile/run remains required before this candidate can produce benchmark evidence. Static CI is a contract guard, not a substitute for engine validation.
