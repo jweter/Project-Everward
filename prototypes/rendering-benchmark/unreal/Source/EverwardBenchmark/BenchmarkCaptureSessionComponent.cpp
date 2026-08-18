@@ -11,6 +11,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "RHI.h"
+#include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 
@@ -23,6 +24,10 @@ void UBenchmarkCaptureSessionComponent::BeginPlay()
 {
     Super::BeginPlay();
     Adapter = Cast<ABenchmarkAdapter>(GetOwner());
+    if (!Adapter.IsValid() || !LoadCanonicalHandoff())
+    {
+        bCompleted = true;
+    }
 }
 
 void UBenchmarkCaptureSessionComponent::TickComponent(
@@ -32,7 +37,7 @@ void UBenchmarkCaptureSessionComponent::TickComponent(
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-    if (bCompleted || !Adapter.IsValid() || !Adapter->IsCanonicalHandoffReady())
+    if (bCompleted || !Adapter.IsValid() || !Handoff.IsValid())
     {
         return;
     }
@@ -54,10 +59,45 @@ void UBenchmarkCaptureSessionComponent::TickComponent(
     PeakProcessPhysicalBytes = FMath::Max(PeakProcessPhysicalBytes, MemoryStats.PeakUsedPhysical);
 
     CaptureElapsedSeconds += static_cast<double>(DeltaTime);
-    if (CaptureElapsedSeconds >= Adapter->GetCanonicalDurationSeconds())
+    if (CaptureElapsedSeconds >= Handoff->GetNumberField(TEXT("duration_seconds")))
     {
         FinishCanonicalCapture();
     }
+}
+
+bool UBenchmarkCaptureSessionComponent::LoadCanonicalHandoff()
+{
+    const FString Path = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("benchmark_handoff.json"));
+    FString JsonText;
+    if (!FFileHelper::LoadFileToString(JsonText, *Path))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Capture session missing canonical benchmark handoff: %s"), *Path);
+        return false;
+    }
+
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonText);
+    if (!FJsonSerializer::Deserialize(Reader, Handoff) || !Handoff.IsValid())
+    {
+        UE_LOG(LogTemp, Error, TEXT("Capture session handoff must contain a JSON object"));
+        return false;
+    }
+
+    if (!Handoff->HasField(TEXT("handoff_version")) ||
+        !Handoff->HasField(TEXT("scenario_name")) ||
+        !Handoff->HasField(TEXT("scenario_version")) ||
+        !Handoff->HasField(TEXT("duration_seconds")))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Capture session handoff is missing identity or timing fields"));
+        return false;
+    }
+
+    if (Handoff->GetIntegerField(TEXT("handoff_version")) != ExpectedHandoffVersion)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Capture session received unsupported handoff version"));
+        return false;
+    }
+
+    return Handoff->GetNumberField(TEXT("duration_seconds")) > 0.0;
 }
 
 void UBenchmarkCaptureSessionComponent::BeginCanonicalCapture()
@@ -163,11 +203,11 @@ TSharedPtr<FJsonObject> UBenchmarkCaptureSessionComponent::BuildObservation() co
     TSharedPtr<FJsonObject> Observation = MakeShared<FJsonObject>();
     Observation->SetNumberField(TEXT("observation_version"), 1);
     Observation->SetStringField(TEXT("engine"), TEXT("unreal"));
-    Observation->SetStringField(TEXT("scenario_name"), Adapter->GetCanonicalScenarioName());
-    Observation->SetNumberField(TEXT("scenario_version"), Adapter->GetCanonicalScenarioVersion());
+    Observation->SetStringField(TEXT("scenario_name"), Handoff->GetStringField(TEXT("scenario_name")));
+    Observation->SetNumberField(TEXT("scenario_version"), Handoff->GetIntegerField(TEXT("scenario_version")));
     Observation->SetStringField(TEXT("captured_at_utc"), FDateTime::UtcNow().ToIso8601());
     Observation->SetNumberField(TEXT("warmup_seconds"), WarmupSeconds);
-    Observation->SetNumberField(TEXT("capture_duration_seconds"), Adapter->GetCanonicalDurationSeconds());
+    Observation->SetNumberField(TEXT("capture_duration_seconds"), Handoff->GetNumberField(TEXT("duration_seconds")));
     Observation->SetNumberField(TEXT("frame_sample_count"), SortedSamples.Num());
     Observation->SetObjectField(TEXT("hardware"), Hardware);
     Observation->SetObjectField(TEXT("cpu_frame_time_ms"), CpuFrameTime);
