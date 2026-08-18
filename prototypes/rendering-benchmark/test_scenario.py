@@ -35,6 +35,24 @@ class ScenarioContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "target_resolution"):
             MODULE.validate_scenario(broken)
 
+    def test_camera_stage_durations_must_match_sequence(self):
+        broken = dict(self.data)
+        broken["camera_stage_durations_seconds"] = [60, 60]
+        with self.assertRaisesRegex(ValueError, "one positive integer per camera stage"):
+            MODULE.validate_scenario(broken)
+
+    def test_camera_stage_durations_must_cover_full_capture(self):
+        broken = dict(self.data)
+        broken["camera_stage_durations_seconds"] = [30, 30, 30]
+        with self.assertRaisesRegex(ValueError, "sum to duration_seconds"):
+            MODULE.validate_scenario(broken)
+
+    def test_simulation_time_scale_must_be_positive(self):
+        broken = dict(self.data)
+        broken["simulation_seconds_per_real_second"] = 0
+        with self.assertRaisesRegex(ValueError, "simulation_seconds_per_real_second"):
+            MODULE.validate_scenario(broken)
+
     def test_capture_schema_cannot_silently_drop_raw_measurements(self):
         broken = dict(self.data)
         broken["required_capture"] = [
