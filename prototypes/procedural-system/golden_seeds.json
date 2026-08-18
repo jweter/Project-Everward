@@ -1,0 +1,1517 @@
+{
+  "cases": [
+    {
+      "coordinate": [
+        18,
+        -4,
+        71
+      ],
+      "description": "Mid-range seed/coordinate used as the everyday-case regression baseline.",
+      "expected_fingerprint": "ffd0dd6cfc9fda2169cb3eb2703e6fa42012d6c89b3d0da92aa82164d8407c72",
+      "expected_system": {
+        "belts": [],
+        "coordinate": [
+          18,
+          -4,
+          71
+        ],
+        "generator_version": 1,
+        "planets": [
+          {
+            "entity_id": "ev-0995dbfd7557be1a",
+            "equilibrium_temp_k": 469,
+            "mass_milli_earth": 6042,
+            "moons": [
+              {
+                "entity_id": "ev-403ffc192d2fd8dd",
+                "orbit_radius_km": 7888,
+                "ordinal": 1,
+                "radius_km": 772,
+                "resources": {
+                  "carbon_bp": 1616,
+                  "iron_bp": 1589,
+                  "nickel_bp": 545,
+                  "radioactives_bp": 72,
+                  "rare_metals_bp": 136,
+                  "silicates_bp": 977,
+                  "volatiles_bp": 877,
+                  "water_bp": 4188
+                }
+              }
+            ],
+            "ordinal": 1,
+            "planet_type": "rocky",
+            "radius_km": 4408,
+            "resources": {
+              "carbon_bp": 779,
+              "iron_bp": 3642,
+              "nickel_bp": 1071,
+              "radioactives_bp": 7,
+              "rare_metals_bp": 204,
+              "silicates_bp": 1970,
+              "volatiles_bp": 1522,
+              "water_bp": 805
+            },
+            "semi_major_axis_milli_au": 284
+          },
+          {
+            "entity_id": "ev-0dfda41d6c2d16ed",
+            "equilibrium_temp_k": 375,
+            "mass_milli_earth": 3792,
+            "moons": [
+              {
+                "entity_id": "ev-991b07e65bcc91cd",
+                "orbit_radius_km": 24639,
+                "ordinal": 1,
+                "radius_km": 1391,
+                "resources": {
+                  "carbon_bp": 159,
+                  "iron_bp": 2696,
+                  "nickel_bp": 1473,
+                  "radioactives_bp": 228,
+                  "rare_metals_bp": 347,
+                  "silicates_bp": 2255,
+                  "volatiles_bp": 1081,
+                  "water_bp": 1761
+                }
+              },
+              {
+                "entity_id": "ev-a4af2d506009afd8",
+                "orbit_radius_km": 81239,
+                "ordinal": 2,
+                "radius_km": 3615,
+                "resources": {
+                  "carbon_bp": 1510,
+                  "iron_bp": 1644,
+                  "nickel_bp": 431,
+                  "radioactives_bp": 50,
+                  "rare_metals_bp": 50,
+                  "silicates_bp": 3383,
+                  "volatiles_bp": 663,
+                  "water_bp": 2269
+                }
+              }
+            ],
+            "ordinal": 2,
+            "planet_type": "rocky",
+            "radius_km": 14220,
+            "resources": {
+              "carbon_bp": 573,
+              "iron_bp": 2738,
+              "nickel_bp": 683,
+              "radioactives_bp": 170,
+              "rare_metals_bp": 236,
+              "silicates_bp": 3766,
+              "volatiles_bp": 149,
+              "water_bp": 1685
+            },
+            "semi_major_axis_milli_au": 422
+          },
+          {
+            "entity_id": "ev-77e82cc571d6b42e",
+            "equilibrium_temp_k": 326,
+            "mass_milli_earth": 3391,
+            "moons": [],
+            "ordinal": 3,
+            "planet_type": "oceanic",
+            "radius_km": 7472,
+            "resources": {
+              "carbon_bp": 335,
+              "iron_bp": 2995,
+              "nickel_bp": 245,
+              "radioactives_bp": 85,
+              "rare_metals_bp": 215,
+              "silicates_bp": 2865,
+              "volatiles_bp": 1453,
+              "water_bp": 1807
+            },
+            "semi_major_axis_milli_au": 562
+          },
+          {
+            "entity_id": "ev-a0d99e8c957c3254",
+            "equilibrium_temp_k": 268,
+            "mass_milli_earth": 5178,
+            "moons": [
+              {
+                "entity_id": "ev-36333ab5807192b0",
+                "orbit_radius_km": 23079,
+                "ordinal": 1,
+                "radius_km": 1199,
+                "resources": {
+                  "carbon_bp": 625,
+                  "iron_bp": 1116,
+                  "nickel_bp": 109,
+                  "radioactives_bp": 70,
+                  "rare_metals_bp": 168,
+                  "silicates_bp": 2330,
+                  "volatiles_bp": 725,
+                  "water_bp": 4857
+                }
+              },
+              {
+                "entity_id": "ev-e909c817a4006619",
+                "orbit_radius_km": 100320,
+                "ordinal": 2,
+                "radius_km": 1825,
+                "resources": {
+                  "carbon_bp": 1226,
+                  "iron_bp": 1415,
+                  "nickel_bp": 563,
+                  "radioactives_bp": 64,
+                  "rare_metals_bp": 60,
+                  "silicates_bp": 1538,
+                  "volatiles_bp": 778,
+                  "water_bp": 4356
+                }
+              }
+            ],
+            "ordinal": 4,
+            "planet_type": "rocky",
+            "radius_km": 12230,
+            "resources": {
+              "carbon_bp": 1084,
+              "iron_bp": 1404,
+              "nickel_bp": 286,
+              "radioactives_bp": 61,
+              "rare_metals_bp": 116,
+              "silicates_bp": 4131,
+              "volatiles_bp": 586,
+              "water_bp": 2332
+            },
+            "semi_major_axis_milli_au": 818
+          }
+        ],
+        "star": {
+          "entity_id": "ev-1fadbae4d17c1d32",
+          "luminosity_milli_solar": 544,
+          "mass_milli_solar": 730,
+          "radius_milli_solar": 756,
+          "spectral_class": "K",
+          "temperature_k": 4112
+        },
+        "system_id": "ev-8df2ce54eaf5fbb3",
+        "universe_seed": 847291
+      },
+      "generator_version": 1,
+      "label": "ordinary_reference",
+      "universe_seed": 847291
+    },
+    {
+      "coordinate": [
+        4,
+        -8,
+        14
+      ],
+      "description": "Zero-planet system with only asteroid belts; exercises the empty-planet-list path.",
+      "expected_fingerprint": "975970c7c3f50ad83f71518ebc8cd2d8dafea300e35dfc20a3858f8315645758",
+      "expected_system": {
+        "belts": [
+          {
+            "entity_id": "ev-df4c39d8f6743cb3",
+            "estimated_mass_millionths_earth": 28208,
+            "inner_milli_au": 668,
+            "ordinal": 1,
+            "outer_milli_au": 872,
+            "resources": {
+              "carbon_bp": 1037,
+              "iron_bp": 2010,
+              "nickel_bp": 320,
+              "radioactives_bp": 135,
+              "rare_metals_bp": 142,
+              "silicates_bp": 2006,
+              "volatiles_bp": 964,
+              "water_bp": 3386
+            }
+          },
+          {
+            "entity_id": "ev-fe8dad79bd180e19",
+            "estimated_mass_millionths_earth": 46180,
+            "inner_milli_au": 1059,
+            "ordinal": 2,
+            "outer_milli_au": 1211,
+            "resources": {
+              "carbon_bp": 2216,
+              "iron_bp": 513,
+              "nickel_bp": 351,
+              "radioactives_bp": 64,
+              "rare_metals_bp": 92,
+              "silicates_bp": 2146,
+              "volatiles_bp": 857,
+              "water_bp": 3761
+            }
+          }
+        ],
+        "coordinate": [
+          4,
+          -8,
+          14
+        ],
+        "generator_version": 1,
+        "planets": [],
+        "star": {
+          "entity_id": "ev-ea1d9a67ac264cbd",
+          "luminosity_milli_solar": 1401,
+          "mass_milli_solar": 1076,
+          "radius_milli_solar": 1052,
+          "spectral_class": "G",
+          "temperature_k": 5273
+        },
+        "system_id": "ev-031b36633b0e56d1",
+        "universe_seed": 4
+      },
+      "generator_version": 1,
+      "label": "sparse_no_planets",
+      "universe_seed": 4
+    },
+    {
+      "coordinate": [
+        10,
+        10,
+        -2
+      ],
+      "description": "Near-maximum planet/moon/belt count; exercises the densest generated system shape.",
+      "expected_fingerprint": "74e98558b2e852bf0003fb66fa436fbd756bb6fa90f21367f684015e1594a4d3",
+      "expected_system": {
+        "belts": [
+          {
+            "entity_id": "ev-0e010fc7558fc9e4",
+            "estimated_mass_millionths_earth": 24738,
+            "inner_milli_au": 14031,
+            "ordinal": 1,
+            "outer_milli_au": 14489,
+            "resources": {
+              "carbon_bp": 826,
+              "iron_bp": 1246,
+              "nickel_bp": 534,
+              "radioactives_bp": 153,
+              "rare_metals_bp": 279,
+              "silicates_bp": 4631,
+              "volatiles_bp": 678,
+              "water_bp": 1653
+            }
+          },
+          {
+            "entity_id": "ev-dfa7f7d0062e1d5d",
+            "estimated_mass_millionths_earth": 23612,
+            "inner_milli_au": 15647,
+            "ordinal": 2,
+            "outer_milli_au": 15795,
+            "resources": {
+              "carbon_bp": 2757,
+              "iron_bp": 458,
+              "nickel_bp": 695,
+              "radioactives_bp": 28,
+              "rare_metals_bp": 82,
+              "silicates_bp": 3394,
+              "volatiles_bp": 227,
+              "water_bp": 2359
+            }
+          }
+        ],
+        "coordinate": [
+          10,
+          10,
+          -2
+        ],
+        "generator_version": 1,
+        "planets": [
+          {
+            "entity_id": "ev-c0c362f868d17436",
+            "equilibrium_temp_k": 292,
+            "mass_milli_earth": 11,
+            "moons": [],
+            "ordinal": 1,
+            "planet_type": "dwarf",
+            "radius_km": 1574,
+            "resources": {
+              "carbon_bp": 3335,
+              "iron_bp": 662,
+              "nickel_bp": 621,
+              "radioactives_bp": 48,
+              "rare_metals_bp": 191,
+              "silicates_bp": 2840,
+              "volatiles_bp": 1098,
+              "water_bp": 1205
+            },
+            "semi_major_axis_milli_au": 399
+          },
+          {
+            "entity_id": "ev-fdc62e0e7ce30df5",
+            "equilibrium_temp_k": 213,
+            "mass_milli_earth": 6233,
+            "moons": [],
+            "ordinal": 2,
+            "planet_type": "rocky",
+            "radius_km": 9195,
+            "resources": {
+              "carbon_bp": 1100,
+              "iron_bp": 1384,
+              "nickel_bp": 826,
+              "radioactives_bp": 176,
+              "rare_metals_bp": 224,
+              "silicates_bp": 4329,
+              "volatiles_bp": 1167,
+              "water_bp": 794
+            },
+            "semi_major_axis_milli_au": 720
+          },
+          {
+            "entity_id": "ev-f097a65e5dd3ad00",
+            "equilibrium_temp_k": 158,
+            "mass_milli_earth": 145496,
+            "moons": [
+              {
+                "entity_id": "ev-8949bb21a351c7a1",
+                "orbit_radius_km": 47984,
+                "ordinal": 1,
+                "radius_km": 630,
+                "resources": {
+                  "carbon_bp": 344,
+                  "iron_bp": 779,
+                  "nickel_bp": 840,
+                  "radioactives_bp": 52,
+                  "rare_metals_bp": 242,
+                  "silicates_bp": 3844,
+                  "volatiles_bp": 992,
+                  "water_bp": 2907
+                }
+              },
+              {
+                "entity_id": "ev-b08150e19acd8c16",
+                "orbit_radius_km": 76704,
+                "ordinal": 2,
+                "radius_km": 2562,
+                "resources": {
+                  "carbon_bp": 2912,
+                  "iron_bp": 1303,
+                  "nickel_bp": 382,
+                  "radioactives_bp": 97,
+                  "rare_metals_bp": 50,
+                  "silicates_bp": 1558,
+                  "volatiles_bp": 1095,
+                  "water_bp": 2603
+                }
+              },
+              {
+                "entity_id": "ev-775244fa2363e5c9",
+                "orbit_radius_km": 126578,
+                "ordinal": 3,
+                "radius_km": 3990,
+                "resources": {
+                  "carbon_bp": 1625,
+                  "iron_bp": 517,
+                  "nickel_bp": 244,
+                  "radioactives_bp": 68,
+                  "rare_metals_bp": 68,
+                  "silicates_bp": 1428,
+                  "volatiles_bp": 595,
+                  "water_bp": 5455
+                }
+              },
+              {
+                "entity_id": "ev-a5be123ebbee27ed",
+                "orbit_radius_km": 158825,
+                "ordinal": 4,
+                "radius_km": 3187,
+                "resources": {
+                  "carbon_bp": 622,
+                  "iron_bp": 2470,
+                  "nickel_bp": 1303,
+                  "radioactives_bp": 82,
+                  "rare_metals_bp": 158,
+                  "silicates_bp": 3968,
+                  "volatiles_bp": 1344,
+                  "water_bp": 53
+                }
+              },
+              {
+                "entity_id": "ev-bd8051da4f33d76f",
+                "orbit_radius_km": 168240,
+                "ordinal": 5,
+                "radius_km": 2090,
+                "resources": {
+                  "carbon_bp": 2978,
+                  "iron_bp": 1502,
+                  "nickel_bp": 663,
+                  "radioactives_bp": 11,
+                  "rare_metals_bp": 221,
+                  "silicates_bp": 1772,
+                  "volatiles_bp": 602,
+                  "water_bp": 2251
+                }
+              },
+              {
+                "entity_id": "ev-7af06ffca8e01581",
+                "orbit_radius_km": 241590,
+                "ordinal": 6,
+                "radius_km": 361,
+                "resources": {
+                  "carbon_bp": 2193,
+                  "iron_bp": 801,
+                  "nickel_bp": 410,
+                  "radioactives_bp": 85,
+                  "rare_metals_bp": 194,
+                  "silicates_bp": 3697,
+                  "volatiles_bp": 487,
+                  "water_bp": 2133
+                }
+              },
+              {
+                "entity_id": "ev-fe6cd195bff27bf8",
+                "orbit_radius_km": 308232,
+                "ordinal": 7,
+                "radius_km": 1681,
+                "resources": {
+                  "carbon_bp": 1780,
+                  "iron_bp": 410,
+                  "nickel_bp": 534,
+                  "radioactives_bp": 75,
+                  "rare_metals_bp": 80,
+                  "silicates_bp": 2928,
+                  "volatiles_bp": 599,
+                  "water_bp": 3594
+                }
+              },
+              {
+                "entity_id": "ev-c502e07af3e37e96",
+                "orbit_radius_km": 320026,
+                "ordinal": 8,
+                "radius_km": 3422,
+                "resources": {
+                  "carbon_bp": 222,
+                  "iron_bp": 2524,
+                  "nickel_bp": 1278,
+                  "radioactives_bp": 152,
+                  "rare_metals_bp": 444,
+                  "silicates_bp": 3003,
+                  "volatiles_bp": 985,
+                  "water_bp": 1392
+                }
+              }
+            ],
+            "ordinal": 3,
+            "planet_type": "gas_giant",
+            "radius_km": 37047,
+            "resources": {
+              "carbon_bp": 2357,
+              "iron_bp": 796,
+              "nickel_bp": 145,
+              "radioactives_bp": 9,
+              "rare_metals_bp": 95,
+              "silicates_bp": 2345,
+              "volatiles_bp": 895,
+              "water_bp": 3358
+            },
+            "semi_major_axis_milli_au": 1252
+          },
+          {
+            "entity_id": "ev-dee5b7ed888a75ed",
+            "equilibrium_temp_k": 123,
+            "mass_milli_earth": 39323,
+            "moons": [
+              {
+                "entity_id": "ev-d02c5f8265216cfa",
+                "orbit_radius_km": 30897,
+                "ordinal": 1,
+                "radius_km": 1280,
+                "resources": {
+                  "carbon_bp": 161,
+                  "iron_bp": 731,
+                  "nickel_bp": 464,
+                  "radioactives_bp": 91,
+                  "rare_metals_bp": 76,
+                  "silicates_bp": 2680,
+                  "volatiles_bp": 1872,
+                  "water_bp": 3925
+                }
+              },
+              {
+                "entity_id": "ev-c85d09858020b358",
+                "orbit_radius_km": 91077,
+                "ordinal": 2,
+                "radius_km": 2537,
+                "resources": {
+                  "carbon_bp": 234,
+                  "iron_bp": 1257,
+                  "nickel_bp": 122,
+                  "radioactives_bp": 50,
+                  "rare_metals_bp": 137,
+                  "silicates_bp": 1908,
+                  "volatiles_bp": 215,
+                  "water_bp": 6077
+                }
+              },
+              {
+                "entity_id": "ev-a8c9595400f97911",
+                "orbit_radius_km": 104148,
+                "ordinal": 3,
+                "radius_km": 1645,
+                "resources": {
+                  "carbon_bp": 680,
+                  "iron_bp": 510,
+                  "nickel_bp": 165,
+                  "radioactives_bp": 2,
+                  "rare_metals_bp": 40,
+                  "silicates_bp": 2224,
+                  "volatiles_bp": 1362,
+                  "water_bp": 5017
+                }
+              },
+              {
+                "entity_id": "ev-a9d927819697aab6",
+                "orbit_radius_km": 177363,
+                "ordinal": 4,
+                "radius_km": 3133,
+                "resources": {
+                  "carbon_bp": 524,
+                  "iron_bp": 472,
+                  "nickel_bp": 716,
+                  "radioactives_bp": 190,
+                  "rare_metals_bp": 26,
+                  "silicates_bp": 5953,
+                  "volatiles_bp": 1235,
+                  "water_bp": 884
+                }
+              },
+              {
+                "entity_id": "ev-1aea3c6f759b05b5",
+                "orbit_radius_km": 232251,
+                "ordinal": 5,
+                "radius_km": 1767,
+                "resources": {
+                  "carbon_bp": 715,
+                  "iron_bp": 687,
+                  "nickel_bp": 224,
+                  "radioactives_bp": 112,
+                  "rare_metals_bp": 12,
+                  "silicates_bp": 3020,
+                  "volatiles_bp": 729,
+                  "water_bp": 4501
+                }
+              },
+              {
+                "entity_id": "ev-e24d1c7615602738",
+                "orbit_radius_km": 242007,
+                "ordinal": 6,
+                "radius_km": 972,
+                "resources": {
+                  "carbon_bp": 739,
+                  "iron_bp": 842,
+                  "nickel_bp": 78,
+                  "radioactives_bp": 72,
+                  "rare_metals_bp": 98,
+                  "silicates_bp": 2208,
+                  "volatiles_bp": 1845,
+                  "water_bp": 4118
+                }
+              },
+              {
+                "entity_id": "ev-03cda374ccbb7147",
+                "orbit_radius_km": 295473,
+                "ordinal": 7,
+                "radius_km": 3409,
+                "resources": {
+                  "carbon_bp": 940,
+                  "iron_bp": 1467,
+                  "nickel_bp": 98,
+                  "radioactives_bp": 17,
+                  "rare_metals_bp": 7,
+                  "silicates_bp": 2514,
+                  "volatiles_bp": 778,
+                  "water_bp": 4179
+                }
+              },
+              {
+                "entity_id": "ev-db730e0cea40daa2",
+                "orbit_radius_km": 324452,
+                "ordinal": 8,
+                "radius_km": 1264,
+                "resources": {
+                  "carbon_bp": 1774,
+                  "iron_bp": 1223,
+                  "nickel_bp": 292,
+                  "radioactives_bp": 69,
+                  "rare_metals_bp": 15,
+                  "silicates_bp": 3844,
+                  "volatiles_bp": 1864,
+                  "water_bp": 919
+                }
+              },
+              {
+                "entity_id": "ev-4719c3798797f637",
+                "orbit_radius_km": 352583,
+                "ordinal": 9,
+                "radius_km": 3947,
+                "resources": {
+                  "carbon_bp": 240,
+                  "iron_bp": 1105,
+                  "nickel_bp": 465,
+                  "radioactives_bp": 77,
+                  "rare_metals_bp": 60,
+                  "silicates_bp": 1474,
+                  "volatiles_bp": 1256,
+                  "water_bp": 5323
+                }
+              },
+              {
+                "entity_id": "ev-99549b199281aa4f",
+                "orbit_radius_km": 413427,
+                "ordinal": 10,
+                "radius_km": 924,
+                "resources": {
+                  "carbon_bp": 290,
+                  "iron_bp": 1603,
+                  "nickel_bp": 771,
+                  "radioactives_bp": 49,
+                  "rare_metals_bp": 54,
+                  "silicates_bp": 3180,
+                  "volatiles_bp": 2429,
+                  "water_bp": 1624
+                }
+              }
+            ],
+            "ordinal": 4,
+            "planet_type": "ice_giant",
+            "radius_km": 24405,
+            "resources": {
+              "carbon_bp": 144,
+              "iron_bp": 535,
+              "nickel_bp": 1038,
+              "radioactives_bp": 24,
+              "rare_metals_bp": 120,
+              "silicates_bp": 2566,
+              "volatiles_bp": 3382,
+              "water_bp": 2191
+            },
+            "semi_major_axis_milli_au": 2056
+          },
+          {
+            "entity_id": "ev-28aa77baba55792f",
+            "equilibrium_temp_k": 101,
+            "mass_milli_earth": 162885,
+            "moons": [
+              {
+                "entity_id": "ev-c9e1115ab208d89d",
+                "orbit_radius_km": 52144,
+                "ordinal": 1,
+                "radius_km": 632,
+                "resources": {
+                  "carbon_bp": 892,
+                  "iron_bp": 1640,
+                  "nickel_bp": 572,
+                  "radioactives_bp": 72,
+                  "rare_metals_bp": 134,
+                  "silicates_bp": 1666,
+                  "volatiles_bp": 2478,
+                  "water_bp": 2546
+                }
+              },
+              {
+                "entity_id": "ev-40ef1d9affe202bf",
+                "orbit_radius_km": 95045,
+                "ordinal": 2,
+                "radius_km": 3117,
+                "resources": {
+                  "carbon_bp": 537,
+                  "iron_bp": 376,
+                  "nickel_bp": 122,
+                  "radioactives_bp": 91,
+                  "rare_metals_bp": 76,
+                  "silicates_bp": 1573,
+                  "volatiles_bp": 1277,
+                  "water_bp": 5948
+                }
+              },
+              {
+                "entity_id": "ev-1af179c872c66510",
+                "orbit_radius_km": 149506,
+                "ordinal": 3,
+                "radius_km": 3874,
+                "resources": {
+                  "carbon_bp": 809,
+                  "iron_bp": 667,
+                  "nickel_bp": 152,
+                  "radioactives_bp": 49,
+                  "rare_metals_bp": 31,
+                  "silicates_bp": 904,
+                  "volatiles_bp": 754,
+                  "water_bp": 6634
+                }
+              }
+            ],
+            "ordinal": 5,
+            "planet_type": "gas_giant",
+            "radius_km": 39485,
+            "resources": {
+              "carbon_bp": 370,
+              "iron_bp": 1351,
+              "nickel_bp": 89,
+              "radioactives_bp": 73,
+              "rare_metals_bp": 141,
+              "silicates_bp": 1456,
+              "volatiles_bp": 862,
+              "water_bp": 5658
+            },
+            "semi_major_axis_milli_au": 3117
+          },
+          {
+            "entity_id": "ev-f2ff84b32575a1a7",
+            "equilibrium_temp_k": 80,
+            "mass_milli_earth": 35714,
+            "moons": [
+              {
+                "entity_id": "ev-26a85f4a381ebf94",
+                "orbit_radius_km": 36398,
+                "ordinal": 1,
+                "radius_km": 1184,
+                "resources": {
+                  "carbon_bp": 2200,
+                  "iron_bp": 2743,
+                  "nickel_bp": 407,
+                  "radioactives_bp": 268,
+                  "rare_metals_bp": 20,
+                  "silicates_bp": 2431,
+                  "volatiles_bp": 853,
+                  "water_bp": 1078
+                }
+              }
+            ],
+            "ordinal": 6,
+            "planet_type": "ice_giant",
+            "radius_km": 22750,
+            "resources": {
+              "carbon_bp": 272,
+              "iron_bp": 734,
+              "nickel_bp": 380,
+              "radioactives_bp": 93,
+              "rare_metals_bp": 125,
+              "silicates_bp": 1379,
+              "volatiles_bp": 948,
+              "water_bp": 6069
+            },
+            "semi_major_axis_milli_au": 4878
+          },
+          {
+            "entity_id": "ev-415d8b2cc428b8b5",
+            "equilibrium_temp_k": 62,
+            "mass_milli_earth": 44443,
+            "moons": [
+              {
+                "entity_id": "ev-9c73c863b10ff9c2",
+                "orbit_radius_km": 40564,
+                "ordinal": 1,
+                "radius_km": 1042,
+                "resources": {
+                  "carbon_bp": 1248,
+                  "iron_bp": 1763,
+                  "nickel_bp": 353,
+                  "radioactives_bp": 61,
+                  "rare_metals_bp": 113,
+                  "silicates_bp": 1354,
+                  "volatiles_bp": 827,
+                  "water_bp": 4281
+                }
+              },
+              {
+                "entity_id": "ev-36bc6823ffe6b271",
+                "orbit_radius_km": 66657,
+                "ordinal": 2,
+                "radius_km": 775,
+                "resources": {
+                  "carbon_bp": 352,
+                  "iron_bp": 925,
+                  "nickel_bp": 437,
+                  "radioactives_bp": 68,
+                  "rare_metals_bp": 34,
+                  "silicates_bp": 1678,
+                  "volatiles_bp": 557,
+                  "water_bp": 5949
+                }
+              },
+              {
+                "entity_id": "ev-f92f4953fe0bde42",
+                "orbit_radius_km": 108108,
+                "ordinal": 3,
+                "radius_km": 458,
+                "resources": {
+                  "carbon_bp": 347,
+                  "iron_bp": 302,
+                  "nickel_bp": 464,
+                  "radioactives_bp": 38,
+                  "rare_metals_bp": 61,
+                  "silicates_bp": 2174,
+                  "volatiles_bp": 1333,
+                  "water_bp": 5281
+                }
+              },
+              {
+                "entity_id": "ev-f359e55bc8460bd8",
+                "orbit_radius_km": 185140,
+                "ordinal": 4,
+                "radius_km": 190,
+                "resources": {
+                  "carbon_bp": 577,
+                  "iron_bp": 787,
+                  "nickel_bp": 424,
+                  "radioactives_bp": 239,
+                  "rare_metals_bp": 303,
+                  "silicates_bp": 2554,
+                  "volatiles_bp": 1208,
+                  "water_bp": 3908
+                }
+              },
+              {
+                "entity_id": "ev-a9f2230398c433b0",
+                "orbit_radius_km": 223948,
+                "ordinal": 5,
+                "radius_km": 1142,
+                "resources": {
+                  "carbon_bp": 576,
+                  "iron_bp": 672,
+                  "nickel_bp": 281,
+                  "radioactives_bp": 72,
+                  "rare_metals_bp": 108,
+                  "silicates_bp": 3105,
+                  "volatiles_bp": 1324,
+                  "water_bp": 3862
+                }
+              },
+              {
+                "entity_id": "ev-f831e6f7deb868e5",
+                "orbit_radius_km": 284658,
+                "ordinal": 6,
+                "radius_km": 677,
+                "resources": {
+                  "carbon_bp": 464,
+                  "iron_bp": 1559,
+                  "nickel_bp": 1001,
+                  "radioactives_bp": 183,
+                  "rare_metals_bp": 206,
+                  "silicates_bp": 3750,
+                  "volatiles_bp": 596,
+                  "water_bp": 2241
+                }
+              },
+              {
+                "entity_id": "ev-b31c9b417c058a5f",
+                "orbit_radius_km": 330107,
+                "ordinal": 7,
+                "radius_km": 2113,
+                "resources": {
+                  "carbon_bp": 437,
+                  "iron_bp": 447,
+                  "nickel_bp": 403,
+                  "radioactives_bp": 10,
+                  "rare_metals_bp": 109,
+                  "silicates_bp": 1672,
+                  "volatiles_bp": 1639,
+                  "water_bp": 5283
+                }
+              },
+              {
+                "entity_id": "ev-e6ca0e0de519f57b",
+                "orbit_radius_km": 345277,
+                "ordinal": 8,
+                "radius_km": 2159,
+                "resources": {
+                  "carbon_bp": 40,
+                  "iron_bp": 1405,
+                  "nickel_bp": 527,
+                  "radioactives_bp": 70,
+                  "rare_metals_bp": 143,
+                  "silicates_bp": 3210,
+                  "volatiles_bp": 711,
+                  "water_bp": 3894
+                }
+              },
+              {
+                "entity_id": "ev-df0db6deb32eeee7",
+                "orbit_radius_km": 405462,
+                "ordinal": 9,
+                "radius_km": 3202,
+                "resources": {
+                  "carbon_bp": 63,
+                  "iron_bp": 1382,
+                  "nickel_bp": 639,
+                  "radioactives_bp": 179,
+                  "rare_metals_bp": 54,
+                  "silicates_bp": 5334,
+                  "volatiles_bp": 692,
+                  "water_bp": 1657
+                }
+              }
+            ],
+            "ordinal": 7,
+            "planet_type": "ice_giant",
+            "radius_km": 27872,
+            "resources": {
+              "carbon_bp": 609,
+              "iron_bp": 430,
+              "nickel_bp": 230,
+              "radioactives_bp": 6,
+              "rare_metals_bp": 63,
+              "silicates_bp": 2541,
+              "volatiles_bp": 1851,
+              "water_bp": 4270
+            },
+            "semi_major_axis_milli_au": 8051
+          },
+          {
+            "entity_id": "ev-e63d786897002d58",
+            "equilibrium_temp_k": 52,
+            "mass_milli_earth": 1577,
+            "moons": [
+              {
+                "entity_id": "ev-73df0a2abacef361",
+                "orbit_radius_km": 14290,
+                "ordinal": 1,
+                "radius_km": 554,
+                "resources": {
+                  "carbon_bp": 783,
+                  "iron_bp": 1885,
+                  "nickel_bp": 655,
+                  "radioactives_bp": 248,
+                  "rare_metals_bp": 67,
+                  "silicates_bp": 4440,
+                  "volatiles_bp": 569,
+                  "water_bp": 1353
+                }
+              }
+            ],
+            "ordinal": 8,
+            "planet_type": "ice",
+            "radius_km": 3638,
+            "resources": {
+              "carbon_bp": 654,
+              "iron_bp": 564,
+              "nickel_bp": 123,
+              "radioactives_bp": 44,
+              "rare_metals_bp": 107,
+              "silicates_bp": 2045,
+              "volatiles_bp": 886,
+              "water_bp": 5577
+            },
+            "semi_major_axis_milli_au": 11043
+          },
+          {
+            "entity_id": "ev-b5e315c987e9c578",
+            "equilibrium_temp_k": 41,
+            "mass_milli_earth": 11614,
+            "moons": [
+              {
+                "entity_id": "ev-58da3c433d3a7c6e",
+                "orbit_radius_km": 24907,
+                "ordinal": 1,
+                "radius_km": 1547,
+                "resources": {
+                  "carbon_bp": 675,
+                  "iron_bp": 1511,
+                  "nickel_bp": 357,
+                  "radioactives_bp": 112,
+                  "rare_metals_bp": 79,
+                  "silicates_bp": 2989,
+                  "volatiles_bp": 996,
+                  "water_bp": 3281
+                }
+              },
+              {
+                "entity_id": "ev-8475cc461a77c548",
+                "orbit_radius_km": 66393,
+                "ordinal": 2,
+                "radius_km": 2537,
+                "resources": {
+                  "carbon_bp": 139,
+                  "iron_bp": 2642,
+                  "nickel_bp": 485,
+                  "radioactives_bp": 20,
+                  "rare_metals_bp": 41,
+                  "silicates_bp": 4077,
+                  "volatiles_bp": 31,
+                  "water_bp": 2565
+                }
+              },
+              {
+                "entity_id": "ev-75c37ea7bdab6514",
+                "orbit_radius_km": 106873,
+                "ordinal": 3,
+                "radius_km": 2840,
+                "resources": {
+                  "carbon_bp": 513,
+                  "iron_bp": 1914,
+                  "nickel_bp": 173,
+                  "radioactives_bp": 130,
+                  "rare_metals_bp": 172,
+                  "silicates_bp": 3414,
+                  "volatiles_bp": 270,
+                  "water_bp": 3414
+                }
+              },
+              {
+                "entity_id": "ev-504ddd5eb8320aee",
+                "orbit_radius_km": 138977,
+                "ordinal": 4,
+                "radius_km": 2428,
+                "resources": {
+                  "carbon_bp": 396,
+                  "iron_bp": 796,
+                  "nickel_bp": 336,
+                  "radioactives_bp": 93,
+                  "rare_metals_bp": 103,
+                  "silicates_bp": 3452,
+                  "volatiles_bp": 2246,
+                  "water_bp": 2578
+                }
+              },
+              {
+                "entity_id": "ev-5b99cc6126e999e5",
+                "orbit_radius_km": 159594,
+                "ordinal": 5,
+                "radius_km": 2043,
+                "resources": {
+                  "carbon_bp": 1109,
+                  "iron_bp": 808,
+                  "nickel_bp": 635,
+                  "radioactives_bp": 156,
+                  "rare_metals_bp": 81,
+                  "silicates_bp": 4155,
+                  "volatiles_bp": 2184,
+                  "water_bp": 872
+                }
+              },
+              {
+                "entity_id": "ev-834ca8e8aeeaf4f6",
+                "orbit_radius_km": 205967,
+                "ordinal": 6,
+                "radius_km": 1979,
+                "resources": {
+                  "carbon_bp": 265,
+                  "iron_bp": 1820,
+                  "nickel_bp": 552,
+                  "radioactives_bp": 111,
+                  "rare_metals_bp": 94,
+                  "silicates_bp": 1071,
+                  "volatiles_bp": 2481,
+                  "water_bp": 3606
+                }
+              },
+              {
+                "entity_id": "ev-9163d220351d963a",
+                "orbit_radius_km": 224422,
+                "ordinal": 7,
+                "radius_km": 746,
+                "resources": {
+                  "carbon_bp": 622,
+                  "iron_bp": 586,
+                  "nickel_bp": 793,
+                  "radioactives_bp": 74,
+                  "rare_metals_bp": 119,
+                  "silicates_bp": 2097,
+                  "volatiles_bp": 1502,
+                  "water_bp": 4207
+                }
+              }
+            ],
+            "ordinal": 9,
+            "planet_type": "ice_giant",
+            "radius_km": 18658,
+            "resources": {
+              "carbon_bp": 97,
+              "iron_bp": 1008,
+              "nickel_bp": 416,
+              "radioactives_bp": 98,
+              "rare_metals_bp": 34,
+              "silicates_bp": 2953,
+              "volatiles_bp": 1097,
+              "water_bp": 4297
+            },
+            "semi_major_axis_milli_au": 18197
+          }
+        ],
+        "star": {
+          "entity_id": "ev-74964160ea8f3633",
+          "luminosity_milli_solar": 176,
+          "mass_milli_solar": 517,
+          "radius_milli_solar": 470,
+          "spectral_class": "M",
+          "temperature_k": 3067
+        },
+        "system_id": "ev-c37380ebc97559a7",
+        "universe_seed": 10
+      },
+      "generator_version": 1,
+      "label": "resource_rich_multi_body",
+      "universe_seed": 10
+    },
+    {
+      "coordinate": [
+        12,
+        4,
+        10
+      ],
+      "description": "Rare O-class star (lowest weighted spectral class); exercises the tail of the weighted table.",
+      "expected_fingerprint": "e924813c7532b399ec060ac0f81c5a97eb9f1521598a7f3f14236826d9ecec2b",
+      "expected_system": {
+        "belts": [
+          {
+            "entity_id": "ev-9b3737cbe43a9ce8",
+            "estimated_mass_millionths_earth": 12491,
+            "inner_milli_au": 1170,
+            "ordinal": 1,
+            "outer_milli_au": 1478,
+            "resources": {
+              "carbon_bp": 577,
+              "iron_bp": 1252,
+              "nickel_bp": 233,
+              "radioactives_bp": 49,
+              "rare_metals_bp": 38,
+              "silicates_bp": 2018,
+              "volatiles_bp": 902,
+              "water_bp": 4931
+            }
+          }
+        ],
+        "coordinate": [
+          12,
+          4,
+          10
+        ],
+        "generator_version": 1,
+        "planets": [
+          {
+            "entity_id": "ev-5b776d94599048f6",
+            "equilibrium_temp_k": 10455,
+            "mass_milli_earth": 7460,
+            "moons": [
+              {
+                "entity_id": "ev-c36ef85cf694be88",
+                "orbit_radius_km": 6944,
+                "ordinal": 1,
+                "radius_km": 1219,
+                "resources": {
+                  "carbon_bp": 1302,
+                  "iron_bp": 1242,
+                  "nickel_bp": 1318,
+                  "radioactives_bp": 73,
+                  "rare_metals_bp": 254,
+                  "silicates_bp": 1995,
+                  "volatiles_bp": 610,
+                  "water_bp": 3206
+                }
+              },
+              {
+                "entity_id": "ev-04b297ebfb51658a",
+                "orbit_radius_km": 57813,
+                "ordinal": 2,
+                "radius_km": 362,
+                "resources": {
+                  "carbon_bp": 1203,
+                  "iron_bp": 2746,
+                  "nickel_bp": 1133,
+                  "radioactives_bp": 164,
+                  "rare_metals_bp": 148,
+                  "silicates_bp": 3674,
+                  "volatiles_bp": 377,
+                  "water_bp": 555
+                }
+              },
+              {
+                "entity_id": "ev-f0f723aa196cd1ca",
+                "orbit_radius_km": 81684,
+                "ordinal": 3,
+                "radius_km": 697,
+                "resources": {
+                  "carbon_bp": 406,
+                  "iron_bp": 1261,
+                  "nickel_bp": 499,
+                  "radioactives_bp": 16,
+                  "rare_metals_bp": 88,
+                  "silicates_bp": 2999,
+                  "volatiles_bp": 328,
+                  "water_bp": 4403
+                }
+              }
+            ],
+            "ordinal": 1,
+            "planet_type": "rocky",
+            "radius_km": 4713,
+            "resources": {
+              "carbon_bp": 366,
+              "iron_bp": 2419,
+              "nickel_bp": 1303,
+              "radioactives_bp": 215,
+              "rare_metals_bp": 315,
+              "silicates_bp": 5157,
+              "volatiles_bp": 203,
+              "water_bp": 22
+            },
+            "semi_major_axis_milli_au": 329
+          },
+          {
+            "entity_id": "ev-65ee43ab581ee4e8",
+            "equilibrium_temp_k": 7528,
+            "mass_milli_earth": 2270,
+            "moons": [],
+            "ordinal": 2,
+            "planet_type": "rocky",
+            "radius_km": 5000,
+            "resources": {
+              "carbon_bp": 68,
+              "iron_bp": 2656,
+              "nickel_bp": 863,
+              "radioactives_bp": 11,
+              "rare_metals_bp": 111,
+              "silicates_bp": 2407,
+              "volatiles_bp": 1399,
+              "water_bp": 2485
+            },
+            "semi_major_axis_milli_au": 637
+          }
+        ],
+        "star": {
+          "entity_id": "ev-fa45f9e4c2c97bcc",
+          "luminosity_milli_solar": 210283951,
+          "mass_milli_solar": 51797,
+          "radius_milli_solar": 11870,
+          "spectral_class": "O",
+          "temperature_k": 32608
+        },
+        "system_id": "ev-458bcf215ebf06d1",
+        "universe_seed": 49
+      },
+      "generator_version": 1,
+      "label": "rare_o_class_star",
+      "universe_seed": 49
+    },
+    {
+      "coordinate": [
+        4,
+        -20,
+        12
+      ],
+      "description": "Rare B-class star; exercises the second-rarest weighted spectral class.",
+      "expected_fingerprint": "82bb2de96898c8a6d8008dbe4f95312b96c3706f95f3b2627214771d0eeff280",
+      "expected_system": {
+        "belts": [
+          {
+            "entity_id": "ev-68db21b289aef814",
+            "estimated_mass_millionths_earth": 18168,
+            "inner_milli_au": 1098,
+            "ordinal": 1,
+            "outer_milli_au": 1356,
+            "resources": {
+              "carbon_bp": 518,
+              "iron_bp": 2953,
+              "nickel_bp": 338,
+              "radioactives_bp": 104,
+              "rare_metals_bp": 80,
+              "silicates_bp": 4556,
+              "volatiles_bp": 321,
+              "water_bp": 1130
+            }
+          }
+        ],
+        "coordinate": [
+          4,
+          -20,
+          12
+        ],
+        "generator_version": 1,
+        "planets": [
+          {
+            "entity_id": "ev-eb50baf64420d589",
+            "equilibrium_temp_k": 4058,
+            "mass_milli_earth": 6050,
+            "moons": [
+              {
+                "entity_id": "ev-5176a49907e74142",
+                "orbit_radius_km": 21155,
+                "ordinal": 1,
+                "radius_km": 2075,
+                "resources": {
+                  "carbon_bp": 1190,
+                  "iron_bp": 3597,
+                  "nickel_bp": 374,
+                  "radioactives_bp": 43,
+                  "rare_metals_bp": 38,
+                  "silicates_bp": 2853,
+                  "volatiles_bp": 1102,
+                  "water_bp": 803
+                }
+              },
+              {
+                "entity_id": "ev-499f4d701a715b91",
+                "orbit_radius_km": 67571,
+                "ordinal": 2,
+                "radius_km": 3765,
+                "resources": {
+                  "carbon_bp": 2682,
+                  "iron_bp": 528,
+                  "nickel_bp": 217,
+                  "radioactives_bp": 106,
+                  "rare_metals_bp": 4,
+                  "silicates_bp": 2704,
+                  "volatiles_bp": 538,
+                  "water_bp": 3221
+                }
+              }
+            ],
+            "ordinal": 1,
+            "planet_type": "rocky",
+            "radius_km": 11968,
+            "resources": {
+              "carbon_bp": 244,
+              "iron_bp": 976,
+              "nickel_bp": 1244,
+              "radioactives_bp": 153,
+              "rare_metals_bp": 31,
+              "silicates_bp": 2923,
+              "volatiles_bp": 1881,
+              "water_bp": 2548
+            },
+            "semi_major_axis_milli_au": 410
+          },
+          {
+            "entity_id": "ev-b29b408193fd2c2e",
+            "equilibrium_temp_k": 3006,
+            "mass_milli_earth": 3608,
+            "moons": [],
+            "ordinal": 2,
+            "planet_type": "rocky",
+            "radius_km": 3463,
+            "resources": {
+              "carbon_bp": 873,
+              "iron_bp": 1116,
+              "nickel_bp": 1522,
+              "radioactives_bp": 50,
+              "rare_metals_bp": 217,
+              "silicates_bp": 4223,
+              "volatiles_bp": 1018,
+              "water_bp": 981
+            },
+            "semi_major_axis_milli_au": 777
+          },
+          {
+            "entity_id": "ev-cbb69b16ef01c10d",
+            "equilibrium_temp_k": 2536,
+            "mass_milli_earth": 5632,
+            "moons": [
+              {
+                "entity_id": "ev-97f7d1fd3821711d",
+                "orbit_radius_km": 20279,
+                "ordinal": 1,
+                "radius_km": 2205,
+                "resources": {
+                  "carbon_bp": 743,
+                  "iron_bp": 580,
+                  "nickel_bp": 720,
+                  "radioactives_bp": 58,
+                  "rare_metals_bp": 192,
+                  "silicates_bp": 3814,
+                  "volatiles_bp": 775,
+                  "water_bp": 3118
+                }
+              }
+            ],
+            "ordinal": 3,
+            "planet_type": "rocky",
+            "radius_km": 8205,
+            "resources": {
+              "carbon_bp": 1144,
+              "iron_bp": 2684,
+              "nickel_bp": 1133,
+              "radioactives_bp": 24,
+              "rare_metals_bp": 132,
+              "silicates_bp": 4728,
+              "volatiles_bp": 150,
+              "water_bp": 5
+            },
+            "semi_major_axis_milli_au": 1086
+          }
+        ],
+        "star": {
+          "entity_id": "ev-087fc9360cf1a4d3",
+          "luminosity_milli_solar": 7369489,
+          "mass_milli_solar": 13273,
+          "radius_milli_solar": 2554,
+          "spectral_class": "B",
+          "temperature_k": 15401
+        },
+        "system_id": "ev-727dc6c2989d0dba",
+        "universe_seed": 41
+      },
+      "generator_version": 1,
+      "label": "rare_b_class_star",
+      "universe_seed": 41
+    },
+    {
+      "coordinate": [
+        1000000,
+        -750000,
+        500000
+      ],
+      "description": "Large-magnitude, mixed-sign interstellar coordinate; exercises numerical stability at scale.",
+      "expected_fingerprint": "6a0b8b06b95590be3e987d830702223124a3735f1f8424b0eb944a3d7a7d950c",
+      "expected_system": {
+        "belts": [
+          {
+            "entity_id": "ev-9ec562cc7014f420",
+            "estimated_mass_millionths_earth": 8078,
+            "inner_milli_au": 666,
+            "ordinal": 2,
+            "outer_milli_au": 784,
+            "resources": {
+              "carbon_bp": 426,
+              "iron_bp": 3109,
+              "nickel_bp": 373,
+              "radioactives_bp": 167,
+              "rare_metals_bp": 25,
+              "silicates_bp": 4439,
+              "volatiles_bp": 711,
+              "water_bp": 750
+            }
+          },
+          {
+            "entity_id": "ev-32107a12875a931d",
+            "estimated_mass_millionths_earth": 38031,
+            "inner_milli_au": 859,
+            "ordinal": 1,
+            "outer_milli_au": 1151,
+            "resources": {
+              "carbon_bp": 377,
+              "iron_bp": 1026,
+              "nickel_bp": 448,
+              "radioactives_bp": 33,
+              "rare_metals_bp": 128,
+              "silicates_bp": 3537,
+              "volatiles_bp": 1626,
+              "water_bp": 2825
+            }
+          }
+        ],
+        "coordinate": [
+          1000000,
+          -750000,
+          500000
+        ],
+        "generator_version": 1,
+        "planets": [],
+        "star": {
+          "entity_id": "ev-05eb58321bd712c8",
+          "luminosity_milli_solar": 2269,
+          "mass_milli_solar": 1366,
+          "radius_milli_solar": 1300,
+          "spectral_class": "F",
+          "temperature_k": 6910
+        },
+        "system_id": "ev-15d0a5503eff51ec",
+        "universe_seed": 2026
+      },
+      "generator_version": 1,
+      "label": "interstellar_scale_negative_coordinate",
+      "universe_seed": 2026
+    }
+  ],
+  "fixture_version": 1,
+  "generator_version": 1,
+  "purpose": "Golden-seed regression bank (docs/TESTING_STRATEGY.md). Pins exact canonical output for a fixed, diverse set of seed/coordinate pairs so an unintentional change to generator.py is caught by a failing test instead of silently changing output for an existing generator_version. A deliberate generation-algorithm change must bump GENERATOR_VERSION and regenerate this fixture; it must never be edited to paper over an unversioned behavior change."
+}

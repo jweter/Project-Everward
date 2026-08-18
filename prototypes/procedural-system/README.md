@@ -67,7 +67,24 @@ python -m unittest discover -s prototypes/procedural-system -p 'test_*.py' -v
 - resource profiles normalize to exactly 100%,
 - generated entity IDs are unique inside each system,
 - asteroid belts have valid geometry,
-- invalid generator versions are rejected.
+- invalid generator versions are rejected,
+- a pinned bank of golden seeds (ordinary, sparse/no-planet, resource-rich,
+  rare spectral classes, interstellar-scale coordinates) reproduces its exact
+  recorded canonical output, per `docs/TESTING_STRATEGY.md`'s golden-seed
+  testing layer.
+
+## Golden-seed regression bank
+
+`golden_seeds.json` pins the exact canonical output and fingerprint for a
+small, diverse set of seed/coordinate pairs at the current
+`GENERATOR_VERSION`. `test_golden_seeds.py` replays each case and fails if
+`generator.py` produces different output for an existing generator version,
+catching accidental algorithm drift that per-call equality checks and
+range/invariant tests cannot catch on their own.
+
+A deliberate generation-algorithm change must bump `GENERATOR_VERSION` and
+regenerate `golden_seeds.json` from the new algorithm as part of that same
+change; the fixture must never be hand-edited to make a failing case pass.
 
 ## Acceptance criteria
 
