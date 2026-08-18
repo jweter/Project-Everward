@@ -52,6 +52,8 @@ The remaining Phase 1 blocker is the rendering-benchmark decision artifact itsel
 
 Until that hardware evidence exists, hourly automation should: verify no open PR/issue needs attention; re-run the full local test/foundation suite to confirm nothing regressed; and, if it finds one, close a further small, concretely evidenced gap in the Phase 1 tooling or its documentation (test coverage, stale contract, drifted fixture, etc.) rather than inventing new roadmap scope. Do not begin Phase 2 — One Probe until the exit gate actually passes with a real `decision_ready` artifact.
 
+2026-08-18: closed one such gap. `docs/TESTING_STRATEGY.md` requires a golden-seed regression bank for procedural generation, but `prototypes/procedural-system` had only per-call equality and range/invariant tests across many seeds, with no pinned expected output — so an unintended change to `generator.py` could have silently altered canonical output for an existing `GENERATOR_VERSION` without failing any test. Added `prototypes/procedural-system/golden_seeds.json` (six diverse pinned cases: ordinary, zero-planet/sparse, resource-rich multi-body, rare O-class star, rare B-class star, large mixed-sign interstellar-scale coordinate) and `prototypes/procedural-system/test_golden_seeds.py`, which replays each case and asserts exact canonical JSON/fingerprint match. Verified the new test fails when a fixture value is deliberately corrupted and passes once restored. No generator, simulation, or benchmark behavior changed.
+
 ## Maintenance rule
 
 Update this document in the same PR whenever a change materially alters:
