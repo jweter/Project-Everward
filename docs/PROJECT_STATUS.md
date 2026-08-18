@@ -46,9 +46,11 @@ Every hourly run should:
 
 ## Exact continuation point
 
-After the automation-readiness policy PR merges, resume **Phase 1 technical proofs**. Inspect the current state/evidence of all Phase 1 prototypes and select the highest-value incomplete requirement needed to move `PHASE1_EXIT_GATE.md` toward a valid decision-ready engine result.
+All five Phase 1 prototype directories exist, and every prototype's automated test suite is green, including `prototypes/test_phase1_exit_gate.py`, which is now discovered and run by `Foundation checks` CI (previously it existed and passed locally but had no CI step, so a regression in the gate script itself could have merged unverified; see `ERROR_RESOLUTION_LEDGER.md`, 2026-08-18).
 
-Do not begin Phase 2 — One Probe until the exit gate actually passes.
+The remaining Phase 1 blocker is the rendering-benchmark decision artifact itself: Prototype C's tooling (`prototypes/rendering-benchmark/`) is fully built and tested, but `prototypes/rendering-benchmark/finalize_engine_decision.py` still needs a real, decision-ready artifact produced from actual Godot and Unreal captures on the same physical hardware per `CAPTURE_RUNBOOK.md`. That capture is a physical-hardware/engine-execution task and cannot be produced by a headless automated run.
+
+Until that hardware evidence exists, hourly automation should: verify no open PR/issue needs attention; re-run the full local test/foundation suite to confirm nothing regressed; and, if it finds one, close a further small, concretely evidenced gap in the Phase 1 tooling or its documentation (test coverage, stale contract, drifted fixture, etc.) rather than inventing new roadmap scope. Do not begin Phase 2 — One Probe until the exit gate actually passes with a real `decision_ready` artifact.
 
 ## Maintenance rule
 
