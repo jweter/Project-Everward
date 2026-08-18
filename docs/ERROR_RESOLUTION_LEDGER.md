@@ -21,3 +21,13 @@ This ledger records verified development and CI failures whose root causes are u
 - **Scope:** test-fixture correction only; validation, normalization, scoring, and production simulation behavior remain unchanged.
 - **Prevention:** tests for versioned/canonical contracts should load identity fields from the authoritative fixture unless the purpose of the test is explicitly to verify mismatch rejection. Avoid duplicating contract identifiers across test helpers.
 - **Verification:** fresh GitHub Actions run required on the updated PR head.
+
+## 2026-08-17 — Rendering scene manifest lagged canonical scenario version
+
+- **Observed failure:** PR #17 `Foundation checks` passed every prior Phase 1 suite and 46 rendering-benchmark tests, then failed all six new `test_scene_state.py` cases.
+- **Error:** `ValueError: scene manifest scenario_version does not match scenario` from `scene_state.validate_manifest()`.
+- **Root cause:** the canonical rendering scenario had already advanced to `scenario_version: 2` when deterministic playback timing was added, but the newly introduced `scene_manifest.json` was authored with stale `scenario_version: 1`. The validator correctly treated the manifest as incompatible rather than silently accepting drift.
+- **Fix:** bind `scene_manifest.json` to canonical scenario version 2. No scene geometry, animation timing, playback logic, or simulation behavior changed.
+- **Scope:** benchmark metadata correction only; renderer-neutral scene truth remains unchanged.
+- **Prevention:** every new persisted artifact that binds to a versioned canonical contract must copy its identity from the current authoritative contract at creation time and include a CI test that validates the binding before any deeper behavior assertions. Treat version mismatch as a hard failure, never an implicit migration.
+- **Verification:** fresh GitHub Actions run required on the updated PR head.
