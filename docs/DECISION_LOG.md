@@ -130,11 +130,36 @@ Everward uses lightweight Architecture/Design Decision Records (ADRs) to prevent
 
 **Evidence required:** prototype playtesting after research/engineering systems exist.
 
-## ADR-0010 — Repository licensing posture
+## ADR-0010 — Repository licensing and visibility posture
 
 **Status:** ACCEPTED
 
-**Decision:** Private proprietary commercial development by default. No open-source license grant is implied unless a future explicit decision changes the root license.
+**Decision:** Everward remains proprietary, all-rights-reserved commercial software and creative work while the GitHub repository is intentionally public for operational reasons. Public visibility does not grant an open-source license.
+
+**Consequences:**
+
+- the root `LICENSE` remains a proprietary rights-reservation notice;
+- documentation must not describe public visibility as permission to reuse, modify, redistribute, or commercialize Everward's original work;
+- restricted third-party material, secrets, credentials, private data, and non-redistributable assets must never be committed;
+- outside contributions require provenance/IP review before acceptance;
+- any future open-source or alternative licensing decision requires a new explicit ADR.
+
+## ADR-0011 — Scheduled autonomous development governance
+
+**Status:** ACCEPTED
+
+**Decision:** Scheduled Everward development follows `AGENT_DEVELOPMENT_POLICY.md` and uses `PROJECT_STATUS.md` as its durable operational continuation record.
+
+**Consequences:**
+
+- existing PRs and CI failures take priority over new roadmap work;
+- fully GREEN merge-ready PRs may be merged automatically once fresh independent GitHub CI has succeeded, including within the same hourly run in which the PR was opened if CI has completed and every merge condition is satisfied;
+- local tests alone never authorize a merge;
+- at most one substantial new highest-value roadmap slice is started per hourly run;
+- current roadmap phase/exit gate is preferred over later attractive work;
+- substantive autonomous changes use branches and pull requests rather than direct commits to `main`;
+- affected documentation must be kept current;
+- significant failure memory belongs in `ERROR_RESOLUTION_LEDGER.md` and durable design/architecture rationale remains in this decision log.
 
 ## ADR template
 
