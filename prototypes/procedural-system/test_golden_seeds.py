@@ -22,9 +22,10 @@ import json
 from pathlib import Path
 import unittest
 
-from generator import GENERATOR_VERSION, generate_system
+from generator import GENERATOR_VERSION, STAR_TABLE, generate_system
 
 FIXTURE_PATH = Path(__file__).parent / "golden_seeds.json"
+STAR_TABLE_CLASSES = {spectral_class for spectral_class, _weight in STAR_TABLE}
 
 
 class GoldenSeedTests(unittest.TestCase):
@@ -85,6 +86,18 @@ class GoldenSeedTests(unittest.TestCase):
         classes = {case["label"]: case["expected_system"]["star"]["spectral_class"] for case in self.fixture["cases"]}
         self.assertEqual(classes["rare_o_class_star"], "O")
         self.assertEqual(classes["rare_b_class_star"], "B")
+        self.assertEqual(classes["rare_a_class_star"], "A")
+
+    def test_every_star_table_spectral_class_is_pinned_somewhere_in_the_bank(self) -> None:
+        # STAR_TABLE (generator.py) declares seven weighted spectral classes.
+        # A per-call range check can only validate a value against the same
+        # STAR_RANGES entry the generator itself used to produce it, so it
+        # cannot catch an unintended change that reshuffles which class a
+        # given roll selects. Pinning at least one golden case per class
+        # closes that blind spot for the whole table, not just the rarest
+        # two entries.
+        pinned_classes = {case["expected_system"]["star"]["spectral_class"] for case in self.fixture["cases"]}
+        self.assertEqual(pinned_classes, set(STAR_TABLE_CLASSES))
 
     def test_interstellar_scale_case_uses_large_mixed_sign_coordinate(self) -> None:
         case = self._case("interstellar_scale_negative_coordinate")

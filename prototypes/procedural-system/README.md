@@ -71,7 +71,10 @@ python -m unittest discover -s prototypes/procedural-system -p 'test_*.py' -v
 - a pinned bank of golden seeds (ordinary, sparse/no-planet, resource-rich,
   rare spectral classes, interstellar-scale coordinates) reproduces its exact
   recorded canonical output, per `docs/TESTING_STRATEGY.md`'s golden-seed
-  testing layer.
+  testing layer,
+- every spectral class in `STAR_TABLE` is represented by at least one pinned
+  golden case, so a change that reshuffles which class a given roll selects
+  cannot pass silently.
 
 ## Golden-seed regression bank
 
@@ -80,7 +83,12 @@ small, diverse set of seed/coordinate pairs at the current
 `GENERATOR_VERSION`. `test_golden_seeds.py` replays each case and fails if
 `generator.py` produces different output for an existing generator version,
 catching accidental algorithm drift that per-call equality checks and
-range/invariant tests cannot catch on their own.
+range/invariant tests cannot catch on their own. The bank also pins at least
+one case for every spectral class declared in `STAR_TABLE` (`M`, `K`, `G`,
+`F`, `A`, `B`, `O`); `test_generator.py`'s range check can only compare a
+generated value against the same `STAR_RANGES` entry the generator used to
+produce it, so it cannot detect a class/range mismatch on its own — a pinned
+case per class closes that blind spot.
 
 A deliberate generation-algorithm change must bump `GENERATOR_VERSION` and
 regenerate `golden_seeds.json` from the new algorithm as part of that same
