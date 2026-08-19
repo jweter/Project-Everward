@@ -104,6 +104,55 @@ class RunRecordTests(unittest.TestCase):
             },
         )
 
+    def test_every_declared_string_field_rejects_a_non_string_value(self):
+        # STRING_CAPTURE_FIELDS lists five distinct capture fields
+        # (engine_version, os_version, cpu_model, gpu_model, notes), but no
+        # existing test exercised the "must be a string" branch for any of
+        # them. A field silently dropped from that set (typo, refactor, merge
+        # conflict) could let a non-string value for that field pass
+        # validation unnoticed, letting non-comparable evidence (e.g. a
+        # numeric cpu_model) feed the Phase 1 engine-decision packet.
+        for field in run_record.STRING_CAPTURE_FIELDS:
+            with self.subTest(field=field):
+                broken = dict(self.record)
+                broken["capture"] = dict(self.record["capture"])
+                broken["capture"][field] = 12345
+                with self.assertRaisesRegex(TypeError, f"capture field {field!r} must be a string"):
+                    run_record.validate_run_record(broken, self.scenario)
+
+    def test_every_non_notes_string_field_rejects_an_empty_value(self):
+        # Every STRING_CAPTURE_FIELDS entry except "notes" must additionally
+        # be non-empty. Only "notes" is deliberately exempt (see
+        # test_notes_field_may_be_empty), so each of the other four fields
+        # must be checked independently rather than relying on one example.
+        for field in run_record.STRING_CAPTURE_FIELDS:
+            if field == "notes":
+                continue
+            with self.subTest(field=field):
+                broken = dict(self.record)
+                broken["capture"] = dict(self.record["capture"])
+                broken["capture"][field] = "   "
+                with self.assertRaisesRegex(ValueError, f"capture field {field!r} must be non-empty"):
+                    run_record.validate_run_record(broken, self.scenario)
+
+    def test_notes_field_may_be_empty(self):
+        # notes is deliberately exempt from the non-empty check: a benchmark
+        # run with nothing extra to report is legitimate decision-grade
+        # evidence, unlike a run missing its engine/OS/hardware identity.
+        allowed = dict(self.record)
+        allowed["capture"] = dict(self.record["capture"])
+        allowed["capture"]["notes"] = ""
+        run_record.validate_run_record(allowed, self.scenario)
+
+    def test_declared_string_fields_are_exactly_the_five_expected_capture_fields(self):
+        # Pins the set itself so a field being added/removed from
+        # STRING_CAPTURE_FIELDS is a deliberate, visible change; the loop
+        # tests above alone cannot detect a field being removed from it.
+        self.assertEqual(
+            run_record.STRING_CAPTURE_FIELDS,
+            ("engine_version", "os_version", "cpu_model", "gpu_model", "notes"),
+        )
+
     def test_screenshot_evidence_cannot_be_empty(self):
         broken = dict(self.record)
         broken["capture"] = dict(self.record["capture"])
