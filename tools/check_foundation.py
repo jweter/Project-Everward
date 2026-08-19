@@ -30,6 +30,7 @@ REQUIRED_FILES = (
     "docs/VISUAL_DIRECTION.md",
     "docs/AUDIO_DIRECTION.md",
     "docs/TECHNOLOGY_DECISIONS.md",
+    "docs/ENGINE_DIRECTION.md",
     "docs/IP_AND_LICENSES.md",
     "docs/GLOSSARY.md",
     "docs/ROADMAP.md",
