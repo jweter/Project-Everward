@@ -67,6 +67,43 @@ class RunRecordTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cannot be negative"):
             run_record.validate_run_record(broken, self.scenario)
 
+    def test_every_declared_numeric_field_rejects_a_negative_value(self):
+        # NUMERIC_NONNEGATIVE_FIELDS lists five distinct capture fields, but the
+        # test above only ever exercised "implementation_hours". A field being
+        # silently dropped from that set (typo, refactor, merge conflict) would
+        # let a negative measurement for that field pass validation unnoticed,
+        # so every declared field must be checked independently, not just one.
+        for field in sorted(run_record.NUMERIC_NONNEGATIVE_FIELDS):
+            with self.subTest(field=field):
+                broken = dict(self.record)
+                broken["capture"] = dict(self.record["capture"])
+                broken["capture"][field] = -1
+                with self.assertRaisesRegex(ValueError, f"capture field {field!r} cannot be negative"):
+                    run_record.validate_run_record(broken, self.scenario)
+
+    def test_every_declared_numeric_field_rejects_a_non_numeric_value(self):
+        for field in sorted(run_record.NUMERIC_NONNEGATIVE_FIELDS):
+            with self.subTest(field=field):
+                broken = dict(self.record)
+                broken["capture"] = dict(self.record["capture"])
+                broken["capture"][field] = "not-a-number"
+                with self.assertRaisesRegex(TypeError, f"capture field {field!r} must be numeric"):
+                    run_record.validate_run_record(broken, self.scenario)
+
+    def test_declared_numeric_fields_are_exactly_the_five_expected_capture_fields(self):
+        # Pins the set itself so a field being added/removed from
+        # NUMERIC_NONNEGATIVE_FIELDS is a deliberate, visible change.
+        self.assertEqual(
+            run_record.NUMERIC_NONNEGATIVE_FIELDS,
+            {
+                "cpu_frame_time_ms",
+                "gpu_frame_time_ms",
+                "peak_memory_mib",
+                "implementation_hours",
+                "build_size_mib",
+            },
+        )
+
     def test_screenshot_evidence_cannot_be_empty(self):
         broken = dict(self.record)
         broken["capture"] = dict(self.record["capture"])
