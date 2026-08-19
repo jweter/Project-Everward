@@ -93,6 +93,42 @@ class CapturePairTests(unittest.TestCase):
                 self.provenance(),
             )
 
+    def test_every_declared_hardware_field_mismatch_is_rejected(self):
+        # test_hardware_mismatch_is_rejected above only exercises gpu_model.
+        # HARDWARE_FIELDS declares four distinct fields that must each be
+        # compared independently; a field silently dropped from that tuple
+        # (typo, refactor, merge conflict) would let a real hardware mismatch
+        # for that field pass validation unnoticed, since every other field
+        # still matches between the two records.
+        mismatched_values = {
+            "os_version": "Windows 10",
+            "cpu_model": "Different CPU",
+            "gpu_model": "Different GPU",
+            "ram_gib": 64,
+        }
+        self.assertEqual(set(mismatched_values), set(capture_pair.HARDWARE_FIELDS))
+        for field, value in mismatched_values.items():
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(
+                    ValueError, f"benchmark hardware does not match: {field}"
+                ):
+                    capture_pair.validate_capture_pair(
+                        self.scenario(),
+                        self.record("godot"),
+                        self.record("unreal", **{field: value}),
+                        self.provenance(),
+                        self.provenance(),
+                    )
+
+    def test_hardware_fields_are_exactly_the_four_expected_fields(self):
+        # The loop test above iterates whatever HARDWARE_FIELDS currently
+        # contains and cannot by itself detect a field being removed from
+        # it; pin the declared tuple's contents independently.
+        self.assertEqual(
+            set(capture_pair.HARDWARE_FIELDS),
+            {"os_version", "cpu_model", "gpu_model", "ram_gib"},
+        )
+
     def test_incomplete_provenance_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "invalid left provenance fields"):
             capture_pair.validate_capture_pair(
