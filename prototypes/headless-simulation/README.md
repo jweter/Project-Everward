@@ -53,6 +53,20 @@ This is deliberately a prototype checkpoint format, not the production save sche
 - next-event schedules survive checkpointing,
 - invalid horizons are rejected.
 
+## Golden-run regression bank
+
+`golden_runs.json` pins the exact canonical summary and fingerprint for six diverse
+seed/years cases (ordinary, minimal single-event horizon, exact archive-period
+boundary, negative seed, zero seed, and the 10,000-year Phase 1 proof scale).
+`test_golden_runs.py` replays each case and asserts an exact match, per
+`docs/TESTING_STRATEGY.md`'s golden-seed testing principle. This exists because
+every other test in this prototype compares `HeadlessSimulation` output against
+another call to the same code, so an unintended change to the
+deterministic-accumulator formula would satisfy every prior assertion without
+failing anything. Regenerate this fixture only after a deliberate, intentional
+change to the workload's mechanical behavior — never hand-edit it to make a
+failing case pass.
+
 ## Acceptance criteria
 
 - [x] run a fixed scenario from a seed,
