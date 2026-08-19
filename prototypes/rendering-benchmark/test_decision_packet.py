@@ -15,6 +15,7 @@ for module_name in ("benchmark", "scenario", "run_record", "normalization", "dec
     assert spec.loader is not None
     spec.loader.exec_module(module)
 
+benchmark = sys.modules["benchmark"]
 normalization = sys.modules["normalization"]
 decision_packet = sys.modules["decision_packet"]
 
@@ -91,6 +92,94 @@ class RenderingDecisionPacketTests(unittest.TestCase):
         self.assertEqual(packet["all_metric_deltas"][0]["metric"], "visual_fidelity")
         magnitudes = [row["absolute_weighted_delta"] for row in packet["all_metric_deltas"]]
         self.assertEqual(magnitudes, sorted(magnitudes, reverse=True))
+
+    def test_metric_deltas_apply_each_metrics_own_declared_weight(self):
+        # Every existing packet test above leaves at most one metric different
+        # between left and right (the rest tie at an identical uniform score),
+        # so a weighted_delta of 0 for every tied metric hides which
+        # DEFAULT_WEIGHTS entry (if any) got paired with it. That means none of
+        # them could detect decision_packet._metric_deltas() applying the wrong
+        # metric's weight (e.g. two weights swapped, or a future refactor
+        # iterating REQUIRED_METRICS/DEFAULT_WEIGHTS out of step) for any metric
+        # that ties. This gives every one of the thirteen required metrics a
+        # distinct, non-tied left/right delta, then checks each row's
+        # "weighted_delta" against a value computed independently of
+        # decision_packet.py: literal DEFAULT_WEIGHTS values (verified by hand
+        # against benchmark.py) multiplied by the delta between the left/right
+        # scores that normalize_pair() independently produces for that metric.
+        left = self.record("godot", cpu=6.0, gpu=9.0, memory=1200.0, hours=8.0, build=250.0)
+        right = self.record("unreal", cpu=9.0, gpu=6.0, memory=800.0, hours=16.0, build=500.0)
+
+        def assessment(score):
+            return normalization.QualitativeAssessment(score, "evidence")
+
+        left_assessments = {
+            "visual_fidelity": assessment(9.0),
+            "scene_complexity": assessment(3.0),
+            "hud_effort": assessment(7.0),
+            "procedural_workflow": assessment(5.0),
+            "simulation_integration": assessment(8.0),
+            "large_coordinate_behavior": assessment(2.0),
+            "save_load_implications": assessment(6.0),
+            "commercial_licensing": assessment(4.0),
+        }
+        right_assessments = {
+            "visual_fidelity": assessment(4.0),
+            "scene_complexity": assessment(8.0),
+            "hud_effort": assessment(1.0),
+            "procedural_workflow": assessment(9.0),
+            "simulation_integration": assessment(3.0),
+            "large_coordinate_behavior": assessment(7.0),
+            "save_load_implications": assessment(0.0),
+            "commercial_licensing": assessment(10.0),
+        }
+        self.assertEqual(set(left_assessments), set(normalization.QUALITATIVE_METRICS))
+        self.assertEqual(set(right_assessments), set(normalization.QUALITATIVE_METRICS))
+
+        packet = decision_packet.build_decision_packet(
+            self.scenario(), left, right, left_assessments, right_assessments
+        )
+
+        # normalize_pair() is the same primitive build_decision_packet() itself
+        # calls to derive left/right per-metric scores, so re-deriving expected
+        # left/right values through it (rather than through _metric_deltas())
+        # still isolates the thing under test: whether _metric_deltas() then
+        # pairs each metric's score delta with that metric's own declared
+        # weight, not a swapped or mismatched one.
+        left_result, right_result, _ = normalization.normalize_pair(
+            self.scenario(), left, right, left_assessments, right_assessments
+        )
+
+        # Literal weights copied from benchmark.DEFAULT_WEIGHTS, independent of
+        # decision_packet._metric_deltas()'s own dict lookup.
+        literal_weights = {
+            "visual_fidelity": 0.14,
+            "cpu_frame_time": 0.08,
+            "gpu_frame_time": 0.08,
+            "memory_use": 0.05,
+            "scene_complexity": 0.04,
+            "hud_effort": 0.06,
+            "procedural_workflow": 0.08,
+            "simulation_integration": 0.12,
+            "large_coordinate_behavior": 0.10,
+            "save_load_implications": 0.05,
+            "build_distribution_complexity": 0.05,
+            "developer_iteration_speed": 0.10,
+            "commercial_licensing": 0.05,
+        }
+        self.assertEqual(literal_weights, benchmark.DEFAULT_WEIGHTS)
+
+        rows_by_metric = {row["metric"]: row for row in packet["all_metric_deltas"]}
+        self.assertEqual(set(rows_by_metric), set(benchmark.REQUIRED_METRICS))
+
+        for metric in benchmark.REQUIRED_METRICS:
+            left_score = left_result.metrics[metric]
+            right_score = right_result.metrics[metric]
+            self.assertNotEqual(left_score, right_score, metric)
+            expected_weighted_delta = (left_score - right_score) * literal_weights[metric]
+            row = rows_by_metric[metric]
+            self.assertEqual(row["weight"], literal_weights[metric], metric)
+            self.assertAlmostEqual(row["weighted_delta"], round(expected_weighted_delta, 4), msg=metric)
 
 
 if __name__ == "__main__":
