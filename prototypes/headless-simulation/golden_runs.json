@@ -1,0 +1,120 @@
+{
+  "cases": [
+    {
+      "description": "Everyday-case regression baseline covering all three periodic streams.",
+      "expected_fingerprint": "54bac0a22277091eecfabad99f6adee04de27e8d8d2dbeda07dcac06258b3ac7",
+      "expected_summary": {
+        "archive_cycles": 2,
+        "deterministic_accumulator": 9551838828678174520,
+        "final_tick": 7889400000000000,
+        "fingerprint": "54bac0a22277091eecfabad99f6adee04de27e8d8d2dbeda07dcac06258b3ac7",
+        "maintenance_cycles": 250,
+        "pending_events": 0,
+        "processed_events": 277,
+        "requested_years": 250,
+        "seed": 847291,
+        "survey_cycles": 25
+      },
+      "label": "ordinary_reference",
+      "seed": 847291,
+      "years": 250
+    },
+    {
+      "description": "Smallest valid horizon; only the maintenance stream fires and the survey/archive streams never trigger.",
+      "expected_fingerprint": "110b0501521b275efdefc6b690ee22373947a5c142005ac99fac4801e9ba0192",
+      "expected_summary": {
+        "archive_cycles": 0,
+        "deterministic_accumulator": 15916543565398657244,
+        "final_tick": 31557600000000,
+        "fingerprint": "110b0501521b275efdefc6b690ee22373947a5c142005ac99fac4801e9ba0192",
+        "maintenance_cycles": 1,
+        "pending_events": 0,
+        "processed_events": 1,
+        "requested_years": 1,
+        "seed": 1,
+        "survey_cycles": 0
+      },
+      "label": "minimal_single_maintenance_year",
+      "seed": 1,
+      "years": 1
+    },
+    {
+      "description": "Horizon lands exactly on the 100-year archive period boundary.",
+      "expected_fingerprint": "1f90b40ef867b1a9b4c931432cbfdcc6cb46e36dbc22972f261c7d9dcac55664",
+      "expected_summary": {
+        "archive_cycles": 1,
+        "deterministic_accumulator": 11359848377663900418,
+        "final_tick": 3155760000000000,
+        "fingerprint": "1f90b40ef867b1a9b4c931432cbfdcc6cb46e36dbc22972f261c7d9dcac55664",
+        "maintenance_cycles": 100,
+        "pending_events": 0,
+        "processed_events": 111,
+        "requested_years": 100,
+        "seed": 5,
+        "survey_cycles": 10
+      },
+      "label": "exact_archive_boundary",
+      "seed": 5,
+      "years": 100
+    },
+    {
+      "description": "Negative seed exercises sign handling in the deterministic hash input.",
+      "expected_fingerprint": "629c15286eff9b26ed7b8b4b121a4bdf3415cefee68b95b245bdb65569f6aa86",
+      "expected_summary": {
+        "archive_cycles": 0,
+        "deterministic_accumulator": 4116487020652566820,
+        "final_tick": 1041400800000000,
+        "fingerprint": "629c15286eff9b26ed7b8b4b121a4bdf3415cefee68b95b245bdb65569f6aa86",
+        "maintenance_cycles": 33,
+        "pending_events": 0,
+        "processed_events": 36,
+        "requested_years": 33,
+        "seed": -17,
+        "survey_cycles": 3
+      },
+      "label": "negative_seed",
+      "seed": -17,
+      "years": 33
+    },
+    {
+      "description": "Seed of zero is a common accidental-default edge case.",
+      "expected_fingerprint": "05fef9df61fe7714ff282d056c5282e0d0b50ef42b221509470ad379eff5240a",
+      "expected_summary": {
+        "archive_cycles": 0,
+        "deterministic_accumulator": 13298348603947189737,
+        "final_tick": 378691200000000,
+        "fingerprint": "05fef9df61fe7714ff282d056c5282e0d0b50ef42b221509470ad379eff5240a",
+        "maintenance_cycles": 12,
+        "pending_events": 0,
+        "processed_events": 13,
+        "requested_years": 12,
+        "seed": 0,
+        "survey_cycles": 1
+      },
+      "label": "zero_seed",
+      "seed": 0,
+      "years": 12
+    },
+    {
+      "description": "Large horizon matching the Phase 1 headless-simulation long-duration proof scale.",
+      "expected_fingerprint": "6f4e1aa26c89acb78eaff0956dac11e277e40348c308c3d8701a0816ef1912b2",
+      "expected_summary": {
+        "archive_cycles": 100,
+        "deterministic_accumulator": 11960568661369634777,
+        "final_tick": 315576000000000000,
+        "fingerprint": "6f4e1aa26c89acb78eaff0956dac11e277e40348c308c3d8701a0816ef1912b2",
+        "maintenance_cycles": 10000,
+        "pending_events": 0,
+        "processed_events": 11100,
+        "requested_years": 10000,
+        "seed": 424242,
+        "survey_cycles": 1000
+      },
+      "label": "large_horizon_ten_thousand_years",
+      "seed": 424242,
+      "years": 10000
+    }
+  ],
+  "fixture_version": 1,
+  "purpose": "Golden-run regression bank (docs/TESTING_STRATEGY.md). Pins the exact canonical summary and fingerprint HeadlessSimulation produces for a fixed, diverse set of seed/years pairs so an unintentional change to runner.py's event handling or deterministic-accumulator formula is caught by a failing test instead of silently changing canonical output. A deliberate, intentional change to the workload's mechanical behavior must regenerate this fixture from the new behavior; it must never be hand-edited to make a failing case pass."
+}
