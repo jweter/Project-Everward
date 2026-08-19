@@ -92,6 +92,41 @@ class RenderingNormalizationTests(unittest.TestCase):
         first_qualitative = normalization.QUALITATIVE_METRICS[0]
         self.assertIn("evidence", audit["qualitative"][first_qualitative]["left_evidence"])
 
+    def test_pair_normalization_maps_each_quantitative_metric_to_its_own_capture_field(self):
+        # Every quantitative metric gets a distinct, non-degenerate left/right
+        # ratio so that QUANTITATIVE_SOURCES silently mapping one metric to a
+        # sibling metric's capture field (e.g. memory_use <->
+        # build_distribution_complexity) would be caught by both the audited
+        # capture_field and the resulting score, not just one or the other.
+        left = self.run_record("godot", cpu=8.0, gpu=6.0, memory=500.0, hours=10.0, build=1000.0)
+        right = self.run_record("unreal", cpu=16.0, gpu=18.0, memory=750.0, hours=25.0, build=1100.0)
+
+        left_result, right_result, audit = normalization.normalize_pair(
+            self.scenario(), left, right, self.assessments(8.0), self.assessments(7.0)
+        )
+
+        expected_capture_fields = {
+            "cpu_frame_time": "cpu_frame_time_ms",
+            "gpu_frame_time": "gpu_frame_time_ms",
+            "memory_use": "peak_memory_mib",
+            "build_distribution_complexity": "build_size_mib",
+            "developer_iteration_speed": "implementation_hours",
+        }
+        # right/left ratios are all distinct (2.0, 3.0, 1.5, 1.1, 2.5) so no
+        # two metrics could be swapped without changing at least one score.
+        expected_right_scores = {
+            "cpu_frame_time": round(10.0 * 8.0 / 16.0, 6),
+            "gpu_frame_time": round(10.0 * 6.0 / 18.0, 6),
+            "memory_use": round(10.0 * 500.0 / 750.0, 6),
+            "build_distribution_complexity": round(10.0 * 1000.0 / 1100.0, 6),
+            "developer_iteration_speed": round(10.0 * 10.0 / 25.0, 6),
+        }
+
+        for metric, capture_field in expected_capture_fields.items():
+            self.assertEqual(audit["quantitative"][metric]["capture_field"], capture_field)
+            self.assertEqual(left_result.metrics[metric], 10.0)
+            self.assertEqual(right_result.metrics[metric], expected_right_scores[metric])
+
     def test_same_engine_comparison_is_rejected(self):
         left = self.run_record("godot")
         right = self.run_record("godot")
