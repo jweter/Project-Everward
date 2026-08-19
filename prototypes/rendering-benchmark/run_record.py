@@ -31,6 +31,18 @@ NUMERIC_NONNEGATIVE_FIELDS = {
     "build_size_mib",
 }
 
+# String identity/free-text capture fields. Every field here must be a string;
+# every field except "notes" must additionally be non-empty (a benchmark run
+# with no recorded notes is legitimate; a run with no recorded engine version,
+# OS, CPU model, or GPU model is not decision-grade evidence).
+STRING_CAPTURE_FIELDS = (
+    "engine_version",
+    "os_version",
+    "cpu_model",
+    "gpu_model",
+    "notes",
+)
+
 
 def load_run_record(path: str | Path, scenario_path: str | Path) -> dict[str, Any]:
     """Load and validate a raw benchmark run record against a scenario."""
@@ -102,7 +114,7 @@ def validate_run_record(data: Mapping[str, Any], scenario: Mapping[str, Any]) ->
     if not isinstance(project_settings, Mapping) or not project_settings:
         raise ValueError("capture field 'project_settings' must be a non-empty object")
 
-    for field in ("engine_version", "os_version", "cpu_model", "gpu_model", "notes"):
+    for field in STRING_CAPTURE_FIELDS:
         value = capture[field]
         if not isinstance(value, str):
             raise TypeError(f"capture field {field!r} must be a string")
