@@ -15,6 +15,7 @@ This file records the specific Phase 1 timing invariants exercised by the protot
 | Replay evidence | A fixed scenario is executed twice and its complete final state/history is compared. |
 | Headless execution | `run_demo.py` runs without any rendering or engine dependency. |
 | Canonical trace fingerprint | Demo output includes a SHA-256 digest of sorted canonical event history. |
+| Exact scaling arithmetic (not merely self-consistent) | `test_wall_tick_scaling_matches_independently_computed_floor_division` and `test_wall_tick_scaling_matches_closed_form_across_irregular_chunk_sizes` assert the fractional remainder-carry accumulator against `n * numerator // denominator`, a closed-form value computed independently of `SimulationClock`, rather than only comparing two clock runs against each other. |
 
 ## Gate interpretation
 

@@ -110,6 +110,48 @@ class SimulationClockTests(unittest.TestCase):
         self.assertEqual(clock.tick, 0)
         self.assertFalse(clock.paused)
 
+    def test_wall_tick_scaling_matches_independently_computed_floor_division(self) -> None:
+        """Pin the fractional remainder-carry accumulator to a hand-derivable value.
+
+        Every other scaling test in this file compares two separate
+        ``SimulationClock`` runs against each other. That style would not catch
+        a self-consistent but wrong accumulator (e.g. rounding instead of
+        flooring, or losing the carried remainder), because a broken formula
+        applied identically on both sides still agrees with itself. This test
+        instead checks against ``n * numerator // denominator``, the closed-form
+        exact value for an unscaled-then-scaled wall-tick count, computed here
+        independently of ``SimulationClock`` internals.
+        """
+        numerator, denominator = 7, 3
+        clock = SimulationClock()
+        clock.set_time_scale(numerator, denominator)
+
+        for step in range(1, 301):
+            clock.advance_wall_ticks(1)
+            expected_tick = step * numerator // denominator
+            self.assertEqual(clock.tick, expected_tick, f"mismatch at wall step {step}")
+
+    def test_wall_tick_scaling_matches_closed_form_across_irregular_chunk_sizes(self) -> None:
+        """Same independent closed-form check, but with irregular chunk sizes.
+
+        `PROOF.md` claims frame/update-rate independence. The existing test for
+        that claim only compares a coarse-chunked run against a fine-chunked
+        run, so it inherits the same self-comparison blind spot described
+        above. This asserts irregular chunking against the same
+        externally-derived exact formula instead.
+        """
+        numerator, denominator = 22, 7
+        clock = SimulationClock()
+        clock.set_time_scale(numerator, denominator)
+
+        chunk_sizes = [1, 2, 3, 1, 5, 1, 1, 4, 2, 1, 9, 1, 1, 1, 6]
+        cumulative_wall_ticks = 0
+        for chunk in chunk_sizes:
+            clock.advance_wall_ticks(chunk)
+            cumulative_wall_ticks += chunk
+            expected_tick = cumulative_wall_ticks * numerator // denominator
+            self.assertEqual(clock.tick, expected_tick)
+
 
 if __name__ == "__main__":
     unittest.main()
