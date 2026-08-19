@@ -22,7 +22,7 @@ class Phase1ExitGateTests(unittest.TestCase):
             path.mkdir(parents=True)
             (path / "proof.txt").write_text("fixture\n", encoding="utf-8")
 
-    def write_decision(self, root: Path, status="decision_ready", recommendation="godot") -> Path:
+    def write_decision(self, root: Path, status="decision_ready", recommendation="unreal") -> Path:
         path = root / "decision.json"
         path.write_text(
             json.dumps(
@@ -54,7 +54,18 @@ class Phase1ExitGateTests(unittest.TestCase):
         self.assertFalse(report["phase1_complete"])
         self.assertIn("engine benchmark is not decision-ready", " ".join(report["blockers"]))
 
-    def test_complete_prototypes_and_engine_decision_authorize_phase2(self):
+    def test_decision_ready_godot_recommendation_does_not_authorize_phase2(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self.make_prototypes(root)
+            decision = self.write_decision(root, recommendation="godot")
+            report = MODULE.audit_phase1_exit(root, decision)
+        self.assertFalse(report["phase1_complete"])
+        self.assertFalse(report["phase2_one_probe_authorized"])
+        self.assertEqual(report["engine_decision"]["recommendation"], "godot")
+        self.assertIn("does not validate the accepted Unreal production direction", " ".join(report["blockers"]))
+
+    def test_complete_prototypes_and_unreal_decision_authorize_phase2(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self.make_prototypes(root)
@@ -63,6 +74,8 @@ class Phase1ExitGateTests(unittest.TestCase):
         self.assertTrue(report["phase1_complete"])
         self.assertTrue(report["phase2_one_probe_authorized"])
         self.assertEqual(report["engine_decision"]["recommendation"], "unreal")
+        self.assertEqual(report["engine_decision"]["required_production_engine"], "unreal")
+        self.assertEqual(report["next_step"], "Begin Phase 2 — One Probe in Unreal Engine.")
 
     def test_missing_prototype_is_a_hard_blocker(self):
         with tempfile.TemporaryDirectory() as temp_dir:
