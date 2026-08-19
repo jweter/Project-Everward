@@ -1,8 +1,9 @@
 """Audit whether Everward may leave Phase 1 and begin One Probe.
 
 This gate is intentionally conservative. Repository structure can prove that the
-technical prototypes exist, but the production engine remains blocked until a
-real rendering benchmark decision artifact exists and is decision-ready.
+technical prototypes exist, but production gameplay remains blocked until a
+real rendering benchmark decision artifact exists, is decision-ready, and
+validates Unreal Engine as the accepted production direction.
 """
 
 from __future__ import annotations
@@ -20,6 +21,8 @@ PROTOTYPE_REQUIREMENTS = {
     "headless_simulation": "headless-simulation",
     "rendering_benchmark": "rendering-benchmark",
 }
+
+REQUIRED_PRODUCTION_ENGINE = "unreal"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -41,7 +44,11 @@ def audit_phase1_exit(prototypes_root: Path, decision_artifact: Path | None = No
         if not present:
             blockers.append(f"missing or empty Phase 1 prototype: {relative}")
 
-    decision_status: dict[str, Any] = {"present": False, "decision_ready": False}
+    decision_status: dict[str, Any] = {
+        "present": False,
+        "decision_ready": False,
+        "required_production_engine": REQUIRED_PRODUCTION_ENGINE,
+    }
     if decision_artifact is None:
         blockers.append("real rendering benchmark decision artifact not supplied")
     else:
@@ -59,10 +66,17 @@ def audit_phase1_exit(prototypes_root: Path, decision_artifact: Path | None = No
                 if not isinstance(packet, dict):
                     blockers.append("engine decision artifact is missing decision_packet")
                 else:
-                    decision_status["status"] = packet.get("status")
-                    decision_status["recommendation"] = packet.get("recommendation")
-                    if packet.get("status") != "decision_ready" or packet.get("recommendation") not in {"godot", "unreal"}:
-                        blockers.append("engine benchmark is not decision-ready with a Godot or Unreal recommendation")
+                    status = packet.get("status")
+                    recommendation = packet.get("recommendation")
+                    decision_status["status"] = status
+                    decision_status["recommendation"] = recommendation
+                    if status != "decision_ready":
+                        blockers.append("engine benchmark is not decision-ready")
+                    elif recommendation != REQUIRED_PRODUCTION_ENGINE:
+                        blockers.append(
+                            "engine benchmark does not validate the accepted Unreal production direction; "
+                            "resolve the Unreal blocker or explicitly reconsider ADR-0001 before Phase 2"
+                        )
                     else:
                         decision_status["decision_ready"] = True
             except (OSError, json.JSONDecodeError, ValueError) as exc:
@@ -75,7 +89,7 @@ def audit_phase1_exit(prototypes_root: Path, decision_artifact: Path | None = No
         "prototypes": prototypes,
         "engine_decision": decision_status,
         "next_step": (
-            "Begin Phase 2 — One Probe."
+            "Begin Phase 2 — One Probe in Unreal Engine."
             if not blockers
             else "Resolve all Phase 1 blockers; do not begin production gameplay architecture yet."
         ),

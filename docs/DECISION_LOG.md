@@ -12,25 +12,27 @@ Everward uses lightweight Architecture/Design Decision Records (ADRs) to prevent
 
 ## ADR-0001 — Production engine selection
 
-**Status:** OPEN
+**Status:** ACCEPTED
 
-**Question:** Unreal Engine or Godot for the production game?
+**Decision:** Unreal Engine is Everward's production engine direction.
 
-**Why it matters:** Everward requires both visually ambitious space rendering and a deterministic, scalable simulation architecture.
+**Why it matters:** Everward requires both visually ambitious space rendering and a deterministic, scalable simulation architecture. Its visual identity is not a secondary preference: the intended product is cinematic, immersive, high-fidelity 3D scientific realism in which the player physically inhabits the probe and the universe itself is part of the reward.
 
-**Evidence required:**
+**Rationale:** The project has evolved beyond the original possibility of a primarily strategic 2D/2.5D presentation. Everward explicitly requires local cinematic scale, detailed machinery, planets, rings, volumetrics, stellar phenomena, extreme astronomy, cinematic camera work, and a long-term photo-mode/wallpaper-quality visual standard. That product requirement materially favors Unreal's high-end real-time 3D rendering and cinematic toolchain.
 
-- representative asteroid-mining benchmark in both engines,
-- UI/HUD implementation effort,
-- large-coordinate proof,
-- deterministic/headless simulation integration,
-- procedural scene generation,
-- save architecture,
-- performance/memory measurements,
-- development complexity,
-- licensing/commercial implications.
+**Benchmark role:** The existing Godot/Unreal Phase 1 benchmark remains required as technical evidence. It now validates the Unreal choice and identifies material risks in performance, memory, large-coordinate handling, simulation integration, UI, procedural scene construction, save/load, packaging, and development workflow. It is no longer an unconstrained vote between two equally preferred artistic directions.
 
-**Decision:** Not yet made.
+A Godot result that is lighter, faster, or easier does not automatically supersede this ADR. If the benchmark exposes a serious Unreal blocker, Phase 1 remains open until the blocker is resolved or a new explicit ADR supersedes this decision with documented consequences for the visual promise.
+
+**Consequences:**
+
+- Phase 2 production gameplay is authorized only by a decision-ready Phase 1 artifact validating Unreal.
+- A decision-ready recommendation for Godot does not authorize Phase 2; it triggers Unreal blocker investigation or explicit reconsideration of this ADR.
+- Future production architecture, asset planning, visual systems, UI integration, and automated roadmap work should assume Unreal unless this ADR is superseded.
+- Simulation truth remains engine-independent in principle and must not be trapped inside presentation objects.
+- Everward must not drift into a primarily 2D, 2.5D, low-fidelity, abstract-map, or deliberately quirky presentation merely because it is easier to implement.
+
+See `ENGINE_DIRECTION.md`, `VISUAL_DIRECTION.md`, and `TECHNOLOGY_DECISIONS.md`.
 
 ## ADR-0002 — Simulation owns mechanical truth
 

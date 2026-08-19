@@ -1,34 +1,36 @@
 # Technology Decisions
 
-This document records current technical constraints and open gates. It is not a place to turn assumptions into permanent architecture.
+This document records current technical constraints and open gates. It is not a place to turn assumptions into permanent architecture without an explicit project decision.
 
 ## TD-001 — Production engine
 
-**Status:** OPEN
+**Status:** ACCEPTED — UNREAL ENGINE
 
-**Candidates:**
+**Decision:** Everward is being developed toward **Unreal Engine** as its production presentation/runtime engine.
 
-- Unreal Engine
-- Godot
+**Product rationale:** Everward is not intended to become a primarily 2D, 2.5D, abstract-map, or deliberately quirky-looking strategy game. Its visual identity is a first-class product requirement: cinematic, immersive, high-fidelity 3D scientific realism across local machinery, planetary environments, stellar phenomena, and large-scale space scenes.
 
-**Reason decision is open:** Everward evolved from a primarily strategic concept into an embodied, visually ambitious space simulation. Rendering quality now matters enough that engine choice must be evidence-based.
+The player should feel physically present as the probe. Space itself is part of the reward. The project therefore prioritizes an engine/toolchain capable of supporting high-end real-time 3D rendering, lighting, materials, particles, volumetrics, cinematic cameras, large environments, and a long-term path toward wallpaper-quality astronomical scenes.
 
-**Required benchmark evidence:**
+**Phase 1 benchmark role:** the existing Godot/Unreal benchmark remains useful, but its purpose is now technical validation and risk discovery rather than an unconstrained product-direction vote. It should establish:
 
-- representative space-rendering scene,
-- interactive HUD,
-- procedural scene creation,
-- large-coordinate handling,
-- simulation integration,
-- deterministic/headless execution strategy,
-- save/load architecture,
-- performance and memory profile,
-- development complexity,
-- commercial/licensing implications.
+- whether the current Unreal prototype runs correctly on target development hardware;
+- performance and memory characteristics of the representative Everward workload;
+- large-coordinate behavior;
+- simulation-core integration boundaries;
+- procedural scene workflow;
+- UI/HUD workflow;
+- save/load implications;
+- development/package friction;
+- and any technical blocker serious enough to require a new explicit ADR.
+
+A Godot benchmark result may remain as comparative evidence, but a numerically better lightweight result does **not** by itself supersede the accepted visual/product direction. Replacing Unreal requires a later explicit decision documenting a material blocker and the consequences for Everward's visual promise.
 
 **Benchmark scene:** probe mining an icy asteroid near a large planet with stellar lighting, volumetric effects, particles, moving machinery, HUD telemetry, and accelerated time.
 
-**Decision gate:** Phase 1 technical proofs complete.
+**Phase 1 exit constraint:** production gameplay may proceed only after a real, decision-ready hardware artifact validates **Unreal** for the current Phase 1 gate. A decision packet recommending Godot does not authorize Phase 2; it indicates that Unreal-specific blockers must be understood or the engine decision must be explicitly reconsidered.
+
+See `ENGINE_DIRECTION.md`, `VISUAL_DIRECTION.md`, and ADR-0001 in `DECISION_LOG.md`.
 
 ## TD-002 — Simulation/presentation separation
 
@@ -36,7 +38,7 @@ This document records current technical constraints and open gates. It is not a 
 
 The simulation core owns mechanical truth. Rendering, UI, audio, narrative presentation, and future AI-assisted presentation consume simulation state but do not determine outcomes.
 
-This decision must survive whichever production engine is chosen.
+This decision survives the Unreal selection: Unreal is the presentation/runtime integration layer, not the owner of independent simulation truth.
 
 ## TD-003 — Headless simulation
 
@@ -44,7 +46,7 @@ This decision must survive whichever production engine is chosen.
 
 Everward must support non-rendered simulation suitable for deterministic tests, long-duration runs, balance experiments, save verification, and performance analysis.
 
-Exact implementation depends on the final architecture and engine.
+The production Unreal integration must preserve this capability rather than forcing core simulation tests through the renderer.
 
 ## TD-004 — Deterministic procedural generation
 
@@ -96,3 +98,5 @@ For unresolved decisions:
 4. Record results.
 5. Make the decision.
 6. Record consequences in `DECISION_LOG.md`.
+
+Accepted decisions may be revisited only through another explicit decision record with evidence and consequences; they should not drift because a later tool or benchmark happens to be more convenient.
