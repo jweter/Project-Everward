@@ -79,7 +79,7 @@ Project-Everward/
 3. Prove headless time acceleration over very long simulated periods.
 4. Prove deterministic procedural astronomy from seed + coordinates + algorithm version.
 5. Prove large-coordinate handling from local machinery to interstellar scale.
-6. Build/evaluate the representative Everward visual benchmark in Unreal Engine and Godot.
+6. Build/evaluate the representative Everward visual benchmark in Unreal Engine.
 7. Select the production engine from measured evidence and satisfy the Phase 1 exit gate.
 8. Begin the One Probe implementation only after that gate passes.
 
