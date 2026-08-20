@@ -64,6 +64,72 @@ class CaptureReadinessTests(unittest.TestCase):
         self.assertFalse(report["ready_for_hardware_capture"])
         self.assertIn(str(MODULE.ENGINE_REQUIRED_FILES["godot"][0]), " ".join(report["blockers"]))
 
+    def test_every_declared_engine_required_file_missing_blocks_capture(self):
+        # The godot-only case above cannot detect a file silently dropped from
+        # ENGINE_REQUIRED_FILES["unreal"], or any but the first godot entry.
+        for engine, required in MODULE.ENGINE_REQUIRED_FILES.items():
+            for relative in required:
+                with self.subTest(engine=engine, relative=relative):
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        root = self.build_fixture(Path(temp_dir))
+                        (root / relative).unlink()
+                        report = MODULE.audit_capture_readiness(root)
+                    self.assertFalse(report["ready_for_hardware_capture"])
+                    self.assertFalse(report["engines"][engine]["source_ready"])
+                    self.assertEqual(report["engines"][engine]["missing_files"], [relative])
+                    self.assertIn(f"{engine}: missing source file: {relative}", report["blockers"])
+
+    def test_engine_required_files_are_exactly_the_expected_declared_files(self):
+        # The per-file loop above iterates whatever ENGINE_REQUIRED_FILES currently
+        # declares and cannot detect an engine, or a single file within an engine's
+        # tuple, being silently dropped from it.
+        self.assertEqual(
+            {engine: set(required) for engine, required in MODULE.ENGINE_REQUIRED_FILES.items()},
+            {
+                "godot": {
+                    "godot/project.godot",
+                    "godot/main.tscn",
+                    "godot/benchmark_adapter.gd",
+                    "godot/capture_session.gd",
+                },
+                "unreal": {
+                    "unreal/EverwardBenchmark.uproject",
+                    "unreal/Source/EverwardBenchmark/EverwardBenchmark.Build.cs",
+                    "unreal/Source/EverwardBenchmark/BenchmarkAdapter.h",
+                    "unreal/Source/EverwardBenchmark/BenchmarkAdapter.cpp",
+                    "unreal/Source/EverwardBenchmark/BenchmarkCaptureSessionComponent.h",
+                    "unreal/Source/EverwardBenchmark/BenchmarkCaptureSessionComponent.cpp",
+                },
+            },
+        )
+
+    def test_every_declared_pipeline_file_missing_blocks_capture(self):
+        # No prior test ever removed a PIPELINE_REQUIRED_FILES entry, so the
+        # "missing pipeline file: ..." blocker branch had zero coverage.
+        for relative in MODULE.PIPELINE_REQUIRED_FILES:
+            with self.subTest(relative=relative):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = self.build_fixture(Path(temp_dir))
+                    (root / relative).unlink()
+                    report = MODULE.audit_capture_readiness(root)
+                self.assertFalse(report["ready_for_hardware_capture"])
+                self.assertIn(f"missing pipeline file: {relative}", report["blockers"])
+
+    def test_pipeline_required_files_are_exactly_the_six_expected_files(self):
+        # The per-file loop above alone cannot detect a file silently dropped
+        # from PIPELINE_REQUIRED_FILES itself.
+        self.assertEqual(
+            set(MODULE.PIPELINE_REQUIRED_FILES),
+            {
+                "scenario.json",
+                "scene_manifest.json",
+                "export_handoff.py",
+                "prepare_capture.py",
+                "assemble_run_record.py",
+                "pipeline.py",
+            },
+        )
+
     def test_missing_handoff_blocks_capture_without_inventing_evidence(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = self.build_fixture(Path(temp_dir))
