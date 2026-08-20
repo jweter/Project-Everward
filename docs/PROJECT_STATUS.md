@@ -58,7 +58,7 @@ Until that evidence exists, automation should:
 6. avoid inventing marginal Phase 1 scope merely because Phase 2 is hardware-gated;
 7. never begin Phase 2 production gameplay until `prototypes/phase1_exit_gate.py` passes with Unreal validation.
 
-Most recent slice (2026-08-20): a fresh coverage audit across all five Phase 1 prototypes found and fixed a per-field validation gap in `capture_pair.py`'s provenance check (`REQUIRED_PROVENANCE_FIELDS`); see `ERROR_RESOLUTION_LEDGER.md` for detail. Two smaller, lower-severity candidates remain named for a future slice: `evidence_template.py`'s `missing_evidence_fields()` (partially covered) and `test_phase1_exit_gate.py`'s `PROTOTYPE_REQUIREMENTS` loop (only one of five keys covered).
+Most recent slice (2026-08-20): closed the two smaller, lower-severity coverage-gap candidates named after the previous slice — `evidence_template.py`'s `missing_evidence_fields()` (per-field absent/None/blank branches, plus a fully-populated-record invariant test) and `test_phase1_exit_gate.py`'s `PROTOTYPE_REQUIREMENTS` loop (all five keys now covered for both the empty-directory and absent-directory cases, plus a pinned declared-set test); see `ERROR_RESOLUTION_LEDGER.md` for detail. No further coverage-gap candidates are currently named; the next Phase 1 continuation point remains the human-assisted hardware rendering-benchmark evidence capture described above.
 
 When the gate passes, the continuation point becomes:
 
