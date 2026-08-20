@@ -139,6 +139,72 @@ class CapturePairTests(unittest.TestCase):
                 self.provenance(),
             )
 
+    def test_every_declared_provenance_field_is_required(self):
+        # test_incomplete_provenance_is_rejected above only ever removes
+        # handoff_sha256. REQUIRED_PROVENANCE_FIELDS declares two distinct
+        # fields that must each be present; a field silently dropped from
+        # that check (typo, refactor, merge conflict) would let a
+        # provenance document missing that field pass validation
+        # unnoticed, since the other declared field is still present.
+        for field in capture_pair.REQUIRED_PROVENANCE_FIELDS:
+            with self.subTest(field=field):
+                provenance = self.provenance()
+                del provenance[field]
+                with self.assertRaisesRegex(ValueError, f"missing: {field}"):
+                    capture_pair.validate_capture_pair(
+                        self.scenario(),
+                        self.record("godot"),
+                        self.record("unreal"),
+                        provenance,
+                        self.provenance(),
+                    )
+
+    def test_every_declared_provenance_field_rejects_a_blank_value(self):
+        # _validate_provenance()'s per-field non-empty-string check had
+        # zero test coverage for either declared field: no existing test
+        # ever supplied both required keys with a blank value for either.
+        for field in capture_pair.REQUIRED_PROVENANCE_FIELDS:
+            with self.subTest(field=field):
+                provenance = self.provenance()
+                provenance[field] = "   "
+                with self.assertRaisesRegex(
+                    ValueError, f"provenance field {field!r} must be non-empty"
+                ):
+                    capture_pair.validate_capture_pair(
+                        self.scenario(),
+                        self.record("godot"),
+                        self.record("unreal"),
+                        provenance,
+                        self.provenance(),
+                    )
+
+    def test_every_declared_provenance_field_rejects_a_non_string_value(self):
+        # Same per-field check, non-string branch: also zero coverage
+        # before this test, for either declared field.
+        for field in capture_pair.REQUIRED_PROVENANCE_FIELDS:
+            with self.subTest(field=field):
+                provenance = self.provenance()
+                provenance[field] = 12345
+                with self.assertRaisesRegex(
+                    ValueError, f"provenance field {field!r} must be non-empty"
+                ):
+                    capture_pair.validate_capture_pair(
+                        self.scenario(),
+                        self.record("godot"),
+                        self.record("unreal"),
+                        provenance,
+                        self.provenance(),
+                    )
+
+    def test_required_provenance_fields_are_exactly_the_two_expected_fields(self):
+        # The loop tests above iterate whatever REQUIRED_PROVENANCE_FIELDS
+        # currently contains and cannot by themselves detect a field being
+        # silently added to or removed from it; pin the declared set itself.
+        self.assertEqual(
+            capture_pair.REQUIRED_PROVENANCE_FIELDS,
+            {"source_revision", "handoff_sha256"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
