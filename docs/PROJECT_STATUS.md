@@ -58,6 +58,8 @@ Until that evidence exists, automation should:
 6. avoid inventing marginal Phase 1 scope merely because Phase 2 is hardware-gated;
 7. never begin Phase 2 production gameplay until `prototypes/phase1_exit_gate.py` passes with Unreal validation.
 
+Most recent slice (2026-08-20): a fresh coverage audit across all five Phase 1 prototypes found and fixed a per-field validation gap in `capture_pair.py`'s provenance check (`REQUIRED_PROVENANCE_FIELDS`); see `ERROR_RESOLUTION_LEDGER.md` for detail. Two smaller, lower-severity candidates remain named for a future slice: `evidence_template.py`'s `missing_evidence_fields()` (partially covered) and `test_phase1_exit_gate.py`'s `PROTOTYPE_REQUIREMENTS` loop (only one of five keys covered).
+
 When the gate passes, the continuation point becomes:
 
 > **Phase 2 — One Probe in Unreal Engine.**
