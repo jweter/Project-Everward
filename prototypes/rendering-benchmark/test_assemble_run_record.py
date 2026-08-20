@@ -104,6 +104,37 @@ class AssembleRunRecordTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "does not cover run-record contract"):
             assembler.validate_observation(observation, SCENARIO)
 
+    def test_every_declared_observation_field_is_required(self):
+        # REQUIRED_OBSERVATION_FIELDS lists seven distinct identity/evidence
+        # fields, but no existing test ever removed a field and checked that
+        # validate_observation's "missing observation fields" branch actually
+        # fires. A field silently dropped from that set (typo, refactor,
+        # merge conflict) would let an incomplete observation document reach
+        # assemble_run_record() unnoticed by any existing test.
+        for field in sorted(assembler.REQUIRED_OBSERVATION_FIELDS):
+            with self.subTest(field=field):
+                observation = self.observation()
+                del observation[field]
+                with self.assertRaisesRegex(ValueError, f"missing observation fields: .*\\b{field}\\b"):
+                    assembler.validate_observation(observation, SCENARIO)
+
+    def test_required_observation_fields_are_exactly_the_seven_expected_fields(self):
+        # Pins the declared set itself, since the loop test above alone
+        # cannot detect a field being silently removed from the set it
+        # iterates.
+        self.assertEqual(
+            assembler.REQUIRED_OBSERVATION_FIELDS,
+            {
+                "observation_version",
+                "engine",
+                "scenario_name",
+                "scenario_version",
+                "captured_at_utc",
+                "run_record_prefill",
+                "manual_evidence_still_required",
+            },
+        )
+
     def test_cli_output_is_reproducible_and_valid(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp = Path(temp_dir)
