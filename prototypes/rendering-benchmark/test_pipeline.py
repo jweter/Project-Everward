@@ -93,12 +93,38 @@ class RenderingBenchmarkPipelineTests(unittest.TestCase):
         self.assertEqual(packet["scenario_name"], SCENARIO["name"])
 
     def test_missing_qualitative_metric_is_rejected_before_scoring(self):
-        assessments = self.qualitative(8.0)
-        assessments.pop(next(iter(normalization.QUALITATIVE_METRICS)))
-        with tempfile.TemporaryDirectory() as temp_dir:
-            path = self.write_json(temp_dir, "incomplete.json", assessments)
-            with self.assertRaisesRegex(ValueError, "missing qualitative metrics"):
-                pipeline.load_qualitative_assessments(path)
+        # Every declared qualitative metric must independently trigger the
+        # missing-metric rejection, not just whichever one iteration order
+        # happens to yield first — a metric silently dropped from the
+        # QUALITATIVE_METRICS-driven loop that builds `assessments` in
+        # pipeline.load_qualitative_assessments() should be caught regardless
+        # of which metric it is.
+        for missing_metric in normalization.QUALITATIVE_METRICS:
+            with self.subTest(missing_metric=missing_metric):
+                assessments = self.qualitative(8.0)
+                assessments.pop(missing_metric)
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    path = self.write_json(temp_dir, "incomplete.json", assessments)
+                    with self.assertRaisesRegex(ValueError, "missing qualitative metrics"):
+                        pipeline.load_qualitative_assessments(path)
+
+    def test_qualitative_metrics_are_exactly_the_eight_expected_metrics(self):
+        # The per-metric loop test above iterates QUALITATIVE_METRICS itself,
+        # so it cannot detect a metric being silently dropped from (or added
+        # to) that tuple. Pin the declared set independently.
+        self.assertEqual(
+            set(normalization.QUALITATIVE_METRICS),
+            {
+                "visual_fidelity",
+                "scene_complexity",
+                "hud_effort",
+                "procedural_workflow",
+                "simulation_integration",
+                "large_coordinate_behavior",
+                "save_load_implications",
+                "commercial_licensing",
+            },
+        )
 
     def test_cli_writes_reproducible_json_packet(self):
         with tempfile.TemporaryDirectory() as temp_dir:

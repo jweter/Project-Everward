@@ -43,11 +43,36 @@ class RenderingDecisionFinalizerTests(unittest.TestCase):
             finalizer.parse_qualitative_document(self.qualitative("unreal"), "godot")
 
     def test_missing_qualitative_metric_is_rejected(self):
-        document = self.qualitative("godot")
-        removed = next(iter(normalization.QUALITATIVE_METRICS))
-        del document["metrics"][removed]
-        with self.assertRaisesRegex(ValueError, "missing"):
-            finalizer.parse_qualitative_document(document, "godot")
+        # Every declared qualitative metric must independently trigger the
+        # missing-metric rejection, not just whichever one iteration order
+        # happens to yield first — a metric silently dropped from the
+        # QUALITATIVE_METRICS-driven loop that builds `parsed` in
+        # parse_qualitative_document() should be caught regardless of which
+        # metric it is.
+        for removed in normalization.QUALITATIVE_METRICS:
+            with self.subTest(removed=removed):
+                document = self.qualitative("godot")
+                del document["metrics"][removed]
+                with self.assertRaisesRegex(ValueError, "missing"):
+                    finalizer.parse_qualitative_document(document, "godot")
+
+    def test_qualitative_metrics_are_exactly_the_eight_expected_metrics(self):
+        # The per-metric loop test above iterates QUALITATIVE_METRICS itself,
+        # so it cannot detect a metric being silently dropped from (or added
+        # to) that tuple. Pin the declared set independently.
+        self.assertEqual(
+            set(normalization.QUALITATIVE_METRICS),
+            {
+                "visual_fidelity",
+                "scene_complexity",
+                "hud_effort",
+                "procedural_workflow",
+                "simulation_integration",
+                "large_coordinate_behavior",
+                "save_load_implications",
+                "commercial_licensing",
+            },
+        )
 
     def test_finalize_preserves_paths_and_delegates_to_decision_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
