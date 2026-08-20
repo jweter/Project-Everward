@@ -88,6 +88,64 @@ class Phase1ExitGateTests(unittest.TestCase):
         self.assertFalse(report["phase1_complete"])
         self.assertIn("coordinate-scale", " ".join(report["blockers"]))
 
+    def test_every_declared_prototype_is_a_hard_blocker_when_empty(self):
+        # The test above only ever empties "coordinate_scale". A prototype
+        # silently dropped from the emptiness check for any of the other
+        # four PROTOTYPE_REQUIREMENTS keys (typo, refactor, merge conflict)
+        # would not have been caught.
+        for name, relative in MODULE.PROTOTYPE_REQUIREMENTS.items():
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    self.make_prototypes(root)
+                    target = root / relative / "proof.txt"
+                    target.unlink()
+                    decision = self.write_decision(root)
+                    report = MODULE.audit_phase1_exit(root, decision)
+                self.assertFalse(report["phase1_complete"])
+                self.assertFalse(report["phase2_one_probe_authorized"])
+                self.assertFalse(report["prototypes"][name]["present"])
+                self.assertIn(
+                    f"missing or empty Phase 1 prototype: {relative}", report["blockers"]
+                )
+
+    def test_every_declared_prototype_is_a_hard_blocker_when_absent(self):
+        # Same per-key gap, the other half of the `path.is_dir() and
+        # any(path.iterdir())` presence check: a prototype directory that
+        # does not exist at all, rather than merely being empty.
+        for name, relative in MODULE.PROTOTYPE_REQUIREMENTS.items():
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    self.make_prototypes(root)
+                    target = root / relative
+                    for child in target.iterdir():
+                        child.unlink()
+                    target.rmdir()
+                    decision = self.write_decision(root)
+                    report = MODULE.audit_phase1_exit(root, decision)
+                self.assertFalse(report["phase1_complete"])
+                self.assertFalse(report["phase2_one_probe_authorized"])
+                self.assertFalse(report["prototypes"][name]["present"])
+                self.assertIn(
+                    f"missing or empty Phase 1 prototype: {relative}", report["blockers"]
+                )
+
+    def test_prototype_requirements_are_exactly_the_five_expected_prototypes(self):
+        # The loop tests above iterate whatever PROTOTYPE_REQUIREMENTS
+        # currently contains and cannot by themselves detect a prototype
+        # being silently added to or removed from it; pin the declared set.
+        self.assertEqual(
+            MODULE.PROTOTYPE_REQUIREMENTS,
+            {
+                "simulation_clock": "simulation-clock",
+                "procedural_system": "procedural-system",
+                "coordinate_scale": "coordinate-scale",
+                "headless_simulation": "headless-simulation",
+                "rendering_benchmark": "rendering-benchmark",
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
