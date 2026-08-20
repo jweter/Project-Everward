@@ -4,6 +4,8 @@ This is the master development roadmap. It preserves the core identity of physic
 
 The player is explicitly the probe. The roadmap is sequenced to prove the game from the inside out rather than beginning with late-game spectacle.
 
+**Production engine direction:** Unreal Engine is accepted as the production target. Phase 1 technical work validates that direction, identifies implementation risks, and proves the engine-independent simulation architecture before production gameplay begins. Godot material may remain only as comparative benchmark evidence or historical prototype work unless a later accepted ADR explicitly supersedes ADR-0001.
+
 ## Phase 0 — Project Constitution
 
 **Objective:** prevent scope drift before implementation.
@@ -16,6 +18,7 @@ Deliverables:
 - `SIMULATION_PHILOSOPHY.md`
 - `VISUAL_DIRECTION.md`
 - `AUDIO_DIRECTION.md`
+- `ENGINE_DIRECTION.md`
 - `IP_AND_LICENSES.md`
 - `TECHNOLOGY_DECISIONS.md`
 - `GLOSSARY.md`
@@ -39,7 +42,7 @@ Prove deterministic time, scheduled events, pause, and very high time accelerati
 Generate deterministic stars, planets, moons, belts, and resources.
 
 ### Prototype C — Space rendering
-Build the representative Everward visual benchmark.
+Build the representative Everward visual benchmark with Unreal as the production target. Comparative Godot evidence may be retained where it helps quantify risk or workflow differences, but it does not reopen the product-direction decision by itself.
 
 ### Prototype D — Massive coordinate handling
 Prove local machinery, system scale, and interstellar coordinates can coexist without precision failure.
@@ -47,13 +50,15 @@ Prove local machinery, system scale, and interstellar coordinates can coexist wi
 ### Prototype E — Headless simulation
 Run thousands of simulated years without graphics.
 
-**Gate:** choose production engine and simulation architecture from measured evidence.
+**Gate:** validate Unreal Engine on representative hardware, identify/resolve any material Unreal blocker, and confirm the simulation/presentation architecture from measured evidence. Phase 2 requires a real `decision_ready` artifact recommending `unreal` under the current accepted engine decision.
 
 ## Phase 2 — One Probe
 
-Implement one embodied machine with mass, energy, storage, sensors, computation, propulsion, position, velocity, temperature, component capabilities, and software state.
+Implement one embodied machine in Unreal Engine with mass, energy, storage, sensors, computation, propulsion, position, velocity, temperature, component capabilities, and software state.
 
 Player can observe, scan, move, inspect systems, manage power, and alter basic software policies.
+
+The Unreal layer presents and interacts with authoritative simulation state; it must not become the only owner of mechanical truth.
 
 **Gate:** simply existing as the probe is compelling.
 
@@ -98,6 +103,8 @@ Messages become physical delayed information. Children operate from local knowle
 Target: 30–60 minutes.
 
 Player awakens, surveys, finds resources, mines, refines, manufactures, researches, designs a successor, replicates, departs for another system, arrives, and discovers something worth investigating.
+
+Visual quality should already communicate the intended cinematic scientific-realism identity; the vertical slice is not a temporary low-fidelity 2D interpretation of the final game.
 
 **Gate:** ready for external playtesting.
 
@@ -177,7 +184,7 @@ No missing feature should still be required to prove the fundamental game.
 
 ## Phase 22 — Visual Production
 
-Aggressively improve stars, planets, atmospheres, rings, particles, structures, probes, lighting, shaders, transitions, camera, HUD, and photo mode.
+Aggressively improve Unreal-based stars, planets, atmospheres, rings, particles, structures, probes, lighting, shaders, transitions, camera, HUD, and photo mode.
 
 Target the “wallpaper screenshot” standard.
 

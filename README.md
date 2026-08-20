@@ -8,7 +8,7 @@ The player is not an external empire controller. **The player is the probe.** Pr
 
 ## Current project stage
 
-Everward is in **Phase 1 — Technical Proofs**. The production engine is deliberately undecided until evidence from technical benchmarks supports a choice. Phase 2 — One Probe is not authorized until the Phase 1 exit gate passes.
+Everward is in **Phase 1 — Technical Proofs**. **Unreal Engine is the accepted production engine direction.** Phase 1 is now validating that decision and identifying any technical blockers before Phase 2 production gameplay begins. Phase 2 — One Probe is not authorized until the Phase 1 exit gate passes with real decision-ready evidence that validates Unreal under the current project constraints.
 
 The first playable proof is intentionally small:
 
@@ -16,7 +16,7 @@ The first playable proof is intentionally small:
 
 Aliens, warfare, megastructures, multiplayer, and infinite late-game progression are explicitly outside the first playable build.
 
-See `docs/PROJECT_STATUS.md` for the durable current continuation point.
+See `docs/PROJECT_STATUS.md` for the durable current continuation point and `docs/ENGINE_DIRECTION.md` for the authoritative engine direction.
 
 ## Governing design principles
 
@@ -48,6 +48,7 @@ Project-Everward/
 │   ├── SIMULATION_PHILOSOPHY.md
 │   ├── VISUAL_DIRECTION.md
 │   ├── AUDIO_DIRECTION.md
+│   ├── ENGINE_DIRECTION.md
 │   ├── TECHNOLOGY_DECISIONS.md
 │   ├── IP_AND_LICENSES.md
 │   ├── GLOSSARY.md
@@ -74,20 +75,20 @@ Project-Everward/
 
 ## Near-term development sequence
 
-1. Complete the Phase 1 technical-proof evidence set.
-2. Prove deterministic simulation time and event scheduling.
-3. Prove headless time acceleration over very long simulated periods.
-4. Prove deterministic procedural astronomy from seed + coordinates + algorithm version.
-5. Prove large-coordinate handling from local machinery to interstellar scale.
-6. Build/evaluate the representative Everward visual benchmark in Unreal Engine and Godot.
-7. Select the production engine from measured evidence and satisfy the Phase 1 exit gate.
-8. Begin the One Probe implementation only after that gate passes.
+1. Complete the remaining Phase 1 technical-proof evidence set.
+2. Preserve the already-proven deterministic simulation time, headless acceleration, procedural astronomy, and large-coordinate foundations.
+3. Complete the representative Everward hardware rendering evidence with Unreal as the production target; retain Godot only as comparative benchmark history where useful.
+4. Produce a decision-ready Phase 1 artifact that validates Unreal and identifies any remaining technical risks.
+5. Satisfy the Phase 1 exit gate.
+6. Begin Phase 2 — One Probe in Unreal Engine.
 
 ## Architecture rule
 
 The simulation owns truth. Presentation renders truth.
 
 The renderer, UI, narration, or future AI-assisted presentation layer must never decide whether a mechanical event occurred. Simulation state and deterministic rules determine outcomes; presentation explains or visualizes them.
+
+Unreal Engine is the production presentation/runtime integration layer. The simulation core remains engine-independent in principle and must retain headless deterministic execution for tests, long-duration runs, balancing, persistence verification, and large-scale simulation work.
 
 ## Autonomous development policy
 
@@ -101,7 +102,8 @@ In summary:
 - local tests alone never authorize a merge;
 - when unblocked, advance one small highest-value slice of the current authorized roadmap phase;
 - keep project documentation current in the same change when project truth changes;
-- use branches and PRs for substantive autonomous work rather than direct commits to `main`.
+- use branches and PRs for substantive autonomous work rather than direct commits to `main`;
+- assume Unreal Engine for future production-facing architecture, visual systems, asset planning, and gameplay implementation unless a later accepted ADR explicitly supersedes ADR-0001.
 
 ## Local foundation check
 
