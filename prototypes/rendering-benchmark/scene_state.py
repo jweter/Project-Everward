@@ -16,6 +16,12 @@ from playback import playback_state
 
 ROOT = Path(__file__).parent
 
+ANIMATION_PERIOD_FIELDS = (
+    "mining_mechanism_period_seconds",
+    "debris_pulse_period_seconds",
+    "asteroid_rotation_period_seconds",
+)
+
 
 def load_manifest(path: str | Path = ROOT / "scene_manifest.json") -> dict[str, Any]:
     manifest = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -40,7 +46,7 @@ def validate_manifest(manifest: Mapping[str, Any], scenario: Mapping[str, Any] |
     if not isinstance(bindings, Mapping):
         raise ValueError("scene manifest requires feature bindings")
 
-    for key in ("mining_mechanism_period_seconds", "debris_pulse_period_seconds", "asteroid_rotation_period_seconds"):
+    for key in ANIMATION_PERIOD_FIELDS:
         value = animation.get(key)
         if not isinstance(value, (int, float)) or value <= 0:
             raise ValueError(f"animation.{key} must be positive")

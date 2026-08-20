@@ -67,6 +67,33 @@ class RenderingSceneStateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cameras must exactly match"):
             scene_state.validate_manifest(altered, self.scenario)
 
+    def test_animation_period_fields_are_exactly_the_three_expected_fields(self):
+        self.assertEqual(
+            set(scene_state.ANIMATION_PERIOD_FIELDS),
+            {
+                "mining_mechanism_period_seconds",
+                "debris_pulse_period_seconds",
+                "asteroid_rotation_period_seconds",
+            },
+        )
+
+    def test_every_declared_animation_period_field_rejects_a_non_positive_value(self):
+        for field in scene_state.ANIMATION_PERIOD_FIELDS:
+            for bad_value in (0, -1.5):
+                with self.subTest(field=field, bad_value=bad_value):
+                    broken = json.loads(json.dumps(self.manifest))
+                    broken["animation"][field] = bad_value
+                    with self.assertRaisesRegex(ValueError, f"animation.{field} must be positive"):
+                        scene_state.validate_manifest(broken, self.scenario)
+
+    def test_every_declared_animation_period_field_rejects_a_missing_value(self):
+        for field in scene_state.ANIMATION_PERIOD_FIELDS:
+            with self.subTest(field=field):
+                broken = json.loads(json.dumps(self.manifest))
+                del broken["animation"][field]
+                with self.assertRaisesRegex(ValueError, f"animation.{field} must be positive"):
+                    scene_state.validate_manifest(broken, self.scenario)
+
 
 if __name__ == "__main__":
     unittest.main()
