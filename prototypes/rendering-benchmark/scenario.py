@@ -21,6 +21,18 @@ REQUIRED_TOP_LEVEL = {
     "fairness_rules",
 }
 
+POSITIVE_INTEGER_FIELDS = (
+    "target_fps",
+    "duration_seconds",
+    "simulation_seconds_per_real_second",
+)
+
+UNIQUE_STRING_LIST_FIELDS = (
+    "camera_sequence",
+    "required_scene_features",
+    "fairness_rules",
+)
+
 REQUIRED_CAPTURE_FIELDS = {
     "engine_version",
     "os_version",
@@ -68,11 +80,11 @@ def validate_scenario(data: Mapping[str, Any]) -> None:
     ):
         raise ValueError("target_resolution must contain two positive integers")
 
-    for field in ("target_fps", "duration_seconds", "simulation_seconds_per_real_second"):
+    for field in POSITIVE_INTEGER_FIELDS:
         if not isinstance(data[field], int) or data[field] <= 0:
             raise ValueError(f"{field} must be a positive integer")
 
-    for field in ("camera_sequence", "required_scene_features", "fairness_rules"):
+    for field in UNIQUE_STRING_LIST_FIELDS:
         values = data[field]
         if not isinstance(values, list) or not values:
             raise ValueError(f"{field} must be a non-empty list")
