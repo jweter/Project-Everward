@@ -26,7 +26,17 @@ The automated tests verify:
 3. one-millimetre movement at extremely large absolute positions,
 4. local render coordinates produced only after exact rebasing,
 5. continuity while crossing cell boundaries,
-6. rejection of non-normalized offsets.
+6. rejection of a non-normalized offset on **every** axis, below the cell and at
+   or above the exclusive cell bound, plus acceptance of the largest normalized
+   offset on every axis,
+7. rejection of a wrong axis count for **every** declared vector field
+   (`VECTOR_FIELDS`) and at every entry point that accepts a 3-vector
+   (`SpatialPosition`, `from_total_mm`, `translated_mm`).
+
+The declared shape contract itself is expressed as the module-level `AXIS_COUNT`
+and `VECTOR_FIELDS` constants in `coordinates.py`, and both are pinned by test so
+a field or axis silently dropped from the contract fails CI rather than
+shrinking the per-axis loops that iterate them.
 
 ## Interpretation
 
