@@ -12,6 +12,18 @@ CELL_SIZE_M = 1_000_000_000_000  # 1e12 m
 MM_PER_M = 1_000
 CELL_SIZE_MM = CELL_SIZE_M * MM_PER_M
 
+# Number of spatial axes in an authoritative position. Named so that the
+# per-axis shape and normalization rules below can be covered independently for
+# every axis instead of only the first one.
+AXIS_COUNT = 3
+
+# The integer vector fields of SpatialPosition that must each carry exactly
+# AXIS_COUNT axes. Declared as a module-level constant (matching the
+# NUMERIC_NONNEGATIVE_FIELDS / HARDWARE_FIELDS / ANIMATION_PERIOD_FIELDS
+# convention used elsewhere in the prototypes) so the declared set itself can be
+# pinned by test.
+VECTOR_FIELDS = ("cell", "offset_mm")
+
 
 def _split_axis(total_mm: int) -> tuple[int, int]:
     cell, offset = divmod(total_mm, CELL_SIZE_MM)
@@ -31,7 +43,7 @@ class SpatialPosition:
     offset_mm: Vec3i
 
     def __post_init__(self) -> None:
-        if len(self.cell) != 3 or len(self.offset_mm) != 3:
+        if any(len(getattr(self, name)) != AXIS_COUNT for name in VECTOR_FIELDS):
             raise ValueError("cell and offset_mm must be 3D")
         if any(not 0 <= value < CELL_SIZE_MM for value in self.offset_mm):
             raise ValueError("offset_mm must be normalized into the containing cell")
@@ -39,7 +51,7 @@ class SpatialPosition:
     @classmethod
     def from_total_mm(cls, xyz_mm: Iterable[int]) -> "SpatialPosition":
         values = tuple(int(v) for v in xyz_mm)
-        if len(values) != 3:
+        if len(values) != AXIS_COUNT:
             raise ValueError("xyz_mm must contain exactly three axes")
         pairs = tuple(_split_axis(v) for v in values)
         return cls(
@@ -49,21 +61,23 @@ class SpatialPosition:
 
     def total_mm(self) -> Vec3i:
         values = tuple(
-            self.cell[i] * CELL_SIZE_MM + self.offset_mm[i] for i in range(3)
+            self.cell[i] * CELL_SIZE_MM + self.offset_mm[i] for i in range(AXIS_COUNT)
         )
         return values  # type: ignore[return-value]
 
     def translated_mm(self, delta_mm: Iterable[int]) -> "SpatialPosition":
         delta = tuple(int(v) for v in delta_mm)
-        if len(delta) != 3:
+        if len(delta) != AXIS_COUNT:
             raise ValueError("delta_mm must contain exactly three axes")
         total = self.total_mm()
-        return SpatialPosition.from_total_mm(total[i] + delta[i] for i in range(3))
+        return SpatialPosition.from_total_mm(
+            total[i] + delta[i] for i in range(AXIS_COUNT)
+        )
 
     def delta_mm_to(self, other: "SpatialPosition") -> Vec3i:
         here = self.total_mm()
         there = other.total_mm()
-        values = tuple(there[i] - here[i] for i in range(3))
+        values = tuple(there[i] - here[i] for i in range(AXIS_COUNT))
         return values  # type: ignore[return-value]
 
     def render_relative_m(self, origin: "SpatialPosition") -> Vec3f:
