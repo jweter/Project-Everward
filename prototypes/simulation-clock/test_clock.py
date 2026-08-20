@@ -3,7 +3,7 @@ from __future__ import annotations
 from fractions import Fraction
 import unittest
 
-from clock import SimulationClock, days, julian_years, seconds
+from clock import ScheduledEvent, SimulationClock, days, julian_years, seconds
 
 
 class SimulationClockTests(unittest.TestCase):
@@ -151,6 +151,56 @@ class SimulationClockTests(unittest.TestCase):
             cumulative_wall_ticks += chunk
             expected_tick = cumulative_wall_ticks * numerator // denominator
             self.assertEqual(clock.tick, expected_tick)
+
+    def test_scheduled_event_rejects_invalid_fields_independently(self) -> None:
+        invalid_cases = (
+            ({"due_tick": -1, "sequence": 0, "kind": "scan"}, "event due_tick cannot be negative"),
+            ({"due_tick": 0, "sequence": -1, "kind": "scan"}, "event sequence cannot be negative"),
+            ({"due_tick": 0, "sequence": 0, "kind": ""}, "event kind cannot be empty"),
+        )
+
+        for kwargs, message in invalid_cases:
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaisesRegex(ValueError, message):
+                    ScheduledEvent(**kwargs)
+
+    def test_constructor_and_handler_registration_reject_invalid_inputs(self) -> None:
+        with self.assertRaisesRegex(ValueError, "start_tick cannot be negative"):
+            SimulationClock(start_tick=-1)
+
+        clock = SimulationClock()
+        with self.assertRaisesRegex(ValueError, "event kind cannot be empty"):
+            clock.register_handler("", lambda _clock, _event: None)
+
+    def test_time_scale_rejects_negative_numerator_and_nonpositive_denominator(self) -> None:
+        clock = SimulationClock()
+
+        with self.assertRaisesRegex(ValueError, "time scale cannot be negative"):
+            clock.set_time_scale(-1)
+
+        for denominator in (0, -1):
+            with self.subTest(denominator=denominator):
+                with self.assertRaisesRegex(ValueError, "time scale denominator must be positive"):
+                    clock.set_time_scale(1, denominator)
+
+    def test_relative_and_wall_advance_reject_negative_inputs(self) -> None:
+        clock = SimulationClock()
+
+        guarded_calls = (
+            (lambda: clock.schedule_after(-1, "scan"), "delta_ticks cannot be negative"),
+            (lambda: clock.advance_by(-1), "delta_ticks cannot be negative"),
+            (lambda: clock.advance_wall_ticks(-1), "wall_ticks cannot be negative"),
+        )
+
+        for call, message in guarded_calls:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    call()
+
+    def test_run_until_idle_rejects_negative_max_events(self) -> None:
+        clock = SimulationClock()
+        with self.assertRaisesRegex(ValueError, "max_events cannot be negative"):
+            clock.run_until_idle(max_events=-1)
 
 
 if __name__ == "__main__":
