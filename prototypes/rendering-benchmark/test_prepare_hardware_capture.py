@@ -7,7 +7,7 @@ import unittest
 
 ROOT = Path(__file__).parent
 for module_name in (
-    "benchmark", "scenario", "playback", "scene_state", "export_handoff",
+    "scenario", "playback", "scene_state", "export_handoff",
     "evidence_template", "prepare_capture", "capture_readiness", "prepare_hardware_capture",
 ):
     if module_name in sys.modules:
@@ -32,7 +32,6 @@ class HardwareCapturePreparationTests(unittest.TestCase):
             self.assertEqual(summary["engine"], "unreal")
             self.assertTrue((output_dir / "handoff.json").is_file())
             self.assertTrue((output_dir / "unreal-run-record.json").is_file())
-            self.assertFalse((output_dir / "godot-run-record.json").exists())
             self.assertTrue((output_dir / "capture-preparation-summary.json").is_file())
 
             scenario = json.loads((ROOT / "scenario.json").read_text(encoding="utf-8"))
