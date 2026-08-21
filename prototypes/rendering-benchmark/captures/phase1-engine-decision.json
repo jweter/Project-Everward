@@ -1,0 +1,17 @@
+{
+  "artifact_type": "everward_phase1_engine_decision",
+  "artifact_version": 2,
+  "decision_packet": {
+    "captured_at_utc": "2026-08-21T20:37:24.799Z",
+    "decision_basis": "accepted Unreal production direction validated by complete measured runtime evidence",
+    "engine_version": "5.8.1-56057345+++UE5+Release-5.8",
+    "recommendation": "unreal",
+    "scenario_name": "icy-asteroid-mining",
+    "scenario_version": 2,
+    "status": "decision_ready"
+  },
+  "inputs": {
+    "scenario": "prototypes/rendering-benchmark/scenario.json",
+    "unreal_run_record": "prototypes/rendering-benchmark/captures/unreal-run-record.json"
+  }
+}

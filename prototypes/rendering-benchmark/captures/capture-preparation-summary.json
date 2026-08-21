@@ -1,0 +1,18 @@
+{
+  "blockers": [],
+  "engine": "unreal",
+  "evidence_scaffold": "prototypes\\rendering-benchmark\\captures\\unreal-run-record.json",
+  "handoff": "prototypes\\rendering-benchmark\\captures\\handoff.json",
+  "manual_evidence_after_capture": [
+    "gpu_frame_time_ms",
+    "implementation_hours",
+    "build_size_mib",
+    "screenshots",
+    "project_settings",
+    "notes"
+  ],
+  "next_step": "Run the canonical Unreal benchmark scene and fill only real measured evidence.",
+  "ready_for_hardware_capture": true,
+  "scenario_name": "icy-asteroid-mining",
+  "scenario_version": 2
+}

@@ -48,6 +48,8 @@ class RenderingDecisionFinalizerTests(unittest.TestCase):
         self.assertEqual(artifact["decision_packet"]["status"], "decision_ready")
         self.assertEqual(artifact["decision_packet"]["recommendation"], "unreal")
         self.assertEqual(artifact["decision_packet"]["engine_version"], "5.8.1")
+        self.assertNotIn("\\", artifact["inputs"]["scenario"])
+        self.assertNotIn("\\", artifact["inputs"]["unreal_run_record"])
 
     def test_incomplete_run_record_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:

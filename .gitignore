@@ -36,6 +36,7 @@ build/
 dist/
 artifacts/
 benchmark-results/local/
+/prototypes/rendering-benchmark/captures/packaged-build/
 
 # Local secrets and environment overrides
 .env
