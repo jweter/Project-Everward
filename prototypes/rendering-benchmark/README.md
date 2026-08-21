@@ -2,15 +2,13 @@
 
 ## Purpose
 
-Provide evidence for the production-engine decision by building approximately the same representative Everward scene in Unreal Engine and Godot.
+Validate Everward's accepted **Unreal Engine** production direction with representative, measured runtime evidence before Phase 2 gameplay architecture hardens around it.
 
-This prototype is an **evidence gate**, not an engine-selection shortcut. `benchmark.py` defines the comparison contract so both implementations must report the same normalized criteria before ADR-0001 can use the results.
+This prototype is no longer an engine-selection comparison. Unreal is the production renderer. The benchmark exists to prove that the canonical Everward scene, simulation handoff, capture instrumentation, large-coordinate approach, packaging path, and visual systems work together on real hardware.
 
 ## Canonical benchmark scenario
 
-`scenario.json` is the authoritative engine-neutral scene contract. Both implementations must target that same versioned scenario rather than independently interpreting a prose brief. `scenario.py` validates the contract, and CI rejects accidental removal of required capture fields or fairness constraints.
-
-The current scenario is a probe mining an icy asteroid near a large planet. It requires:
+`scenario.json` is the authoritative renderer-neutral simulation/presentation contract. The current scenario is a probe mining an icy asteroid near a large planet and requires:
 
 - stellar directional illumination,
 - a large planetary backdrop,
@@ -20,96 +18,62 @@ The current scenario is a probe mining an icy asteroid near a large planet. It r
 - environmental volumetrics,
 - interactive HUD telemetry,
 - an accelerated simulation clock,
-- the same three-stage camera sequence from local machinery to planetary context.
+- the canonical three-stage camera sequence.
 
-The canonical run target is 2560×1440 at a 60 FPS target over a 120-second capture window. These values define comparison conditions, not production performance requirements.
+The canonical run target is 2560×1440, 60 FPS target, and a 120-second capture window after the 5-second warmup.
 
-## Capture execution
+## Unreal implementation
 
-`CAPTURE_RUNBOOK.md` is the operator procedure for producing comparable Godot and Unreal evidence on real hardware. It fixes the fairness controls, scene-acceptance checklist, measurement sequence, evidence-recording rules, and pair-comparison gate.
+The production benchmark project is:
 
-`evidence_template.py` creates a scenario-bound scaffold with exactly the fields required by the canonical scenario. The scaffold is intentionally incomplete and is **not** valid benchmark evidence until real measurements replace its placeholders and `run_record.py` accepts the completed record.
+`unreal/EverwardBenchmark.uproject`
 
-## Required raw capture
+The Unreal adapter consumes `Content/benchmark_handoff.json`, applies the canonical object/camera/timing truth, records CPU game-thread timing and peak process memory automatically, and writes `Saved/unreal_capture_observation.json` after a complete run.
 
-Both engine runs must retain the raw evidence named by `scenario.json`, including engine/OS/hardware versions, project settings, CPU and GPU frame times, peak memory, implementation effort, build size, screenshots, and notes. Raw measurements are recorded before any normalized 0–10 scoring.
+GPU frame time remains manual evidence and must come from Unreal-native profiling such as `stat GPU`, `profilegpu`, or Unreal Insights.
 
-`run_record.py` is the audit boundary for that evidence. Each captured engine run must identify its scenario version and name, candidate engine, capture timestamp, and the complete raw evidence object. The validator rejects scenario drift, missing or unexpected capture fields, invalid measurements, empty screenshot evidence, and unsupported engine labels before those measurements can be normalized or compared.
+## Capture preparation
 
-Raw run records are evidence, not scores. A run record must remain independently inspectable even if the normalization model or benchmark weights later change.
-
-## Required normalized evidence
-
-Both engine implementations must report every metric in `REQUIRED_METRICS` on a normalized 0–10 scale where higher is better. Raw measurements and notes must be retained alongside the normalized score so the normalization can be audited.
-
-Required criteria are:
-
-- visual fidelity achieved,
-- CPU frame time,
-- GPU frame time,
-- memory use,
-- scene complexity,
-- UI/HUD implementation effort,
-- procedural-scene workflow,
-- simulation-core integration,
-- large-coordinate behavior,
-- save/load integration implications,
-- build/distribution complexity,
-- developer iteration speed,
-- commercial/licensing constraints.
-
-The default weights intentionally emphasize visual fidelity, simulation-core integration, large-coordinate behavior, and developer iteration speed because those are central to Everward and expensive to retrofit later.
-
-## Comparison discipline
-
-1. Use the same versioned `scenario.json` in both engines.
-2. Record hardware, engine version, project settings, resolution, and test conditions.
-3. Capture raw CPU/GPU frame-time and memory measurements before normalization.
-4. Validate each raw run record before producing normalized scores.
-5. Explain every subjective score with short evidence notes.
-6. Do not omit an unfavorable metric. Incomplete evidence is rejected by the scorer.
-7. A weighted score difference below 0.25 is reported as `too_close_to_call`; it must not force an engine decision.
-8. The weighted score is decision support, not an automatic ADR. Material workflow or licensing constraints may still control the final decision if documented explicitly.
-
-## End-to-end decision pipeline
-
-Once both engine implementations have complete raw run records and explicit qualitative evidence, `pipeline.py` turns those files into a reproducible decision packet without inventing missing measurements or judgments.
-
-Each qualitative JSON file must contain every metric listed in `QUALITATIVE_METRICS`, with exactly:
-
-```json
-{
-  "visual_fidelity": {
-    "score": 8.5,
-    "evidence": "Side-by-side captures at the canonical camera positions."
-  }
-}
-```
-
-Run the pipeline with:
+Run from the repository root:
 
 ```bash
-python prototypes/rendering-benchmark/pipeline.py \
-  --scenario prototypes/rendering-benchmark/scenario.json \
-  --left-record evidence/godot-run.json \
-  --right-record evidence/unreal-run.json \
-  --left-qualitative evidence/godot-qualitative.json \
-  --right-qualitative evidence/unreal-qualitative.json \
-  --output evidence/engine-decision-packet.json
+python prototypes/rendering-benchmark/prepare_hardware_capture.py \
+  --output-dir prototypes/rendering-benchmark/captures
 ```
 
-The command validates the scenario, both raw records, and both qualitative evidence sets before normalization. Its output contains the weighted comparison, top differentiators, normalization audit, and ADR-ready decision fields. A near-tie still produces `additional_evidence_required`; the CLI cannot override the benchmark's decision threshold.
+The command creates:
 
-## Running the contract tests
+- `handoff.json`,
+- `unreal-run-record.json`,
+- `capture-preparation-summary.json`.
+
+A successful result means the repository is structurally ready for an Unreal hardware capture. It does not claim the benchmark has run.
+
+## Decision-grade evidence
+
+A complete Unreal run record must include engine/OS/hardware identity, project settings, CPU and GPU frame time, peak memory, implementation effort, build size, screenshots, and notes. `run_record.py` rejects incomplete or mismatched records.
+
+After assembling a complete Unreal run record, finalize Phase 1 with:
+
+```bash
+python prototypes/rendering-benchmark/finalize_engine_decision.py \
+  --scenario prototypes/rendering-benchmark/scenario.json \
+  --unreal-record path/to/unreal-run-record.json \
+  --output path/to/phase1-engine-decision.json
+```
+
+The finalizer does not reopen the engine choice. It verifies complete Unreal evidence and emits the `decision_ready` artifact consumed by `prototypes/phase1_exit_gate.py`.
+
+## Hardware validation rule
+
+Do not benchmark over starter-map content, duplicate lighting, unrelated landscape systems, or other accidental scene contamination. The final capture must exercise the canonical Everward workload and retain screenshots proving the camera stages and required visual systems.
+
+## Contract tests
 
 ```bash
 python -m unittest discover -s prototypes/rendering-benchmark -p 'test_*.py' -v
 ```
 
-## Fair-comparison rule
-
-Do not intentionally make one implementation more polished than the other. Compare representative production workflows and equivalent goals, not tutorial defaults.
-
 ## Gate
 
-Results feed ADR-0001. Engine choice occurs only after this benchmark and the other Phase 1 proofs provide enough measured evidence. Until both engine implementations contain complete, auditable results for the same scenario version, the engine decision remains open.
+Phase 1 is complete when the other technical prototypes are present and the Unreal benchmark has complete, real, auditable evidence that produces a `decision_ready` artifact recommending `unreal`. Then Phase 2 — One Probe is authorized.
