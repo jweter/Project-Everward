@@ -1,4 +1,4 @@
-"""Prepare canonical evidence scaffolds for both Phase 1 rendering candidates."""
+"""Prepare the canonical Unreal Phase 1 rendering evidence scaffold."""
 
 from __future__ import annotations
 
@@ -10,21 +10,21 @@ from typing import Any
 from evidence_template import create_evidence_template
 from scenario import load_scenario
 
+PRODUCTION_ENGINE = "unreal"
+
 
 def prepare_capture_files(scenario_path: Path, output_dir: Path, *, overwrite: bool = False) -> dict[str, Path]:
-    """Create scenario-bound Godot and Unreal evidence templates without fabricating data."""
+    """Create the scenario-bound Unreal evidence template without fabricating data."""
     scenario: dict[str, Any] = load_scenario(scenario_path)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    written: dict[str, Path] = {}
-    for engine in ("godot", "unreal"):
-        destination = output_dir / f"{engine}-run-record.json"
-        if destination.exists() and not overwrite:
-            raise FileExistsError(f"refusing to overwrite existing evidence file: {destination}")
-        payload = create_evidence_template(engine, scenario)
-        destination.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        written[engine] = destination
-    return written
+    destination = output_dir / f"{PRODUCTION_ENGINE}-run-record.json"
+    if destination.exists() and not overwrite:
+        raise FileExistsError(f"refusing to overwrite existing evidence file: {destination}")
+
+    payload = create_evidence_template(PRODUCTION_ENGINE, scenario)
+    destination.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return {PRODUCTION_ENGINE: destination}
 
 
 def build_summary(scenario_path: Path, written: dict[str, Path]) -> dict[str, Any]:
@@ -35,8 +35,9 @@ def build_summary(scenario_path: Path, written: dict[str, Path]) -> dict[str, An
         "target_resolution": scenario["target_resolution"],
         "target_fps": scenario["target_fps"],
         "duration_seconds": scenario["duration_seconds"],
-        "engines": {engine: str(path) for engine, path in sorted(written.items())},
-        "next_step": "Implement and capture the canonical scene in each engine; replace template blanks only with measured evidence.",
+        "engine": PRODUCTION_ENGINE,
+        "evidence": str(written[PRODUCTION_ENGINE]),
+        "next_step": "Run the canonical Unreal scene and replace template blanks only with measured evidence.",
     }
 
 

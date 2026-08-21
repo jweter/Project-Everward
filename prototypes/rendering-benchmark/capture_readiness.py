@@ -1,7 +1,7 @@
-"""Audit whether Prototype C is structurally ready for real hardware capture.
+"""Audit whether Prototype C is structurally ready for real Unreal hardware capture.
 
-This module intentionally evaluates only repository and handoff readiness. It does
-not fabricate benchmark measurements or claim that either engine has been run.
+This module evaluates repository and handoff readiness only. It does not fabricate
+benchmark measurements or claim that Unreal has been executed.
 """
 
 from __future__ import annotations
@@ -13,14 +13,10 @@ from typing import Any
 
 
 ENGINE_REQUIRED_FILES = {
-    "godot": (
-        "godot/project.godot",
-        "godot/main.tscn",
-        "godot/benchmark_adapter.gd",
-        "godot/capture_session.gd",
-    ),
     "unreal": (
         "unreal/EverwardBenchmark.uproject",
+        "unreal/Source/EverwardBenchmark.Target.cs",
+        "unreal/Source/EverwardBenchmarkEditor.Target.cs",
         "unreal/Source/EverwardBenchmark/EverwardBenchmark.Build.cs",
         "unreal/Source/EverwardBenchmark/BenchmarkAdapter.h",
         "unreal/Source/EverwardBenchmark/BenchmarkAdapter.cpp",
@@ -35,7 +31,6 @@ PIPELINE_REQUIRED_FILES = (
     "export_handoff.py",
     "prepare_capture.py",
     "assemble_run_record.py",
-    "pipeline.py",
 )
 
 EXPECTED_HANDOFF_VERSION = 2
@@ -49,7 +44,7 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 def audit_capture_readiness(root: Path, handoff_path: Path | None = None) -> dict[str, Any]:
-    """Return an evidence-preserving readiness report for the rendering capture."""
+    """Return an evidence-preserving readiness report for Unreal capture."""
     root = Path(root)
     handoff_path = Path(handoff_path) if handoff_path else root / "handoff.json"
 
@@ -63,10 +58,7 @@ def audit_capture_readiness(root: Path, handoff_path: Path | None = None) -> dic
     engine_status: dict[str, Any] = {}
     for engine, required in ENGINE_REQUIRED_FILES.items():
         missing = [relative for relative in required if not (root / relative).is_file()]
-        engine_status[engine] = {
-            "source_ready": not missing,
-            "missing_files": missing,
-        }
+        engine_status[engine] = {"source_ready": not missing, "missing_files": missing}
         blockers.extend(f"{engine}: missing source file: {relative}" for relative in missing)
 
     scenario = None
@@ -106,25 +98,17 @@ def audit_capture_readiness(root: Path, handoff_path: Path | None = None) -> dic
 
     if not blockers:
         warnings.append(
-            "Repository is structurally ready for hardware capture; real engine execution and measured evidence are still required."
+            "Repository is structurally ready for Unreal hardware capture; real execution and measured evidence are still required."
         )
 
     return {
         "ready_for_hardware_capture": not blockers,
         "blockers": blockers,
         "warnings": warnings,
+        "engine": "unreal",
         "engines": engine_status,
         "handoff": handoff_status,
         "manual_evidence_after_capture": {
-            "godot": [
-                "gpu_frame_time_ms",
-                "peak_memory_mib",
-                "implementation_hours",
-                "build_size_mib",
-                "screenshots",
-                "project_settings",
-                "notes",
-            ],
             "unreal": [
                 "gpu_frame_time_ms",
                 "implementation_hours",

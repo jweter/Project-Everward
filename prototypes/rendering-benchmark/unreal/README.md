@@ -1,6 +1,6 @@
 # Unreal Prototype C adapter
 
-This directory is the Unreal Engine candidate for Everward Phase 1 Prototype C. It is intentionally an engine adapter, not a second simulation implementation.
+This directory is Everward's Unreal Engine Phase 1 Prototype C implementation. It is the production rendering path and remains an engine adapter rather than a second simulation implementation.
 
 ## Contract
 
@@ -12,53 +12,32 @@ The adapter must not introduce random scene-state behavior. Asteroid rotation, m
 
 ## Current slice
 
-The Unreal candidate now includes both the deterministic visual-feature shell and first capture instrumentation.
+The Unreal production prototype includes the deterministic visual-feature shell, capture instrumentation, and a clean automatic startup path.
 
-`ABenchmarkAdapter` exercises:
+`ABenchmarkAdapter` exercises stellar directional illumination, a planetary backdrop, visible asteroid/probe/mining geometry, deterministic instanced debris, volumetric fog, the canonical three-stage camera sequence, and HUD telemetry showing real and accelerated simulation time.
 
-- stellar directional illumination;
-- a large planetary backdrop;
-- visible asteroid, probe, and mining-mechanism geometry;
-- deterministic instanced debris particles;
-- volumetric fog;
-- the canonical three-stage camera sequence;
-- HUD/telemetry showing canonical real and accelerated simulation time.
+`ABenchmarkGameMode` starts from the engine Entry map and spawns exactly one benchmark adapter. This removes the need to drag the adapter into a starter scene and prevents unrelated landscape, sky, and duplicate-light content from contaminating the final hardware capture.
 
-The debris field deliberately uses fixed index-derived placement rather than renderer-local RNG. The exact positions are presentation detail, but repeatability is required so performance and screenshots are not influenced by a different random field between runs.
+`UBenchmarkCaptureSessionComponent` loads the canonical handoff, waits for a 5-second warmup, restarts playback at benchmark time zero, observes the full capture duration, records game-thread timing and peak physical memory, records hardware/engine metadata, and writes `Saved/unreal_capture_observation.json`.
 
-`UBenchmarkCaptureSessionComponent` is attached to the benchmark adapter. It:
+GPU frame time, project settings, implementation hours, build size, screenshots, and notes remain explicit manual evidence. GPU timing must come from Unreal Insights, `stat GPU`, `profilegpu`, or equivalent engine-native profiling; it is never inferred from CPU timing.
 
-1. loads the same canonical handoff used by presentation;
-2. waits for a 5-second warmup;
-3. restarts canonical playback at benchmark time zero;
-4. observes the full handoff-defined capture duration;
-5. records game-thread timing samples from `GGameThreadTime`;
-6. records peak used physical memory from `FPlatformMemory`;
-7. records engine, OS, CPU, GPU, and installed-memory metadata;
-8. writes `Saved/unreal_capture_observation.json`.
-
-The observation includes a `run_record_prefill` object for measurements that the instrumentation can support directly. It deliberately leaves GPU frame time, project settings, implementation hours, build size, screenshots, and notes explicit as manual evidence. GPU timing must come from Unreal Insights, `stat GPU`, or equivalent engine-native profiling; it is never inferred from CPU timing.
-
-The project targets Unreal Engine 5.8 and includes both game and editor targets so the benchmark can be compiled directly for hardware validation. The capture module links `RHI` and `RenderCore` explicitly because it reads `GRHIGlobals` and `GGameThreadTime` from those runtime modules.
-
-This is still **not decision-grade Unreal rendering evidence** until the project has been compiled and run in Unreal Engine 5.8.x on the benchmark machine, the remaining manual evidence has been captured, and the completed raw run record passes the repository validator.
+The project targets Unreal Engine 5.8 and includes game and editor targets for hardware validation. The capture module links `RHI` and `RenderCore` because it reads `GRHIGlobals` and `GGameThreadTime` from those runtime modules.
 
 ## Preparing the handoff
 
-Generate the self-contained handoff from the repository-level rendering benchmark tooling, then copy the produced JSON to:
+Generate the self-contained handoff from the repository-level rendering benchmark tooling, then copy it to:
 
 `prototypes/rendering-benchmark/unreal/Content/benchmark_handoff.json`
 
-Do not hand-edit the bundle to make Unreal behavior differ from Godot. If the renderer needs additional truth, update the renderer-neutral handoff contract first and apply that same revision to both candidates.
+Do not hand-edit the bundle to change runtime truth. If the renderer needs additional authoritative data, update the renderer-neutral handoff contract.
 
 ## Capture workflow
 
-Run the benchmark from a clean Unreal application start under the fairness controls in `../CAPTURE_RUNBOOK.md`. The capture component warms up automatically and then restarts canonical playback before measuring the handoff-defined run.
+Run from a clean Unreal application start under `../CAPTURE_RUNBOOK.md`. Confirm the automatic adapter spawn, let the capture complete, retain `Saved/unreal_capture_observation.json`, collect the remaining manual evidence, and assemble the validated Unreal run record.
 
-After completion, retain `Saved/unreal_capture_observation.json` with the run evidence. Transfer only supported `run_record_prefill` values into the Unreal raw evidence record, complete every still-manual field using real profiler/build/screenshots/work-log evidence, and validate the record with `run_record.py` before normalization.
+This is decision-grade only after a real Unreal Engine 5.8.x compile/run on the benchmark machine and successful `run_record.py` validation.
 
 ## Verification
 
-The repository's rendering-benchmark unittest discovery includes `test_unreal_adapter.py` and `test_unreal_capture.py`. These tests protect the handoff boundary, explicit metre-to-centimetre conversion, deterministic playback, required visual-system shell, RNG-free debris field, canonical capture timing, measurement provenance, editor-target availability, UE 5.8 association, runtime link dependencies, and the rule that GPU timing remains manual until measured.
-
-A real Unreal Engine 5.8.x compile/run remains required before this candidate can produce benchmark evidence. Static CI is a contract guard, not a substitute for engine validation.
+The rendering-benchmark tests protect the handoff boundary, metre-to-centimetre conversion, deterministic playback, required visual shell, RNG-free debris, canonical timing, measurement provenance, automatic clean startup, editor-target availability, UE 5.8 association, runtime link dependencies, and the requirement that GPU timing remain measured rather than inferred.

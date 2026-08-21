@@ -1,10 +1,9 @@
-"""Finalize Phase 1 engine evidence into one auditable decision artifact.
+"""Finalize Phase 1 Unreal validation evidence into one auditable artifact.
 
-This CLI is deliberately downstream of real engine capture. It accepts two
-complete run records plus explicit evidence-bearing qualitative assessments,
-validates them through the existing normalization/decision contracts, and emits
-one stable JSON artifact. It never invents benchmark values and never forces an
-engine choice when the benchmark is too close to call.
+Everward's production renderer is Unreal Engine. This command does not compare
+renderers or reopen the engine decision. It validates a complete, scenario-bound
+Unreal run record and emits the decision-ready artifact consumed by the Phase 1
+exit gate.
 """
 
 from __future__ import annotations
@@ -12,103 +11,48 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
-from decision_packet import build_decision_packet
-from normalization import QUALITATIVE_METRICS, QualitativeAssessment
+from run_record import load_run_record
 from scenario import load_scenario
 
-
-def load_json(path: str | Path) -> dict[str, Any]:
-    with Path(path).open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a JSON object")
-    return data
+PRODUCTION_ENGINE = "unreal"
 
 
-def parse_qualitative_document(data: Mapping[str, Any], expected_engine: str) -> dict[str, QualitativeAssessment]:
-    if set(data) != {"assessment_version", "engine", "metrics"}:
-        raise ValueError("qualitative evidence must contain exactly assessment_version, engine, and metrics")
-    if data["assessment_version"] != 1:
-        raise ValueError("unsupported qualitative assessment_version")
-    if data["engine"] != expected_engine:
-        raise ValueError(f"qualitative evidence engine {data['engine']!r} does not match run record {expected_engine!r}")
-    metrics = data["metrics"]
-    if not isinstance(metrics, Mapping):
-        raise ValueError("qualitative metrics must be an object")
-    if set(metrics) != set(QUALITATIVE_METRICS):
-        missing = sorted(set(QUALITATIVE_METRICS) - set(metrics))
-        extra = sorted(set(metrics) - set(QUALITATIVE_METRICS))
-        details = []
-        if missing:
-            details.append(f"missing: {', '.join(missing)}")
-        if extra:
-            details.append(f"unknown: {', '.join(extra)}")
-        raise ValueError("invalid qualitative metric set" + (f" ({'; '.join(details)})" if details else ""))
-
-    parsed: dict[str, QualitativeAssessment] = {}
-    for metric in QUALITATIVE_METRICS:
-        row = metrics[metric]
-        if not isinstance(row, Mapping) or set(row) != {"score", "evidence"}:
-            raise ValueError(f"qualitative metric {metric!r} must contain exactly score and evidence")
-        parsed[metric] = QualitativeAssessment(row["score"], row["evidence"])
-    return parsed
-
-
-def finalize(
-    scenario_path: str | Path,
-    left_record_path: str | Path,
-    right_record_path: str | Path,
-    left_qualitative_path: str | Path,
-    right_qualitative_path: str | Path,
-) -> dict[str, object]:
+def finalize(scenario_path: str | Path, unreal_record_path: str | Path) -> dict[str, Any]:
     scenario = load_scenario(scenario_path)
-    left_record = load_json(left_record_path)
-    right_record = load_json(right_record_path)
-    left_engine = str(left_record.get("engine", ""))
-    right_engine = str(right_record.get("engine", ""))
-    left_qualitative = parse_qualitative_document(load_json(left_qualitative_path), left_engine)
-    right_qualitative = parse_qualitative_document(load_json(right_qualitative_path), right_engine)
+    record = load_run_record(unreal_record_path, scenario_path)
+    if record["engine"] != PRODUCTION_ENGINE:
+        raise ValueError("Phase 1 production validation requires an Unreal run record")
 
-    packet = build_decision_packet(
-        scenario,
-        left_record,
-        right_record,
-        left_qualitative,
-        right_qualitative,
-    )
+    packet = {
+        "status": "decision_ready",
+        "recommendation": PRODUCTION_ENGINE,
+        "decision_basis": "accepted Unreal production direction validated by complete measured runtime evidence",
+        "scenario_name": scenario["name"],
+        "scenario_version": scenario["scenario_version"],
+        "engine_version": record["capture"]["engine_version"],
+        "captured_at_utc": record["captured_at_utc"],
+    }
     return {
-        "artifact_version": 1,
+        "artifact_version": 2,
         "artifact_type": "everward_phase1_engine_decision",
         "inputs": {
             "scenario": str(Path(scenario_path)),
-            "left_run_record": str(Path(left_record_path)),
-            "right_run_record": str(Path(right_record_path)),
-            "left_qualitative": str(Path(left_qualitative_path)),
-            "right_qualitative": str(Path(right_qualitative_path)),
+            "unreal_run_record": str(Path(unreal_record_path)),
         },
         "decision_packet": packet,
     }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Finalize Everward Phase 1 engine benchmark evidence")
+    parser = argparse.ArgumentParser(description="Finalize Everward Phase 1 Unreal validation evidence")
     parser.add_argument("--scenario", required=True)
-    parser.add_argument("--left-record", required=True)
-    parser.add_argument("--right-record", required=True)
-    parser.add_argument("--left-qualitative", required=True)
-    parser.add_argument("--right-qualitative", required=True)
+    parser.add_argument("--unreal-record", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
-    artifact = finalize(
-        args.scenario,
-        args.left_record,
-        args.right_record,
-        args.left_qualitative,
-        args.right_qualitative,
-    )
+    artifact = finalize(args.scenario, args.unreal_record)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(artifact, indent=2, sort_keys=True) + "\n", encoding="utf-8")
