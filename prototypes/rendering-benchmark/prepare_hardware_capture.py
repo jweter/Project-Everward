@@ -1,9 +1,4 @@
-"""Prepare a complete, evidence-preserving workspace for Prototype C hardware capture.
-
-This command composes the existing canonical handoff exporter, protected evidence
-scaffolds, and structural readiness audit. It never invents measurements and
-refuses to overwrite existing capture evidence unless explicitly requested.
-"""
+"""Prepare a complete, evidence-preserving workspace for Unreal hardware capture."""
 
 from __future__ import annotations
 
@@ -25,7 +20,6 @@ def prepare_hardware_capture_workspace(
     *,
     overwrite: bool = False,
 ) -> dict[str, Any]:
-    """Generate canonical capture artifacts and return the readiness report."""
     root = Path(root)
     output_dir = Path(output_dir)
     scenario_path = root / "scenario.json"
@@ -48,15 +42,16 @@ def prepare_hardware_capture_workspace(
     summary = {
         "scenario_name": scenario["name"],
         "scenario_version": scenario["scenario_version"],
+        "engine": "unreal",
         "handoff": str(handoff_path),
-        "evidence_scaffolds": {engine: str(path) for engine, path in sorted(records.items())},
+        "evidence_scaffold": str(records["unreal"]),
         "ready_for_hardware_capture": readiness["ready_for_hardware_capture"],
         "blockers": readiness["blockers"],
-        "manual_evidence_after_capture": readiness["manual_evidence_after_capture"],
+        "manual_evidence_after_capture": readiness["manual_evidence_after_capture"]["unreal"],
         "next_step": (
-            "Run the canonical Godot and Unreal benchmark scenes on the same hardware and fill only real measured evidence."
+            "Run the canonical Unreal benchmark scene and fill only real measured evidence."
             if readiness["ready_for_hardware_capture"]
-            else "Resolve every readiness blocker before running either engine benchmark."
+            else "Resolve every readiness blocker before running the Unreal benchmark."
         ),
     }
     summary_path = output_dir / "capture-preparation-summary.json"
