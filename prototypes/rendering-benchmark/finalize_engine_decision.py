@@ -38,8 +38,8 @@ def finalize(scenario_path: str | Path, unreal_record_path: str | Path) -> dict[
         "artifact_version": 2,
         "artifact_type": "everward_phase1_engine_decision",
         "inputs": {
-            "scenario": str(Path(scenario_path)),
-            "unreal_run_record": str(Path(unreal_record_path)),
+            "scenario": Path(scenario_path).as_posix(),
+            "unreal_run_record": Path(unreal_record_path).as_posix(),
         },
         "decision_packet": packet,
     }

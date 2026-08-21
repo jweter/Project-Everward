@@ -1,0 +1,46 @@
+{
+  "observation_version": 1,
+  "engine": "unreal",
+  "scenario_name": "icy-asteroid-mining",
+  "scenario_version": 2,
+  "captured_at_utc": "2026-08-21T20:37:24.799Z",
+  "warmup_seconds": 5,
+  "capture_duration_seconds": 120,
+  "frame_sample_count": 1612,
+  "hardware": {
+    "engine_version": "5.8.1-56057345+++UE5+Release-5.8",
+    "os_version": "10.0.26220.1.768.64bit",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i7-13700H",
+    "gpu_model": "Intel(R) Iris(R) Xe Graphics",
+    "ram_gib": 15.717826843261719
+  },
+  "cpu_frame_time_ms": {
+    "mean": 11.245419323592269,
+    "p50": 9.563199996948242,
+    "p95": 11.535300254821777,
+    "max": 1216.534423828125
+  },
+  "peak_memory_mib": 4093.43359375,
+  "run_record_prefill": {
+    "engine_version": "5.8.1-56057345+++UE5+Release-5.8",
+    "os_version": "10.0.26220.1.768.64bit",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i7-13700H",
+    "gpu_model": "Intel(R) Iris(R) Xe Graphics",
+    "ram_gib": 15.717826843261719,
+    "cpu_frame_time_ms": 9.563199996948242,
+    "peak_memory_mib": 4093.43359375
+  },
+  "manual_evidence_still_required": [
+    "project_settings",
+    "gpu_frame_time_ms",
+    "implementation_hours",
+    "build_size_mib",
+    "screenshots",
+    "notes"
+  ],
+  "measurement_notes": [
+    "CPU frame timing uses Unreal GGameThreadTime converted with FPlatformTime::ToMilliseconds.",
+    "peak_memory_mib uses FPlatformMemory::GetStats().PeakUsedPhysical during the canonical capture window.",
+    "GPU frame time remains manual and must come from Unreal Insights, stat GPU, or equivalent engine-native profiling."
+  ]
+}
