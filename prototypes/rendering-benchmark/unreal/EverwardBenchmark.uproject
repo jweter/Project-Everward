@@ -1,6 +1,6 @@
 {
   "FileVersion": 3,
-  "EngineAssociation": "5.4",
+  "EngineAssociation": "5.8",
   "Category": "Everward Phase 1 Prototype C",
   "Description": "Renderer adapter for the canonical Everward rendering benchmark.",
   "Modules": [
