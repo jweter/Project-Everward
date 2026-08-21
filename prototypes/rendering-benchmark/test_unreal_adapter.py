@@ -2,16 +2,19 @@ import json
 from pathlib import Path
 import unittest
 
-
 ROOT = Path(__file__).parent
 UNREAL = ROOT / "unreal"
 SOURCE = UNREAL / "Source"
-ADAPTER = SOURCE / "EverwardBenchmark" / "BenchmarkAdapter.cpp"
-HEADER = SOURCE / "EverwardBenchmark" / "BenchmarkAdapter.h"
-BUILD_RULES = SOURCE / "EverwardBenchmark" / "EverwardBenchmark.Build.cs"
+MODULE = SOURCE / "EverwardBenchmark"
+ADAPTER = MODULE / "BenchmarkAdapter.cpp"
+HEADER = MODULE / "BenchmarkAdapter.h"
+GAME_MODE_H = MODULE / "BenchmarkGameMode.h"
+GAME_MODE_CPP = MODULE / "BenchmarkGameMode.cpp"
+BUILD_RULES = MODULE / "EverwardBenchmark.Build.cs"
 GAME_TARGET = SOURCE / "EverwardBenchmark.Target.cs"
 EDITOR_TARGET = SOURCE / "EverwardBenchmarkEditor.Target.cs"
 PROJECT = UNREAL / "EverwardBenchmark.uproject"
+DEFAULT_ENGINE = UNREAL / "Config" / "DefaultEngine.ini"
 SCENARIO = ROOT / "scenario.json"
 
 
@@ -38,6 +41,19 @@ class UnrealBenchmarkAdapterTests(unittest.TestCase):
         source = BUILD_RULES.read_text(encoding="utf-8")
         self.assertIn('"RHI"', source)
         self.assertIn('"RenderCore"', source)
+
+    def test_clean_startup_map_and_game_mode_are_pinned(self):
+        config = DEFAULT_ENGINE.read_text(encoding="utf-8")
+        self.assertIn("EditorStartupMap=/Engine/Maps/Entry", config)
+        self.assertIn("GameDefaultMap=/Engine/Maps/Entry", config)
+        self.assertIn("GlobalDefaultGameMode=/Script/EverwardBenchmark.BenchmarkGameMode", config)
+
+    def test_game_mode_auto_spawns_exactly_one_benchmark_adapter(self):
+        source = GAME_MODE_H.read_text(encoding="utf-8") + GAME_MODE_CPP.read_text(encoding="utf-8")
+        self.assertIn("ABenchmarkGameMode", source)
+        self.assertIn("TActorIterator<ABenchmarkAdapter>", source)
+        self.assertIn("SpawnActor<ABenchmarkAdapter>", source)
+        self.assertIn("AlwaysSpawn", source)
 
     def test_adapter_binds_canonical_handoff_identity(self):
         source = HEADER.read_text(encoding="utf-8") + ADAPTER.read_text(encoding="utf-8")
