@@ -39,7 +39,9 @@ The debris field deliberately uses fixed index-derived placement rather than ren
 
 The observation includes a `run_record_prefill` object for measurements that the instrumentation can support directly. It deliberately leaves GPU frame time, project settings, implementation hours, build size, screenshots, and notes explicit as manual evidence. GPU timing must come from Unreal Insights, `stat GPU`, or equivalent engine-native profiling; it is never inferred from CPU timing.
 
-This is still **not decision-grade Unreal rendering evidence** until the project has been compiled and run in Unreal Engine 5.4 on the benchmark machine, the remaining manual evidence has been captured, and the completed raw run record passes the repository validator.
+The project targets Unreal Engine 5.8 and includes both game and editor targets so the benchmark can be compiled directly for hardware validation. The capture module links `RHI` and `RenderCore` explicitly because it reads `GRHIGlobals` and `GGameThreadTime` from those runtime modules.
+
+This is still **not decision-grade Unreal rendering evidence** until the project has been compiled and run in Unreal Engine 5.8.x on the benchmark machine, the remaining manual evidence has been captured, and the completed raw run record passes the repository validator.
 
 ## Preparing the handoff
 
@@ -57,6 +59,6 @@ After completion, retain `Saved/unreal_capture_observation.json` with the run ev
 
 ## Verification
 
-The repository's rendering-benchmark unittest discovery includes `test_unreal_adapter.py` and `test_unreal_capture.py`. These tests protect the handoff boundary, explicit metre-to-centimetre conversion, deterministic playback, required visual-system shell, RNG-free debris field, canonical capture timing, measurement provenance, and the rule that GPU timing remains manual until measured.
+The repository's rendering-benchmark unittest discovery includes `test_unreal_adapter.py` and `test_unreal_capture.py`. These tests protect the handoff boundary, explicit metre-to-centimetre conversion, deterministic playback, required visual-system shell, RNG-free debris field, canonical capture timing, measurement provenance, editor-target availability, UE 5.8 association, runtime link dependencies, and the rule that GPU timing remains manual until measured.
 
-A real Unreal Engine 5.4 compile/run remains required before this candidate can produce benchmark evidence. Static CI is a contract guard, not a substitute for engine validation.
+A real Unreal Engine 5.8.x compile/run remains required before this candidate can produce benchmark evidence. Static CI is a contract guard, not a substitute for engine validation.

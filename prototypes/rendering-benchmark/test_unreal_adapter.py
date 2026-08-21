@@ -5,8 +5,12 @@ import unittest
 
 ROOT = Path(__file__).parent
 UNREAL = ROOT / "unreal"
-ADAPTER = UNREAL / "Source" / "EverwardBenchmark" / "BenchmarkAdapter.cpp"
-HEADER = UNREAL / "Source" / "EverwardBenchmark" / "BenchmarkAdapter.h"
+SOURCE = UNREAL / "Source"
+ADAPTER = SOURCE / "EverwardBenchmark" / "BenchmarkAdapter.cpp"
+HEADER = SOURCE / "EverwardBenchmark" / "BenchmarkAdapter.h"
+BUILD_RULES = SOURCE / "EverwardBenchmark" / "EverwardBenchmark.Build.cs"
+GAME_TARGET = SOURCE / "EverwardBenchmark.Target.cs"
+EDITOR_TARGET = SOURCE / "EverwardBenchmarkEditor.Target.cs"
 PROJECT = UNREAL / "EverwardBenchmark.uproject"
 SCENARIO = ROOT / "scenario.json"
 
@@ -14,8 +18,26 @@ SCENARIO = ROOT / "scenario.json"
 class UnrealBenchmarkAdapterTests(unittest.TestCase):
     def test_project_declares_runtime_module(self):
         project = json.loads(PROJECT.read_text(encoding="utf-8"))
+        self.assertEqual(project["EngineAssociation"], "5.8")
         self.assertEqual(project["Modules"][0]["Name"], "EverwardBenchmark")
         self.assertEqual(project["Modules"][0]["Type"], "Runtime")
+
+    def test_editor_target_exists_for_hardware_validation(self):
+        source = EDITOR_TARGET.read_text(encoding="utf-8")
+        self.assertIn("EverwardBenchmarkEditorTarget", source)
+        self.assertIn("Type = TargetType.Editor", source)
+        self.assertIn('ExtraModuleNames.Add("EverwardBenchmark")', source)
+
+    def test_targets_use_current_build_and_include_order_rules(self):
+        source = GAME_TARGET.read_text(encoding="utf-8") + EDITOR_TARGET.read_text(encoding="utf-8")
+        self.assertNotIn("Unreal5_4", source)
+        self.assertIn("BuildSettingsVersion.Latest", source)
+        self.assertIn("EngineIncludeOrderVersion.Latest", source)
+
+    def test_capture_module_links_runtime_timing_dependencies(self):
+        source = BUILD_RULES.read_text(encoding="utf-8")
+        self.assertIn('"RHI"', source)
+        self.assertIn('"RenderCore"', source)
 
     def test_adapter_binds_canonical_handoff_identity(self):
         source = HEADER.read_text(encoding="utf-8") + ADAPTER.read_text(encoding="utf-8")

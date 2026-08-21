@@ -13,7 +13,9 @@ public class EverwardBenchmark : ModuleRules
             "InputCore",
             "Json",
             "JsonUtilities",
-            "UMG"
+            "UMG",
+            "RHI",
+            "RenderCore"
         });
     }
 }

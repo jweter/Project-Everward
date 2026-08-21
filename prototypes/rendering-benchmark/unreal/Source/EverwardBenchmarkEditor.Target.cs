@@ -1,11 +1,11 @@
 using UnrealBuildTool;
 using System.Collections.Generic;
 
-public class EverwardBenchmarkTarget : TargetRules
+public class EverwardBenchmarkEditorTarget : TargetRules
 {
-    public EverwardBenchmarkTarget(TargetInfo Target) : base(Target)
+    public EverwardBenchmarkEditorTarget(TargetInfo Target) : base(Target)
     {
-        Type = TargetType.Game;
+        Type = TargetType.Editor;
         DefaultBuildSettings = BuildSettingsVersion.Latest;
         IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
         ExtraModuleNames.Add("EverwardBenchmark");
