@@ -51,7 +51,11 @@ This is deliberately a prototype checkpoint format, not the production save sche
 - the expected 11,100 sparse events execute,
 - checkpoint JSON round-trips and resumed execution matches uninterrupted execution,
 - next-event schedules survive checkpointing,
-- invalid horizons are rejected.
+- construction, checkpoint restore, and manual advance each reject every declared invalid
+  input independently: non-positive `years` at both boundaries, a restored snapshot with no
+  simulated time remaining (at the exact boundary and past it), a restore horizon not aligned
+  to whole Julian years, and an `advance_to_year` request outside `[0, requested_years]` on
+  either side.
 
 ## Golden-run regression bank
 

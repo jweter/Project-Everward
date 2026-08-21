@@ -58,9 +58,9 @@ Until that evidence exists, automation should:
 6. avoid inventing marginal Phase 1 scope merely because Phase 2 is hardware-gated;
 7. never begin Phase 2 production gameplay until `prototypes/phase1_exit_gate.py` passes with Unreal validation.
 
-Most recent ordinary prototype-quality slice (2026-08-20, PR #57): extended the per-field/per-key coverage audit to `prototypes/simulation-clock`. Its scheduled-event fields, constructor, handler registration, time-scale inputs, relative/wall advances, and idle event-limit guards now have direct regression coverage. This followed the coordinate-scale audit and does not change the Phase 1 exit gate or substitute for real Unreal hardware evidence. See `ERROR_RESOLUTION_LEDGER.md` and the simulation-clock proof notes for detail.
+Most recent ordinary prototype-quality slice (2026-08-21): extended the per-field/per-key coverage audit to `prototypes/headless-simulation`. Its construction, checkpoint-restore, and manual-advance guard clauses — non-positive `years`, a restored snapshot with no simulated time remaining, a restore horizon not aligned to whole Julian years, and an out-of-range `advance_to_year` request — now have direct regression coverage for every declared branch, confirmed by mutation. This followed the coordinate-scale and simulation-clock audits and does not change the Phase 1 exit gate or substitute for real Unreal hardware evidence. See `ERROR_RESOLUTION_LEDGER.md` for detail.
 
-The remaining named coverage-gap candidates are `headless-simulation` and `procedural-system`. These are ordinary Phase 1 prototype-quality work under `TESTING_STRATEGY.md`; neither unblocks the gate, and automation should not prefer them over concrete defects or real Unreal evidence work.
+The remaining named coverage-gap candidate is `procedural-system`. This is ordinary Phase 1 prototype-quality work under `TESTING_STRATEGY.md`; it does not unblock the gate, and automation should not prefer it over concrete defects or real Unreal evidence work.
 
 The next Phase 1 continuation point remains the human-assisted hardware rendering-benchmark evidence capture described above, which is the only work that actually advances the exit gate.
 
