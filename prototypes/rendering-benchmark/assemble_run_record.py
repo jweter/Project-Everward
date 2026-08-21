@@ -1,10 +1,4 @@
-"""Assemble decision-grade run records from engine capture observations.
-
-The engine-side capture adapters deliberately record only measurements they can
-observe reliably. This module combines that immutable measured prefill with the
-explicit manual evidence still required by the observation, then validates the
-result against the canonical scenario and run-record contract.
-"""
+"""Assemble decision-grade Unreal run records from measured capture observations."""
 
 from __future__ import annotations
 
@@ -16,8 +10,7 @@ from typing import Any, Mapping, Sequence
 from run_record import validate_run_record
 from scenario import REQUIRED_CAPTURE_FIELDS, load_scenario
 
-
-SUPPORTED_ENGINES = {"godot", "unreal"}
+PRODUCTION_ENGINE = "unreal"
 REQUIRED_OBSERVATION_FIELDS = {
     "observation_version",
     "engine",
@@ -38,15 +31,13 @@ def load_json_object(path: str | Path) -> dict[str, Any]:
 
 
 def validate_observation(observation: Mapping[str, Any], scenario: Mapping[str, Any]) -> None:
-    """Validate the observation identity and evidence-partition contract."""
     missing = sorted(REQUIRED_OBSERVATION_FIELDS - set(observation))
     if missing:
         raise ValueError(f"missing observation fields: {', '.join(missing)}")
-
     if observation["observation_version"] != 1:
         raise ValueError("unsupported observation_version")
-    if observation["engine"] not in SUPPORTED_ENGINES:
-        raise ValueError("observation engine must be 'godot' or 'unreal'")
+    if observation["engine"] != PRODUCTION_ENGINE:
+        raise ValueError("observation engine must be 'unreal'")
     if observation["scenario_name"] != scenario["name"]:
         raise ValueError("observation scenario_name does not match scenario")
     if observation["scenario_version"] != scenario["scenario_version"]:
@@ -83,8 +74,10 @@ def validate_observation(observation: Mapping[str, Any], scenario: Mapping[str, 
             details.append(f"missing: {', '.join(missing_capture)}")
         if extra_capture:
             details.append(f"unknown: {', '.join(extra_capture)}")
-        raise ValueError("observation evidence partition does not cover run-record contract" +
-                         (f" ({'; '.join(details)})" if details else ""))
+        raise ValueError(
+            "observation evidence partition does not cover run-record contract"
+            + (f" ({'; '.join(details)})" if details else "")
+        )
 
 
 def assemble_run_record(
@@ -92,7 +85,6 @@ def assemble_run_record(
     manual_evidence: Mapping[str, Any],
     scenario: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Combine measured and manual evidence without permitting measured overrides."""
     validate_observation(observation, scenario)
 
     required_manual = set(observation["manual_evidence_still_required"])
@@ -105,15 +97,16 @@ def assemble_run_record(
             details.append(f"missing: {', '.join(missing)}")
         if extra:
             details.append(f"unexpected: {', '.join(extra)}")
-        raise ValueError("manual evidence must exactly match observation requirements" +
-                         (f" ({'; '.join(details)})" if details else ""))
+        raise ValueError(
+            "manual evidence must exactly match observation requirements"
+            + (f" ({'; '.join(details)})" if details else "")
+        )
 
     capture = dict(observation["run_record_prefill"])
     capture.update(manual_evidence)
-
     record = {
         "record_version": 1,
-        "engine": observation["engine"],
+        "engine": PRODUCTION_ENGINE,
         "scenario_version": observation["scenario_version"],
         "scenario_name": observation["scenario_name"],
         "captured_at_utc": observation["captured_at_utc"],
@@ -135,7 +128,7 @@ def assemble_from_files(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Assemble an Everward rendering run record")
+    parser = argparse.ArgumentParser(description="Assemble the Everward Unreal rendering run record")
     parser.add_argument("--scenario", required=True)
     parser.add_argument("--observation", required=True)
     parser.add_argument("--manual-evidence", required=True)
