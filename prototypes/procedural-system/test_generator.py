@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from generator import STAR_RANGES, generate_system
+from generator import STAR_RANGES, DeterministicStream, generate_system
 
 
 class ProceduralSystemTests(unittest.TestCase):
@@ -83,6 +83,83 @@ class ProceduralSystemTests(unittest.TestCase):
     def test_rejects_invalid_generator_version(self) -> None:
         with self.assertRaises(ValueError):
             generate_system(1, (0, 0, 0), generator_version=0)
+
+
+class GenerateSystemGuardClauseTests(unittest.TestCase):
+    """Cover `generate_system`'s two entry-point guard clauses per rule.
+
+    `test_rejects_invalid_generator_version` above only ever supplies
+    `generator_version=0`, so the negative-version half of that guard was
+    untested, and no existing test ever called `generate_system` with a
+    wrong-length `coordinate` -- that guard had zero coverage. These tests
+    exercise every declared branch of each guard independently, matching the
+    per-field/per-key and guard-clause coverage audit already applied to
+    `prototypes/coordinate-scale`, `prototypes/simulation-clock`, and
+    `prototypes/headless-simulation` (see `ERROR_RESOLUTION_LEDGER.md`).
+    """
+
+    def test_rejects_a_coordinate_with_the_wrong_axis_count(self) -> None:
+        for coordinate in ((), (1,), (1, 2), (1, 2, 3, 4)):
+            with self.subTest(coordinate=coordinate):
+                with self.assertRaisesRegex(
+                    ValueError, "coordinate must contain exactly three integers"
+                ):
+                    generate_system(1, coordinate)
+
+    def test_accepts_a_three_axis_coordinate(self) -> None:
+        # Positive control: the guard above must not reject the valid shape.
+        generate_system(1, (1, 2, 3))
+
+    def test_rejects_non_positive_generator_version_at_both_boundaries(self) -> None:
+        for generator_version in (0, -1, -1000):
+            with self.subTest(generator_version=generator_version):
+                with self.assertRaisesRegex(
+                    ValueError, "generator_version must be positive"
+                ):
+                    generate_system(1, (0, 0, 0), generator_version=generator_version)
+
+
+class DeterministicStreamGuardClauseTests(unittest.TestCase):
+    """Cover `DeterministicStream`'s three sampling-method guard clauses.
+
+    None of these guards had any existing test coverage: every call site in
+    `generator.py` and `test_generator.py` supplies valid arguments, so a
+    weakened or dropped check in `below`, `between`, or `weighted` could go
+    undetected.
+    """
+
+    def test_below_rejects_non_positive_upper_exclusive(self) -> None:
+        for upper_exclusive in (0, -1, -50):
+            with self.subTest(upper_exclusive=upper_exclusive):
+                with self.assertRaisesRegex(ValueError, "upper_exclusive must be positive"):
+                    DeterministicStream("key").below(upper_exclusive)
+
+    def test_below_accepts_a_positive_upper_exclusive(self) -> None:
+        value = DeterministicStream("key").below(1)
+        self.assertEqual(value, 0)
+
+    def test_between_rejects_high_below_low(self) -> None:
+        for low, high in ((1, 0), (10, -10), (0, -1)):
+            with self.subTest(low=low, high=high):
+                with self.assertRaisesRegex(ValueError, "high must be >= low"):
+                    DeterministicStream("key").between(low, high)
+
+    def test_between_accepts_an_equal_low_and_high(self) -> None:
+        value = DeterministicStream("key").between(5, 5)
+        self.assertEqual(value, 5)
+
+    def test_weighted_rejects_non_positive_total_weight(self) -> None:
+        cases = ((), (("only", 0),), (("a", 1), ("b", -3)))
+        for choices in cases:
+            with self.subTest(choices=choices):
+                with self.assertRaisesRegex(
+                    ValueError, "weighted choices require positive total weight"
+                ):
+                    DeterministicStream("key").weighted(choices)
+
+    def test_weighted_accepts_a_single_positive_weight(self) -> None:
+        value = DeterministicStream("key").weighted((("only", 1),))
+        self.assertEqual(value, "only")
 
 
 if __name__ == "__main__":
