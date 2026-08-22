@@ -4,9 +4,11 @@ This is the master development roadmap. It preserves the core identity of physic
 
 The player is explicitly the probe. The roadmap is sequenced to prove the game from the inside out rather than beginning with late-game spectacle.
 
-**Production engine direction:** Unreal Engine is accepted as the production target. Phase 1 technical work validates that direction, identifies implementation risks, and proves the engine-independent simulation architecture before production gameplay begins. Godot material may remain only as comparative benchmark evidence or historical prototype work unless a later accepted ADR explicitly supersedes ADR-0001.
+**Production engine direction:** Unreal Engine is accepted as the production target. Phase 1 technical work validated that direction, identified implementation risks, and proved the engine-independent simulation architecture before production gameplay began. Godot material may remain only as comparative benchmark evidence or historical prototype work unless a later accepted ADR explicitly supersedes ADR-0001.
 
 ## Phase 0 — Project Constitution
+
+**Status:** complete.
 
 **Objective:** prevent scope drift before implementation.
 
@@ -29,38 +31,52 @@ Deliverables:
 - `DECISION_LOG.md`
 - contribution/coding standards
 
-**Gate:** everyone working on Everward can answer “What is this game?” in roughly the same way.
+**Gate:** satisfied. The project constitution and accepted technical/design boundaries are established.
 
 ## Phase 1 — Technical Proofs
 
-Build isolated experiments, not the production game.
+**Status:** complete; exit gate satisfied.
+
+Built isolated experiments rather than the production game.
 
 ### Prototype A — Simulation clock
-Prove deterministic time, scheduled events, pause, and very high time acceleration.
+Proved deterministic time, scheduled events, pause, and very high time acceleration.
 
 ### Prototype B — Procedural star system
-Generate deterministic stars, planets, moons, belts, and resources.
+Proved deterministic stars, planets, moons, belts, and resources.
 
 ### Prototype C — Space rendering
-Build the representative Everward visual benchmark with Unreal as the production target. Comparative Godot evidence may be retained where it helps quantify risk or workflow differences, but it does not reopen the product-direction decision by itself.
+Built the representative Everward visual benchmark with Unreal as the production target. Comparative Godot evidence remains historical/comparative only.
 
 ### Prototype D — Massive coordinate handling
-Prove local machinery, system scale, and interstellar coordinates can coexist without precision failure.
+Proved local machinery, system scale, and interstellar coordinates can coexist without precision failure within the prototype acceptance criteria.
 
 ### Prototype E — Headless simulation
-Run thousands of simulated years without graphics.
+Proved long-duration headless deterministic simulation.
 
-**Gate:** validate Unreal Engine on representative hardware, identify/resolve any material Unreal blocker, and confirm the simulation/presentation architecture from measured evidence. Phase 2 requires a real `decision_ready` artifact recommending `unreal` under the current accepted engine decision.
+**Gate:** satisfied by the real `decision_ready` Unreal evidence artifact. Residual GPU/rendering risk remains tracked but does not block Phase 2.
 
 ## Phase 2 — One Probe
 
-**Status:** authorized (Phase 1 exit gate satisfied). Kickoff design authored — see ADR-0012 in `DECISION_LOG.md` and `docs/PHASE2_KICKOFF_SCAFFOLD.md`. Implementation not yet started; `src/` remains the placeholder described in `src/README.md`.
+**Status:** **ACTIVE.** Production implementation began in PR #68 after the Phase 1 exit gate passed.
 
-Implement one embodied machine in Unreal Engine with mass, energy, storage, sensors, computation, propulsion, position, velocity, temperature, component capabilities, and software state.
+Current production foundation on `main`:
 
-Player can observe, scan, move, inspect systems, manage power, and alter basic software policies.
+- top-level Unreal Engine 5.8 project under `unreal/`;
+- engine-independent C++20 authoritative simulation core under `src/simulation/`;
+- canonical first-probe state for identity, position/velocity, mass, energy, temperature, storage, and basic capabilities;
+- deterministic fixed-step movement integration and domain-event delivery;
+- `UProbeSimulationAdapter` as the single Unreal-side caller into authoritative simulation;
+- Blueprint-visible simulation tick, position, and velocity-command access;
+- CMake/CTest production-core coverage integrated into GitHub Actions.
 
-The Unreal layer presents and interacts with authoritative simulation state; it must not become the only owner of mechanical truth.
+Immediate development target: create the first visible embodied probe in Unreal, driven from authoritative simulation state through the adapter boundary. Then add minimal inspection telemetry, scanning, power allocation, and software-policy interaction until the complete One Probe interaction set is testable.
+
+Phase 2 target state remains one embodied machine with mass, energy, storage, sensors, computation, propulsion, position, velocity, temperature, component capabilities, and software state.
+
+Player must be able to observe, scan, move, inspect systems, manage power, and alter basic software policies.
+
+The Unreal layer presents authoritative simulation state and submits commands; it must never become the owner of mechanical truth. See ADR-0002, ADR-0012, `PHASE2_KICKOFF_SCAFFOLD.md`, and `PROJECT_STATUS.md`.
 
 **Gate:** simply existing as the probe is compelling.
 
