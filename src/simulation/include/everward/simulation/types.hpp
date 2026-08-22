@@ -23,6 +23,12 @@ struct ProbeStateSnapshot {
     double thermal_capacity_j_per_k{2.5e6};
     double ambient_temperature_k{293.15};
     double passive_cooling_w_per_k{2.0};
+    // Order-of-magnitude placeholder for the temperature at which onboard
+    // components can no longer operate safely (roughly 100C / 373.15K), not
+    // a modeled material or component-specific failure point. Crossing it
+    // triggers the overheat lockout below.
+    double max_operating_temperature_k{373.15};
+    bool is_overheated{false};
     double storage_used_kg{0.0};
     double storage_capacity_kg{500.0};
     bool can_scan{true};
@@ -50,6 +56,8 @@ enum class DomainEventType {
     ScanCompleted,
     PowerAllocationChanged,
     EnergyDepleted,
+    OverheatStarted,
+    OverheatEnded,
     PolicyChanged,
     ManeuverStarted,
     ManeuverCompleted

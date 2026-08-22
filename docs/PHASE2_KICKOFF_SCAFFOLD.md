@@ -21,12 +21,13 @@ Implemented foundation:
 - `SimulationCore::allocate_power(PowerSubsystem, watts)` with per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against a total `power_capacity_w` budget, rejecting negative requests and any combined allocation that would exceed capacity, and emitting a `PowerAllocationChanged` domain event on success;
 - allocated power draws down `stored_energy_j` over simulated time on the same fixed-step path as movement and scan progress, clamped at zero, emitting an `EnergyDepleted` domain event on the transition from having stored energy to having none;
 - allocated power also accumulates as waste heat into `temperature_k` over simulated time on the same fixed-step path, using a `thermal_capacity_j_per_k` probe field, combined with passive Newtonian cooling back toward a new `ambient_temperature_k` field at a rate set by a new `passive_cooling_w_per_k` field, solved in closed form so `temperature_k` approaches a finite equilibrium under sustained power rather than climbing unbounded, and drifts back toward ambient once power is deallocated;
+- `temperature_k` crossing a new `max_operating_temperature_k` field triggers an overheat lockout: a new `is_overheated` flag is set, `can_scan`/`can_thrust` are cleared, and an `OverheatStarted` domain event fires; dropping back below the limit restores both flags and fires `OverheatEnded`;
 - production-core CMake/CTest coverage in GitHub Actions.
 
 Not yet implemented at this reconciliation point:
 
 - visible embodied probe runtime scene driven from the authoritative snapshot;
-- complete component model for sensors, computation, propulsion, and thermal behavior beyond the power-allocation budget, energy-consumption effect, and thermal-load/passive-cooling effect above (e.g. component operational state, failure modes, temperature limits/overheat response);
+- complete component model for sensors, computation, propulsion, and thermal behavior beyond the power-allocation budget, energy-consumption effect, thermal-load/passive-cooling effect, and overheat lockout above (e.g. a behavioral response to full energy depletion, or per-component operational state/failure modes beyond the probe-wide overheat response);
 - software policy state and alter-policy interaction;
 - `ScanCommand` and `allocate_power` exposure through `UProbeSimulationAdapter`/Blueprint (both commands exist in `src/simulation/` only; no Unreal-side caller yet);
 - scan results/discovery payloads (current `ScanCommand` proves the start/validate/complete lifecycle and timing, not scan outcome content);
@@ -112,7 +113,7 @@ The complete Phase 2 target snapshot contains:
 | Position / velocity | canonical simulation-space position and velocity | implemented |
 | Mass | total and component mass | initial total state present; component breakdown pending |
 | Energy | generation, storage, charge, subsystem consumption | initial energy state present; per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against total capacity is present; allocated power now draws down stored energy over simulated time (`EnergyDepleted` on depletion); generation/recharge remains pending |
-| Thermal | thermally relevant component temperatures and limits | initial temperature state present; allocated power (`total_power_allocated_w()`) accumulates as waste heat into `temperature_k` over simulated time on the same fixed-step path as movement/scan/energy, combined with passive Newtonian cooling back toward `ambient_temperature_k` so sustained load approaches a finite equilibrium rather than climbing unbounded; temperature limits and an overheat response remain pending |
+| Thermal | thermally relevant component temperatures and limits | initial temperature state present; allocated power (`total_power_allocated_w()`) accumulates as waste heat into `temperature_k` over simulated time on the same fixed-step path as movement/scan/energy, combined with passive Newtonian cooling back toward `ambient_temperature_k` so sustained load approaches a finite equilibrium rather than climbing unbounded; `temperature_k` crossing `max_operating_temperature_k` now clears `can_scan`/`can_thrust` and fires `OverheatStarted`/`OverheatEnded`; per-component thermal limits beyond this probe-wide response remain pending |
 | Storage | resource inventory and capacity | initial storage state present; inventory mechanics pending |
 | Sensors | sensor components, targets, progress, scan-result references | scan lifecycle state (`is_scanning`, active target, remaining duration) present; sensor components and scan-result content pending |
 | Computation | compute components, utilization, policy assignment | pending |
