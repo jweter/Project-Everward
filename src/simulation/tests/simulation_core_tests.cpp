@@ -367,6 +367,125 @@ int main() {
         assert(cooled_temperature >= ambient);
     }
 
+    // OverheatResponse: no-op case. With no allocated power, temperature_k
+    // never approaches max_operating_temperature_k, so is_overheated stays
+    // false and can_scan/can_thrust remain available.
+    {
+        SimulationCore overheat_core;
+        overheat_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 100000);
+        assert(!overheat_core.snapshot().is_overheated);
+        assert(overheat_core.snapshot().can_scan);
+        assert(overheat_core.snapshot().can_thrust);
+
+        auto events = overheat_core.drain_events();
+        for (const auto& event : events) {
+            assert(event.type != everward::simulation::DomainEventType::OverheatStarted);
+        }
+    }
+
+    // OverheatResponse: happy path. Sustained maximum allocated power drives
+    // temperature_k toward an equilibrium well above
+    // max_operating_temperature_k. Advancing exactly to the analytically
+    // computed crossing time (from the same closed-form cooling equation
+    // integrate_thermal_load itself uses, rounded up to a whole tick as
+    // EnergyConsumption's own exact-boundary test does) lands temperature_k
+    // at or just past the limit and triggers exactly one OverheatStarted
+    // transition that locks out can_scan/can_thrust, matching the
+    // ScanCommand/allocate_power capability-gating pattern.
+    {
+        SimulationCore overheat_core;
+        const double capacity_w = overheat_core.snapshot().power_capacity_w;
+        const double thermal_capacity = overheat_core.snapshot().thermal_capacity_j_per_k;
+        const double ambient = overheat_core.snapshot().ambient_temperature_k;
+        const double cooling_w_per_k = overheat_core.snapshot().passive_cooling_w_per_k;
+        const double max_temp = overheat_core.snapshot().max_operating_temperature_k;
+
+        overheat_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, capacity_w);
+        (void)overheat_core.drain_events();
+
+        const double equilibrium_k = ambient + capacity_w / cooling_w_per_k;
+        const double decay_rate_per_s = cooling_w_per_k / thermal_capacity;
+        const double crossing_seconds =
+            -std::log((max_temp - equilibrium_k) / (ambient - equilibrium_k)) / decay_rate_per_s;
+        const auto crossing_ticks =
+            static_cast<std::int64_t>(std::ceil(crossing_seconds * SimulationClock::TicksPerSecond));
+
+        assert(overheat_core.snapshot().can_scan);
+        assert(overheat_core.snapshot().can_thrust);
+
+        overheat_core.advance_wall_ticks(crossing_ticks);
+        assert(overheat_core.snapshot().temperature_k >= max_temp);
+        assert(overheat_core.snapshot().is_overheated);
+        assert(!overheat_core.snapshot().can_scan);
+        assert(!overheat_core.snapshot().can_thrust);
+
+        auto crossing_events = overheat_core.drain_events();
+        std::size_t overheat_started_count = 0;
+        for (const auto& event : crossing_events) {
+            if (event.type == everward::simulation::DomainEventType::OverheatStarted) {
+                ++overheat_started_count;
+            }
+        }
+        assert(overheat_started_count == 1);
+
+        // While overheated, scanning and thrust commands are rejected just
+        // like any other capability-gated command.
+        bool scan_rejected = false;
+        try {
+            overheat_core.start_scan("asteroid-1", 10.0);
+        } catch (const std::runtime_error&) {
+            scan_rejected = true;
+        }
+        assert(scan_rejected);
+
+        bool thrust_rejected = false;
+        try {
+            overheat_core.set_velocity_mps(Vector3d{1.0, 0.0, 0.0});
+        } catch (const std::runtime_error&) {
+            thrust_rejected = true;
+        }
+        assert(thrust_rejected);
+
+        // Remaining above the limit does not re-emit OverheatStarted: the
+        // event marks the crossing transition, not a steady overheated state.
+        overheat_core.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        auto steady_state_events = overheat_core.drain_events();
+        for (const auto& event : steady_state_events) {
+            assert(event.type != everward::simulation::DomainEventType::OverheatStarted);
+        }
+    }
+
+    // OverheatResponse: recovery. Deallocating power lets temperature_k decay
+    // back toward ambient; once it drops back below
+    // max_operating_temperature_k, is_overheated clears exactly once via
+    // OverheatEnded and can_scan/can_thrust are restored.
+    {
+        SimulationCore overheat_core;
+        overheat_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion,
+                                      overheat_core.snapshot().power_capacity_w);
+        overheat_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 400000);
+        assert(overheat_core.snapshot().is_overheated);
+        (void)overheat_core.drain_events();
+
+        overheat_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 0.0);
+        (void)overheat_core.drain_events();
+
+        overheat_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 400000);
+        assert(overheat_core.snapshot().temperature_k < overheat_core.snapshot().max_operating_temperature_k);
+        assert(!overheat_core.snapshot().is_overheated);
+        assert(overheat_core.snapshot().can_scan);
+        assert(overheat_core.snapshot().can_thrust);
+
+        auto events = overheat_core.drain_events();
+        std::size_t overheat_ended_count = 0;
+        for (const auto& event : events) {
+            if (event.type == everward::simulation::DomainEventType::OverheatEnded) {
+                ++overheat_ended_count;
+            }
+        }
+        assert(overheat_ended_count == 1);
+    }
+
     std::cout << "Everward simulation core tests passed\n";
     return 0;
 }

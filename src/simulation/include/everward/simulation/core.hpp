@@ -29,6 +29,7 @@ public:
         integrate_scan(seconds);
         integrate_power_consumption(seconds);
         integrate_thermal_load(seconds);
+        integrate_overheat_response();
         events_.push_back({clock_.tick(), DomainEventType::SimulationAdvanced, "fixed step"});
     }
 
@@ -201,12 +202,44 @@ private:
         // exactly (instead of a fixed-step Euler update) keeps the result
         // correct and step-size-independent for any elapsed duration,
         // matching how large `advance_wall_ticks` calls behave elsewhere in
-        // this simulation. A temperature limit/overheat response remains a
-        // separate, currently-unspecified follow-up; see PROJECT_STATUS.md.
+        // this simulation. See integrate_overheat_response() below for the
+        // behavioral response once this crosses max_operating_temperature_k.
         const double decay_rate_per_s = cooling_w_per_k / probe_.thermal_capacity_j_per_k;
         const double equilibrium_k = probe_.ambient_temperature_k + heating_w / cooling_w_per_k;
         const double delta_from_equilibrium_k = probe_.temperature_k - equilibrium_k;
         probe_.temperature_k = equilibrium_k + delta_from_equilibrium_k * std::exp(-decay_rate_per_s * seconds);
+    }
+
+    // Temperature-limit/overheat response: once temperature_k reaches or
+    // exceeds max_operating_temperature_k, the probe locks out scanning and
+    // propulsion (mirrors the ScanCommand/allocate_power capability-gating
+    // pattern) until it cools back below the threshold. This is edge-triggered
+    // on the is_overheated flag rather than re-applied every step, matching
+    // EnergyDepleted's transition-only event pattern: OverheatStarted fires
+    // once on crossing into the lockout and OverheatEnded once on recovering
+    // from it, not on every step spent at/above or below the threshold.
+    //
+    // can_scan/can_thrust currently have no other source of truth, so
+    // unconditionally restoring both to true on recovery is safe today. A
+    // future independent failure/operational-state system that can also
+    // disable these flags would need to reconcile with this response instead
+    // of relying on this simple restore.
+    void integrate_overheat_response() {
+        const bool exceeds_limit = probe_.temperature_k >= probe_.max_operating_temperature_k;
+
+        if (exceeds_limit && !probe_.is_overheated) {
+            probe_.is_overheated = true;
+            probe_.can_scan = false;
+            probe_.can_thrust = false;
+            events_.push_back({clock_.tick(), DomainEventType::OverheatStarted,
+                                "temperature_k reached max_operating_temperature_k"});
+        } else if (!exceeds_limit && probe_.is_overheated) {
+            probe_.is_overheated = false;
+            probe_.can_scan = true;
+            probe_.can_thrust = true;
+            events_.push_back({clock_.tick(), DomainEventType::OverheatEnded,
+                                "temperature_k dropped below max_operating_temperature_k"});
+        }
     }
 
     SimulationClock clock_{};
