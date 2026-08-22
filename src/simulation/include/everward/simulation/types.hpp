@@ -19,6 +19,12 @@ struct ProbeStateSnapshot {
     double mass_kg{2500.0};
     double stored_energy_j{5.0e8};
     double energy_capacity_j{1.0e9};
+    // Set once stored_energy_j reaches zero (mirrors is_overheated's
+    // capability-lockout pattern below). There is currently no mechanic that
+    // recharges stored_energy_j, so this is a one-way transition until a
+    // future energy-generation/recharge slice adds one; see
+    // integrate_power_consumption() in core.hpp.
+    bool is_energy_depleted{false};
     double temperature_k{293.15};
     double thermal_capacity_j_per_k{2.5e6};
     double ambient_temperature_k{293.15};
@@ -28,6 +34,12 @@ struct ProbeStateSnapshot {
     // a modeled material or component-specific failure point. Crossing it
     // triggers the overheat lockout below.
     double max_operating_temperature_k{373.15};
+    // is_overheated and is_energy_depleted are two independent causes of the
+    // same can_scan/can_thrust capability lockout; SimulationCore derives
+    // both flags from `is_overheated || is_energy_depleted` each step so
+    // that one cause clearing (e.g. cooling below max_operating_temperature_k)
+    // does not wrongly restore capabilities while the other cause is still
+    // active (e.g. stored_energy_j still at zero).
     bool is_overheated{false};
     double storage_used_kg{0.0};
     double storage_capacity_kg{500.0};

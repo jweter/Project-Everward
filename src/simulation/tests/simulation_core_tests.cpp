@@ -1,5 +1,17 @@
 #include "everward/simulation/core.hpp"
 
+// This test file is entirely `assert()`-based, and .github/workflows/foundation.yml
+// configures this target's build with `-DCMAKE_BUILD_TYPE=Release`, which
+// defines NDEBUG and would otherwise compile every assert() below into a
+// silent no-op: the test binary would still run to completion and CTest
+// would report success regardless of whether any assertion actually held.
+// `assert.h`/`<cassert>` intentionally has no include guard so it can be
+// re-included after `#undef NDEBUG` to force real, active assertions in this
+// translation unit no matter what NDEBUG state the build type otherwise
+// defines. See ERROR_RESOLUTION_LEDGER.md, 2026-08-22, for how this was
+// found and why it matters: it applied to every simulation-core CTest since
+// PR #68, not just this file's own tests.
+#undef NDEBUG
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -229,13 +241,30 @@ int main() {
     // draw down all stored energy lands it precisely at zero and emits
     // EnergyDepleted exactly once, alongside the routine SimulationAdvanced
     // event for that same fixed step.
+    //
+    // Deliberately allocates a modest 100 W here rather than the full
+    // power_capacity_w: at 100 W the thermal equilibrium
+    // (ambient_temperature_k + 100 / passive_cooling_w_per_k = 343.15 K)
+    // stays below max_operating_temperature_k (373.15 K), so temperature_k
+    // asymptotically approaches but never reaches the overheat threshold no
+    // matter how long this test runs, keeping this test isolated to the
+    // energy-depletion transition alone. The previous version of this test
+    // allocated the full power_capacity_w (750 W, whose 668.15 K equilibrium
+    // is well past the threshold) and depended on depletion (~666,667 s)
+    // happening before the probe also crossed max_operating_temperature_k
+    // (~300,250 s at that wattage) — it did not, so this test was actually
+    // asserting a stale two-event expectation against a state that, once
+    // integrate_overheat_response() was added, also carried an
+    // OverheatStarted event. `-DCMAKE_BUILD_TYPE=Release` in CI defines
+    // NDEBUG, which silently compiled every assert() in this file into a
+    // no-op, so CTest never actually caught this; see the NDEBUG fix at the
+    // top of this file and ERROR_RESOLUTION_LEDGER.md, 2026-08-22.
     {
         SimulationCore energy_core;
-        energy_core.allocate_power(everward::simulation::PowerSubsystem::Computation,
-                                    energy_core.snapshot().power_capacity_w);
+        energy_core.allocate_power(everward::simulation::PowerSubsystem::Computation, 100.0);
         (void)energy_core.drain_events();
 
-        const double capacity_w = energy_core.snapshot().power_capacity_w;
+        const double capacity_w = 100.0;
         const double initial_energy = energy_core.snapshot().stored_energy_j;
         const double exact_depletion_seconds = initial_energy / capacity_w;
         // Round the tick count up (not truncate) so the whole-tick elapsed
@@ -249,6 +278,9 @@ int main() {
 
         energy_core.advance_wall_ticks(exact_depletion_ticks);
         assert(nearly_equal(energy_core.snapshot().stored_energy_j, 0.0, 1e-3));
+        // Confirms this test stays isolated from the overheat threshold, as
+        // explained above, so the two-event expectation below holds.
+        assert(!energy_core.snapshot().is_overheated);
 
         auto depletion_events = energy_core.drain_events();
         assert(depletion_events.size() == 2);
@@ -484,6 +516,132 @@ int main() {
             }
         }
         assert(overheat_ended_count == 1);
+    }
+
+    // EnergyDepletionResponse: no-op case. With no allocated power,
+    // stored_energy_j never reaches zero, so is_energy_depleted stays false
+    // and can_scan/can_thrust remain available (mirrors OverheatResponse's
+    // own no-op case).
+    {
+        SimulationCore depletion_core;
+        depletion_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        assert(!depletion_core.snapshot().is_energy_depleted);
+        assert(depletion_core.snapshot().can_scan);
+        assert(depletion_core.snapshot().can_thrust);
+    }
+
+    // EnergyDepletionResponse: happy path. Advancing exactly to the point
+    // stored_energy_j is drawn down to zero (the same closed-form
+    // watts * seconds accounting EnergyConsumption's own boundary test
+    // uses, rounded up to a whole tick) sets is_energy_depleted, locks out
+    // can_scan/can_thrust via the same capability derivation the overheat
+    // response uses, and causes scan/thrust commands to be rejected, even
+    // though temperature_k has not come anywhere near
+    // max_operating_temperature_k in this scenario. Deliberately allocates
+    // a modest 100 W (not the full power_capacity_w) so this test stays
+    // isolated to the energy-depletion transition alone, for the same
+    // equilibrium-below-threshold reason documented on EnergyConsumption's
+    // boundary case above.
+    {
+        SimulationCore depletion_core;
+        depletion_core.allocate_power(everward::simulation::PowerSubsystem::Computation, 100.0);
+        (void)depletion_core.drain_events();
+
+        const double capacity_w = 100.0;
+        const double initial_energy = depletion_core.snapshot().stored_energy_j;
+        const double exact_depletion_seconds = initial_energy / capacity_w;
+        const auto exact_depletion_ticks =
+            static_cast<std::int64_t>(std::ceil(exact_depletion_seconds * SimulationClock::TicksPerSecond));
+
+        assert(depletion_core.snapshot().can_scan);
+        assert(depletion_core.snapshot().can_thrust);
+
+        depletion_core.advance_wall_ticks(exact_depletion_ticks);
+        assert(nearly_equal(depletion_core.snapshot().stored_energy_j, 0.0, 1e-3));
+        assert(depletion_core.snapshot().is_energy_depleted);
+        assert(!depletion_core.snapshot().can_scan);
+        assert(!depletion_core.snapshot().can_thrust);
+        assert(!depletion_core.snapshot().is_overheated);
+
+        bool scan_rejected = false;
+        try {
+            depletion_core.start_scan("asteroid-1", 10.0);
+        } catch (const std::runtime_error&) {
+            scan_rejected = true;
+        }
+        assert(scan_rejected);
+
+        bool thrust_rejected = false;
+        try {
+            depletion_core.set_velocity_mps(Vector3d{1.0, 0.0, 0.0});
+        } catch (const std::runtime_error&) {
+            thrust_rejected = true;
+        }
+        assert(thrust_rejected);
+    }
+
+    // EnergyDepletionResponse / OverheatResponse interaction: when both
+    // lockout causes are active at once and only one clears, capabilities
+    // must stay locked rather than being wrongly restored by the recovering
+    // cause. Sustained maximum allocated power drives the probe into both
+    // is_overheated and is_energy_depleted; deallocating power then lets
+    // temperature_k decay back below max_operating_temperature_k (firing
+    // OverheatEnded) while stored_energy_j remains permanently at zero
+    // (there is no recharge mechanic), so can_scan/can_thrust must remain
+    // false throughout.
+    {
+        SimulationCore combined_core;
+        combined_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion,
+                                      combined_core.snapshot().power_capacity_w);
+        // 700,000s comfortably exceeds both the ~666,667s energy-depletion
+        // time (5.0e8 J / 750 W) and the much shorter overheat-crossing time
+        // at this same sustained maximum wattage, so both lockout causes are
+        // active by the time this call returns.
+        combined_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 700000);
+        assert(combined_core.snapshot().is_overheated);
+        assert(combined_core.snapshot().is_energy_depleted);
+        assert(!combined_core.snapshot().can_scan);
+        assert(!combined_core.snapshot().can_thrust);
+        (void)combined_core.drain_events();
+
+        combined_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 0.0);
+        (void)combined_core.drain_events();
+
+        // 1,000,000s of passive cooling from here comfortably decays
+        // temperature_k back below max_operating_temperature_k (the
+        // analogous OverheatResponse recovery test only needed 400,000s
+        // starting from just above the threshold; this scenario starts much
+        // hotter, closer to the sustained-power equilibrium, so it needs
+        // more cooling time to cross back down).
+        combined_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 1000000);
+        assert(combined_core.snapshot().temperature_k < combined_core.snapshot().max_operating_temperature_k);
+        assert(!combined_core.snapshot().is_overheated);
+
+        // The overheat side recovered (and fired OverheatEnded exactly once,
+        // matching OverheatResponse's own recovery test), but energy
+        // depletion is still active, so capabilities must remain locked.
+        auto events = combined_core.drain_events();
+        std::size_t overheat_ended_count = 0;
+        for (const auto& event : events) {
+            assert(event.type != everward::simulation::DomainEventType::EnergyDepleted);
+            if (event.type == everward::simulation::DomainEventType::OverheatEnded) {
+                ++overheat_ended_count;
+            }
+        }
+        assert(overheat_ended_count == 1);
+
+        assert(combined_core.snapshot().is_energy_depleted);
+        assert(nearly_equal(combined_core.snapshot().stored_energy_j, 0.0));
+        assert(!combined_core.snapshot().can_scan);
+        assert(!combined_core.snapshot().can_thrust);
+
+        bool scan_still_rejected = false;
+        try {
+            combined_core.start_scan("asteroid-1", 10.0);
+        } catch (const std::runtime_error&) {
+            scan_still_rejected = true;
+        }
+        assert(scan_still_rejected);
     }
 
     std::cout << "Everward simulation core tests passed\n";

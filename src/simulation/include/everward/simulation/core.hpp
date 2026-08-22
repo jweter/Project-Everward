@@ -30,6 +30,7 @@ public:
         integrate_power_consumption(seconds);
         integrate_thermal_load(seconds);
         integrate_overheat_response();
+        refresh_capability_lockouts();
         events_.push_back({clock_.tick(), DomainEventType::SimulationAdvanced, "fixed step"});
     }
 
@@ -150,6 +151,22 @@ private:
         }
     }
 
+    // Energy-depletion response: once stored_energy_j is drawn down to zero,
+    // the probe locks out scanning and propulsion the same way
+    // integrate_overheat_response() does for temperature_k, via the shared
+    // is_overheated/is_energy_depleted -> can_scan/can_thrust derivation in
+    // refresh_capability_lockouts(). This is edge-triggered on
+    // is_energy_depleted, reusing the existing EnergyDepleted event as the
+    // >0 -> 0 transition marker rather than adding a second event for the
+    // same transition.
+    //
+    // Unlike is_overheated, there is currently no mechanic that raises
+    // stored_energy_j back above zero (no charge/generation slice exists
+    // yet), so is_energy_depleted has no recovery branch here: it would be
+    // dead code no test could reach honestly. A future energy-recharge slice
+    // that can raise stored_energy_j above zero again should add the
+    // corresponding 0 -> >0 transition (clearing is_energy_depleted and
+    // emitting a recovery event) at that point.
     void integrate_power_consumption(double seconds) {
         const double draw_w = total_power_allocated_w();
         if (draw_w <= 0.0 || seconds <= 0.0) {
@@ -164,6 +181,7 @@ private:
         probe_.stored_energy_j = remaining_energy_j;
 
         if (previous_energy_j > 0.0 && remaining_energy_j <= 0.0) {
+            probe_.is_energy_depleted = true;
             events_.push_back({clock_.tick(), DomainEventType::EnergyDepleted,
                                 "stored energy depleted by allocated power draw"});
         }
@@ -219,27 +237,36 @@ private:
     // once on crossing into the lockout and OverheatEnded once on recovering
     // from it, not on every step spent at/above or below the threshold.
     //
-    // can_scan/can_thrust currently have no other source of truth, so
-    // unconditionally restoring both to true on recovery is safe today. A
-    // future independent failure/operational-state system that can also
-    // disable these flags would need to reconcile with this response instead
-    // of relying on this simple restore.
+    // can_scan/can_thrust now have a second independent source of truth,
+    // is_energy_depleted (see integrate_power_consumption() above), so this
+    // no longer restores them directly: it only updates is_overheated and
+    // its transition events, and leaves the actual capability derivation to
+    // refresh_capability_lockouts(), which combines both causes.
     void integrate_overheat_response() {
         const bool exceeds_limit = probe_.temperature_k >= probe_.max_operating_temperature_k;
 
         if (exceeds_limit && !probe_.is_overheated) {
             probe_.is_overheated = true;
-            probe_.can_scan = false;
-            probe_.can_thrust = false;
             events_.push_back({clock_.tick(), DomainEventType::OverheatStarted,
                                 "temperature_k reached max_operating_temperature_k"});
         } else if (!exceeds_limit && probe_.is_overheated) {
             probe_.is_overheated = false;
-            probe_.can_scan = true;
-            probe_.can_thrust = true;
             events_.push_back({clock_.tick(), DomainEventType::OverheatEnded,
                                 "temperature_k dropped below max_operating_temperature_k"});
         }
+    }
+
+    // Derives can_scan/can_thrust from every current lockout cause. Called
+    // once per advance_wall_ticks step after both integrate_power_consumption
+    // (is_energy_depleted) and integrate_overheat_response (is_overheated)
+    // have updated their flags for that step, so neither cause's recovery
+    // (e.g. cooling back below max_operating_temperature_k) can wrongly
+    // restore capabilities while the other cause is still active (e.g.
+    // stored_energy_j still at zero), and vice versa.
+    void refresh_capability_lockouts() noexcept {
+        const bool locked_out = probe_.is_overheated || probe_.is_energy_depleted;
+        probe_.can_scan = !locked_out;
+        probe_.can_thrust = !locked_out;
     }
 
     SimulationClock clock_{};
