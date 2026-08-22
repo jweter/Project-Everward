@@ -31,13 +31,19 @@ PR #72 added the first command beyond movement, `ScanCommand`, entirely within `
 
 This intentionally does not yet touch `unreal/` — `UProbeSimulationAdapter` does not expose `ScanCommand` to Blueprint, and there is no embodied probe runtime scene yet for a scan command to be issued from. It also does not implement scan-result content (what a scan discovers); it proves the start/validate/complete lifecycle and timing only, matching `PHASE2_KICKOFF_SCAFFOLD.md`'s item 4.
 
-A follow-up PR (branch `claude/upbeat-lamport-1x4v6x`) begins power allocation mechanics (item 5), also entirely within `src/simulation/`:
+PR #73 began power allocation mechanics (item 5), also entirely within `src/simulation/`:
 
 - `SimulationCore::allocate_power(PowerSubsystem, watts)` validates a non-negative wattage and that the resulting combined allocation across sensors, propulsion, computation, and thermal subsystems does not exceed the probe's `power_capacity_w` budget, then sets that subsystem's allocation and emits a `PowerAllocationChanged` domain event;
 - reallocating a subsystem replaces its existing share rather than accumulating on top of it; an over-capacity request is rejected and leaves existing allocations untouched;
-- new CMake/CTest coverage exercises validation failures (negative wattage, over-capacity requests), the happy-path allocation/event lifecycle across all four subsystems, reallocation, and the exact-headroom boundary case.
+- CMake/CTest coverage exercises validation failures (negative wattage, over-capacity requests), the happy-path allocation/event lifecycle across all four subsystems, reallocation, and the exact-headroom boundary case.
 
-This also does not yet touch `unreal/` for the same reason as `ScanCommand`: `UProbeSimulationAdapter` does not expose `allocate_power` to Blueprint, and there is no embodied probe runtime scene yet. It proves the validated allocation/event lifecycle only — it does not yet model consumption effects on stored energy, thermal load from allocated power, or per-component operational state beyond the allocation budget itself.
+A follow-up PR (branch `claude/upbeat-lamport-q96q5d`) continues item 5 with the first consumption effect named as still pending: allocated power now draws down stored energy over simulated time.
+
+- `SimulationCore::advance_wall_ticks` now integrates power consumption on the same fixed-step path as movement and scan progress: each step, total allocated wattage across all four subsystems (`total_power_allocated_w()`) draws `watts * elapsed_seconds` joules from `stored_energy_j`, clamped at zero rather than going negative;
+- a new `EnergyDepleted` domain event fires exactly once on the transition from having stored energy to having none (mirroring the `ScanCompleted` transition-only pattern), not on every step energy happens to be draining;
+- new CMake/CTest coverage exercises the no-op case (zero allocated power draws nothing across elapsed time), the happy-path partial drawdown against the expected `watts * seconds` joule figure, and the boundary case of advancing exactly enough ticks to land stored energy precisely at zero, including that continuing to advance afterward stays clamped at zero without re-emitting `EnergyDepleted`.
+
+This also does not yet touch `unreal/` for the same reason as `ScanCommand` and the initial power-allocation slice: `UProbeSimulationAdapter` does not expose `allocate_power` to Blueprint, and there is no embodied probe runtime scene yet. It still does not model thermal load from allocated power or broader per-component operational/failure state beyond the allocation budget and this new energy-consumption effect.
 
 ## Accepted production direction
 
@@ -66,7 +72,7 @@ Resume with the next highest-value **Phase 2 — One Probe** slice.
 
 The immediate target is to turn the new runtime foundation into the first visible embodied probe while preserving ADR-0002/ADR-0012 boundaries.
 
-`ScanCommand` (sequence item 4 below) and the first slice of power allocation (sequence item 5 below) are now implemented in `src/simulation/`, engine-independent and CTest-covered. Items 1–3 (the Unreal-side embodied probe runtime, transform-driving, and HUD read model) remain **not implemented**: they require compiling/running the Unreal project itself, which this scheduled run's environment cannot do (no Unreal Editor/UBT available to build or verify Unreal C++/Blueprint changes). Automation should not author unverifiable `unreal/Source/` changes; a run with Unreal build/verification capability should pick up items 1–3 next.
+`ScanCommand` (sequence item 4 below) and power allocation with its first consumption effect (sequence item 5 below) are now implemented in `src/simulation/`, engine-independent and CTest-covered. Items 1–3 (the Unreal-side embodied probe runtime, transform-driving, and HUD read model) remain **not implemented**: they require compiling/running the Unreal project itself, which this scheduled run's environment cannot do (no Unreal Editor/UBT available to build or verify Unreal C++/Blueprint changes). Automation should not author unverifiable `unreal/Source/` changes; a run with Unreal build/verification capability should pick up items 1–3 next.
 
 Recommended next sequence:
 
@@ -74,8 +80,10 @@ Recommended next sequence:
 2. drive the presented probe transform from the authoritative `src/simulation/` snapshot, with metres-to-centimetres conversion occurring only in the adapter/presentation boundary;
 3. add a minimal inspect/HUD read model for mass, energy, temperature, storage, velocity, and simulation time;
 4. ~~add the first real command path beyond movement: `ScanCommand` with validation plus `scan_started` / `scan_complete` events~~ — **done in `src/simulation/`**; still needs Blueprint/adapter exposure once item 1 exists;
-5. begin power allocation and component-state mechanics — **power allocation started in `src/simulation/`**: `SimulationCore::allocate_power` validates and sets a per-subsystem (sensors/propulsion/computation/thermal) share of a total `power_capacity_w` budget and emits `PowerAllocationChanged`; still pending: consumption effects on stored energy, thermal load from allocated power, broader per-component operational/failure state, and Blueprint/adapter exposure once item 1 exists;
+5. begin power allocation and component-state mechanics — **in progress in `src/simulation/`**: `SimulationCore::allocate_power` validates and sets a per-subsystem (sensors/propulsion/computation/thermal) share of a total `power_capacity_w` budget and emits `PowerAllocationChanged`; allocated power now also draws down `stored_energy_j` over simulated time on the fixed-step path, clamped at zero, emitting `EnergyDepleted` on the depletion transition. Still pending within this item: thermal load on `temperature_k` from allocated power, broader per-component operational/failure state (e.g. what happens once energy is fully depleted — thrust/scan/compute degradation is not yet modeled), and Blueprint/adapter exposure of both commands once item 1 exists;
 6. continue until the Phase 2 gate is demonstrably true: **simply existing as the probe is compelling.**
+
+The next highest-value engine-independent slice within item 5 is thermal load accumulation on `temperature_k` from allocated power (the remaining named gap besides energy consumption, now implemented), following the same fixed-step-integration-plus-domain-event pattern as this slice and `ScanCommand`. A behavioral response to full energy depletion (e.g. degrading `can_thrust`/`can_scan`) is a reasonable follow-up but is a new, currently-unspecified mechanical rule and should be scoped as its own deliberate slice rather than folded silently into either of the above.
 
 Do not jump ahead to Phase 3 astronomy, Phase 4 industry, replication, aliens, combat, megastructures, or broad procedural content before the One Probe embodiment is functioning and testable.
 

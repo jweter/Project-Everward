@@ -26,6 +26,7 @@ public:
         const double seconds = ticks_to_seconds(wall_ticks);
         integrate_probe(seconds);
         integrate_scan(seconds);
+        integrate_power_consumption(seconds);
         events_.push_back({clock_.tick(), DomainEventType::SimulationAdvanced, "fixed step"});
     }
 
@@ -143,6 +144,25 @@ private:
             probe_.active_scan_target_id.clear();
             probe_.scan_remaining_s = 0.0;
             events_.push_back({clock_.tick(), DomainEventType::ScanCompleted, "scan complete: " + completed_target});
+        }
+    }
+
+    void integrate_power_consumption(double seconds) {
+        const double draw_w = total_power_allocated_w();
+        if (draw_w <= 0.0 || seconds <= 0.0) {
+            return;
+        }
+
+        const double previous_energy_j = probe_.stored_energy_j;
+        double remaining_energy_j = previous_energy_j - draw_w * seconds;
+        if (remaining_energy_j < 0.0) {
+            remaining_energy_j = 0.0;
+        }
+        probe_.stored_energy_j = remaining_energy_j;
+
+        if (previous_energy_j > 0.0 && remaining_energy_j <= 0.0) {
+            events_.push_back({clock_.tick(), DomainEventType::EnergyDepleted,
+                                "stored energy depleted by allocated power draw"});
         }
     }
 
