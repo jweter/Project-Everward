@@ -30,6 +30,9 @@ jobs:
       - name: Validate repository foundation
         run: python tools/check_foundation.py
 
+      - name: Test repository foundation validation tooling
+        run: python -m unittest discover -s tools -p 'test_*.py' -v
+
       - name: Test deterministic simulation clock prototype
         run: python -m unittest discover -s prototypes/simulation-clock -p 'test_*.py' -v
 
