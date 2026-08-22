@@ -19,11 +19,26 @@ struct ProbeStateSnapshot {
     double mass_kg{2500.0};
     double stored_energy_j{5.0e8};
     double energy_capacity_j{1.0e9};
-    // Set once stored_energy_j reaches zero (mirrors is_overheated's
-    // capability-lockout pattern below). There is currently no mechanic that
-    // recharges stored_energy_j, so this is a one-way transition until a
-    // future energy-generation/recharge slice adds one; see
-    // integrate_power_consumption() in core.hpp.
+    // Constant passive power supply applied every fixed step alongside
+    // allocated consumption (see integrate_energy_balance() in core.hpp).
+    // This models an RTG-style (radioisotope thermoelectric generator)
+    // source rather than solar: solar generation would need the
+    // star-distance/irradiance model that does not exist yet, while a
+    // constant baseline is the self-contained addition available today.
+    // Defaults to 0.0 — the canonical EV-0001 probe has no generation
+    // hardware equipped yet in this slice; set_energy_generation_w()
+    // configures it (e.g. for tests), and a future hardware/loadout slice is
+    // expected to give the canonical probe a real nonzero default once that
+    // concept exists.
+    double energy_generation_w{0.0};
+    // Set once stored_energy_j transitions from having stored energy to
+    // having none, and cleared again once a net-positive energy balance
+    // (energy_generation_w exceeding allocated consumption) recharges it
+    // back above zero — see integrate_energy_balance() in core.hpp, which
+    // also mirrors is_overheated's capability-lockout pattern below. With
+    // the canonical probe's default energy_generation_w of 0.0 this remains
+    // a one-way transition in practice today, exactly as before this field
+    // existed, but the mechanism itself is no longer inherently one-way.
     bool is_energy_depleted{false};
     double temperature_k{293.15};
     double thermal_capacity_j_per_k{2.5e6};
@@ -68,6 +83,7 @@ enum class DomainEventType {
     ScanCompleted,
     PowerAllocationChanged,
     EnergyDepleted,
+    EnergyRestored,
     OverheatStarted,
     OverheatEnded,
     PolicyChanged,
