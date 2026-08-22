@@ -29,6 +29,7 @@ public:
         integrate_scan(seconds);
         integrate_power_consumption(seconds);
         integrate_thermal_load(seconds);
+        integrate_overheat_response();
         events_.push_back({clock_.tick(), DomainEventType::SimulationAdvanced, "fixed step"});
     }
 
@@ -207,6 +208,47 @@ private:
         const double equilibrium_k = probe_.ambient_temperature_k + heating_w / cooling_w_per_k;
         const double delta_from_equilibrium_k = probe_.temperature_k - equilibrium_k;
         probe_.temperature_k = equilibrium_k + delta_from_equilibrium_k * std::exp(-decay_rate_per_s * seconds);
+    }
+
+    // Temperature-limit/overheat response. Once temperature_k reaches
+    // probe_.overheat_temperature_k (a placeholder threshold, in the same
+    // spirit as thermal_capacity_j_per_k/passive_cooling_w_per_k/
+    // ambient_temperature_k, pending real balancing), the probe degrades
+    // can_scan/can_thrust to false so start_scan()/set_velocity_mps() reject
+    // new commands, and emits OverheatBegan exactly once on the
+    // not-overheating -> overheating transition (mirroring EnergyDepleted's
+    // transition-only pattern). Once temperature_k drops back below the same
+    // threshold, both capabilities are restored and OverheatEnded fires once
+    // on the reverse transition. There is deliberately no separate hysteresis
+    // band yet: both directions cross at the same threshold, so a
+    // temperature oscillating exactly at the boundary can emit repeated
+    // Began/Ended pairs; that refinement is left for a future balancing pass
+    // rather than folded silently into this slice.
+    //
+    // This intentionally does not force-cancel an in-progress scan or zero
+    // out an already-commanded velocity when overheating begins — it only
+    // gates the start of new scan/thrust commands, consistent with how
+    // can_scan/can_thrust already only guard command entry points elsewhere
+    // in this file. Forcibly interrupting in-flight scans/maneuvers on
+    // overheat, and any behavioral response to full energy depletion, remain
+    // separate, currently-unspecified follow-ups.
+    void integrate_overheat_response() {
+        const bool was_overheating = probe_.is_overheating;
+        const bool now_overheating = probe_.temperature_k >= probe_.overheat_temperature_k;
+
+        if (now_overheating && !was_overheating) {
+            probe_.is_overheating = true;
+            probe_.can_scan = false;
+            probe_.can_thrust = false;
+            events_.push_back({clock_.tick(), DomainEventType::OverheatBegan,
+                                "temperature reached overheat threshold"});
+        } else if (!now_overheating && was_overheating) {
+            probe_.is_overheating = false;
+            probe_.can_scan = true;
+            probe_.can_thrust = true;
+            events_.push_back({clock_.tick(), DomainEventType::OverheatEnded,
+                                "temperature dropped below overheat threshold"});
+        }
     }
 
     SimulationClock clock_{};

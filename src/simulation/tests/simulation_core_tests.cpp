@@ -228,7 +228,13 @@ int main() {
     // EnergyConsumption: boundary case. Advancing exactly enough time to
     // draw down all stored energy lands it precisely at zero and emits
     // EnergyDepleted exactly once, alongside the routine SimulationAdvanced
-    // event for that same fixed step.
+    // event for that same fixed step. At full power_capacity_w allocation the
+    // thermal equilibrium also lands above overheat_temperature_k (see the
+    // OverheatResponse tests below), so this same fixed step may additionally
+    // cross the overheat threshold and emit OverheatBegan; the expected
+    // temperature at the depletion tick is computed independently via the
+    // same closed-form thermal model used elsewhere to decide whether that
+    // is expected here rather than hardcoding it.
     {
         SimulationCore energy_core;
         energy_core.allocate_power(everward::simulation::PowerSubsystem::Computation,
@@ -247,22 +253,39 @@ int main() {
         const auto exact_depletion_ticks =
             static_cast<std::int64_t>(std::ceil(exact_depletion_seconds * SimulationClock::TicksPerSecond));
 
+        const double ambient = energy_core.snapshot().ambient_temperature_k;
+        const double thermal_capacity = energy_core.snapshot().thermal_capacity_j_per_k;
+        const double cooling_w_per_k = energy_core.snapshot().passive_cooling_w_per_k;
+        const double equilibrium_k = ambient + capacity_w / cooling_w_per_k;
+        const double decay_rate_per_s = cooling_w_per_k / thermal_capacity;
+        const double expected_temperature_at_depletion =
+            equilibrium_k + (ambient - equilibrium_k) * std::exp(-decay_rate_per_s * exact_depletion_seconds);
+        const bool expect_overheat_also_began =
+            expected_temperature_at_depletion >= energy_core.snapshot().overheat_temperature_k;
+
         energy_core.advance_wall_ticks(exact_depletion_ticks);
         assert(nearly_equal(energy_core.snapshot().stored_energy_j, 0.0, 1e-3));
 
         auto depletion_events = energy_core.drain_events();
-        assert(depletion_events.size() == 2);
+        const std::size_t expected_event_count = expect_overheat_also_began ? 3 : 2;
+        assert(depletion_events.size() == expected_event_count);
         assert(depletion_events.front().type == everward::simulation::DomainEventType::EnergyDepleted);
         assert(depletion_events.back().type == everward::simulation::DomainEventType::SimulationAdvanced);
+        if (expect_overheat_also_began) {
+            assert(depletion_events[1].type == everward::simulation::DomainEventType::OverheatBegan);
+            assert(energy_core.snapshot().is_overheating);
+        }
 
         // Further advancing while fully depleted clamps at zero rather than
-        // going negative, and does not re-emit EnergyDepleted since the
-        // event marks the >0 -> 0 transition, not a steady depleted state.
+        // going negative, and does not re-emit EnergyDepleted or
+        // OverheatBegan since both events mark a transition, not a steady
+        // depleted/overheated state.
         energy_core.advance_wall_ticks(SimulationClock::TicksPerSecond);
         assert(nearly_equal(energy_core.snapshot().stored_energy_j, 0.0));
         auto steady_state_events = energy_core.drain_events();
         for (const auto& event : steady_state_events) {
             assert(event.type != everward::simulation::DomainEventType::EnergyDepleted);
+            assert(event.type != everward::simulation::DomainEventType::OverheatBegan);
         }
     }
 
@@ -365,6 +388,140 @@ int main() {
         // than a small fixed-size step.
         assert(cooled_temperature < heated_temperature);
         assert(cooled_temperature >= ambient);
+    }
+
+    // OverheatResponse: no-op case. A fresh probe starts below its overheat
+    // threshold, so advancing time with no power allocated never crosses it
+    // and capabilities/events remain untouched.
+    {
+        SimulationCore probe;
+        assert(probe.snapshot().temperature_k < probe.snapshot().overheat_temperature_k);
+        assert(!probe.snapshot().is_overheating);
+        assert(probe.snapshot().can_scan);
+        assert(probe.snapshot().can_thrust);
+
+        probe.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        assert(!probe.snapshot().is_overheating);
+        assert(probe.snapshot().can_scan);
+        assert(probe.snapshot().can_thrust);
+
+        auto events = probe.drain_events();
+        for (const auto& event : events) {
+            assert(event.type != everward::simulation::DomainEventType::OverheatBegan);
+        }
+    }
+
+    // OverheatResponse: happy path. Sustained maximum allocated power drives
+    // temperature_k toward an equilibrium above overheat_temperature_k;
+    // advancing far past the thermal time constant crosses the threshold,
+    // emits OverheatBegan exactly once on that transition, sets
+    // is_overheating, and degrades can_scan/can_thrust so new commands are
+    // rejected even though an in-progress scan or existing velocity is left
+    // alone.
+    {
+        SimulationCore probe;
+        const double capacity_w = probe.snapshot().power_capacity_w;
+        probe.allocate_power(everward::simulation::PowerSubsystem::Propulsion, capacity_w);
+        (void)probe.drain_events();
+
+        // Sanity check: full allocated power drives the closed-form thermal
+        // equilibrium comfortably above the overheat threshold, so crossing
+        // it is a matter of elapsed time, not insufficient heating.
+        const double equilibrium_k = probe.snapshot().ambient_temperature_k +
+                                      capacity_w / probe.snapshot().passive_cooling_w_per_k;
+        assert(equilibrium_k > probe.snapshot().overheat_temperature_k);
+
+        // Advance far beyond the thermal time constant
+        // (thermal_capacity_j_per_k / passive_cooling_w_per_k) so temperature_k
+        // is effectively at equilibrium regardless of the exact threshold
+        // chosen, then confirm the threshold was actually crossed along the
+        // way.
+        const double time_constant_s =
+            probe.snapshot().thermal_capacity_j_per_k / probe.snapshot().passive_cooling_w_per_k;
+        const auto settle_ticks =
+            static_cast<std::int64_t>(std::ceil(time_constant_s * 20.0 * SimulationClock::TicksPerSecond));
+
+        probe.advance_wall_ticks(settle_ticks);
+        assert(probe.snapshot().temperature_k >= probe.snapshot().overheat_temperature_k);
+        assert(probe.snapshot().is_overheating);
+        assert(!probe.snapshot().can_scan);
+        assert(!probe.snapshot().can_thrust);
+
+        auto events = probe.drain_events();
+        int overheat_began_count = 0;
+        for (const auto& event : events) {
+            if (event.type == everward::simulation::DomainEventType::OverheatBegan) {
+                ++overheat_began_count;
+            }
+        }
+        assert(overheat_began_count == 1);
+
+        bool scan_rejected = false;
+        try {
+            probe.start_scan("asteroid-1", 5.0);
+        } catch (const std::runtime_error&) {
+            scan_rejected = true;
+        }
+        assert(scan_rejected);
+
+        bool thrust_rejected = false;
+        try {
+            probe.set_velocity_mps(Vector3d{1.0, 0.0, 0.0});
+        } catch (const std::runtime_error&) {
+            thrust_rejected = true;
+        }
+        assert(thrust_rejected);
+
+        // Staying overheated across further advances does not re-emit
+        // OverheatBegan, mirroring EnergyDepleted's steady-state behavior.
+        probe.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        auto steady_state_events = probe.drain_events();
+        for (const auto& event : steady_state_events) {
+            assert(event.type != everward::simulation::DomainEventType::OverheatBegan);
+        }
+    }
+
+    // OverheatResponse: recovery. Deallocating power lets temperature_k cool
+    // passively back below overheat_temperature_k; crossing back down emits
+    // OverheatEnded exactly once and restores can_scan/can_thrust so new
+    // commands succeed again.
+    {
+        SimulationCore probe;
+        const double capacity_w = probe.snapshot().power_capacity_w;
+        probe.allocate_power(everward::simulation::PowerSubsystem::Propulsion, capacity_w);
+        (void)probe.drain_events();
+
+        const double time_constant_s =
+            probe.snapshot().thermal_capacity_j_per_k / probe.snapshot().passive_cooling_w_per_k;
+        const auto settle_ticks =
+            static_cast<std::int64_t>(std::ceil(time_constant_s * 20.0 * SimulationClock::TicksPerSecond));
+
+        probe.advance_wall_ticks(settle_ticks);
+        assert(probe.snapshot().is_overheating);
+        (void)probe.drain_events();
+
+        probe.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 0.0);
+        (void)probe.drain_events();
+
+        probe.advance_wall_ticks(settle_ticks);
+        assert(probe.snapshot().temperature_k < probe.snapshot().overheat_temperature_k);
+        assert(!probe.snapshot().is_overheating);
+        assert(probe.snapshot().can_scan);
+        assert(probe.snapshot().can_thrust);
+
+        auto events = probe.drain_events();
+        int overheat_ended_count = 0;
+        for (const auto& event : events) {
+            assert(event.type != everward::simulation::DomainEventType::OverheatBegan);
+            if (event.type == everward::simulation::DomainEventType::OverheatEnded) {
+                ++overheat_ended_count;
+            }
+        }
+        assert(overheat_ended_count == 1);
+
+        // Capabilities work again after recovery.
+        probe.start_scan("asteroid-2", 1.0);
+        assert(probe.snapshot().is_scanning);
     }
 
     std::cout << "Everward simulation core tests passed\n";
