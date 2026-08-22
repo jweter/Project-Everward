@@ -118,6 +118,75 @@ int main() {
         assert(scan_core.snapshot().is_scanning);
     }
 
+    // PowerAllocationCommand: validation.
+    {
+        SimulationCore power_core;
+
+        bool negative_watts_threw = false;
+        try {
+            power_core.allocate_power(everward::simulation::PowerSubsystem::Sensors, -1.0);
+        } catch (const std::invalid_argument&) {
+            negative_watts_threw = true;
+        }
+        assert(negative_watts_threw);
+
+        bool over_capacity_threw = false;
+        try {
+            power_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion,
+                                       power_core.snapshot().power_capacity_w + 1.0);
+        } catch (const std::runtime_error&) {
+            over_capacity_threw = true;
+        }
+        assert(over_capacity_threw);
+
+        assert(nearly_equal(power_core.total_power_allocated_w(), 0.0));
+    }
+
+    // PowerAllocationCommand: happy path sets per-subsystem allocation, emits
+    // PowerAllocationChanged, allows reallocation, and rejects a combined
+    // request that would exceed total capacity.
+    {
+        SimulationCore power_core;
+        const double capacity = power_core.snapshot().power_capacity_w;
+
+        power_core.allocate_power(everward::simulation::PowerSubsystem::Sensors, 100.0);
+        assert(nearly_equal(power_core.snapshot().power_allocated_sensors_w, 100.0));
+
+        auto sensor_events = power_core.drain_events();
+        assert(sensor_events.size() == 1);
+        assert(sensor_events.front().type == everward::simulation::DomainEventType::PowerAllocationChanged);
+
+        power_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 200.0);
+        power_core.allocate_power(everward::simulation::PowerSubsystem::Computation, 50.0);
+        power_core.allocate_power(everward::simulation::PowerSubsystem::Thermal, 25.0);
+        assert(nearly_equal(power_core.total_power_allocated_w(), 375.0));
+        auto discarded_events = power_core.drain_events();
+        assert(discarded_events.size() == 3);
+
+        // Reallocating an already-allocated subsystem replaces its share
+        // rather than accumulating on top of it.
+        power_core.allocate_power(everward::simulation::PowerSubsystem::Sensors, 40.0);
+        assert(nearly_equal(power_core.snapshot().power_allocated_sensors_w, 40.0));
+        assert(nearly_equal(power_core.total_power_allocated_w(), 315.0));
+
+        // A request that would push the combined allocation past capacity is
+        // rejected and leaves existing allocations untouched.
+        bool exceeds_capacity_threw = false;
+        try {
+            power_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, capacity);
+        } catch (const std::runtime_error&) {
+            exceeds_capacity_threw = true;
+        }
+        assert(exceeds_capacity_threw);
+        assert(nearly_equal(power_core.snapshot().power_allocated_propulsion_w, 200.0));
+        assert(nearly_equal(power_core.total_power_allocated_w(), 315.0));
+
+        // Allocating exactly the remaining headroom is allowed.
+        const double remaining = capacity - power_core.total_power_allocated_w();
+        power_core.allocate_power(everward::simulation::PowerSubsystem::Thermal, 25.0 + remaining);
+        assert(nearly_equal(power_core.total_power_allocated_w(), capacity));
+    }
+
     std::cout << "Everward simulation core tests passed\n";
     return 0;
 }

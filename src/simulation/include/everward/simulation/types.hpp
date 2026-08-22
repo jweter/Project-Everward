@@ -27,6 +27,18 @@ struct ProbeStateSnapshot {
     bool is_scanning{false};
     std::string active_scan_target_id{};
     double scan_remaining_s{0.0};
+    double power_capacity_w{750.0};
+    double power_allocated_sensors_w{0.0};
+    double power_allocated_propulsion_w{0.0};
+    double power_allocated_computation_w{0.0};
+    double power_allocated_thermal_w{0.0};
+};
+
+enum class PowerSubsystem {
+    Sensors,
+    Propulsion,
+    Computation,
+    Thermal
 };
 
 enum class DomainEventType {

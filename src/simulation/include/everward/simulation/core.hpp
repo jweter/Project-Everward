@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -62,7 +63,64 @@ public:
         events_.push_back({clock_.tick(), DomainEventType::ScanStarted, "scan started: " + target_id});
     }
 
+    void allocate_power(PowerSubsystem subsystem, double watts) {
+        if (watts < 0.0) {
+            throw std::invalid_argument("watts must be non-negative");
+        }
+
+        double sensors = probe_.power_allocated_sensors_w;
+        double propulsion = probe_.power_allocated_propulsion_w;
+        double computation = probe_.power_allocated_computation_w;
+        double thermal = probe_.power_allocated_thermal_w;
+
+        switch (subsystem) {
+            case PowerSubsystem::Sensors:
+                sensors = watts;
+                break;
+            case PowerSubsystem::Propulsion:
+                propulsion = watts;
+                break;
+            case PowerSubsystem::Computation:
+                computation = watts;
+                break;
+            case PowerSubsystem::Thermal:
+                thermal = watts;
+                break;
+        }
+
+        const double requested_total = sensors + propulsion + computation + thermal;
+        if (requested_total > probe_.power_capacity_w) {
+            throw std::runtime_error("power allocation exceeds capacity");
+        }
+
+        probe_.power_allocated_sensors_w = sensors;
+        probe_.power_allocated_propulsion_w = propulsion;
+        probe_.power_allocated_computation_w = computation;
+        probe_.power_allocated_thermal_w = thermal;
+
+        events_.push_back({clock_.tick(), DomainEventType::PowerAllocationChanged,
+                            subsystem_name(subsystem) + " allocation set to " + std::to_string(watts) + " W"});
+    }
+
+    [[nodiscard]] double total_power_allocated_w() const noexcept {
+        return probe_.power_allocated_sensors_w + probe_.power_allocated_propulsion_w +
+               probe_.power_allocated_computation_w + probe_.power_allocated_thermal_w;
+    }
+
 private:
+    [[nodiscard]] static std::string subsystem_name(PowerSubsystem subsystem) {
+        switch (subsystem) {
+            case PowerSubsystem::Sensors:
+                return "sensors";
+            case PowerSubsystem::Propulsion:
+                return "propulsion";
+            case PowerSubsystem::Computation:
+                return "computation";
+            case PowerSubsystem::Thermal:
+                return "thermal";
+        }
+        return "unknown";
+    }
     [[nodiscard]] static double ticks_to_seconds(std::int64_t ticks) noexcept {
         return static_cast<double>(ticks) / static_cast<double>(SimulationClock::TicksPerSecond);
     }
