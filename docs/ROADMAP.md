@@ -54,6 +54,8 @@ Run thousands of simulated years without graphics.
 
 ## Phase 2 — One Probe
 
+**Status:** authorized (Phase 1 exit gate satisfied). Kickoff design authored — see ADR-0012 in `DECISION_LOG.md` and `docs/PHASE2_KICKOFF_SCAFFOLD.md`. Implementation not yet started; `src/` remains the placeholder described in `src/README.md`.
+
 Implement one embodied machine in Unreal Engine with mass, energy, storage, sensors, computation, propulsion, position, velocity, temperature, component capabilities, and software state.
 
 Player can observe, scan, move, inspect systems, manage power, and alter basic software policies.

@@ -163,6 +163,25 @@ See `ENGINE_DIRECTION.md`, `VISUAL_DIRECTION.md`, and `TECHNOLOGY_DECISIONS.md`.
 - affected documentation must be kept current;
 - significant failure memory belongs in `ERROR_RESOLUTION_LEDGER.md` and durable design/architecture rationale remains in this decision log.
 
+## ADR-0012 — Phase 2 kickoff scaffold boundary
+
+**Status:** ACCEPTED
+
+**Decision:** The Phase 2 — One Probe kickoff scaffold places the production Unreal project at a new top-level `unreal/` directory (not inside `prototypes/` or `src/`) and promotes simulation-core logic out of `prototypes/` into `src/simulation/`, organized by the module list already named in `ARCHITECTURE.md` and scoped to what the One Probe embodiment needs. Unreal accesses authoritative simulation state exclusively through a single adapter type reading a plain-data state/event/command contract defined in `src/simulation/boundary/`; no other Unreal-side code may call into `src/`, and the simulation core performs no unit conversion or Unreal-aware logic of its own. The full contract — which fields cross the boundary, in which direction, at what cadence, and how the roadmap's six named interactions (observe, scan, move, inspect, manage power, alter policy) map onto it — is specified in `docs/PHASE2_KICKOFF_SCAFFOLD.md`.
+
+**Why it matters:** `PROJECT_STATUS.md` names defining this kickoff slice as the next authorized piece of work following Phase 1 exit, but is explicit that actually standing up the Unreal project and `src/` implementation is a substantial new-architecture undertaking, not a single small slice. This ADR settles the design boundary first so that implementation work has a concrete, reviewed target instead of being invented ad hoc mid-implementation, consistent with `ARCHITECTURE.md`'s rule that simulation core must not depend on Unreal types and ADR-0002's rule that the simulation core owns mechanical truth.
+
+**Consequences:**
+
+- future Phase 2 implementation PRs adding Unreal project files belong under `unreal/`, and future promoted simulation code belongs under `src/simulation/`, per `docs/PHASE2_KICKOFF_SCAFFOLD.md` §1;
+- any Unreal-side code that reads probe state or submits player commands must go through the single adapter type described in §2.7 of that document — no Actor, Component, Blueprint, or widget talks to `src/simulation/` directly;
+- promoted simulation modules must remain headless-testable with zero Unreal dependency and must reproduce the relevant Phase 1 prototype's golden fixtures before being considered a faithful promotion;
+- `prototypes/rendering-benchmark/unreal/` remains frozen historical Phase 1 evidence and is not reused as the production project;
+- the residual GPU/rendering risk logged in `PROJECT_STATUS.md` (missed 60 FPS target and internal upscaling on integrated graphics) informs kickoff scaffold decisions per §3 of that document — a minimal representative kickoff scene, explicit/visible scalability settings, deferred heavy visual ambition, and a tracked (not blocking) stronger-hardware validation pass;
+- this ADR and `docs/PHASE2_KICKOFF_SCAFFOLD.md` add no Unreal project files, C++/Blueprint code, or `src/` implementation — that is the next authorized slice(s), gated on this design being accepted.
+
+See `docs/PHASE2_KICKOFF_SCAFFOLD.md`, `ARCHITECTURE.md`, `SIMULATION_PHILOSOPHY.md`, `SAVE_FORMAT.md`, `ROADMAP.md`, and `PROJECT_STATUS.md`.
+
 ## ADR template
 
 Copy this section for future decisions:
