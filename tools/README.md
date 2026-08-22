@@ -17,3 +17,9 @@ python tools/check_foundation.py
 ```
 
 This validates required project-foundation files, detects unresolved merge-conflict markers in text source, and checks that project documentation is non-empty. It is intentionally runnable without GitHub Actions so platform/account failures can be distinguished from project test failures.
+
+`test_check_foundation.py` gives every guard clause in `check_foundation.py` direct regression coverage against isolated fixture directories, rather than relying on the ambient repository always happening to pass. Run it locally with:
+
+```text
+python -m unittest discover -s tools -p 'test_*.py' -v
+```
