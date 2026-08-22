@@ -174,7 +174,7 @@ See `ENGINE_DIRECTION.md`, `VISUAL_DIRECTION.md`, and `TECHNOLOGY_DECISIONS.md`.
 **Consequences:**
 
 - future Phase 2 implementation PRs adding Unreal project files belong under `unreal/`, and future promoted simulation code belongs under `src/simulation/`, per `docs/PHASE2_KICKOFF_SCAFFOLD.md` §1;
-- any Unreal-side code that reads probe state or submits player commands must go through the single adapter type described in §2.7 of that document — no Actor, Component, Blueprint, or widget talks to `src/simulation/` directly;
+- any Unreal-side code that reads probe state or submits player commands must go through the single adapter type described in §2.7 of that document — no Actor, Component, Blueprint, or widget talks to `src/simulation/` directly; that same adapter is also the sole driver of simulation time per §2.8, via a fixed-timestep accumulator decoupled from Unreal's render framerate, not a second caller;
 - promoted simulation modules must remain headless-testable with zero Unreal dependency and must reproduce the relevant Phase 1 prototype's golden fixtures before being considered a faithful promotion;
 - `prototypes/rendering-benchmark/unreal/` remains frozen historical Phase 1 evidence and is not reused as the production project;
 - the residual GPU/rendering risk logged in `PROJECT_STATUS.md` (missed 60 FPS target and internal upscaling on integrated graphics) informs kickoff scaffold decisions per §3 of that document — a minimal representative kickoff scene, explicit/visible scalability settings, deferred heavy visual ambition, and a tracked (not blocking) stronger-hardware validation pass;

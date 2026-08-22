@@ -122,12 +122,29 @@ Unreal does not own or independently persist probe mechanical state. Saves remai
 
 A single Unreal-side type, informally `ProbeSimulationAdapter`, is the only code in `unreal/Source/Everward/` permitted to call into `src/simulation/`. Each engine tick it:
 
-1. pulls the latest Probe State Snapshot and any new domain events from `src/simulation/boundary/`,
-2. performs the unit/type conversion in §2.6 and applies the result to Actors/Components/HUD read models,
-3. translates player input into one of the Command types in §2.3 and submits it to the simulation core's command queue,
-4. runs no independent movement, energy, thermal, or capability logic of its own.
+1. drives simulation time forward for this tick (§2.8) — without this step the simulation clock never advances and scheduled `scan_complete`/`maneuver_complete` events never fire, since `SimulationClock` is purely passive (`prototypes/simulation-clock/clock.py`),
+2. pulls the latest Probe State Snapshot and any new domain events from `src/simulation/boundary/`, reflecting whatever step 1 just advanced,
+3. performs the unit/type conversion in §2.6 and applies the result to Actors/Components/HUD read models,
+4. translates player input into one of the Command types in §2.3 and submits it to the simulation core's command queue,
+5. runs no independent movement, energy, thermal, or capability logic of its own.
 
 This is the same shape as Prototype C's `ABenchmarkAdapter` / `UBenchmarkCaptureSessionComponent` (read a boundary contract, convert units, drive presentation, never author scene truth locally), generalized from a one-shot static handoff file to a live bidirectional state/command channel.
+
+### 2.8 Driving simulation time forward
+
+The promoted `src/simulation/time/` module carries forward `prototypes/simulation-clock/clock.py`'s `SimulationClock`, which is **passive**: its own tick counter only changes inside `advance_to(target_tick)` / `advance_by(delta_ticks)` / `advance_wall_ticks(wall_ticks)`. Nothing else in the simulation core calls those methods on its own — left undriven, `tick` never moves, `run_until_idle`/`advance_*` never fire the events already sitting in the queue, and `scan_complete`/`maneuver_complete` (§2.2) never occur no matter how much wall-clock time passes. The boundary contract therefore has to say who calls the advance method, with what argument, and when, relative to the read in step 2 above.
+
+**Who calls it, and why that is not a second caller.** `ProbeSimulationAdapter` (§2.7) does — the same and only object type permitted to call into `src/simulation/`. Advancing time is classified as command submission, not a distinct responsibility competing with the boundary rule in §2.1 ("exactly one Unreal-side object type is permitted to call into `src/simulation/`"): the adapter calling `advance_wall_ticks()` is exactly as much "the adapter telling the simulation core to do something" as the adapter calling `ScanCommand` or `SetTrajectoryCommand` is. There is no separately-owned simulation runner and no second caller; time-advance is simply the one command type that runs unconditionally every tick instead of only when the player acts.
+
+**Which method, and what it takes.** The adapter calls `advance_wall_ticks(wall_ticks: int)`, not `advance_to()`. `advance_wall_ticks` is the method the prototype built specifically for a real-time driver: it takes an integer count of elapsed **wall-clock ticks** (the same 1-tick-per-microsecond unit as everything else in the module — `TICKS_PER_SECOND = 1_000_000`), applies `time_scale` using exact `Fraction` arithmetic, and carries the fractional remainder forward across calls so that "different wall-step chunking produces the same simulation time" (its own docstring). `advance_to()` stays reserved for callers that already know the target tick outright — load-a-save, deterministic tests, tools — not the per-tick live-drive path, which only ever knows elapsed time, not an absolute tick. Concretely, the adapter converts Unreal's tick delta to this unit once, at the same conversion point already established in §2.5 (the adapter is the only unit-conversion site), then passes the integer result to `advance_wall_ticks()`.
+
+**Reconciling a passive tick against Unreal's variable render framerate.** Feeding `advance_wall_ticks()` Unreal's raw per-frame `DeltaTime` directly would make simulated time a function of hitches, vsync behavior, and per-machine frame pacing — none of which are in `SIMULATION_PHILOSOPHY.md`'s determinism list ("given the same universe seed, generation algorithm version, initial state, player commands, autonomous-agent decisions, and deterministic random streams, Everward should reproduce the same mechanical results"). Raw render delta-time is exactly the kind of hidden, unrecorded input that rule is meant to exclude. The adapter instead runs a fixed-timestep accumulator decoupled from the variable render tick, the standard mechanism for reconciling a deterministic simulation clock with a variable-framerate renderer:
+
+- each engine tick, the adapter adds Unreal's `DeltaTime` (converted to the tick unit above) into a real-valued accumulator it owns;
+- while the accumulator holds at least one fixed step's worth of ticks (an adapter-owned constant, e.g. `kFixedSimStepTicks`, chosen independently of render framerate), it drains one step at a time, calling `advance_wall_ticks(kFixedSimStepTicks)` once per step — zero, one, or several calls in a given engine tick depending on how much real time that tick covered;
+- any leftover fractional accumulator value carries over to the next tick, exactly mirroring how `advance_wall_ticks()` already carries its own `_scale_remainder` forward internally.
+
+This makes "how much simulated time advanced" a function of a whole number of fixed steps rather than of raw hardware timing jitter. Live play across different hardware legitimately advances different amounts of *real* time — that is expected of any real-time game and is not a determinism violation — but the *simulated* result for a given number of elapsed fixed steps, the same player commands, and the same autonomous-agent decisions is reproducible, and a recorded run can be replayed deterministically by replaying the recorded fixed-step count rather than by resampling live hardware timing.
 
 ## 3. Residual rendering risk guidance
 
