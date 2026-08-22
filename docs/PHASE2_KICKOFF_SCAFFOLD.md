@@ -20,12 +20,13 @@ Implemented foundation:
 - `ScanCommand` (`SimulationCore::start_scan`) with validation (empty target, non-positive duration, capability gating, single concurrent scan) and `ScanStarted` / `ScanCompleted` domain events, integrated into the same fixed-step advance used for movement;
 - `SimulationCore::allocate_power(PowerSubsystem, watts)` with per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against a total `power_capacity_w` budget, rejecting negative requests and any combined allocation that would exceed capacity, and emitting a `PowerAllocationChanged` domain event on success;
 - allocated power draws down `stored_energy_j` over simulated time on the same fixed-step path as movement and scan progress, clamped at zero, emitting an `EnergyDepleted` domain event on the transition from having stored energy to having none;
+- allocated power also accumulates as waste heat into `temperature_k` over simulated time on the same fixed-step path, using a new `thermal_capacity_j_per_k` probe field (`delta T = total_power_allocated_w() * elapsed_seconds / thermal_capacity_j_per_k`);
 - production-core CMake/CTest coverage in GitHub Actions.
 
 Not yet implemented at this reconciliation point:
 
 - visible embodied probe runtime scene driven from the authoritative snapshot;
-- complete component model for sensors, computation, propulsion, and thermal behavior beyond the power-allocation budget and energy-consumption effect above (e.g. component operational state, failure modes, thermal load from allocated power);
+- complete component model for sensors, computation, propulsion, and thermal behavior beyond the power-allocation budget, energy-consumption effect, and thermal-load effect above (e.g. component operational state, failure modes, passive radiative cooling, temperature limits/overheat response);
 - software policy state and alter-policy interaction;
 - `ScanCommand` and `allocate_power` exposure through `UProbeSimulationAdapter`/Blueprint (both commands exist in `src/simulation/` only; no Unreal-side caller yet);
 - scan results/discovery payloads (current `ScanCommand` proves the start/validate/complete lifecycle and timing, not scan outcome content);
@@ -111,7 +112,7 @@ The complete Phase 2 target snapshot contains:
 | Position / velocity | canonical simulation-space position and velocity | implemented |
 | Mass | total and component mass | initial total state present; component breakdown pending |
 | Energy | generation, storage, charge, subsystem consumption | initial energy state present; per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against total capacity is present; allocated power now draws down stored energy over simulated time (`EnergyDepleted` on depletion); generation/recharge remains pending |
-| Thermal | thermally relevant component temperatures and limits | initial temperature state present; component thermal model pending |
+| Thermal | thermally relevant component temperatures and limits | initial temperature state present; allocated power (`total_power_allocated_w()`) now accumulates as waste heat into `temperature_k` over simulated time on the same fixed-step path as movement/scan/energy; passive radiative cooling toward an ambient baseline, temperature limits, and an overheat response remain pending |
 | Storage | resource inventory and capacity | initial storage state present; inventory mechanics pending |
 | Sensors | sensor components, targets, progress, scan-result references | scan lifecycle state (`is_scanning`, active target, remaining duration) present; sensor components and scan-result content pending |
 | Computation | compute components, utilization, policy assignment | pending |

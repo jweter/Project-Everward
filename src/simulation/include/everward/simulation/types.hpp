@@ -20,6 +20,7 @@ struct ProbeStateSnapshot {
     double stored_energy_j{5.0e8};
     double energy_capacity_j{1.0e9};
     double temperature_k{293.15};
+    double thermal_capacity_j_per_k{2.5e6};
     double storage_used_kg{0.0};
     double storage_capacity_kg{500.0};
     bool can_scan{true};
