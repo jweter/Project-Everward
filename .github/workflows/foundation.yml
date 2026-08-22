@@ -17,7 +17,7 @@ concurrency:
 jobs:
   repository-constitution:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -29,6 +29,15 @@ jobs:
 
       - name: Validate repository foundation
         run: python tools/check_foundation.py
+
+      - name: Build production simulation core
+        run: cmake -S src/simulation -B build/simulation -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compile production simulation core
+        run: cmake --build build/simulation --parallel 2
+
+      - name: Test production simulation core
+        run: ctest --test-dir build/simulation --output-on-failure
 
       - name: Test repository foundation validation tooling
         run: python -m unittest discover -s tools -p 'test_*.py' -v
