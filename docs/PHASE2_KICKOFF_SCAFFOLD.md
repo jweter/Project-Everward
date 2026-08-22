@@ -17,13 +17,15 @@ Implemented foundation:
 - domain-event delivery;
 - `UProbeSimulationAdapter` as the single Unreal-side simulation caller;
 - Blueprint-visible simulation tick, position, and velocity command access;
+- `ScanCommand` (`SimulationCore::start_scan`) with validation (empty target, non-positive duration, capability gating, single concurrent scan) and `ScanStarted` / `ScanCompleted` domain events, integrated into the same fixed-step advance used for movement;
 - production-core CMake/CTest coverage in GitHub Actions.
 
 Not yet implemented at this reconciliation point:
 
 - visible embodied probe runtime scene driven from the authoritative snapshot;
 - complete component model for sensors, computation, propulsion, thermal behavior, power allocation, and software policy;
-- `ScanCommand` and scan lifecycle events;
+- `ScanCommand` exposure through `UProbeSimulationAdapter`/Blueprint (the command exists in `src/simulation/` only; no Unreal-side caller yet);
+- scan results/discovery payloads (current `ScanCommand` proves the start/validate/complete lifecycle and timing, not scan outcome content);
 - complete inspect/manage-power/alter-policy interaction paths;
 - production save/load implementation;
 - stronger-hardware production validation capture.
@@ -108,7 +110,7 @@ The complete Phase 2 target snapshot contains:
 | Energy | generation, storage, charge, subsystem consumption | initial energy state present; subsystem mechanics pending |
 | Thermal | thermally relevant component temperatures and limits | initial temperature state present; component thermal model pending |
 | Storage | resource inventory and capacity | initial storage state present; inventory mechanics pending |
-| Sensors | sensor components, targets, progress, scan-result references | pending |
+| Sensors | sensor components, targets, progress, scan-result references | scan lifecycle state (`is_scanning`, active target, remaining duration) present; sensor components and scan-result content pending |
 | Computation | compute components, utilization, policy assignment | pending |
 | Propulsion | propulsion components, thrust/budget, maneuver state | basic velocity command path present; full propulsion model pending |
 | Component capabilities | operational state and capability flags | basic capability state present; component model pending |
@@ -124,7 +126,7 @@ The Phase 2 interaction contract remains:
 |---|---|---|
 | Observe | read current authoritative snapshot/events | foundation present |
 | Inspect | read component/system state | minimal state available; HUD/read model pending |
-| Scan | validated scan command and lifecycle events | pending |
+| Scan | validated scan command and lifecycle events | `src/simulation/` command/lifecycle present (`start_scan`, `ScanStarted`/`ScanCompleted`); Unreal-side command path and scan-result content pending |
 | Move | validated movement/trajectory request | initial velocity-command path present |
 | Manage power | validated allocation request | pending |
 | Alter policy | validated software-policy request | pending |

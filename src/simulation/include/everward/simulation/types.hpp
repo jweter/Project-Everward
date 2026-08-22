@@ -24,6 +24,9 @@ struct ProbeStateSnapshot {
     double storage_capacity_kg{500.0};
     bool can_scan{true};
     bool can_thrust{true};
+    bool is_scanning{false};
+    std::string active_scan_target_id{};
+    double scan_remaining_s{0.0};
 };
 
 enum class DomainEventType {

@@ -23,6 +23,14 @@ PR #68, merged 2026-08-21, established the first real production runtime foundat
 
 The production core compiled and passed its local CMake/CTest validation before push, and fresh independent GitHub CI run #143 completed successfully before PR #68 was merged.
 
+A follow-up PR (branch `claude/upbeat-lamport-cuu6ok`) adds the first command beyond movement, `ScanCommand`, entirely within `src/simulation/`:
+
+- `SimulationCore::start_scan(target_id, duration_s)` validates a non-empty target, a positive duration, the `can_scan` capability, and that no scan is already in progress, then transitions probe state (`is_scanning`, `active_scan_target_id`, `scan_remaining_s`) and emits a `ScanStarted` domain event;
+- scan progress is integrated on the same fixed-step `advance_wall_ticks` path used for movement, and emits a `ScanCompleted` domain event once the scan duration elapses;
+- new CMake/CTest coverage exercises validation failures, the started/completed event lifecycle, and that a new scan can begin after a prior one completes.
+
+This intentionally does not yet touch `unreal/` — `UProbeSimulationAdapter` does not expose `ScanCommand` to Blueprint, and there is no embodied probe runtime scene yet for a scan command to be issued from. It also does not implement scan-result content (what a scan discovers); it proves the start/validate/complete lifecycle and timing only, matching `PHASE2_KICKOFF_SCAFFOLD.md`'s item 4.
+
 ## Accepted production direction
 
 **Unreal Engine is the accepted production engine direction.**
@@ -50,12 +58,14 @@ Resume with the next highest-value **Phase 2 — One Probe** slice.
 
 The immediate target is to turn the new runtime foundation into the first visible embodied probe while preserving ADR-0002/ADR-0012 boundaries.
 
+`ScanCommand` (sequence item 4 below) is now implemented in `src/simulation/`, engine-independent and CTest-covered. Items 1–3 (the Unreal-side embodied probe runtime, transform-driving, and HUD read model) remain **not implemented**: they require compiling/running the Unreal project itself, which this scheduled run's environment cannot do (no Unreal Editor/UBT available to build or verify Unreal C++/Blueprint changes). Automation should not author unverifiable `unreal/Source/` changes; a run with Unreal build/verification capability should pick up items 1–3 next.
+
 Recommended next sequence:
 
 1. create a minimal runtime bootstrap in `unreal/` that instantiates exactly one probe presentation and exactly one `UProbeSimulationAdapter`;
 2. drive the presented probe transform from the authoritative `src/simulation/` snapshot, with metres-to-centimetres conversion occurring only in the adapter/presentation boundary;
 3. add a minimal inspect/HUD read model for mass, energy, temperature, storage, velocity, and simulation time;
-4. add the first real command path beyond movement: `ScanCommand` with validation plus `scan_started` / `scan_complete` events;
+4. ~~add the first real command path beyond movement: `ScanCommand` with validation plus `scan_started` / `scan_complete` events~~ — **done in `src/simulation/`**; still needs Blueprint/adapter exposure once item 1 exists;
 5. begin power allocation and component-state mechanics;
 6. continue until the Phase 2 gate is demonstrably true: **simply existing as the probe is compelling.**
 
