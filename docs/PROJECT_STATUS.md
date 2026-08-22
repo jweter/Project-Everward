@@ -1,110 +1,93 @@
 # Everward Project Status
 
-This file is the durable operational continuation record for human and scheduled development. It records where active work should resume without replacing the authoritative roadmap, design pillars, accepted ADRs, engine direction, or architecture documents.
+This file is the durable operational continuation record for human and scheduled development. It records where active work should resume without replacing the authoritative roadmap, design pillars, ADRs, engine direction, or architecture documents.
 
 ## Current phase
 
-**Phase 1 — Technical Proofs: exit gate satisfied. Phase 2 — One Probe is authorized but not yet started.**
+**Phase 2 — One Probe: started.**
 
-Phase 0 project-constitution material is established. `prototypes/phase1_exit_gate.py` now passes against a real, merged `decision_ready` Unreal evidence artifact (PR #63, merged 2026-08-21), so Phase 2 — One Probe is authorized by the roadmap's own exit condition. The Phase 2 kickoff design (ADR-0012, `docs/PHASE2_KICKOFF_SCAFFOLD.md`) now exists, but no Phase 2 implementation work has begun: `src/` remains the placeholder described in `src/README.md`, and standing up actual Phase 2 production work is a substantial new undertaking, not something this reconciliation captures. See "Exact continuation point" below.
+Phase 1 is complete. The decision-ready Unreal hardware artifact passes the executable Phase 1 exit gate, Unreal Engine remains the accepted production direction, and PR #68 has now created the first production Phase 2 implementation.
+
+## What is now on `main`
+
+PR #68, merged 2026-08-21, established the first real production runtime foundation:
+
+- top-level Unreal Engine 5.8 project under `unreal/`;
+- engine-independent C++20 authoritative simulation core under `src/simulation/`;
+- canonical first-probe state including identity, position/velocity, mass, energy, temperature, storage, and basic capabilities;
+- deterministic fixed-step movement integration and domain-event delivery;
+- `UProbeSimulationAdapter` as the single Unreal-side caller of the simulation core;
+- Blueprint-visible access to simulation tick, probe position, and velocity commands;
+- CMake/CTest coverage for the production simulation core;
+- GitHub Actions now compiles and tests the production simulation core on every PR in addition to all existing Phase 0/1 checks.
+
+The production core compiled and passed its local CMake/CTest validation before push, and fresh independent GitHub CI run #143 completed successfully before PR #68 was merged.
 
 ## Accepted production direction
 
 **Unreal Engine is the accepted production engine direction.**
 
-The engine decision is no longer an open Godot-versus-Unreal product choice. The authoritative decision is recorded in:
+Authoritative references:
 
 - `ENGINE_DIRECTION.md`
 - `TECHNOLOGY_DECISIONS.md` TD-001
 - `DECISION_LOG.md` ADR-0001
+- `docs/PHASE2_KICKOFF_SCAFFOLD.md`
 
-Godot prototype material remains only as comparative Phase 1 benchmark evidence and historical technical work. It must not be interpreted by automation as an alternate authorized production path.
-
-## Current milestone / gate
-
-The Phase 1 technical-proof evidence set required by `PHASE1_EXIT_GATE.md` is now complete:
-
-- deterministic simulation clock — present;
-- deterministic procedural star-system proof — present;
-- representative rendering benchmark — present, with a real hardware capture;
-- massive-coordinate handling proof — present;
-- headless long-duration simulation — present;
-- real decision-ready engine artifact validating **Unreal Engine** under the current project constraints — present (`prototypes/rendering-benchmark/captures/phase1-engine-decision.json`, `status: decision_ready`, `recommendation: unreal`, captured 2026-08-21).
-
-Running the executable gate confirms this directly:
-
-```
-python prototypes/phase1_exit_gate.py \
-  --engine-decision prototypes/rendering-benchmark/captures/phase1-engine-decision.json
-```
-
-returns `"blockers": []`, `"phase1_complete": true`, `"phase2_one_probe_authorized": true`.
+Godot material remains comparative/historical Phase 1 evidence only. Automation must not treat it as an alternate authorized production path.
 
 ## Current blocker
 
-**None for the Phase 1 gate itself.** All five Phase 1 prototype areas exist, and the real Unreal hardware evidence PR #63 was looking for now exists and is decision-ready. The gate no longer blocks Phase 2.
+**No roadmap blocker.**
 
-The measured evidence in `prototypes/rendering-benchmark/captures/unreal-run-record.json` (Intel Iris Xe programming laptop, 2560x1440) recorded and explicitly logged, rather than hid, real residual risk that Phase 2 work should account for:
+Residual rendering risk remains tracked from the Phase 1 Intel Iris Xe capture: the benchmark was strongly GPU-bound, used internal upscaling, and did not yet prove the final visual target on stronger hardware. Those are production-quality/performance risks, not blockers on Phase 2 implementation.
 
-- GPU frame time 61.63 ms, missing the 60 FPS / ~16.7 ms target on this hardware (strongly GPU-bound);
-- the 2560x1440 output was upscaled from an internal 1538x887 (60.3%) render resolution rather than rendered natively;
-- the captured scene was extremely dark and not every required visual shell was clearly distinguishable in the screenshots;
-- a stronger gaming-PC capture remains useful follow-up evidence once that hardware is available.
-
-PR #63 (authored and merged by the repository owner) treated these as accepted production-quality risk to track in Phase 2 rather than an Unreal-specific blocker under ADR-0001, and marked the artifact `decision_ready` on that basis. This status file records that judgment; it does not relitigate it. Godot recommendations remain non-authorizing for Phase 2 per ADR-0001, and no automated process may silently choose Godot because it benchmarks lighter, faster, or easier.
+The Unreal production project itself has not yet been compiled/opened on the user's Windows Unreal installation after PR #68. That local Unreal compile is useful validation when convenient, but the next repository slice does not need to stop waiting for it unless a concrete Unreal build error is discovered.
 
 ## Exact continuation point
 
-**The Phase 1 exit gate now passes with real evidence. The continuation point is:**
+Resume with the next highest-value **Phase 2 — One Probe** slice.
 
-> **Phase 2 — One Probe in Unreal Engine** (see `ROADMAP.md`).
+The immediate target is to turn the new runtime foundation into the first visible embodied probe while preserving ADR-0002/ADR-0012 boundaries.
 
-Phase 2 implements one embodied machine in Unreal with mass, energy, storage, sensors, computation, propulsion, position, velocity, temperature, component capabilities, and software state, with the player able to observe, scan, move, inspect systems, manage power, and alter basic software policies, while the simulation core (not the Unreal layer) remains the owner of mechanical truth per ADR-0002 and `ARCHITECTURE.md`.
+Recommended next sequence:
 
-Actually standing up Phase 2 — a real Unreal project, promoting/adapting simulation-core code out of `prototypes/` into `src/` per `ARCHITECTURE.md`, and implementing the One Probe embodiment — is a substantial new-architecture undertaking, not a single small slice. It intentionally was not started as part of the 2026-08-21 reconciliation update, consistent with `AGENT_DEVELOPMENT_POLICY.md` §5's one-substantial-slice-per-run budget and its preference for finishing/reconciling over starting speculative work.
+1. create a minimal runtime bootstrap in `unreal/` that instantiates exactly one probe presentation and exactly one `UProbeSimulationAdapter`;
+2. drive the presented probe transform from the authoritative `src/simulation/` snapshot, with metres-to-centimetres conversion occurring only in the adapter/presentation boundary;
+3. add a minimal inspect/HUD read model for mass, energy, temperature, storage, velocity, and simulation time;
+4. add the first real command path beyond movement: `ScanCommand` with validation plus `scan_started` / `scan_complete` events;
+5. begin power allocation and component-state mechanics;
+6. continue until the Phase 2 gate is demonstrably true: **simply existing as the probe is compelling.**
 
-The Phase 2 kickoff design is now defined: **ADR-0012** in `DECISION_LOG.md`, elaborated in `docs/PHASE2_KICKOFF_SCAFFOLD.md`, specifies where the initial Unreal project goes (`unreal/`, sibling to `src/`), how simulation-core logic promotes out of `prototypes/` into `src/simulation/` while staying engine-independent, the concrete authoritative-state/presentation boundary (what crosses in which direction, at what cadence, for mass, energy, storage, sensors, computation, propulsion, position/velocity, temperature, component capabilities, and software state, and for the observe/scan/move/inspect/manage-power/alter-policy interactions), and how the residual rendering risk below should shape kickoff scaffold decisions. That document adds no Unreal project files, C++/Blueprint code, or `src/` implementation — it is design only. The next authorized work is the implementation slice(s) it gates: standing up `unreal/`, promoting the first `src/simulation/` modules, and implementing the One Probe embodiment against the documented boundary.
+Do not jump ahead to Phase 3 astronomy, Phase 4 industry, replication, aliens, combat, megastructures, or broad procedural content before the One Probe embodiment is functioning and testable.
 
-Until Phase 2 work actually begins, automation should still:
+## Fixed-step simulation rule
 
-1. inspect open PRs and CI first;
-2. repair failed existing work before starting new work;
-3. merge only independently verified GREEN and fully merge-ready PRs;
-4. fix concrete regressions, stale contracts, documentation drift, or evidence-pipeline defects when found;
-5. keep this status file current with the real state of the gate and the roadmap phase.
+The substantive clock-drive defect identified after ADR-0012 was implemented in PR #68 rather than left as documentation-only work. Unreal uses a fixed-step accumulator and advances the otherwise-passive simulation core in whole deterministic steps; raw variable render-frame timing does not directly become mechanical simulation state.
 
-Most recent slices:
+PR #67 was closed as superseded by this implementation.
 
-- (2026-08-22) **Phase 2 kickoff design:** added ADR-0012 (`DECISION_LOG.md`) and `docs/PHASE2_KICKOFF_SCAFFOLD.md`, defining the `unreal/` project location, the `src/simulation/` promotion path out of `prototypes/`, and the concrete authoritative-state/presentation boundary (state/event/command contract, cadence, unit-conversion boundary, adapter shape) for the One Probe embodiment, informed by the residual rendering risk logged below. Docs only: no Unreal project files, C++/Blueprint code, or `src/` implementation were added. That implementation is the next authorized slice(s).
-- (2026-08-22) **Foundation-tool regression coverage:** `tools/check_foundation.py` is the first gate every pull request runs (`foundation.yml`'s `Validate repository foundation` step), but it had zero executable test coverage of its own — any of the required-files list, the conflict-marker scan, or the empty-docs check could have silently weakened without any test failing to say so. Added `tools/test_check_foundation.py` covering every declared branch (missing/empty/present required files; each `should_scan` allow/deny path; each conflict-marker variant, including inside an ignored directory, an unrecognized binary suffix, and an undecodable file; missing docs directory and empty-vs-non-empty docs; and `main()`'s aggregation/exit-code behavior), confirmed by targeted mutation (deleting the empty-file check, dropping a conflict-marker variant, and no-op'ing the docs empty-check each produced a failing test, then the file was restored and diffed identical to the original). Added a `Test repository foundation validation tooling` CI step to `foundation.yml` so this suite actually runs in GitHub Actions rather than only locally. This is tooling/regression-coverage work, not roadmap-phase implementation; it does not change the current phase, gate, or blocker.
-- (2026-08-21) **Status reconciliation:** `docs/PROJECT_STATUS.md` had drifted stale relative to `main`. PR #63 (merged 2026-08-21 20:53 UTC) published the real Unreal hardware evidence and made the Phase 1 exit gate pass, but PR #62 (merged 2026-08-21 20:55 UTC, branched from before #63) rewrote this same file from its own pre-#63 branch state and won the last-write race, so the merged file kept saying Phase 1 was still blocked on hardware evidence that had, in fact, already landed. This update reconciles the file with the real, currently-passing gate. See `ERROR_RESOLUTION_LEDGER.md` for detail.
-- (2026-08-21) extended the per-field/per-key coverage audit to `prototypes/procedural-system`. Its two `generate_system()` entry guards (a coordinate not carrying exactly three axes; a non-positive `generator_version`) and the three sampling-method guards on `DeterministicStream` (`below`'s non-positive `upper_exclusive`, `between`'s `high < low`, `weighted`'s non-positive total weight) now have direct regression coverage for every declared branch, confirmed by mutation. This was the last prototype named as a coverage-gap candidate for this pattern, following the coordinate-scale, simulation-clock, and headless-simulation audits; all five Phase 1 prototype areas now have this class of guard-clause coverage.
+## Phase 2 production rules
 
-There is no further named coverage-gap candidate of this specific pattern remaining across the five Phase 1 prototype areas. Future ordinary-quality slices in the Phase 1 prototype areas should look for concrete defects, stale contracts, or documentation drift rather than assuming another prototype still needs this exact audit.
-
-## Phase 2 production rule
-
-Once authorized, production-facing gameplay, presentation, asset planning, rendering, HUD integration, and local cinematic implementation should target Unreal Engine.
-
-The simulation architecture remains engine-independent in principle:
-
-- simulation owns mechanical truth;
-- Unreal consumes authoritative simulation state;
-- deterministic headless execution remains required;
-- save data remains a versioned schema rather than blind Unreal object serialization;
-- large-scale simulation work must not become inseparable from rendered actors/components.
+- Simulation owns mechanical truth.
+- Unreal consumes authoritative simulation state and submits commands through the single adapter boundary.
+- `src/simulation/` must remain buildable/testable without Unreal dependencies.
+- Canonical simulation units remain engine-independent; Unreal presentation conversion happens at the boundary.
+- Deterministic headless execution remains required.
+- Save data remains a versioned schema rather than blind Unreal object serialization.
+- Large-scale simulation work must not become inseparable from rendered Actors/Components.
 
 ## Visual product constraint
 
 Everward must not drift toward a primarily 2D, 2.5D, abstract-map, low-poly, deliberately quirky, or visually lightweight interpretation merely because it is easier to implement.
 
-The target is cinematic, immersive, high-fidelity 3D scientific realism. The player is the probe, and physical presence in a universe worth looking at is a first-class product requirement.
+The target remains cinematic, immersive, high-fidelity 3D scientific realism. The player is the probe, and physical presence in a universe worth looking at is a first-class product requirement.
 
 ## Automation operating state
 
 Scheduled development is governed by `AGENT_DEVELOPMENT_POLICY.md`.
 
-Every hourly run should:
+Every run should:
 
 1. inspect open PRs and CI first;
 2. repair failed existing work before new roadmap work;
@@ -121,8 +104,8 @@ Every hourly run should:
 - Default branch: `main`.
 - Substantive autonomous development: branch + pull request; no direct-to-main development.
 
-## Historical technical evidence
+## Historical evidence
 
-Detailed Phase 1 regression discoveries, fixes, mutation-test evidence, and root-cause history belong in the prototype-specific proof/changelog files and `ERROR_RESOLUTION_LEDGER.md` rather than accumulating indefinitely in this operational status document.
+Detailed Phase 1 regression discoveries, benchmark evidence, mutation-test history, and failure/root-cause records belong in their existing proof files and `ERROR_RESOLUTION_LEDGER.md` rather than accumulating here.
 
-This file should remain concise and current: **where we are, what blocks us, what decision is settled, and what work is authorized next.**
+This file should stay concise and current: **where we are, what blocks us, what decision is settled, and what work is authorized next.**
