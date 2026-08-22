@@ -18,15 +18,17 @@ Implemented foundation:
 - `UProbeSimulationAdapter` as the single Unreal-side simulation caller;
 - Blueprint-visible simulation tick, position, and velocity command access;
 - `ScanCommand` (`SimulationCore::start_scan`) with validation (empty target, non-positive duration, capability gating, single concurrent scan) and `ScanStarted` / `ScanCompleted` domain events, integrated into the same fixed-step advance used for movement;
+- `SimulationCore::allocate_power(PowerSubsystem, watts)` with per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against a total `power_capacity_w` budget, rejecting negative requests and any combined allocation that would exceed capacity, and emitting a `PowerAllocationChanged` domain event on success;
 - production-core CMake/CTest coverage in GitHub Actions.
 
 Not yet implemented at this reconciliation point:
 
 - visible embodied probe runtime scene driven from the authoritative snapshot;
-- complete component model for sensors, computation, propulsion, thermal behavior, power allocation, and software policy;
-- `ScanCommand` exposure through `UProbeSimulationAdapter`/Blueprint (the command exists in `src/simulation/` only; no Unreal-side caller yet);
+- complete component model for sensors, computation, propulsion, and thermal behavior beyond the power-allocation budget itself (e.g. component operational state, failure modes, thermal load from allocated power);
+- software policy state and alter-policy interaction;
+- `ScanCommand` and `allocate_power` exposure through `UProbeSimulationAdapter`/Blueprint (both commands exist in `src/simulation/` only; no Unreal-side caller yet);
 - scan results/discovery payloads (current `ScanCommand` proves the start/validate/complete lifecycle and timing, not scan outcome content);
-- complete inspect/manage-power/alter-policy interaction paths;
+- complete inspect/alter-policy interaction paths;
 - production save/load implementation;
 - stronger-hardware production validation capture.
 
@@ -107,7 +109,7 @@ The complete Phase 2 target snapshot contains:
 | Identity | probe ID, design ID, lineage ID, generation | foundation present; extend as Phase 2 requires |
 | Position / velocity | canonical simulation-space position and velocity | implemented |
 | Mass | total and component mass | initial total state present; component breakdown pending |
-| Energy | generation, storage, charge, subsystem consumption | initial energy state present; subsystem mechanics pending |
+| Energy | generation, storage, charge, subsystem consumption | initial energy state present; per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against total capacity is present; consumption effects on stored energy remain pending |
 | Thermal | thermally relevant component temperatures and limits | initial temperature state present; component thermal model pending |
 | Storage | resource inventory and capacity | initial storage state present; inventory mechanics pending |
 | Sensors | sensor components, targets, progress, scan-result references | scan lifecycle state (`is_scanning`, active target, remaining duration) present; sensor components and scan-result content pending |
@@ -128,7 +130,7 @@ The Phase 2 interaction contract remains:
 | Inspect | read component/system state | minimal state available; HUD/read model pending |
 | Scan | validated scan command and lifecycle events | `src/simulation/` command/lifecycle present (`start_scan`, `ScanStarted`/`ScanCompleted`); Unreal-side command path and scan-result content pending |
 | Move | validated movement/trajectory request | initial velocity-command path present |
-| Manage power | validated allocation request | pending |
+| Manage power | validated allocation request | `src/simulation/` command/validation present (`allocate_power`, `PowerAllocationChanged`); Unreal-side command path and component-level power effects pending |
 | Alter policy | validated software-policy request | pending |
 
 Every mutating command follows:
