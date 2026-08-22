@@ -27,6 +27,7 @@ public:
         integrate_probe(seconds);
         integrate_scan(seconds);
         integrate_power_consumption(seconds);
+        integrate_thermal_load(seconds);
         events_.push_back({clock_.tick(), DomainEventType::SimulationAdvanced, "fixed step"});
     }
 
@@ -164,6 +165,21 @@ private:
             events_.push_back({clock_.tick(), DomainEventType::EnergyDepleted,
                                 "stored energy depleted by allocated power draw"});
         }
+    }
+
+    void integrate_thermal_load(double seconds) noexcept {
+        const double draw_w = total_power_allocated_w();
+        if (draw_w <= 0.0 || seconds <= 0.0) {
+            return;
+        }
+
+        // All allocated power is treated as waste heat dissipated into the
+        // probe's thermal mass (thermal_capacity_j_per_k), the same
+        // simplification used for the stored-energy draw above. Passive
+        // radiative cooling toward an ambient baseline and a temperature
+        // limit/overheat response are deliberately not modeled by this slice;
+        // see PROJECT_STATUS.md for that as a separate follow-up.
+        probe_.temperature_k += (draw_w * seconds) / probe_.thermal_capacity_j_per_k;
     }
 
     SimulationClock clock_{};

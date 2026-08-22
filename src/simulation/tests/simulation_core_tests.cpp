@@ -260,6 +260,56 @@ int main() {
         }
     }
 
+    // ThermalLoad: no-op case. With no allocated power, temperature_k does
+    // not move even as simulated time advances (mirrors EnergyConsumption's
+    // own no-op guard case: no allocation, no thermal load, no event).
+    {
+        SimulationCore thermal_core;
+        const double initial_temperature = thermal_core.snapshot().temperature_k;
+
+        thermal_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        assert(nearly_equal(thermal_core.snapshot().temperature_k, initial_temperature));
+    }
+
+    // ThermalLoad: happy path. Allocated power is treated as waste heat
+    // dissipated into the probe's thermal mass on the same fixed-step
+    // integration path as movement, scanning, and energy consumption:
+    // delta T = (total watts * elapsed seconds) / thermal_capacity_j_per_k.
+    {
+        SimulationCore thermal_core;
+        const double initial_temperature = thermal_core.snapshot().temperature_k;
+        const double thermal_capacity = thermal_core.snapshot().thermal_capacity_j_per_k;
+
+        thermal_core.allocate_power(everward::simulation::PowerSubsystem::Sensors, 100.0);
+        thermal_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 150.0);
+        (void)thermal_core.drain_events();
+
+        thermal_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 4);
+        const double expected_temperature = initial_temperature + (250.0 * 4.0) / thermal_capacity;
+        assert(nearly_equal(thermal_core.snapshot().temperature_k, expected_temperature));
+    }
+
+    // ThermalLoad: accumulates across multiple fixed steps rather than only
+    // reflecting the most recent one, and tracks stored-energy consumption
+    // (both driven by the same total_power_allocated_w() draw) without one
+    // affecting the other's own state.
+    {
+        SimulationCore thermal_core;
+        const double initial_temperature = thermal_core.snapshot().temperature_k;
+        const double thermal_capacity = thermal_core.snapshot().thermal_capacity_j_per_k;
+        const double initial_energy = thermal_core.snapshot().stored_energy_j;
+
+        thermal_core.allocate_power(everward::simulation::PowerSubsystem::Computation, 60.0);
+        (void)thermal_core.drain_events();
+
+        thermal_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 2);
+        thermal_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 3);
+
+        const double expected_temperature = initial_temperature + (60.0 * 5.0) / thermal_capacity;
+        assert(nearly_equal(thermal_core.snapshot().temperature_k, expected_temperature));
+        assert(nearly_equal(thermal_core.snapshot().stored_energy_j, initial_energy - 60.0 * 5.0));
+    }
+
     std::cout << "Everward simulation core tests passed\n";
     return 0;
 }
