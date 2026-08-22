@@ -14,7 +14,41 @@ namespace everward::simulation {
 
 class SimulationCore {
 public:
+    // Order-of-magnitude RTG (radioisotope thermoelectric generator) output
+    // for the canonical EV-0001 probe's real hardware loadout — see
+    // make_canonical_ev0001() below. Deliberately modest relative to the
+    // wattages already exercised by this file's own test suite (100-750 W)
+    // and to power_capacity_w (750 W): the probe still needs to budget power
+    // deliberately rather than this trickle alone eliminating energy-
+    // management tension, while still being enough to matter for genuinely
+    // idle/low-power stretches. Comparable in order of magnitude to real
+    // multi-mission RTGs (e.g. MMRTG, ~110 We), not a modeled specific unit.
+    static constexpr double kCanonicalEv0001EnergyGenerationW = 75.0;
+
     SimulationCore() = default;
+
+    // Returns a SimulationCore configured with the canonical EV-0001 probe's
+    // real hardware loadout (currently just its passive generation source),
+    // as distinct from the bare SimulationCore() default used everywhere
+    // else today — including this file's own test suite, and
+    // UProbeSimulationAdapter::BeginPlay() in unreal/, which still
+    // constructs SimulationCore() directly. Switching that Unreal call site
+    // to this factory is deliberately left for a future run with Unreal
+    // build/verification capability (see PHASE2_KICKOFF_SCAFFOLD.md); this
+    // sandboxed environment cannot compile/verify unreal/Source/ changes.
+    // ProbeStateSnapshot::energy_generation_w's own struct default
+    // deliberately stays at 0.0 rather than being edited directly: many
+    // existing tests (EnergyConsumption, EnergyDepletionResponse, the
+    // combined-lockout interaction test) construct a bare SimulationCore()
+    // and rely on an exact, generation-free energy/timing baseline for their
+    // closed-form expected-value math. This factory gives the canonical
+    // probe's real loadout its own nonzero value without touching that
+    // baseline or any of those tests.
+    [[nodiscard]] static SimulationCore make_canonical_ev0001() {
+        SimulationCore core;
+        core.set_energy_generation_w(kCanonicalEv0001EnergyGenerationW);
+        return core;
+    }
 
     [[nodiscard]] const ProbeStateSnapshot& snapshot() const noexcept { return probe_; }
     [[nodiscard]] std::int64_t tick() const noexcept { return clock_.tick(); }

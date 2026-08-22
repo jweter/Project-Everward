@@ -25,11 +25,13 @@ struct ProbeStateSnapshot {
     // source rather than solar: solar generation would need the
     // star-distance/irradiance model that does not exist yet, while a
     // constant baseline is the self-contained addition available today.
-    // Defaults to 0.0 — the canonical EV-0001 probe has no generation
-    // hardware equipped yet in this slice; set_energy_generation_w()
-    // configures it (e.g. for tests), and a future hardware/loadout slice is
-    // expected to give the canonical probe a real nonzero default once that
-    // concept exists.
+    // Defaults to 0.0 so a bare, engine-neutral SimulationCore() (used
+    // throughout the test suite, and still by UProbeSimulationAdapter in
+    // unreal/) keeps an exact, generation-free energy/timing baseline.
+    // set_energy_generation_w() configures it directly (e.g. for tests), and
+    // SimulationCore::make_canonical_ev0001() in core.hpp is the one place
+    // the canonical EV-0001 probe's real nonzero hardware-loadout value
+    // lives, without disturbing this struct-level default.
     double energy_generation_w{0.0};
     // Set once stored_energy_j transitions from having stored energy to
     // having none, and cleared again once a net-positive energy balance

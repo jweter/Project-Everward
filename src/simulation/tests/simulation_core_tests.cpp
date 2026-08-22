@@ -778,6 +778,37 @@ int main() {
         }
     }
 
+    // CanonicalProbe: make_canonical_ev0001() configures the canonical
+    // EV-0001 probe's real hardware loadout (currently just its passive
+    // generation source) without disturbing the bare SimulationCore()
+    // default every other test in this file relies on.
+    {
+        // The bare default stays exactly generation-free.
+        SimulationCore bare_core;
+        assert(nearly_equal(bare_core.snapshot().energy_generation_w, 0.0));
+
+        SimulationCore canonical_core = SimulationCore::make_canonical_ev0001();
+        assert(canonical_core.snapshot().probe_id == "EV-0001");
+        assert(canonical_core.tick() == 0);
+        assert(nearly_equal(canonical_core.snapshot().energy_generation_w,
+                             SimulationCore::kCanonicalEv0001EnergyGenerationW));
+        assert(canonical_core.snapshot().energy_generation_w > 0.0);
+
+        // The generation source is genuinely wired into the same energy
+        // balance every other EnergyGeneration test exercises: with nothing
+        // allocated, stored_energy_j rises by exactly generation_w * seconds.
+        const double initial_energy = canonical_core.snapshot().stored_energy_j;
+        canonical_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        const double expected_energy =
+            initial_energy + SimulationCore::kCanonicalEv0001EnergyGenerationW * 10.0;
+        assert(nearly_equal(canonical_core.snapshot().stored_energy_j, expected_energy));
+
+        auto events = canonical_core.drain_events();
+        for (const auto& event : events) {
+            assert(event.type != everward::simulation::DomainEventType::EnergyDepleted);
+        }
+    }
+
     std::cout << "Everward simulation core tests passed\n";
     return 0;
 }
