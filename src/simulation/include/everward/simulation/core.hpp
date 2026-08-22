@@ -27,7 +27,7 @@ public:
         const double seconds = ticks_to_seconds(wall_ticks);
         integrate_probe(seconds);
         integrate_scan(seconds);
-        integrate_power_consumption(seconds);
+        integrate_energy_balance(seconds);
         integrate_thermal_load(seconds);
         integrate_overheat_response();
         refresh_capability_lockouts();
@@ -107,6 +107,21 @@ public:
                             subsystem_name(subsystem) + " allocation set to " + std::to_string(watts) + " W"});
     }
 
+    // Configures the probe's constant passive power supply (see
+    // ProbeStateSnapshot::energy_generation_w in types.hpp for what this
+    // models and why it defaults to 0.0). This is a hardware/loadout
+    // configuration hook rather than a player-facing maneuver command like
+    // allocate_power(), so it does not itself emit a domain event. The
+    // meaningful event is integrate_energy_balance()'s EnergyRestored,
+    // fired when a resulting net-positive balance actually recharges
+    // stored_energy_j back above zero.
+    void set_energy_generation_w(double watts) {
+        if (watts < 0.0) {
+            throw std::invalid_argument("watts must be non-negative");
+        }
+        probe_.energy_generation_w = watts;
+    }
+
     [[nodiscard]] double total_power_allocated_w() const noexcept {
         return probe_.power_allocated_sensors_w + probe_.power_allocated_propulsion_w +
                probe_.power_allocated_computation_w + probe_.power_allocated_thermal_w;
@@ -151,39 +166,53 @@ private:
         }
     }
 
-    // Energy-depletion response: once stored_energy_j is drawn down to zero,
-    // the probe locks out scanning and propulsion the same way
+    // Energy balance: allocated power draws down stored_energy_j exactly as
+    // before, but the probe's constant passive generation source
+    // (energy_generation_w — see its own doc comment in types.hpp for why
+    // this models an RTG-style constant supply rather than solar) now
+    // offsets that draw every fixed step. The net of the two determines
+    // whether stored_energy_j falls, rises, or stays exactly put over the
+    // elapsed step: consumption exceeding generation still depletes as
+    // before (clamped at zero); generation exceeding consumption now
+    // recharges (clamped at energy_capacity_j); and an exact match is a
+    // genuine no-op, matching this integration's original zero-consumption
+    // no-op case (the canonical probe's default energy_generation_w of 0.0
+    // means that original no-op case is unchanged in practice).
+    //
+    // Energy-depletion/restoration response: once stored_energy_j is drawn
+    // down to zero, the probe locks out scanning and propulsion the same way
     // integrate_overheat_response() does for temperature_k, via the shared
     // is_overheated/is_energy_depleted -> can_scan/can_thrust derivation in
-    // refresh_capability_lockouts(). This is edge-triggered on
-    // is_energy_depleted, reusing the existing EnergyDepleted event as the
-    // >0 -> 0 transition marker rather than adding a second event for the
-    // same transition.
-    //
-    // Unlike is_overheated, there is currently no mechanic that raises
-    // stored_energy_j back above zero (no charge/generation slice exists
-    // yet), so is_energy_depleted has no recovery branch here: it would be
-    // dead code no test could reach honestly. A future energy-recharge slice
-    // that can raise stored_energy_j above zero again should add the
-    // corresponding 0 -> >0 transition (clearing is_energy_depleted and
-    // emitting a recovery event) at that point.
-    void integrate_power_consumption(double seconds) {
-        const double draw_w = total_power_allocated_w();
-        if (draw_w <= 0.0 || seconds <= 0.0) {
+    // refresh_capability_lockouts(). This is edge-triggered: EnergyDepleted
+    // fires once on the > 0 -> 0 transition and the new EnergyRestored fires
+    // once on the 0 -> > 0 transition (mirroring OverheatStarted/
+    // OverheatEnded), not on every step spent steadily at either end. This
+    // closes the one-way-lockout gap the prior slice deliberately left open
+    // pending this mechanic: see ProbeStateSnapshot::is_energy_depleted's own
+    // comment in types.hpp.
+    void integrate_energy_balance(double seconds) {
+        const double net_rate_w = probe_.energy_generation_w - total_power_allocated_w();
+        if (net_rate_w == 0.0 || seconds <= 0.0) {
             return;
         }
 
         const double previous_energy_j = probe_.stored_energy_j;
-        double remaining_energy_j = previous_energy_j - draw_w * seconds;
-        if (remaining_energy_j < 0.0) {
-            remaining_energy_j = 0.0;
+        double updated_energy_j = previous_energy_j + net_rate_w * seconds;
+        if (updated_energy_j < 0.0) {
+            updated_energy_j = 0.0;
+        } else if (updated_energy_j > probe_.energy_capacity_j) {
+            updated_energy_j = probe_.energy_capacity_j;
         }
-        probe_.stored_energy_j = remaining_energy_j;
+        probe_.stored_energy_j = updated_energy_j;
 
-        if (previous_energy_j > 0.0 && remaining_energy_j <= 0.0) {
+        if (previous_energy_j > 0.0 && updated_energy_j <= 0.0) {
             probe_.is_energy_depleted = true;
             events_.push_back({clock_.tick(), DomainEventType::EnergyDepleted,
                                 "stored energy depleted by allocated power draw"});
+        } else if (previous_energy_j <= 0.0 && updated_energy_j > 0.0) {
+            probe_.is_energy_depleted = false;
+            events_.push_back({clock_.tick(), DomainEventType::EnergyRestored,
+                                "stored energy restored above zero by passive generation"});
         }
     }
 
@@ -238,7 +267,7 @@ private:
     // from it, not on every step spent at/above or below the threshold.
     //
     // can_scan/can_thrust now have a second independent source of truth,
-    // is_energy_depleted (see integrate_power_consumption() above), so this
+    // is_energy_depleted (see integrate_energy_balance() above), so this
     // no longer restores them directly: it only updates is_overheated and
     // its transition events, and leaves the actual capability derivation to
     // refresh_capability_lockouts(), which combines both causes.
@@ -257,7 +286,7 @@ private:
     }
 
     // Derives can_scan/can_thrust from every current lockout cause. Called
-    // once per advance_wall_ticks step after both integrate_power_consumption
+    // once per advance_wall_ticks step after both integrate_energy_balance
     // (is_energy_depleted) and integrate_overheat_response (is_overheated)
     // have updated their flags for that step, so neither cause's recovery
     // (e.g. cooling back below max_operating_temperature_k) can wrongly

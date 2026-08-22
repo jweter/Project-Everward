@@ -587,8 +587,10 @@ int main() {
     // is_overheated and is_energy_depleted; deallocating power then lets
     // temperature_k decay back below max_operating_temperature_k (firing
     // OverheatEnded) while stored_energy_j remains permanently at zero
-    // (there is no recharge mechanic), so can_scan/can_thrust must remain
-    // false throughout.
+    // (this probe's default energy_generation_w is 0.0, so there is no
+    // active recharge source in this scenario — see the dedicated
+    // EnergyGeneration recovery test above for the case where one exists),
+    // so can_scan/can_thrust must remain false throughout.
     {
         SimulationCore combined_core;
         combined_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion,
@@ -642,6 +644,138 @@ int main() {
             scan_still_rejected = true;
         }
         assert(scan_still_rejected);
+    }
+
+    // EnergyGeneration: validation. Negative generation is rejected,
+    // mirroring allocate_power's own non-negative watts validation, and
+    // leaves energy_generation_w at its default 0.0.
+    {
+        SimulationCore generation_core;
+
+        bool negative_watts_threw = false;
+        try {
+            generation_core.set_energy_generation_w(-1.0);
+        } catch (const std::invalid_argument&) {
+            negative_watts_threw = true;
+        }
+        assert(negative_watts_threw);
+        assert(nearly_equal(generation_core.snapshot().energy_generation_w, 0.0));
+    }
+
+    // EnergyGeneration: exact no-op when generation exactly offsets allocated
+    // consumption. The net rate is precisely zero, so stored_energy_j does
+    // not move even as simulated time advances, and neither EnergyDepleted
+    // nor EnergyRestored fires.
+    {
+        SimulationCore balanced_core;
+        balanced_core.set_energy_generation_w(100.0);
+        balanced_core.allocate_power(everward::simulation::PowerSubsystem::Computation, 100.0);
+        (void)balanced_core.drain_events();
+        const double initial_energy = balanced_core.snapshot().stored_energy_j;
+
+        balanced_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        assert(nearly_equal(balanced_core.snapshot().stored_energy_j, initial_energy));
+
+        auto events = balanced_core.drain_events();
+        for (const auto& event : events) {
+            assert(event.type != everward::simulation::DomainEventType::EnergyDepleted);
+            assert(event.type != everward::simulation::DomainEventType::EnergyRestored);
+        }
+    }
+
+    // EnergyGeneration: recovery. Draws stored_energy_j to zero with
+    // generation below consumption (mirrors EnergyConsumption's own boundary
+    // case, net-drain accounted), locking out can_scan/can_thrust via
+    // is_energy_depleted, then drops consumption to zero so the same passive
+    // generation that could not keep up now recharges stored_energy_j back
+    // above zero: is_energy_depleted clears, can_scan/can_thrust are
+    // restored, and EnergyRestored fires exactly once. This is the recovery
+    // path the prior slice's EnergyDepletionResponse interaction test
+    // explicitly named as not existing yet.
+    {
+        SimulationCore recovery_core;
+        recovery_core.set_energy_generation_w(20.0);
+        recovery_core.allocate_power(everward::simulation::PowerSubsystem::Computation, 100.0);
+        (void)recovery_core.drain_events();
+
+        const double net_drain_w = 100.0 - 20.0;
+        const double initial_energy = recovery_core.snapshot().stored_energy_j;
+        const double exact_depletion_seconds = initial_energy / net_drain_w;
+        const auto exact_depletion_ticks =
+            static_cast<std::int64_t>(std::ceil(exact_depletion_seconds * SimulationClock::TicksPerSecond));
+
+        recovery_core.advance_wall_ticks(exact_depletion_ticks);
+        assert(nearly_equal(recovery_core.snapshot().stored_energy_j, 0.0, 1e-3));
+        assert(recovery_core.snapshot().is_energy_depleted);
+        assert(!recovery_core.snapshot().can_scan);
+        assert(!recovery_core.snapshot().can_thrust);
+
+        auto depletion_events = recovery_core.drain_events();
+        bool saw_energy_depleted = false;
+        for (const auto& event : depletion_events) {
+            assert(event.type != everward::simulation::DomainEventType::EnergyRestored);
+            if (event.type == everward::simulation::DomainEventType::EnergyDepleted) {
+                saw_energy_depleted = true;
+            }
+        }
+        assert(saw_energy_depleted);
+
+        // Dropping allocated power to zero leaves only the passive
+        // generation source active: net rate is now +20 W, so
+        // stored_energy_j recharges from the exact zero clamp above.
+        recovery_core.allocate_power(everward::simulation::PowerSubsystem::Computation, 0.0);
+        (void)recovery_core.drain_events();
+
+        recovery_core.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        assert(nearly_equal(recovery_core.snapshot().stored_energy_j, 20.0));
+        assert(!recovery_core.snapshot().is_energy_depleted);
+        assert(recovery_core.snapshot().can_scan);
+        assert(recovery_core.snapshot().can_thrust);
+
+        auto recovery_events = recovery_core.drain_events();
+        std::size_t energy_restored_count = 0;
+        for (const auto& event : recovery_events) {
+            if (event.type == everward::simulation::DomainEventType::EnergyRestored) {
+                ++energy_restored_count;
+            }
+        }
+        assert(energy_restored_count == 1);
+
+        // Continuing to advance while net-positive does not re-emit
+        // EnergyRestored: the event marks the 0 -> > 0 transition, not a
+        // steady recharging state.
+        recovery_core.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        auto steady_state_events = recovery_core.drain_events();
+        for (const auto& event : steady_state_events) {
+            assert(event.type != everward::simulation::DomainEventType::EnergyRestored);
+        }
+    }
+
+    // EnergyGeneration: clamps at energy_capacity_j rather than charging past
+    // it, mirroring the existing clamp-at-zero floor for depletion. An
+    // absurdly high generation rate (equal to the whole energy_capacity_j,
+    // i.e. a full recharge in under a second) makes the saturation
+    // deterministic well within this test's short elapsed time.
+    {
+        SimulationCore capacity_core;
+        const double capacity_j = capacity_core.snapshot().energy_capacity_j;
+        capacity_core.set_energy_generation_w(capacity_j);
+
+        capacity_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        assert(nearly_equal(capacity_core.snapshot().stored_energy_j, capacity_j));
+        assert(!capacity_core.snapshot().is_energy_depleted);
+
+        // Remaining saturated across further steps does not overshoot past
+        // energy_capacity_j or re-emit EnergyRestored (stored_energy_j was
+        // already positive before this call, so no 0 -> > 0 transition
+        // occurs).
+        capacity_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        assert(nearly_equal(capacity_core.snapshot().stored_energy_j, capacity_j));
+        auto events = capacity_core.drain_events();
+        for (const auto& event : events) {
+            assert(event.type != everward::simulation::DomainEventType::EnergyRestored);
+            assert(event.type != everward::simulation::DomainEventType::EnergyDepleted);
+        }
     }
 
     std::cout << "Everward simulation core tests passed\n";
