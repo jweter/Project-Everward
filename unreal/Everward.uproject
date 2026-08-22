@@ -1,0 +1,13 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.8",
+  "Category": "Everward Production",
+  "Description": "Everward production Unreal project. Mechanical truth remains in src/simulation.",
+  "Modules": [
+    {
+      "Name": "Everward",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}
