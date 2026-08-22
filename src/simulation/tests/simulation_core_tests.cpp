@@ -238,8 +238,14 @@ int main() {
         const double capacity_w = energy_core.snapshot().power_capacity_w;
         const double initial_energy = energy_core.snapshot().stored_energy_j;
         const double exact_depletion_seconds = initial_energy / capacity_w;
+        // Round the tick count up (not truncate) so the whole-tick elapsed
+        // time this test actually advances by is guaranteed to reach or
+        // exceed exact_depletion_seconds. Truncating here previously left a
+        // sub-tick fractional remainder of simulated time unaccounted for,
+        // so stored_energy_j landed a fraction of a joule above zero instead
+        // of at or below it, and EnergyDepleted never fired.
         const auto exact_depletion_ticks =
-            static_cast<std::int64_t>(exact_depletion_seconds * SimulationClock::TicksPerSecond);
+            static_cast<std::int64_t>(std::ceil(exact_depletion_seconds * SimulationClock::TicksPerSecond));
 
         energy_core.advance_wall_ticks(exact_depletion_ticks);
         assert(nearly_equal(energy_core.snapshot().stored_energy_j, 0.0, 1e-3));
@@ -260,54 +266,105 @@ int main() {
         }
     }
 
-    // ThermalLoad: no-op case. With no allocated power, temperature_k does
-    // not move even as simulated time advances (mirrors EnergyConsumption's
-    // own no-op guard case: no allocation, no thermal load, no event).
+    // ThermalLoad: no-op case. With no allocated power and the probe already
+    // at its default ambient baseline, temperature_k does not move even as
+    // simulated time advances: zero waste heat and zero displacement from
+    // ambient both mean zero net passive-cooling flow (mirrors
+    // EnergyConsumption's own no-op guard case).
     {
         SimulationCore thermal_core;
         const double initial_temperature = thermal_core.snapshot().temperature_k;
+        assert(nearly_equal(initial_temperature, thermal_core.snapshot().ambient_temperature_k));
 
         thermal_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
         assert(nearly_equal(thermal_core.snapshot().temperature_k, initial_temperature));
     }
 
-    // ThermalLoad: happy path. Allocated power is treated as waste heat
-    // dissipated into the probe's thermal mass on the same fixed-step
-    // integration path as movement, scanning, and energy consumption:
-    // delta T = (total watts * elapsed seconds) / thermal_capacity_j_per_k.
+    // ThermalLoad: happy path under sustained allocated power. Allocated
+    // power is treated as waste heat dissipated into the probe's thermal
+    // mass while passive cooling proportional to (temperature - ambient)
+    // pulls back toward equilibrium, following:
+    //   T(t) = T_eq + (T0 - T_eq) * exp(-(cooling_w_per_k / thermal_capacity_j_per_k) * t)
+    //   T_eq = ambient_temperature_k + heating_w / cooling_w_per_k
+    // computed independently here from the documented probe defaults rather
+    // than by re-deriving the implementation's own code.
     {
         SimulationCore thermal_core;
         const double initial_temperature = thermal_core.snapshot().temperature_k;
         const double thermal_capacity = thermal_core.snapshot().thermal_capacity_j_per_k;
+        const double ambient = thermal_core.snapshot().ambient_temperature_k;
+        const double cooling_w_per_k = thermal_core.snapshot().passive_cooling_w_per_k;
 
         thermal_core.allocate_power(everward::simulation::PowerSubsystem::Sensors, 100.0);
         thermal_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 150.0);
         (void)thermal_core.drain_events();
 
+        const double heating_w = 250.0;
+        const double elapsed_s = 4.0;
         thermal_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 4);
-        const double expected_temperature = initial_temperature + (250.0 * 4.0) / thermal_capacity;
+
+        const double equilibrium_k = ambient + heating_w / cooling_w_per_k;
+        const double decay_rate_per_s = cooling_w_per_k / thermal_capacity;
+        const double expected_temperature =
+            equilibrium_k + (initial_temperature - equilibrium_k) * std::exp(-decay_rate_per_s * elapsed_s);
         assert(nearly_equal(thermal_core.snapshot().temperature_k, expected_temperature));
+        // Under sustained heating the probe warms toward, but has not yet
+        // reached, its equilibrium temperature.
+        assert(thermal_core.snapshot().temperature_k > initial_temperature);
+        assert(thermal_core.snapshot().temperature_k < equilibrium_k);
     }
 
     // ThermalLoad: accumulates across multiple fixed steps rather than only
-    // reflecting the most recent one, and tracks stored-energy consumption
-    // (both driven by the same total_power_allocated_w() draw) without one
-    // affecting the other's own state.
+    // reflecting the most recent one, tracks stored-energy consumption (both
+    // driven by the same total_power_allocated_w() draw) without one
+    // affecting the other's own state, and is step-size independent: two
+    // steps totalling 5 seconds land at the same temperature as one 5-second
+    // step, because the underlying integration is solved exactly rather than
+    // by fixed-size Euler updates.
     {
-        SimulationCore thermal_core;
-        const double initial_temperature = thermal_core.snapshot().temperature_k;
-        const double thermal_capacity = thermal_core.snapshot().thermal_capacity_j_per_k;
-        const double initial_energy = thermal_core.snapshot().stored_energy_j;
+        SimulationCore split_steps;
+        SimulationCore single_step;
+        const double initial_energy = split_steps.snapshot().stored_energy_j;
 
-        thermal_core.allocate_power(everward::simulation::PowerSubsystem::Computation, 60.0);
-        (void)thermal_core.drain_events();
+        split_steps.allocate_power(everward::simulation::PowerSubsystem::Computation, 60.0);
+        single_step.allocate_power(everward::simulation::PowerSubsystem::Computation, 60.0);
+        (void)split_steps.drain_events();
+        (void)single_step.drain_events();
 
-        thermal_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 2);
-        thermal_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 3);
+        split_steps.advance_wall_ticks(SimulationClock::TicksPerSecond * 2);
+        split_steps.advance_wall_ticks(SimulationClock::TicksPerSecond * 3);
+        single_step.advance_wall_ticks(SimulationClock::TicksPerSecond * 5);
 
-        const double expected_temperature = initial_temperature + (60.0 * 5.0) / thermal_capacity;
-        assert(nearly_equal(thermal_core.snapshot().temperature_k, expected_temperature));
-        assert(nearly_equal(thermal_core.snapshot().stored_energy_j, initial_energy - 60.0 * 5.0));
+        assert(nearly_equal(split_steps.snapshot().temperature_k, single_step.snapshot().temperature_k, 1e-6));
+        assert(split_steps.snapshot().temperature_k > split_steps.snapshot().ambient_temperature_k);
+        assert(nearly_equal(split_steps.snapshot().stored_energy_j, initial_energy - 60.0 * 5.0));
+    }
+
+    // ThermalLoad: passive cooling with zero allocated power. A probe
+    // displaced above ambient (e.g. left over from prior heating) cools back
+    // toward ambient_temperature_k over time even while drawing no power at
+    // all, since Newtonian cooling depends only on the temperature
+    // difference, not on any active heat source.
+    {
+        SimulationCore cooling_core;
+        cooling_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 400.0);
+        (void)cooling_core.drain_events();
+        cooling_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 3600);
+        cooling_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 0.0);
+        (void)cooling_core.drain_events();
+
+        const double heated_temperature = cooling_core.snapshot().temperature_k;
+        const double ambient = cooling_core.snapshot().ambient_temperature_k;
+        assert(heated_temperature > ambient);
+
+        cooling_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 3600);
+        const double cooled_temperature = cooling_core.snapshot().temperature_k;
+
+        // Temperature moved strictly closer to ambient, and never overshoots
+        // past it, even though this is an explicit-formula update rather
+        // than a small fixed-size step.
+        assert(cooled_temperature < heated_temperature);
+        assert(cooled_temperature >= ambient);
     }
 
     std::cout << "Everward simulation core tests passed\n";

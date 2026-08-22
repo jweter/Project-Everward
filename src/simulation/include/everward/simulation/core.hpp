@@ -3,6 +3,7 @@
 #include "everward/simulation/clock.hpp"
 #include "everward/simulation/types.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
@@ -168,18 +169,44 @@ private:
     }
 
     void integrate_thermal_load(double seconds) noexcept {
-        const double draw_w = total_power_allocated_w();
-        if (draw_w <= 0.0 || seconds <= 0.0) {
+        if (seconds <= 0.0) {
+            return;
+        }
+
+        const double heating_w = total_power_allocated_w();
+        const double cooling_w_per_k = probe_.passive_cooling_w_per_k;
+
+        if (cooling_w_per_k <= 0.0) {
+            // No passive cooling pathway configured: fall back to the pure
+            // waste-heat accumulation used before this slice.
+            if (heating_w > 0.0) {
+                probe_.temperature_k += (heating_w * seconds) / probe_.thermal_capacity_j_per_k;
+            }
             return;
         }
 
         // All allocated power is treated as waste heat dissipated into the
         // probe's thermal mass (thermal_capacity_j_per_k), the same
         // simplification used for the stored-energy draw above. Passive
-        // radiative cooling toward an ambient baseline and a temperature
-        // limit/overheat response are deliberately not modeled by this slice;
-        // see PROJECT_STATUS.md for that as a separate follow-up.
-        probe_.temperature_k += (draw_w * seconds) / probe_.thermal_capacity_j_per_k;
+        // radiative/conductive cooling toward probe_.ambient_temperature_k is
+        // modeled as Newtonian cooling proportional to the temperature
+        // difference (passive_cooling_w_per_k, in watts per kelvin above
+        // ambient):
+        //
+        //   dT/dt = (heating_w - cooling_w_per_k * (T - T_ambient)) / thermal_capacity_j_per_k
+        //
+        // This has a closed-form solution that decays exponentially toward a
+        // fixed equilibrium temperature (T_ambient + heating_w / cooling_w_per_k)
+        // under sustained heating, rather than climbing unbounded. Solving it
+        // exactly (instead of a fixed-step Euler update) keeps the result
+        // correct and step-size-independent for any elapsed duration,
+        // matching how large `advance_wall_ticks` calls behave elsewhere in
+        // this simulation. A temperature limit/overheat response remains a
+        // separate, currently-unspecified follow-up; see PROJECT_STATUS.md.
+        const double decay_rate_per_s = cooling_w_per_k / probe_.thermal_capacity_j_per_k;
+        const double equilibrium_k = probe_.ambient_temperature_k + heating_w / cooling_w_per_k;
+        const double delta_from_equilibrium_k = probe_.temperature_k - equilibrium_k;
+        probe_.temperature_k = equilibrium_k + delta_from_equilibrium_k * std::exp(-decay_rate_per_s * seconds);
     }
 
     SimulationClock clock_{};
