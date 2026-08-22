@@ -187,6 +187,79 @@ int main() {
         assert(nearly_equal(power_core.total_power_allocated_w(), capacity));
     }
 
+    // EnergyConsumption: allocating power with no elapsed time does not
+    // touch stored energy, and zero allocated power draws nothing even as
+    // time advances (mirrors allocate_power's own no-op-when-invalid guard
+    // style: no allocation, no consumption, no event).
+    {
+        SimulationCore energy_core;
+        const double initial_energy = energy_core.snapshot().stored_energy_j;
+
+        energy_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        assert(nearly_equal(energy_core.snapshot().stored_energy_j, initial_energy));
+
+        auto events = energy_core.drain_events();
+        for (const auto& event : events) {
+            assert(event.type != everward::simulation::DomainEventType::EnergyDepleted);
+        }
+    }
+
+    // EnergyConsumption: happy path. Allocated power draws down stored
+    // energy at watts * elapsed seconds on the same fixed-step integration
+    // path as movement and scanning, without depleting it.
+    {
+        SimulationCore energy_core;
+        const double initial_energy = energy_core.snapshot().stored_energy_j;
+
+        energy_core.allocate_power(everward::simulation::PowerSubsystem::Sensors, 100.0);
+        energy_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 150.0);
+        (void)energy_core.drain_events();
+
+        energy_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 4);
+        const double expected_energy = initial_energy - 250.0 * 4.0;
+        assert(nearly_equal(energy_core.snapshot().stored_energy_j, expected_energy));
+        assert(energy_core.snapshot().stored_energy_j > 0.0);
+
+        auto events = energy_core.drain_events();
+        assert(events.size() == 1);
+        assert(events.front().type == everward::simulation::DomainEventType::SimulationAdvanced);
+    }
+
+    // EnergyConsumption: boundary case. Advancing exactly enough time to
+    // draw down all stored energy lands it precisely at zero and emits
+    // EnergyDepleted exactly once, alongside the routine SimulationAdvanced
+    // event for that same fixed step.
+    {
+        SimulationCore energy_core;
+        energy_core.allocate_power(everward::simulation::PowerSubsystem::Computation,
+                                    energy_core.snapshot().power_capacity_w);
+        (void)energy_core.drain_events();
+
+        const double capacity_w = energy_core.snapshot().power_capacity_w;
+        const double initial_energy = energy_core.snapshot().stored_energy_j;
+        const double exact_depletion_seconds = initial_energy / capacity_w;
+        const auto exact_depletion_ticks =
+            static_cast<std::int64_t>(exact_depletion_seconds * SimulationClock::TicksPerSecond);
+
+        energy_core.advance_wall_ticks(exact_depletion_ticks);
+        assert(nearly_equal(energy_core.snapshot().stored_energy_j, 0.0, 1e-3));
+
+        auto depletion_events = energy_core.drain_events();
+        assert(depletion_events.size() == 2);
+        assert(depletion_events.front().type == everward::simulation::DomainEventType::EnergyDepleted);
+        assert(depletion_events.back().type == everward::simulation::DomainEventType::SimulationAdvanced);
+
+        // Further advancing while fully depleted clamps at zero rather than
+        // going negative, and does not re-emit EnergyDepleted since the
+        // event marks the >0 -> 0 transition, not a steady depleted state.
+        energy_core.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        assert(nearly_equal(energy_core.snapshot().stored_energy_j, 0.0));
+        auto steady_state_events = energy_core.drain_events();
+        for (const auto& event : steady_state_events) {
+            assert(event.type != everward::simulation::DomainEventType::EnergyDepleted);
+        }
+    }
+
     std::cout << "Everward simulation core tests passed\n";
     return 0;
 }

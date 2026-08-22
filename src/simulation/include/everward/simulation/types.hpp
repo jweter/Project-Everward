@@ -46,6 +46,7 @@ enum class DomainEventType {
     ScanStarted,
     ScanCompleted,
     PowerAllocationChanged,
+    EnergyDepleted,
     PolicyChanged,
     ManeuverStarted,
     ManeuverCompleted
