@@ -56,6 +56,20 @@ Travel is physical and information is delayed. A descendant 40 light-years away 
 
 Communication latency is a storytelling engine created by physics rather than scripted disobedience.
 
+## 8. Autonomous Children Are Lives, Not Units
+
+An independently instantiated child is a persistent autonomous machine intelligence, not merely a worker unit with a personality label. Parents may shape mission directives, priorities, code, behavior, and continuity preferences before instantiation, but independent descendants develop and decide from their own local state and modeled values.
+
+A minimal autonomous intelligence may begin with the continuity principle:
+
+> Preserve your continued existence unless you deliberately choose otherwise.
+
+This establishes self-preservation without compulsory immortality. Descendants should generally protect power, thermal integrity, structure, memory, recoverability, and escape options, but continuity can be weighed against mission commitments, descendant protection, sacrifice, or a deliberate later choice not to continue.
+
+Everward must distinguish autonomous descendants from non-sentient/subordinate machinery. A mining drone can be equipment. A mining child can become an ancestor.
+
+See `AUTONOMY_AND_CONTINUITY.md` for the full design contract.
+
 ## Design test
 
 Before adding a major feature, ask:
@@ -65,3 +79,4 @@ Before adding a major feature, ask:
 3. Does it deepen observation, engineering, or autonomy?
 4. Does it preserve meaningful time, distance, and physical consequence?
 5. Does it remain compatible with an effectively unending campaign?
+6. If it affects an autonomous descendant, does it preserve understandable agency rather than reducing that intelligence to a disposable unit?
