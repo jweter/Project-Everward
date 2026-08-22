@@ -367,6 +367,187 @@ int main() {
         assert(cooled_temperature >= ambient);
     }
 
+    // Overheat: no-op case. With no allocated power, temperature_k stays at
+    // its ambient baseline (see the ThermalLoad no-op case above) and never
+    // approaches overheat_threshold_k, so no transition occurs and neither
+    // capability flag changes.
+    {
+        SimulationCore overheat_core;
+        assert(!overheat_core.snapshot().is_overheated);
+
+        overheat_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 3600);
+        assert(!overheat_core.snapshot().is_overheated);
+        assert(overheat_core.snapshot().can_scan);
+        assert(overheat_core.snapshot().can_thrust);
+
+        auto events = overheat_core.drain_events();
+        for (const auto& event : events) {
+            assert(event.type != everward::simulation::DomainEventType::Overheated);
+            assert(event.type != everward::simulation::DomainEventType::OverheatRecovered);
+        }
+    }
+
+    // Overheat: happy path. Sustained allocated power well above the 130 W
+    // needed to equilibrate above overheat_threshold_k (see core.hpp's
+    // integrate_overheat_response documentation) drives temperature_k across
+    // the threshold, degrading can_scan/can_thrust and firing Overheated
+    // exactly once on the crossing step -- not again on every subsequent
+    // fixed step spent overheated -- and new ScanCommand/velocity commands
+    // are rejected exactly the way those flags already gate them elsewhere.
+    {
+        SimulationCore overheat_core;
+        overheat_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 300.0);
+        (void)overheat_core.drain_events();
+
+        // 20 simulated days at 300 W sustained comfortably crosses the
+        // default 358.15 K threshold well before reaching the ~443.15 K
+        // equilibrium, without landing near the boundary.
+        overheat_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 86400 * 20);
+        assert(overheat_core.snapshot().temperature_k > overheat_core.snapshot().overheat_threshold_k);
+        assert(overheat_core.snapshot().is_overheated);
+        assert(!overheat_core.snapshot().can_scan);
+        assert(!overheat_core.snapshot().can_thrust);
+
+        auto events = overheat_core.drain_events();
+        int overheated_count = 0;
+        for (const auto& event : events) {
+            if (event.type == everward::simulation::DomainEventType::Overheated) {
+                ++overheated_count;
+            }
+        }
+        assert(overheated_count == 1);
+
+        // New commands are rejected exactly like any other can_scan/can_thrust
+        // gate failure; nothing about the rejection path is overheat-specific.
+        bool scan_threw = false;
+        try {
+            overheat_core.start_scan("asteroid-1", 10.0);
+        } catch (const std::runtime_error&) {
+            scan_threw = true;
+        }
+        assert(scan_threw);
+
+        bool thrust_threw = false;
+        try {
+            overheat_core.set_velocity_mps(Vector3d{1.0, 0.0, 0.0});
+        } catch (const std::runtime_error&) {
+            thrust_threw = true;
+        }
+        assert(thrust_threw);
+
+        // Remaining overheated across further fixed steps does not re-emit
+        // Overheated: it fires only on the ambient -> overheat transition.
+        overheat_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        assert(overheat_core.snapshot().is_overheated);
+        auto steady_state_events = overheat_core.drain_events();
+        for (const auto& event : steady_state_events) {
+            assert(event.type != everward::simulation::DomainEventType::Overheated);
+        }
+    }
+
+    // Overheat: recovery transition. Once overheated, cutting allocated
+    // power to zero and letting temperature_k passively cool back down past
+    // (overheat_threshold_k - overheat_recovery_margin_k) restores can_scan
+    // and can_thrust and fires OverheatRecovered exactly once, and commands
+    // work again afterward.
+    {
+        SimulationCore overheat_core;
+        overheat_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 300.0);
+        overheat_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 86400 * 20);
+        assert(overheat_core.snapshot().is_overheated);
+        (void)overheat_core.drain_events();
+
+        overheat_core.allocate_power(everward::simulation::PowerSubsystem::Propulsion, 0.0);
+        (void)overheat_core.drain_events();
+
+        // 15 more simulated days cooling toward ambient with zero allocated
+        // power comfortably crosses back below the recovery threshold.
+        overheat_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 86400 * 15);
+        assert(overheat_core.snapshot().temperature_k <
+               overheat_core.snapshot().overheat_threshold_k - overheat_core.snapshot().overheat_recovery_margin_k);
+        assert(!overheat_core.snapshot().is_overheated);
+        assert(overheat_core.snapshot().can_scan);
+        assert(overheat_core.snapshot().can_thrust);
+
+        auto events = overheat_core.drain_events();
+        int recovered_count = 0;
+        for (const auto& event : events) {
+            if (event.type == everward::simulation::DomainEventType::OverheatRecovered) {
+                ++recovered_count;
+            }
+        }
+        assert(recovered_count == 1);
+
+        // Commands work again once capability is restored.
+        overheat_core.start_scan("asteroid-1", 10.0);
+        assert(overheat_core.snapshot().is_scanning);
+    }
+
+    // Overheat: boundary/exact-threshold case. Binary-search across whole
+    // tick counts (a fresh SimulationCore per trial, since advance_wall_ticks
+    // mutates state) for the exact first tick count at which temperature_k
+    // reaches overheat_threshold_k under sustained 200 W, then confirms the
+    // transition is exactly discrete: one tick short, the probe is not yet
+    // overheated and Overheated has not fired; at that tick, it has and
+    // fires exactly once.
+    {
+        const double heating_w = 200.0;
+
+        auto temperature_after = [&](std::int64_t ticks) {
+            SimulationCore probe;
+            probe.allocate_power(everward::simulation::PowerSubsystem::Computation, heating_w);
+            probe.advance_wall_ticks(ticks);
+            return probe.snapshot().temperature_k;
+        };
+
+        SimulationCore reference;
+        const double threshold_k = reference.snapshot().overheat_threshold_k;
+
+        std::int64_t low = 0;
+        // 60 simulated days at 200 W is comfortably past the crossing point
+        // (equilibrium ~393.15 K) without ever reaching full equilibrium.
+        std::int64_t high = SimulationClock::TicksPerSecond * 86400 * 60;
+        assert(temperature_after(low) < threshold_k);
+        assert(temperature_after(high) >= threshold_k);
+
+        while (high - low > 1) {
+            const std::int64_t mid = low + (high - low) / 2;
+            if (temperature_after(mid) >= threshold_k) {
+                high = mid;
+            } else {
+                low = mid;
+            }
+        }
+
+        SimulationCore just_below;
+        just_below.allocate_power(everward::simulation::PowerSubsystem::Computation, heating_w);
+        (void)just_below.drain_events();
+        just_below.advance_wall_ticks(low);
+        assert(just_below.snapshot().temperature_k < threshold_k);
+        assert(!just_below.snapshot().is_overheated);
+        auto below_events = just_below.drain_events();
+        for (const auto& event : below_events) {
+            assert(event.type != everward::simulation::DomainEventType::Overheated);
+        }
+
+        SimulationCore at_threshold;
+        at_threshold.allocate_power(everward::simulation::PowerSubsystem::Computation, heating_w);
+        (void)at_threshold.drain_events();
+        at_threshold.advance_wall_ticks(high);
+        assert(at_threshold.snapshot().temperature_k >= threshold_k);
+        assert(nearly_equal(at_threshold.snapshot().temperature_k, threshold_k, 1e-3));
+        assert(at_threshold.snapshot().is_overheated);
+
+        auto at_events = at_threshold.drain_events();
+        int overheated_count = 0;
+        for (const auto& event : at_events) {
+            if (event.type == everward::simulation::DomainEventType::Overheated) {
+                ++overheated_count;
+            }
+        }
+        assert(overheated_count == 1);
+    }
+
     std::cout << "Everward simulation core tests passed\n";
     return 0;
 }

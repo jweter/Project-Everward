@@ -23,6 +23,9 @@ struct ProbeStateSnapshot {
     double thermal_capacity_j_per_k{2.5e6};
     double ambient_temperature_k{293.15};
     double passive_cooling_w_per_k{2.0};
+    double overheat_threshold_k{358.15};
+    double overheat_recovery_margin_k{5.0};
+    bool is_overheated{false};
     double storage_used_kg{0.0};
     double storage_capacity_kg{500.0};
     bool can_scan{true};
@@ -50,6 +53,8 @@ enum class DomainEventType {
     ScanCompleted,
     PowerAllocationChanged,
     EnergyDepleted,
+    Overheated,
+    OverheatRecovered,
     PolicyChanged,
     ManeuverStarted,
     ManeuverCompleted

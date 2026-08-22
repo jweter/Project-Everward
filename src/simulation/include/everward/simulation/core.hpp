@@ -29,6 +29,7 @@ public:
         integrate_scan(seconds);
         integrate_power_consumption(seconds);
         integrate_thermal_load(seconds);
+        integrate_overheat_response();
         events_.push_back({clock_.tick(), DomainEventType::SimulationAdvanced, "fixed step"});
     }
 
@@ -201,12 +202,63 @@ private:
         // exactly (instead of a fixed-step Euler update) keeps the result
         // correct and step-size-independent for any elapsed duration,
         // matching how large `advance_wall_ticks` calls behave elsewhere in
-        // this simulation. A temperature limit/overheat response remains a
-        // separate, currently-unspecified follow-up; see PROJECT_STATUS.md.
+        // this simulation. `integrate_overheat_response`, called right after
+        // this from `advance_wall_ticks`, reacts to the resulting
+        // `temperature_k` once it crosses `overheat_threshold_k`.
         const double decay_rate_per_s = cooling_w_per_k / probe_.thermal_capacity_j_per_k;
         const double equilibrium_k = probe_.ambient_temperature_k + heating_w / cooling_w_per_k;
         const double delta_from_equilibrium_k = probe_.temperature_k - equilibrium_k;
         probe_.temperature_k = equilibrium_k + delta_from_equilibrium_k * std::exp(-decay_rate_per_s * seconds);
+    }
+
+    // Overheat response: `overheat_threshold_k` (default 358.15 K / 85 degC)
+    // is a physically plausible upper safe-operating bound for spacecraft-
+    // grade electronics assemblies. It is set well above the default
+    // `ambient_temperature_k` (293.15 K) so ordinary brief/low-power
+    // operation never approaches it, but it is still comfortably reachable
+    // within the probe's real power budget rather than an unreachable edge
+    // case: given the default `passive_cooling_w_per_k` (2.0 W/K) and
+    // `thermal_capacity_j_per_k`, any sustained total allocated power above
+    // (overheat_threshold_k - ambient_temperature_k) * passive_cooling_w_per_k
+    // = 130 W will eventually equilibrate at or above the threshold, well
+    // within the default 750 W `power_capacity_w` budget.
+    //
+    // Crossing the threshold (ambient -> overheat transition) degrades
+    // capability the same way an already-unavailable capability is gated
+    // elsewhere in this class: `can_scan` and `can_thrust` are set false, so
+    // `start_scan` and `set_velocity_mps` reject new commands exactly as
+    // they already do when those flags are false for any other reason.
+    // Neither an in-progress scan nor prior velocity are forcibly cancelled;
+    // only new commands are blocked, mirroring the existing gating style.
+    //
+    // Recovery (the reverse transition) does not use the same threshold
+    // value: it requires cooling to `overheat_threshold_k -
+    // overheat_recovery_margin_k` (default 5 K below the threshold) before
+    // capability is restored. This hysteresis band exists purely to prevent
+    // rapid on/off toggling of `can_scan`/`can_thrust` (and the resulting
+    // event spam) from small fluctuations right at the threshold, since
+    // `temperature_k` can move in either direction step to step depending on
+    // reallocated power.
+    //
+    // Each transition fires its domain event exactly once, mirroring
+    // `EnergyDepleted`'s transition-only pattern: `Overheated` on entering
+    // overheat, `OverheatRecovered` on the reverse transition. Neither event
+    // repeats while the probe merely remains in its current state.
+    void integrate_overheat_response() {
+        if (!probe_.is_overheated && probe_.temperature_k >= probe_.overheat_threshold_k) {
+            probe_.is_overheated = true;
+            probe_.can_scan = false;
+            probe_.can_thrust = false;
+            events_.push_back({clock_.tick(), DomainEventType::Overheated,
+                                "temperature crossed overheat threshold: can_scan/can_thrust degraded"});
+        } else if (probe_.is_overheated &&
+                   probe_.temperature_k <= probe_.overheat_threshold_k - probe_.overheat_recovery_margin_k) {
+            probe_.is_overheated = false;
+            probe_.can_scan = true;
+            probe_.can_thrust = true;
+            events_.push_back({clock_.tick(), DomainEventType::OverheatRecovered,
+                                "temperature recovered below overheat threshold: can_scan/can_thrust restored"});
+        }
     }
 
     SimulationClock clock_{};
