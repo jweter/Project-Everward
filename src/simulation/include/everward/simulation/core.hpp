@@ -225,6 +225,36 @@ public:
         probe_.passive_cooling_w_per_k = watts_per_k;
     }
 
+    // Configures the probe's overheat-lockout threshold (see
+    // ProbeStateSnapshot::max_operating_temperature_k in types.hpp and
+    // integrate_overheat_response() below for what this gates). Another
+    // hardware/loadout configuration hook in the same spirit as
+    // set_energy_generation_w()/set_passive_cooling_w_per_k(): it configures
+    // probe hardware rather than issuing a player-facing maneuver command, so
+    // it does not itself emit a domain event.
+    //
+    // This exists specifically to close a standing test-coverage gap named
+    // in the 2026-08-23 post-NDEBUG-fix mutation audit
+    // (ERROR_RESOLUTION_LEDGER.md): integrate_overheat_response()'s `>=`
+    // threshold comparison could previously be weakened to `>` without any
+    // test catching it, because the only existing crossing test intentionally
+    // overshoots the limit (std::ceil-rounded ticks) and can never land
+    // temperature_k bit-exactly on max_operating_temperature_k. With this
+    // setter, a test can instead hold temperature_k exactly at its own
+    // starting value (zero net heating leaves it unchanged — see
+    // integrate_thermal_load()) and move the threshold to meet it exactly,
+    // rather than trying to hit a moving target through closed-form thermal
+    // integration.
+    //
+    // Requires a positive absolute temperature in kelvin; zero or negative
+    // values are not physically meaningful thresholds.
+    void set_max_operating_temperature_k(double kelvin) {
+        if (!(kelvin > 0.0)) {
+            throw std::invalid_argument("kelvin must be positive");
+        }
+        probe_.max_operating_temperature_k = kelvin;
+    }
+
     [[nodiscard]] double total_power_allocated_w() const noexcept {
         return probe_.power_allocated_sensors_w + probe_.power_allocated_propulsion_w +
                probe_.power_allocated_computation_w + probe_.power_allocated_thermal_w;
