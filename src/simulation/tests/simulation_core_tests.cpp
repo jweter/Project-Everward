@@ -809,6 +809,102 @@ int main() {
         }
     }
 
+    // SubsystemOperationalState: every failed subsystem immediately sheds
+    // its allocation, rejects positive reallocation, and can be restored.
+    // Repeating the same state is a no-op rather than duplicating events.
+    {
+        for (const auto subsystem : {everward::simulation::PowerSubsystem::Sensors,
+                                     everward::simulation::PowerSubsystem::Propulsion,
+                                     everward::simulation::PowerSubsystem::Computation,
+                                     everward::simulation::PowerSubsystem::Thermal}) {
+            SimulationCore component_core;
+            component_core.allocate_power(subsystem, 50.0);
+            (void)component_core.drain_events();
+            assert(nearly_equal(component_core.total_power_allocated_w(), 50.0));
+
+            component_core.set_subsystem_operational(subsystem, false);
+            assert(nearly_equal(component_core.total_power_allocated_w(), 0.0));
+
+            bool allocation_rejected = false;
+            try {
+                component_core.allocate_power(subsystem, 1.0);
+            } catch (const std::runtime_error&) {
+                allocation_rejected = true;
+            }
+            assert(allocation_rejected);
+
+            auto failure_events = component_core.drain_events();
+            assert(failure_events.size() == 1);
+            assert(failure_events.front().type ==
+                   everward::simulation::DomainEventType::SubsystemOperationalStateChanged);
+
+            component_core.set_subsystem_operational(subsystem, false);
+            assert(component_core.drain_events().empty());
+
+            component_core.set_subsystem_operational(subsystem, true);
+            component_core.allocate_power(subsystem, 1.0);
+            assert(nearly_equal(component_core.total_power_allocated_w(), 1.0));
+        }
+    }
+
+    // SubsystemOperationalState: command ownership stays granular. Sensor
+    // failure blocks scans but leaves propulsion available; propulsion
+    // failure blocks movement but leaves scanning available.
+    {
+        SimulationCore sensor_core;
+        sensor_core.set_subsystem_operational(everward::simulation::PowerSubsystem::Sensors, false);
+        assert(!sensor_core.snapshot().sensors_operational);
+        assert(!sensor_core.snapshot().can_scan);
+        assert(sensor_core.snapshot().can_thrust);
+
+        bool scan_rejected = false;
+        try {
+            sensor_core.start_scan("asteroid-1", 1.0);
+        } catch (const std::runtime_error&) {
+            scan_rejected = true;
+        }
+        assert(scan_rejected);
+        sensor_core.set_velocity_mps(Vector3d{1.0, 0.0, 0.0});
+
+        SimulationCore propulsion_core;
+        propulsion_core.set_subsystem_operational(everward::simulation::PowerSubsystem::Propulsion, false);
+        assert(propulsion_core.snapshot().can_scan);
+        assert(!propulsion_core.snapshot().can_thrust);
+        propulsion_core.start_scan("asteroid-1", 1.0);
+
+        bool thrust_rejected = false;
+        try {
+            propulsion_core.set_velocity_mps(Vector3d{1.0, 0.0, 0.0});
+        } catch (const std::runtime_error&) {
+            thrust_rejected = true;
+        }
+        assert(thrust_rejected);
+    }
+
+    // SubsystemOperationalState: component recovery does not bypass an
+    // independent probe-wide energy lockout. Capability returns only after
+    // both the sensor hardware and stored energy have recovered.
+    {
+        SimulationCore stacked_core;
+        stacked_core.set_subsystem_operational(everward::simulation::PowerSubsystem::Sensors, false);
+        stacked_core.allocate_power(everward::simulation::PowerSubsystem::Computation, 100.0);
+        const auto depletion_ticks = static_cast<std::int64_t>(std::ceil(
+            stacked_core.snapshot().stored_energy_j / 100.0 * SimulationClock::TicksPerSecond));
+        stacked_core.advance_wall_ticks(depletion_ticks);
+        assert(stacked_core.snapshot().is_energy_depleted);
+        assert(!stacked_core.snapshot().can_scan);
+
+        stacked_core.set_subsystem_operational(everward::simulation::PowerSubsystem::Sensors, true);
+        assert(stacked_core.snapshot().sensors_operational);
+        assert(!stacked_core.snapshot().can_scan);
+
+        stacked_core.allocate_power(everward::simulation::PowerSubsystem::Computation, 0.0);
+        stacked_core.set_energy_generation_w(20.0);
+        stacked_core.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        assert(!stacked_core.snapshot().is_energy_depleted);
+        assert(stacked_core.snapshot().can_scan);
+    }
+
     std::cout << "Everward simulation core tests passed\n";
     return 0;
 }

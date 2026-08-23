@@ -30,7 +30,7 @@ Implemented foundation:
 Not yet implemented at this reconciliation point:
 
 - visible embodied probe runtime scene driven from the authoritative snapshot;
-- complete component model for sensors, computation, propulsion, and thermal behavior beyond the power-allocation budget, energy-consumption effect, energy-generation/recharge effect, thermal-load/passive-cooling effect, and the two probe-wide lockouts (overheat, energy depletion) above (e.g. per-component operational state/failure modes beyond these two probe-wide lockouts);
+- complete component model for sensors, computation, propulsion, and thermal behavior beyond the power-allocation budget, energy/thermal effects, probe-wide lockouts, and initial explicit per-subsystem operational flags (a deterministic failure/restore hook now sheds/rejects allocation and independently gates sensor/propulsion commands; failure causes, repair mechanics, and richer component health remain pending);
 - software policy state and alter-policy interaction;
 - `ScanCommand`, `allocate_power`, and `set_energy_generation_w` exposure through `UProbeSimulationAdapter`/Blueprint (all three exist in `src/simulation/` only; no Unreal-side caller yet), and switching `UProbeSimulationAdapter::BeginPlay()`'s bare `SimulationCore()` construction to `SimulationCore::make_canonical_ev0001()` so the embodied probe actually carries its real hardware loadout;
 - scan results/discovery payloads (current `ScanCommand` proves the start/validate/complete lifecycle and timing, not scan outcome content);

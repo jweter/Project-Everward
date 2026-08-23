@@ -62,6 +62,16 @@ struct ProbeStateSnapshot {
     double storage_capacity_kg{500.0};
     bool can_scan{true};
     bool can_thrust{true};
+    // Independent hardware-operational state for each power subsystem.
+    // These flags are deliberately separate from the probe-wide overheat and
+    // energy-depletion lockouts: a sensor failure blocks scanning without
+    // disabling propulsion, while a propulsion failure does the inverse.
+    // Computation and thermal do not own player commands yet, but still shed
+    // and reject power allocation while failed.
+    bool sensors_operational{true};
+    bool propulsion_operational{true};
+    bool computation_operational{true};
+    bool thermal_operational{true};
     bool is_scanning{false};
     std::string active_scan_target_id{};
     double scan_remaining_s{0.0};
@@ -84,6 +94,7 @@ enum class DomainEventType {
     ScanStarted,
     ScanCompleted,
     PowerAllocationChanged,
+    SubsystemOperationalStateChanged,
     EnergyDepleted,
     EnergyRestored,
     OverheatStarted,

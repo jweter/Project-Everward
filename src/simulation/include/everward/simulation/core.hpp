@@ -106,6 +106,9 @@ public:
         if (watts < 0.0) {
             throw std::invalid_argument("watts must be non-negative");
         }
+        if (watts > 0.0 && !subsystem_operational(subsystem)) {
+            throw std::runtime_error(subsystem_name(subsystem) + " subsystem unavailable");
+        }
 
         double sensors = probe_.power_allocated_sensors_w;
         double propulsion = probe_.power_allocated_propulsion_w;
@@ -141,6 +144,27 @@ public:
                             subsystem_name(subsystem) + " allocation set to " + std::to_string(watts) + " W"});
     }
 
+    // Sets explicit hardware-operational state without inventing a wear or
+    // damage trigger before Phase 2 defines one. This is the component-level
+    // equivalent of set_energy_generation_w(): a deterministic configuration
+    // hook that later mechanics can call. A failure immediately sheds that
+    // subsystem's allocation and blocks positive reallocation; sensors and
+    // propulsion also feed the command capability derivation below.
+    void set_subsystem_operational(PowerSubsystem subsystem, bool operational) {
+        bool& current = subsystem_operational_ref(subsystem);
+        if (current == operational) {
+            return;
+        }
+
+        current = operational;
+        if (!operational) {
+            subsystem_allocation_ref(subsystem) = 0.0;
+        }
+        refresh_capability_lockouts();
+        events_.push_back({clock_.tick(), DomainEventType::SubsystemOperationalStateChanged,
+                            subsystem_name(subsystem) + (operational ? " restored" : " failed")});
+    }
+
     // Configures the probe's constant passive power supply (see
     // ProbeStateSnapshot::energy_generation_w in types.hpp for what this
     // models and why it defaults to 0.0). This is a hardware/loadout
@@ -162,6 +186,48 @@ public:
     }
 
 private:
+    [[nodiscard]] bool subsystem_operational(PowerSubsystem subsystem) const noexcept {
+        switch (subsystem) {
+            case PowerSubsystem::Sensors:
+                return probe_.sensors_operational;
+            case PowerSubsystem::Propulsion:
+                return probe_.propulsion_operational;
+            case PowerSubsystem::Computation:
+                return probe_.computation_operational;
+            case PowerSubsystem::Thermal:
+                return probe_.thermal_operational;
+        }
+        return false;
+    }
+
+    bool& subsystem_operational_ref(PowerSubsystem subsystem) noexcept {
+        switch (subsystem) {
+            case PowerSubsystem::Sensors:
+                return probe_.sensors_operational;
+            case PowerSubsystem::Propulsion:
+                return probe_.propulsion_operational;
+            case PowerSubsystem::Computation:
+                return probe_.computation_operational;
+            case PowerSubsystem::Thermal:
+                return probe_.thermal_operational;
+        }
+        return probe_.computation_operational;
+    }
+
+    double& subsystem_allocation_ref(PowerSubsystem subsystem) noexcept {
+        switch (subsystem) {
+            case PowerSubsystem::Sensors:
+                return probe_.power_allocated_sensors_w;
+            case PowerSubsystem::Propulsion:
+                return probe_.power_allocated_propulsion_w;
+            case PowerSubsystem::Computation:
+                return probe_.power_allocated_computation_w;
+            case PowerSubsystem::Thermal:
+                return probe_.power_allocated_thermal_w;
+        }
+        return probe_.power_allocated_computation_w;
+    }
+
     [[nodiscard]] static std::string subsystem_name(PowerSubsystem subsystem) {
         switch (subsystem) {
             case PowerSubsystem::Sensors:
@@ -327,9 +393,9 @@ private:
     // restore capabilities while the other cause is still active (e.g.
     // stored_energy_j still at zero), and vice versa.
     void refresh_capability_lockouts() noexcept {
-        const bool locked_out = probe_.is_overheated || probe_.is_energy_depleted;
-        probe_.can_scan = !locked_out;
-        probe_.can_thrust = !locked_out;
+        const bool probe_locked_out = probe_.is_overheated || probe_.is_energy_depleted;
+        probe_.can_scan = !probe_locked_out && probe_.sensors_operational;
+        probe_.can_thrust = !probe_locked_out && probe_.propulsion_operational;
     }
 
     SimulationClock clock_{};
