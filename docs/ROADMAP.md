@@ -90,6 +90,8 @@ Add survey, spectroscopy, resource determination, travel between local objects, 
 
 Add mining, power production, refining, storage, fabrication, and construction.
 
+Self-sustaining specifically means recoverable: solar (or other in-system) power generation, resource harvesting, and fabrication together must be able to repair damage and restock depleted consumables without requiring a fresh start or outside rescue. No failure state this loop can address should be permanent — see Pillar 3 (Unlimited Progression) and the Serenity/Explorer "generous recovery" difficulty framing in Pillar 6; harder difficulties may make the loop slower or costlier, never impossible, short of a deliberate design decision to the contrary. (Product-owner intent recorded 2026-08-23; not yet implemented — Phase 2 One Probe embodiment is still in progress and takes priority per `PROJECT_STATUS.md`.)
+
 **Gate:** one probe can create a self-sustaining industrial foothold.
 
 ## Phase 5 — Research and Engineering
