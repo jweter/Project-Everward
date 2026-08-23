@@ -13,4 +13,6 @@ This is the production Unreal Engine project for Phase 2 and later gameplay work
 
 Open `Everward.uproject` with Unreal Engine 5.8. Generate project files/build the C++ module when prompted.
 
-The current kickoff contains no authored map or production assets yet. Its purpose is to establish the production project, compile the simulation boundary, and make the first probe state accessible to Unreal/Blueprint presentation code.
+The Phase 2 runtime bootstrap now supplies `AEverwardGameMode` and one default `AEverwardProbePawn`. The pawn owns exactly one visible engine-sphere presentation, one `UProbeSimulationAdapter`, and a third-person camera; the adapter constructs the canonical EV-0001 loadout. The engine sphere is an explicit bootstrap placeholder, not the final probe art direction.
+
+The project still contains no authored production map or original production assets. `DefaultEngine.ini` selects the production game mode, so Unreal's startup map can spawn the single probe without duplicating simulation ownership. The next presentation slice drives that pawn from the authoritative snapshot; the pawn must not independently author mechanical position.

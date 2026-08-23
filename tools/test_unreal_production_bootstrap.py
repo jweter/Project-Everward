@@ -1,0 +1,54 @@
+from __future__ import annotations
+
+import re
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+UNREAL = ROOT / "unreal"
+SOURCE = UNREAL / "Source" / "Everward"
+
+
+class OneProbeProductionBootstrapTests(unittest.TestCase):
+    def test_project_selects_the_production_game_mode(self) -> None:
+        config = (UNREAL / "Config" / "DefaultEngine.ini").read_text(encoding="utf-8")
+        self.assertIn(
+            "GlobalDefaultGameMode=/Script/Everward.EverwardGameMode",
+            config,
+        )
+
+    def test_game_mode_spawns_the_one_probe_pawn(self) -> None:
+        game_mode = (SOURCE / "EverwardGameMode.cpp").read_text(encoding="utf-8")
+        self.assertIn("DefaultPawnClass = AEverwardProbePawn::StaticClass();", game_mode)
+
+    def test_probe_presentation_owns_exactly_one_adapter(self) -> None:
+        pawn = (SOURCE / "EverwardProbePawn.cpp").read_text(encoding="utf-8")
+        adapter_constructions = re.findall(
+            r"CreateDefaultSubobject<UProbeSimulationAdapter>", pawn
+        )
+        presentation_constructions = re.findall(
+            r"CreateDefaultSubobject<UStaticMeshComponent>", pawn
+        )
+        self.assertEqual(adapter_constructions, ["CreateDefaultSubobject<UProbeSimulationAdapter>"])
+        self.assertEqual(presentation_constructions, ["CreateDefaultSubobject<UStaticMeshComponent>"])
+
+    def test_presentation_does_not_bypass_the_adapter_boundary(self) -> None:
+        for filename in (
+            "EverwardGameMode.h",
+            "EverwardGameMode.cpp",
+            "EverwardProbePawn.h",
+            "EverwardProbePawn.cpp",
+        ):
+            with self.subTest(filename=filename):
+                source = (SOURCE / filename).read_text(encoding="utf-8")
+                self.assertNotIn('#include "everward/simulation/', source)
+                self.assertNotIn("everward::simulation", source)
+
+    def test_adapter_uses_the_canonical_probe_loadout(self) -> None:
+        adapter = (SOURCE / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
+        self.assertIn("SimulationCore::make_canonical_ev0001()", adapter)
+
+
+if __name__ == "__main__":
+    unittest.main()

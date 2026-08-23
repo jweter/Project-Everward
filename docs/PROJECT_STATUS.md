@@ -116,6 +116,16 @@ The next engine-independent slice starts the broader per-component operational s
 
 This slice deliberately does not choose a failure trigger, wear rate, repair cost, component health scale, or component-specific thermal limit. Those are product/mechanical rules that need their own evidence-backed slice; the operational-state contract now exists for them to target.
 
+The first Unreal-side embodiment slice closes sequence item 1 now that a real local Unreal 5.8/UBT toolchain is available:
+
+- `AEverwardGameMode`, selected by production `DefaultEngine.ini`, uses `AEverwardProbePawn` as the default pawn for the single local player;
+- the pawn owns exactly one visible engine-sphere bootstrap presentation, one `UProbeSimulationAdapter`, and one third-person camera while containing no direct simulation-core dependency;
+- `UProbeSimulationAdapter::BeginPlay()` now constructs `SimulationCore::make_canonical_ev0001()`, so the embodied runtime uses the canonical probe's nonzero generation hardware rather than the bare test baseline;
+- CI-visible structural tests pin the game-mode selection, one-pawn class, exactly-one presentation/adapter ownership, adapter-boundary isolation, and canonical loadout factory;
+- local Unreal 5.8 verification passed both an `EverwardEditor Win64 Development` UHT/UBT build and a headless `-game -nullrhi` startup; the runtime log selected `EverwardGameMode` and enumerated exactly one `EverwardProbePawn` instance.
+
+This is an intentionally minimal bootstrap, not final probe art. It does not yet drive the presentation transform from authoritative position, add the inspection HUD, or expose the remaining simulation commands to Blueprint.
+
 ## Accepted production direction
 
 **Unreal Engine is the accepted production engine direction.**
@@ -135,7 +145,7 @@ Godot material remains comparative/historical Phase 1 evidence only. Automation 
 
 Residual rendering risk remains tracked from the Phase 1 Intel Iris Xe capture: the benchmark was strongly GPU-bound, used internal upscaling, and did not yet prove the final visual target on stronger hardware. Those are production-quality/performance risks, not blockers on Phase 2 implementation.
 
-The Unreal production project itself has not yet been compiled/opened on the user's Windows Unreal installation after PR #68. That local Unreal compile is useful validation when convenient, but the next repository slice does not need to stop waiting for it unless a concrete Unreal build error is discovered.
+The production project now compiles and starts headlessly on the user's installed Unreal Engine 5.8 toolchain. Local UBT reports that Visual Studio toolchain 14.51 is newer than Epic's preferred 14.50 version and that the optional XGE coordinator license is not active; UBT successfully falls back to standalone compilation, so neither warning blocks Phase 2 work.
 
 ## Exact continuation point
 
@@ -143,18 +153,18 @@ Resume with the next highest-value **Phase 2 — One Probe** slice.
 
 The immediate target is to turn the new runtime foundation into the first visible embodied probe while preserving ADR-0002/ADR-0012 boundaries.
 
-`ScanCommand` (sequence item 4 below) and power allocation with its energy-consumption, energy-generation, and thermal-load effects (sequence item 5 below) are now implemented in `src/simulation/`, engine-independent and CTest-covered. Items 1–3 (the Unreal-side embodied probe runtime, transform-driving, and HUD read model) remain **not implemented**: they require compiling/running the Unreal project itself, which this scheduled run's environment cannot do (no Unreal Editor/UBT available to build or verify Unreal C++/Blueprint changes). Automation should not author unverifiable `unreal/Source/` changes; a run with Unreal build/verification capability should pick up items 1–3 next.
+The Unreal 5.8/UBT toolchain is now available and sequence item 1 is implemented and locally engine-verified. Item 2 is the highest-value continuation: make the existing presentation consume authoritative position through the adapter boundary, performing the metres-to-centimetres conversion exactly once there. Item 3 (the minimal inspect/HUD read model) follows after transform ownership is proven.
 
 Recommended next sequence:
 
-1. create a minimal runtime bootstrap in `unreal/` that instantiates exactly one probe presentation and exactly one `UProbeSimulationAdapter`;
+1. ~~create a minimal runtime bootstrap in `unreal/` that instantiates exactly one probe presentation and exactly one `UProbeSimulationAdapter`~~ — **done and Unreal 5.8 verified**;
 2. drive the presented probe transform from the authoritative `src/simulation/` snapshot, with metres-to-centimetres conversion occurring only in the adapter/presentation boundary;
 3. add a minimal inspect/HUD read model for mass, energy, temperature, storage, velocity, and simulation time;
 4. ~~add the first real command path beyond movement: `ScanCommand` with validation plus `scan_started` / `scan_complete` events~~ — **done in `src/simulation/`**; still needs Blueprint/adapter exposure once item 1 exists;
-5. begin power allocation and component-state mechanics — **in progress in `src/simulation/`**: the allocation, energy, thermal, probe-wide lockout, canonical-generation, and initial per-subsystem operational-state contracts are implemented and CTest-covered. A failed subsystem now sheds/rejects power allocation; sensors and propulsion independently gate their owned commands; and component recovery cannot bypass energy/overheat lockouts. Still pending within this item: a real failure trigger and repair mechanics, richer component health/thermal state, switching `UProbeSimulationAdapter::BeginPlay()` to `make_canonical_ev0001()` once Unreal verification is available, and Blueprint/adapter exposure once item 1 exists;
+5. begin power allocation and component-state mechanics — **in progress in `src/simulation/`**: the allocation, energy, thermal, probe-wide lockout, canonical-generation, and initial per-subsystem operational-state contracts are implemented and CTest-covered. A failed subsystem now sheds/rejects power allocation; sensors and propulsion independently gate their owned commands; and component recovery cannot bypass energy/overheat lockouts. The embodied adapter now uses `make_canonical_ev0001()`. Still pending within this item: a real failure trigger and repair mechanics, richer component health/thermal state, and Blueprint/adapter command exposure;
 6. continue until the Phase 2 gate is demonstrably true: **simply existing as the probe is compelling.**
 
-Option (a), the canonical-generation warm-up, and the first bounded part of option (b) are now **done**. The next engine-independent item-5 slice should define one concrete, testable cause for a subsystem to enter the operational-state contract (or a bounded repair path) without jumping directly to a large generalized durability system. Unreal-capable work still takes priority when verification becomes available because items 1–3 are the shortest path to the actual One Probe embodiment gate.
+Option (a), the canonical-generation warm-up, the first bounded part of option (b), and Unreal embodiment item 1 are now **done**. Because Unreal verification is available, item 2's authoritative transform drive takes priority over another engine-independent failure mechanic: it is the shortest remaining path toward the actual One Probe embodiment gate.
 
 Also worth a dedicated near-term slice, independent of new mechanics: `.github/workflows/foundation.yml`'s `-DCMAKE_BUILD_TYPE=Release` step defines `NDEBUG`, which silently no-ops every `assert()` in `simulation_core_tests.cpp` unless the file itself defends against it. This slice added that defense (`#undef NDEBUG` before `#include <cassert>`) to `simulation_core_tests.cpp` and, while re-verifying with assertions now genuinely active, found and fixed one test whose expectations had gone stale (see `ERROR_RESOLUTION_LEDGER.md`, 2026-08-22). No other test in the suite was found to fail once assertions were made real, but that was only checked incidentally as a side effect of this slice's own verification, not via a systematic re-audit of every earlier slice's assertions — a dedicated follow-up should treat the entire suite's assertions as freshly unverified evidence (they were never actually checked by CI before now) and confirm each one deliberately, the same way `ERROR_RESOLUTION_LEDGER.md`'s existing per-key/per-branch coverage audits already did for the Python prototypes.
 

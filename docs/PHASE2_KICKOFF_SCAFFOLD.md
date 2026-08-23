@@ -16,6 +16,8 @@ Implemented foundation:
 - deterministic fixed-step movement integration;
 - domain-event delivery;
 - `UProbeSimulationAdapter` as the single Unreal-side simulation caller;
+- `AEverwardGameMode` as the production bootstrap and one default `AEverwardProbePawn` containing exactly one visible presentation, one adapter, and one camera;
+- the adapter now constructs `SimulationCore::make_canonical_ev0001()` so the embodied runtime carries the canonical probe's real hardware loadout;
 - Blueprint-visible simulation tick, position, and velocity command access;
 - `ScanCommand` (`SimulationCore::start_scan`) with validation (empty target, non-positive duration, capability gating, single concurrent scan) and `ScanStarted` / `ScanCompleted` domain events, integrated into the same fixed-step advance used for movement;
 - `SimulationCore::allocate_power(PowerSubsystem, watts)` with per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against a total `power_capacity_w` budget, rejecting negative requests and any combined allocation that would exceed capacity, and emitting a `PowerAllocationChanged` domain event on success;
@@ -29,10 +31,10 @@ Implemented foundation:
 
 Not yet implemented at this reconciliation point:
 
-- visible embodied probe runtime scene driven from the authoritative snapshot;
+- authoritative snapshot-driven transform for the visible probe (the runtime bootstrap and presentation now exist, but remain at their spawn transform until the next slice);
 - complete component model for sensors, computation, propulsion, and thermal behavior beyond the power-allocation budget, energy/thermal effects, probe-wide lockouts, and initial explicit per-subsystem operational flags (a deterministic failure/restore hook now sheds/rejects allocation and independently gates sensor/propulsion commands; active scans pause while scanning is locked and resume afterward; failure causes, repair mechanics, and richer component health remain pending);
 - software policy state and alter-policy interaction;
-- `ScanCommand`, `allocate_power`, and `set_energy_generation_w` exposure through `UProbeSimulationAdapter`/Blueprint (all three exist in `src/simulation/` only; no Unreal-side caller yet), and switching `UProbeSimulationAdapter::BeginPlay()`'s bare `SimulationCore()` construction to `SimulationCore::make_canonical_ev0001()` so the embodied probe actually carries its real hardware loadout;
+- `ScanCommand`, `allocate_power`, and `set_energy_generation_w` exposure through `UProbeSimulationAdapter`/Blueprint (all three exist in `src/simulation/` only; no Unreal-side caller yet);
 - scan results/discovery payloads (current `ScanCommand` proves the start/validate/complete lifecycle and timing, not scan outcome content);
 - complete inspect/alter-policy interaction paths;
 - production save/load implementation;
@@ -115,7 +117,7 @@ The complete Phase 2 target snapshot contains:
 | Identity | probe ID, design ID, lineage ID, generation | foundation present; extend as Phase 2 requires |
 | Position / velocity | canonical simulation-space position and velocity | implemented |
 | Mass | total and component mass | initial total state present; component breakdown pending |
-| Energy | generation, storage, charge, subsystem consumption | initial energy state present; per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against total capacity is present; allocated power draws down stored energy over simulated time, net of a configurable constant passive `energy_generation_w` supply (`EnergyDepleted` on depletion, `EnergyRestored` on recharge back above zero); depletion sets `is_energy_depleted` and locks out `can_scan`/`can_thrust` alongside the overheat lockout, restored on recharge; `energy_generation_w`'s struct default stays `0.0` (test-isolation baseline), and the canonical probe now gets a real nonzero value via `SimulationCore::make_canonical_ev0001()` — not yet wired into `UProbeSimulationAdapter::BeginPlay()`, and any distance-dependent solar model remains pending |
+| Energy | generation, storage, charge, subsystem consumption | initial energy state present; per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against total capacity is present; allocated power draws down stored energy over simulated time, net of a configurable constant passive `energy_generation_w` supply (`EnergyDepleted` on depletion, `EnergyRestored` on recharge back above zero); depletion sets `is_energy_depleted` and locks out `can_scan`/`can_thrust` alongside the overheat lockout, restored on recharge; `energy_generation_w`'s struct default stays `0.0` (test-isolation baseline), and the canonical probe now gets a real nonzero value via `SimulationCore::make_canonical_ev0001()`, wired into `UProbeSimulationAdapter::BeginPlay()`; any distance-dependent solar model remains pending |
 | Thermal | thermally relevant component temperatures and limits | initial temperature state present; allocated power (`total_power_allocated_w()`) accumulates as waste heat into `temperature_k` over simulated time on the same fixed-step path as movement/scan/energy, combined with passive Newtonian cooling back toward `ambient_temperature_k` so sustained load approaches a finite equilibrium rather than climbing unbounded; `temperature_k` crossing `max_operating_temperature_k` now clears `can_scan`/`can_thrust` and fires `OverheatStarted`/`OverheatEnded`; per-component thermal limits beyond this probe-wide response remain pending |
 | Storage | resource inventory and capacity | initial storage state present; inventory mechanics pending |
 | Sensors | sensor components, targets, progress, scan-result references | scan lifecycle state (`is_scanning`, active target, remaining duration) present; sensor components and scan-result content pending |
