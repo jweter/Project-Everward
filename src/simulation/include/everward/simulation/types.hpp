@@ -93,6 +93,7 @@ enum class DomainEventType {
     SimulationAdvanced,
     ScanStarted,
     ScanCompleted,
+    ScanCancelled,
     PowerAllocationChanged,
     SubsystemOperationalStateChanged,
     EnergyDepleted,

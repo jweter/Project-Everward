@@ -19,7 +19,7 @@ Implemented foundation:
 - `AEverwardGameMode` as the production bootstrap and one default `AEverwardProbePawn` containing exactly one visible presentation, one adapter, and one camera;
 - the adapter now constructs `SimulationCore::make_canonical_ev0001()` so the embodied runtime carries the canonical probe's real hardware loadout;
 - Blueprint-visible simulation tick, position, and velocity command access;
-- `ScanCommand` (`SimulationCore::start_scan`) with validation (empty target, non-positive duration, capability gating, single concurrent scan) and `ScanStarted` / `ScanCompleted` domain events, integrated into the same fixed-step advance used for movement;
+- `ScanCommand` (`SimulationCore::start_scan`) with validation (empty target, non-positive duration, capability gating, single concurrent scan) and `ScanStarted` / `ScanCompleted` domain events, integrated into the same fixed-step advance used for movement; `SimulationCore::cancel_scan()` explicitly abandons an active scan (rejecting when none is active) and emits `ScanCancelled`, independent of `can_scan` so a scan already paused by a lockout can still be cancelled;
 - `SimulationCore::allocate_power(PowerSubsystem, watts)` with per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against a total `power_capacity_w` budget, rejecting negative requests and any combined allocation that would exceed capacity, and emitting a `PowerAllocationChanged` domain event on success;
 - allocated power draws down `stored_energy_j` over simulated time on the same fixed-step path as movement and scan progress, clamped at zero, emitting an `EnergyDepleted` domain event on the transition from having stored energy to having none;
 - allocated power also accumulates as waste heat into `temperature_k` over simulated time on the same fixed-step path, using a `thermal_capacity_j_per_k` probe field, combined with passive Newtonian cooling back toward a new `ambient_temperature_k` field at a rate set by a new `passive_cooling_w_per_k` field, solved in closed form so `temperature_k` approaches a finite equilibrium under sustained power rather than climbing unbounded, and drifts back toward ambient once power is deallocated;
@@ -136,7 +136,7 @@ The Phase 2 interaction contract remains:
 |---|---|---|
 | Observe | read current authoritative snapshot/events | foundation present |
 | Inspect | read component/system state | minimal state available; HUD/read model pending |
-| Scan | validated scan command and lifecycle events | `src/simulation/` command/lifecycle present (`start_scan`, `ScanStarted`/`ScanCompleted`); Unreal-side command path and scan-result content pending |
+| Scan | validated scan command and lifecycle events | `src/simulation/` command/lifecycle present (`start_scan`, `cancel_scan`, `ScanStarted`/`ScanCompleted`/`ScanCancelled`); Unreal-side command path and scan-result content pending |
 | Move | validated movement/trajectory request | initial velocity-command path present |
 | Manage power | validated allocation request | `src/simulation/` command/validation present (`allocate_power`, `PowerAllocationChanged`); Unreal-side command path and component-level power effects pending |
 | Alter policy | validated software-policy request | pending |

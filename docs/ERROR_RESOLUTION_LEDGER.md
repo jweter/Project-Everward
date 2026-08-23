@@ -28,6 +28,15 @@ This ledger records verified development and CI failures whose root causes are u
 - **Fix:** `integrate_scan()` now makes no progress whenever `can_scan` is false. It preserves the active target and remaining duration, emits no completion event during the lockout, and resumes the same scan after sensor, energy, and thermal lockouts all clear.
 - **Regression protection:** Release-mode CTest starts a scan, records partial progress, fails sensors, advances well beyond the remaining duration, verifies state/progress remain preserved and no `ScanCompleted` event exists, restores sensors, and verifies exactly one completion after the preserved duration elapses.
 - **Residual risk:** failure currently pauses rather than cancels because no cancellation command/event contract exists. A future explicit abort mechanic must define its own state transition and event rather than silently discarding the active scan.
+- **Update, 2026-08-23:** closed by `SimulationCore::cancel_scan()` — see the entry below.
+
+## 2026-08-23 — Added explicit scan cancellation, closing the pause-vs-cancel residual risk above
+
+- **Why:** the "Active scans completed while sensor hardware was failed" entry above (2026-08-22) fixed the false-completion bug but left cancellation itself unimplemented: a locked-out scan could only pause and later resume, with no way to deliberately abandon it.
+- **Change:** added `SimulationCore::cancel_scan()` to `src/simulation/include/everward/simulation/core.hpp` and a new `DomainEventType::ScanCancelled` event. Rejects with `std::runtime_error` when no scan is in progress; otherwise clears `is_scanning`/`active_scan_target_id`/`scan_remaining_s` immediately and emits `ScanCancelled` exactly once. Deliberately not gated by `can_scan`: a scan may need cancelling precisely because a lockout (overheat, energy depletion, sensor failure) is already preventing it from progressing, and gating cancellation by the same capability the scan itself needs would make a locked-out scan uncancellable.
+- **Tests:** new CTest coverage in `simulation_core_tests.cpp` exercises the rejection when no scan is active, the happy path (mid-progress cancellation discards target/remaining-duration state, emits `ScanCancelled` once, never later emits `ScanCompleted` for the cancelled scan, and allows immediately starting a new scan), and cancellation while `can_scan` is false due to a sensor failure.
+- **Verification:** two targeted mutations (removing the "no scan in progress" guard; gating cancellation on `can_scan`) were each applied to `core.hpp`, rebuilt/re-tested via the exact CI command, caught cleanly by the new tests, and reverted byte-identical before this entry was written. Full CTest suite and `tools/quality_preflight.py --full` pass clean afterward.
+- **Scope:** `src/simulation/` only. `UProbeSimulationAdapter`/Blueprint exposure of `cancel_scan()` does not exist yet, matching every other simulation-core command added since PR #68 (no Unreal toolchain was available in this environment to author or verify an `unreal/Source/` change).
 
 ## 2026-08-17 — Rendering benchmark test import failed on Python 3.12
 
