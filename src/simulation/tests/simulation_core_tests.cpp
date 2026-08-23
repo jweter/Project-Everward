@@ -881,6 +881,49 @@ int main() {
         assert(thrust_rejected);
     }
 
+    // SubsystemOperationalState: a sensor failure also pauses an already
+    // active scan. The authoritative target and remaining duration survive
+    // the lockout, no false ScanCompleted event is emitted, and restoring
+    // the sensors resumes the same scan from the preserved progress point.
+    {
+        SimulationCore interrupted_scan_core;
+        interrupted_scan_core.start_scan("asteroid-1", 2.0);
+        (void)interrupted_scan_core.drain_events();
+
+        interrupted_scan_core.advance_wall_ticks(SimulationClock::TicksPerSecond / 2);
+        assert(nearly_equal(interrupted_scan_core.snapshot().scan_remaining_s, 1.5));
+        (void)interrupted_scan_core.drain_events();
+
+        interrupted_scan_core.set_subsystem_operational(
+            everward::simulation::PowerSubsystem::Sensors, false);
+        (void)interrupted_scan_core.drain_events();
+        interrupted_scan_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 5);
+
+        assert(interrupted_scan_core.snapshot().is_scanning);
+        assert(interrupted_scan_core.snapshot().active_scan_target_id == "asteroid-1");
+        assert(nearly_equal(interrupted_scan_core.snapshot().scan_remaining_s, 1.5));
+        auto paused_events = interrupted_scan_core.drain_events();
+        for (const auto& event : paused_events) {
+            assert(event.type != everward::simulation::DomainEventType::ScanCompleted);
+        }
+
+        interrupted_scan_core.set_subsystem_operational(
+            everward::simulation::PowerSubsystem::Sensors, true);
+        (void)interrupted_scan_core.drain_events();
+        interrupted_scan_core.advance_wall_ticks(
+            SimulationClock::TicksPerSecond + SimulationClock::TicksPerSecond / 2);
+
+        assert(!interrupted_scan_core.snapshot().is_scanning);
+        auto resumed_events = interrupted_scan_core.drain_events();
+        std::size_t scan_completed_count = 0;
+        for (const auto& event : resumed_events) {
+            if (event.type == everward::simulation::DomainEventType::ScanCompleted) {
+                ++scan_completed_count;
+            }
+        }
+        assert(scan_completed_count == 1);
+    }
+
     // SubsystemOperationalState: component recovery does not bypass an
     // independent probe-wide energy lockout. Capability returns only after
     // both the sensor hardware and stored energy have recovered.

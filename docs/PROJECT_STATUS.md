@@ -110,6 +110,7 @@ The next engine-independent slice starts the broader per-component operational s
 - each sensors, propulsion, computation, and thermal subsystem now has an explicit operational flag in `ProbeStateSnapshot`, controlled by `SimulationCore::set_subsystem_operational` as a deterministic configuration/test hook that later failure mechanics can call;
 - transitioning a subsystem to failed immediately sheds its current power allocation, blocks positive reallocation while failed, and emits `SubsystemOperationalStateChanged`; restoring it emits the same event once, while repeated same-state calls are no-ops;
 - sensor failure blocks scanning but not thrust, propulsion failure blocks thrust but not scanning, and computation/thermal failure remains visible while blocking only allocation because those subsystems do not own player commands yet;
+- an active scan pauses with its target and remaining duration preserved whenever `can_scan` is locked (including sensor failure, energy depletion, or overheating), emits no false completion event while paused, and resumes after every lockout cause clears;
 - component state stacks beneath probe-wide energy-depletion and overheat lockouts through the existing centralized capability derivation, so repairing hardware cannot bypass a still-active probe-wide lockout;
 - Release-mode CMake/CTest coverage exercises all four subsystem transitions, allocation shedding/rejection/restoration, granular command ownership, edge-triggered events, and stacked recovery behavior.
 

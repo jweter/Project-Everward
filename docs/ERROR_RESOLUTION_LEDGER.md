@@ -2,6 +2,14 @@
 
 This ledger records verified development and CI failures whose root causes are useful to preserve as project knowledge. Entries should be concise, evidence-based, and focused on preventing recurrence.
 
+## 2026-08-22 — Active scans completed while sensor hardware was failed
+
+- **Observed symptom:** post-merge review of PR #83 found that `set_subsystem_operational(Sensors, false)` correctly blocked new scans but an already-active scan continued losing `scan_remaining_s` and eventually emitted `ScanCompleted` while the sensors remained failed.
+- **Root cause:** `start_scan()` validated `can_scan`, but `integrate_scan()` checked only `is_scanning`; the new operational-state transition refreshed capability flags without making scan progression honor them.
+- **Fix:** `integrate_scan()` now makes no progress whenever `can_scan` is false. It preserves the active target and remaining duration, emits no completion event during the lockout, and resumes the same scan after sensor, energy, and thermal lockouts all clear.
+- **Regression protection:** Release-mode CTest starts a scan, records partial progress, fails sensors, advances well beyond the remaining duration, verifies state/progress remain preserved and no `ScanCompleted` event exists, restores sensors, and verifies exactly one completion after the preserved duration elapses.
+- **Residual risk:** failure currently pauses rather than cancels because no cancellation command/event contract exists. A future explicit abort mechanic must define its own state transition and event rather than silently discarding the active scan.
+
 ## 2026-08-17 — Rendering benchmark test import failed on Python 3.12
 
 - **Observed failure:** `Foundation checks` failed while importing `prototypes/rendering-benchmark/test_benchmark.py`; all earlier Phase 1 prototype suites passed.
