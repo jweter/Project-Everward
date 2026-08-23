@@ -252,7 +252,13 @@ private:
     }
 
     void integrate_scan(double seconds) {
-        if (!probe_.is_scanning) {
+        // A scan retains its target and remaining duration while capability
+        // is unavailable, but cannot make progress. This applies uniformly
+        // to sensor hardware failure and the existing probe-wide energy or
+        // overheat lockouts because all three feed can_scan. Recovery resumes
+        // the same scan rather than fabricating completion or discarding work
+        // without an explicit cancellation domain event.
+        if (!probe_.is_scanning || !probe_.can_scan) {
             return;
         }
 
