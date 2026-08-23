@@ -30,12 +30,10 @@ public:
     // Returns a SimulationCore configured with the canonical EV-0001 probe's
     // real hardware loadout (currently just its passive generation source),
     // as distinct from the bare SimulationCore() default used everywhere
-    // else today — including this file's own test suite, and
-    // UProbeSimulationAdapter::BeginPlay() in unreal/, which still
-    // constructs SimulationCore() directly. Switching that Unreal call site
-    // to this factory is deliberately left for a future run with Unreal
-    // build/verification capability (see PHASE2_KICKOFF_SCAFFOLD.md); this
-    // sandboxed environment cannot compile/verify unreal/Source/ changes.
+    // else today — including this file's own test suite.
+    // UProbeSimulationAdapter::BeginPlay() in unreal/ constructs its
+    // SimulationCore via this factory rather than the bare default, so the
+    // embodied runtime carries the canonical probe's real hardware loadout.
     // ProbeStateSnapshot::energy_generation_w's own struct default
     // deliberately stays at 0.0 rather than being edited directly: many
     // existing tests (EnergyConsumption, EnergyDepletionResponse, the
