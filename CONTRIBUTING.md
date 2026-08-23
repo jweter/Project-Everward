@@ -35,6 +35,22 @@ Suggested branch prefixes:
 - `prototype/`
 - `chore/`
 
+## Quality preflight
+
+Use the repository-standard preflight before opening or updating a PR:
+
+```bash
+python tools/quality_preflight.py
+```
+
+That fast mode validates the repository constitution and Git diff hygiene. For simulation, prototype, foundation-tooling, or release-sensitive changes, run full CI parity locally:
+
+```bash
+python tools/quality_preflight.py --full
+```
+
+Full mode additionally configures/builds/tests the production C++ simulation core with CMake/CTest and runs every Python unittest suite currently enforced by the Foundation workflow. CI remains authoritative; do not suppress a failing invariant merely to make the preflight pass.
+
 ## Coding principles
 
 - Simulation truth must not depend on presentation.
