@@ -399,6 +399,57 @@ int main() {
         assert(cooled_temperature >= ambient);
     }
 
+    // ThermalLoad: set_passive_cooling_w_per_k() validation (mirrors
+    // set_energy_generation_w's own non-negative guard), then the disabled
+    // cooling pathway (passive_cooling_w_per_k == 0) falling back to the
+    // pure waste-heat accumulation integrate_thermal_load uses when no
+    // passive-cooling pathway is configured, rather than dividing by zero or
+    // silently applying the Newtonian-cooling formula anyway. Before
+    // set_passive_cooling_w_per_k() existed, this fallback branch had no
+    // configuration hook reachable from any test in this file and was
+    // therefore never exercised; see the 2026-08-23 post-NDEBUG-fix mutation
+    // audit in ERROR_RESOLUTION_LEDGER.md. A probe with a hardware loadout
+    // carrying no radiator at all keeps accumulating waste heat without
+    // bound rather than ever settling at a finite equilibrium.
+    {
+        SimulationCore no_cooling_core;
+
+        bool negative_cooling_threw = false;
+        try {
+            no_cooling_core.set_passive_cooling_w_per_k(-1.0);
+        } catch (const std::invalid_argument&) {
+            negative_cooling_threw = true;
+        }
+        assert(negative_cooling_threw);
+        assert(nearly_equal(no_cooling_core.snapshot().passive_cooling_w_per_k, 2.0));
+
+        no_cooling_core.set_passive_cooling_w_per_k(0.0);
+        const double thermal_capacity = no_cooling_core.snapshot().thermal_capacity_j_per_k;
+        const double ambient = no_cooling_core.snapshot().ambient_temperature_k;
+
+        no_cooling_core.allocate_power(everward::simulation::PowerSubsystem::Thermal, 200.0);
+        (void)no_cooling_core.drain_events();
+
+        no_cooling_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        const double expected_after_first_step = ambient + (200.0 * 10.0) / thermal_capacity;
+        assert(nearly_equal(no_cooling_core.snapshot().temperature_k, expected_after_first_step));
+
+        // Accumulates further across a second step rather than plateauing at
+        // any equilibrium, unlike the Newtonian-cooling path exercised by
+        // the other ThermalLoad tests above.
+        no_cooling_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        const double expected_after_second_step = expected_after_first_step + (200.0 * 10.0) / thermal_capacity;
+        assert(nearly_equal(no_cooling_core.snapshot().temperature_k, expected_after_second_step));
+
+        // With zero allocated power and no cooling pathway, temperature_k
+        // stays exactly where it was rather than drifting back toward
+        // ambient the way the Newtonian-cooling path does.
+        no_cooling_core.allocate_power(everward::simulation::PowerSubsystem::Thermal, 0.0);
+        (void)no_cooling_core.drain_events();
+        no_cooling_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 3600);
+        assert(nearly_equal(no_cooling_core.snapshot().temperature_k, expected_after_second_step));
+    }
+
     // OverheatResponse: no-op case. With no allocated power, temperature_k
     // never approaches max_operating_temperature_k, so is_overheated stays
     // false and can_scan/can_thrust remain available.

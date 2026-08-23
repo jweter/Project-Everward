@@ -178,6 +178,29 @@ public:
         probe_.energy_generation_w = watts;
     }
 
+    // Configures the probe's passive radiative/conductive cooling pathway
+    // (see ProbeStateSnapshot::passive_cooling_w_per_k and
+    // integrate_thermal_load()'s Newtonian-cooling comment for what this
+    // models). This is a hardware/loadout configuration hook in the same
+    // spirit as set_energy_generation_w() rather than a player-facing
+    // maneuver command, so it does not itself emit a domain event.
+    //
+    // Zero is an explicitly valid, meaningful value: it disables the
+    // passive-cooling term entirely and falls back to the pure waste-heat
+    // accumulation integrate_thermal_load() already implements for that
+    // case (a probe hardware loadout with no radiator at all). Before this
+    // setter existed, that fallback branch was unreachable from any test in
+    // this file — passive_cooling_w_per_k had no configuration hook and
+    // every test relied on the struct's own nonzero default — so it was
+    // exercised by nothing; see the 2026-08-23 post-NDEBUG-fix mutation
+    // audit in ERROR_RESOLUTION_LEDGER.md.
+    void set_passive_cooling_w_per_k(double watts_per_k) {
+        if (watts_per_k < 0.0) {
+            throw std::invalid_argument("watts_per_k must be non-negative");
+        }
+        probe_.passive_cooling_w_per_k = watts_per_k;
+    }
+
     [[nodiscard]] double total_power_allocated_w() const noexcept {
         return probe_.power_allocated_sensors_w + probe_.power_allocated_propulsion_w +
                probe_.power_allocated_computation_w + probe_.power_allocated_thermal_w;
