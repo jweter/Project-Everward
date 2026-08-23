@@ -636,6 +636,75 @@ int main() {
         assert(overheat_ended_count == 1);
     }
 
+    // OverheatResponse: set_max_operating_temperature_k validation. Zero and
+    // negative thresholds are rejected as not physically meaningful; the
+    // probe's existing threshold is left untouched by a rejected call.
+    {
+        SimulationCore validation_core;
+        const double original_threshold = validation_core.snapshot().max_operating_temperature_k;
+
+        bool zero_threw = false;
+        try {
+            validation_core.set_max_operating_temperature_k(0.0);
+        } catch (const std::invalid_argument&) {
+            zero_threw = true;
+        }
+        assert(zero_threw);
+
+        bool negative_threw = false;
+        try {
+            validation_core.set_max_operating_temperature_k(-1.0);
+        } catch (const std::invalid_argument&) {
+            negative_threw = true;
+        }
+        assert(negative_threw);
+
+        assert(nearly_equal(validation_core.snapshot().max_operating_temperature_k, original_threshold));
+    }
+
+    // OverheatResponse: exact-equality boundary. Closes the standing gap
+    // named in the 2026-08-23 post-NDEBUG-fix mutation audit
+    // (ERROR_RESOLUTION_LEDGER.md): the crossing test above always overshoots
+    // max_operating_temperature_k by construction (std::ceil-rounded ticks),
+    // so it cannot distinguish integrate_overheat_response()'s `>=` from a
+    // weakened `>` at exact equality. Rather than trying to land the
+    // closed-form thermal integration bit-exactly on a moving target, this
+    // holds temperature_k exactly fixed (zero allocated power leaves it
+    // unchanged — delta-from-equilibrium is exactly zero, so no floating-
+    // point drift is possible) and moves max_operating_temperature_k to meet
+    // it exactly via the new set_max_operating_temperature_k() hook.
+    {
+        SimulationCore boundary_core;
+        const double starting_temperature_k = boundary_core.snapshot().temperature_k;
+        boundary_core.set_max_operating_temperature_k(starting_temperature_k);
+        assert(!boundary_core.snapshot().is_overheated);
+        assert(boundary_core.snapshot().can_scan);
+        assert(boundary_core.snapshot().can_thrust);
+
+        boundary_core.advance_wall_ticks(1);
+
+        // temperature_k must not have drifted at all: zero allocated power
+        // means heating_w is zero, and the probe already starts at its own
+        // ambient baseline, so equilibrium_k equals starting_temperature_k
+        // and the exponential term is multiplied by an exact-zero delta.
+        assert(boundary_core.snapshot().temperature_k == starting_temperature_k);
+
+        // At exact equality, `>=` must trigger the lockout; a weakened `>`
+        // would not, since temperature_k is not strictly greater than the
+        // threshold.
+        assert(boundary_core.snapshot().is_overheated);
+        assert(!boundary_core.snapshot().can_scan);
+        assert(!boundary_core.snapshot().can_thrust);
+
+        std::size_t overheat_started_count = 0;
+        for (const auto& event : boundary_core.drain_events()) {
+            if (event.type == everward::simulation::DomainEventType::OverheatStarted) {
+                ++overheat_started_count;
+            }
+        }
+        assert(overheat_started_count == 1);
+    }
+
     // EnergyDepletionResponse: no-op case. With no allocated power,
     // stored_energy_j never reaches zero, so is_energy_depleted stays false
     // and can_scan/can_thrust remain available (mirrors OverheatResponse's
