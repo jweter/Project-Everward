@@ -10,7 +10,8 @@ UProbeSimulationAdapter::UProbeSimulationAdapter()
 void UProbeSimulationAdapter::BeginPlay()
 {
     Super::BeginPlay();
-    Core = new everward::simulation::SimulationCore();
+    Core = new everward::simulation::SimulationCore(
+        everward::simulation::SimulationCore::make_canonical_ev0001());
 }
 
 void UProbeSimulationAdapter::EndPlay(const EEndPlayReason::Type EndPlayReason)

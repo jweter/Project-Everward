@@ -16,6 +16,8 @@ Implemented foundation:
 - deterministic fixed-step movement integration;
 - domain-event delivery;
 - `UProbeSimulationAdapter` as the single Unreal-side simulation caller;
+- `AEverwardGameMode` as the production bootstrap and one default `AEverwardProbePawn` containing exactly one visible presentation, one adapter, and one camera;
+- the adapter now constructs `SimulationCore::make_canonical_ev0001()` so the embodied runtime carries the canonical probe's real hardware loadout;
 - Blueprint-visible simulation tick, position, and velocity command access;
 - `ScanCommand` (`SimulationCore::start_scan`) with validation (empty target, non-positive duration, capability gating, single concurrent scan) and `ScanStarted` / `ScanCompleted` domain events, integrated into the same fixed-step advance used for movement;
 - `SimulationCore::allocate_power(PowerSubsystem, watts)` with per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against a total `power_capacity_w` budget, rejecting negative requests and any combined allocation that would exceed capacity, and emitting a `PowerAllocationChanged` domain event on success;
@@ -29,10 +31,10 @@ Implemented foundation:
 
 Not yet implemented at this reconciliation point:
 
-- visible embodied probe runtime scene driven from the authoritative snapshot;
+- authoritative snapshot-driven transform for the visible probe (the runtime bootstrap and presentation now exist, but remain at their spawn transform until the next slice);
 - complete component model for sensors, computation, propulsion, and thermal behavior beyond the power-allocation budget, energy/thermal effects, probe-wide lockouts, and initial explicit per-subsystem operational flags (a deterministic failure/restore hook now sheds/rejects allocation and independently gates sensor/propulsion commands; active scans pause while scanning is locked and resume afterward; failure causes, repair mechanics, and richer component health remain pending);
 - software policy state and alter-policy interaction;
-- `ScanCommand`, `allocate_power`, and `set_energy_generation_w` exposure through `UProbeSimulationAdapter`/Blueprint (all three exist in `src/simulation/` only; no Unreal-side caller yet), and switching `UProbeSimulationAdapter::BeginPlay()`'s bare `SimulationCore()` construction to `SimulationCore::make_canonical_ev0001()` so the embodied probe actually carries its real hardware loadout;
+- `ScanCommand`, `allocate_power`, and `set_energy_generation_w` exposure through `UProbeSimulationAdapter`/Blueprint (all three exist in `src/simulation/` only; no Unreal-side caller yet);
 - scan results/discovery payloads (current `ScanCommand` proves the start/validate/complete lifecycle and timing, not scan outcome content);
 - complete inspect/alter-policy interaction paths;
 - production save/load implementation;
