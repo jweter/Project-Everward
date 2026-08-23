@@ -100,6 +100,30 @@ public:
         events_.push_back({clock_.tick(), DomainEventType::ScanStarted, "scan started: " + target_id});
     }
 
+    // Explicitly abandons the active scan rather than letting it either run
+    // to completion or merely pause while capability is unavailable. This
+    // closes the residual gap named in ERROR_RESOLUTION_LEDGER.md (2026-08-22,
+    // "Active scans completed while sensor hardware was failed"): a failure
+    // pauses a scan, preserving its progress for later resumption, but until
+    // now there was no way to deliberately discard it instead. Cancellation
+    // is intentionally not gated by can_scan/sensors_operational: a scan may
+    // need to be abandoned precisely because hardware has failed or a lockout
+    // is active, and requiring the same capability the scan itself needs
+    // would make an already-locked-out scan uncancellable. Advancing the
+    // simulation with no active scan is already a harmless no-op in
+    // integrate_scan(), so cancelling one is symmetric with that.
+    void cancel_scan() {
+        if (!probe_.is_scanning) {
+            throw std::runtime_error("no scan in progress");
+        }
+
+        const std::string cancelled_target = probe_.active_scan_target_id;
+        probe_.is_scanning = false;
+        probe_.active_scan_target_id.clear();
+        probe_.scan_remaining_s = 0.0;
+        events_.push_back({clock_.tick(), DomainEventType::ScanCancelled, "scan cancelled: " + cancelled_target});
+    }
+
     void allocate_power(PowerSubsystem subsystem, double watts) {
         if (watts < 0.0) {
             throw std::invalid_argument("watts must be non-negative");

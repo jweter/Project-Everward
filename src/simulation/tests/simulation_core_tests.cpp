@@ -130,6 +130,73 @@ int main() {
         assert(scan_core.snapshot().is_scanning);
     }
 
+    // ScanCommand: cancellation. cancel_scan() rejects when no scan is in
+    // progress, and otherwise discards the active scan's target/progress
+    // immediately, emits ScanCancelled exactly once, and leaves the probe
+    // free to start a new scan right away rather than staying blocked by
+    // "scan already in progress".
+    {
+        SimulationCore cancel_core;
+
+        bool no_scan_threw = false;
+        try {
+            cancel_core.cancel_scan();
+        } catch (const std::runtime_error&) {
+            no_scan_threw = true;
+        }
+        assert(no_scan_threw);
+
+        cancel_core.start_scan("asteroid-1", 10.0);
+        (void)cancel_core.drain_events();
+        cancel_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 3);
+        assert(nearly_equal(cancel_core.snapshot().scan_remaining_s, 7.0));
+        (void)cancel_core.drain_events();
+
+        cancel_core.cancel_scan();
+        assert(!cancel_core.snapshot().is_scanning);
+        assert(cancel_core.snapshot().active_scan_target_id.empty());
+        assert(nearly_equal(cancel_core.snapshot().scan_remaining_s, 0.0));
+
+        auto cancel_events = cancel_core.drain_events();
+        assert(cancel_events.size() == 1);
+        assert(cancel_events.front().type == everward::simulation::DomainEventType::ScanCancelled);
+
+        // Advancing well past the original duration never emits a completion
+        // for the cancelled scan.
+        cancel_core.advance_wall_ticks(SimulationClock::TicksPerSecond * 20);
+        auto after_events = cancel_core.drain_events();
+        for (const auto& event : after_events) {
+            assert(event.type != everward::simulation::DomainEventType::ScanCompleted);
+        }
+
+        // A new scan can start immediately after cancellation.
+        cancel_core.start_scan("asteroid-2", 1.0);
+        assert(cancel_core.snapshot().is_scanning);
+        assert(cancel_core.snapshot().active_scan_target_id == "asteroid-2");
+    }
+
+    // ScanCommand: cancellation is not gated by can_scan. A scan paused by a
+    // probe-wide lockout (unlike ordinary progress, which cannot advance
+    // while locked out) can still be explicitly abandoned, distinguishing
+    // "pause while capability is unavailable" (integrate_scan) from
+    // deliberate cancellation.
+    {
+        SimulationCore locked_cancel_core;
+        locked_cancel_core.start_scan("asteroid-1", 5.0);
+        locked_cancel_core.set_subsystem_operational(everward::simulation::PowerSubsystem::Sensors, false);
+        (void)locked_cancel_core.drain_events();
+
+        assert(!locked_cancel_core.snapshot().can_scan);
+        assert(locked_cancel_core.snapshot().is_scanning);
+
+        locked_cancel_core.cancel_scan();
+        assert(!locked_cancel_core.snapshot().is_scanning);
+
+        auto events = locked_cancel_core.drain_events();
+        assert(events.size() == 1);
+        assert(events.front().type == everward::simulation::DomainEventType::ScanCancelled);
+    }
+
     // PowerAllocationCommand: validation.
     {
         SimulationCore power_core;
