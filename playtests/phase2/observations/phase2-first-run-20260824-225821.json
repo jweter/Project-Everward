@@ -1,0 +1,103 @@
+{
+  "observation_version": 1,
+  "test_id": "phase2-first-run",
+  "captured_at_utc": "2026-08-24T22:58:22Z",
+  "git_commit": "7f9ea88b8e7857f44f80b2f2327fde758dd2ca1a",
+  "unreal_engine_version": "5.8",
+  "host": {
+    "os": "Windows-11-10.0.26220-SP0",
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+    "gpu": "Intel(R) Iris(R) Xe Graphics",
+    "notes": "First serious local Phase-2 integrated playtest."
+  },
+  "overall_result": "partial",
+  "checks": {
+    "unreal_cpp_build": {
+      "status": "pass",
+      "notes": "EverwardEditor Win64 Development build completed successfully via Unreal Engine 5.8 Build.bat."
+    },
+    "pie_launch": {
+      "status": "pass",
+      "notes": "Play In Editor launched successfully."
+    },
+    "probe_spawn": {
+      "status": "pass",
+      "notes": "EV-0001 spawned successfully in the Phase-2 runtime environment."
+    },
+    "test_environment_visible": {
+      "status": "pass",
+      "notes": "Runtime-generated test environment and visible scan target were present and usable."
+    },
+    "camera_orbit_zoom": {
+      "status": "pass",
+      "notes": "Mouse orbit and wheel zoom worked. Camera control is presentation-only; probe attitude itself cannot yet yaw, pitch, or roll."
+    },
+    "hud_system_discovery": {
+      "status": "pass",
+      "notes": "Propulsion, Sensors, Computation, and Thermal Control were discoverable with Tab and bracket selection. Selection worked but was visually weak and easy to miss."
+    },
+    "movement_x": {
+      "status": "pass",
+      "notes": "Forward/back translation worked. Movement currently uses world-space axes rather than probe-relative orientation."
+    },
+    "movement_y": {
+      "status": "pass",
+      "notes": "Left/right translation worked."
+    },
+    "movement_z": {
+      "status": "pass",
+      "notes": "Up/down translation worked."
+    },
+    "stop_command": {
+      "status": "pass",
+      "notes": "Full stop worked well and materially improved navigation with intentionally clunky Generation-1 handling."
+    },
+    "power_allocation": {
+      "status": "pass",
+      "notes": "Power could be increased/decreased across all four systems. Player requested persistent live watts/status beside every subsystem because current per-selection visibility obscures the whole allocation."
+    },
+    "scan_complete": {
+      "status": "pass",
+      "notes": "Sensor scan could be started and allowed to complete successfully."
+    },
+    "scan_cancel": {
+      "status": "pass",
+      "notes": "A second sensor scan could be cancelled successfully and did not later complete."
+    },
+    "policy_install_clear": {
+      "status": "pass",
+      "notes": "Basic Survival policy installed and cleared successfully."
+    },
+    "policy_compute_gate": {
+      "status": "pass",
+      "notes": "Computation minimum-power gate behaved as expected: policy executor unavailable below 25 W and available at or above 25 W."
+    },
+    "manual_automation_shared_state": {
+      "status": "not_tested",
+      "notes": "Attempted with Sensors, but the expected policy-driven zeroing was not observed conclusively. This may have been because the Basic Survival energy threshold was not active. Retest with an explicit trigger state and clearer automation feedback."
+    }
+  },
+  "subjective_ratings": {
+    "embodiment": 2,
+    "hud_clarity": 2,
+    "control_discoverability": 3,
+    "generation1_clunkiness": 4,
+    "movement_readability": 3,
+    "automation_comprehension": 1,
+    "desire_to_continue": 1
+  },
+  "warnings": [
+    "No probe yaw, pitch, or roll; current translation feels world-axis/on-rails rather than like spacecraft flight.",
+    "Sensors and Thermal Control accept power changes but the gameplay consequence of those changes is not yet perceptible enough.",
+    "Automation state and causes are poorly explained; player could not confidently tell when or why Basic Survival changed subsystem state.",
+    "Systems HUD should show live power allocation and status for every installed subsystem simultaneously.",
+    "Placeholder sphere limits embodiment and the usefulness of further feel testing."
+  ],
+  "blockers": [],
+  "playtest_notes": "The engineering integration is substantially functional, but the One Probe experience is not yet compelling. Generation-1 clunkiness itself landed well (4/5), while embodiment (2/5), automation comprehension (1/5), and desire to continue (1/5) show the next pass must focus on inhabiting and understanding EV-0001 rather than adding unrelated systems. Highest-value next playable pass: authoritative attitude/orientation with yaw/pitch/roll, probe-relative movement while preserving full stop, persistent per-system power/status telemetry, explicit automation cause/effect feedback, stronger perceptible sensor/thermal power effects, and replacement of the sphere with a recognizable Prime Probe blockout including articulated manipulator arms.",
+  "evidence": [
+    "User-confirmed successful local Unreal Engine 5.8 run on commit 7f9ea88b8e7857f44f80b2f2327fde758dd2ca1a.",
+    "User-confirmed XYZ translation, full stop, subsystem power allocation, scan completion/cancellation, policy install/clear, and computation power gating.",
+    "User subjective ratings captured during the same playtest session."
+  ]
+}
