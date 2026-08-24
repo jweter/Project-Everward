@@ -30,6 +30,9 @@ jobs:
       - name: Validate repository foundation
         run: python tools/check_foundation.py
 
+      - name: Validate canonical Prime Probe reference assets
+        run: python tools/validate_reference_assets.py
+
       - name: Build production simulation core
         run: cmake -S src/simulation -B build/simulation -DCMAKE_BUILD_TYPE=Release
 
