@@ -45,9 +45,10 @@ class OneProbeProductionBootstrapTests(unittest.TestCase):
                 self.assertNotIn('#include "everward/simulation/', source)
                 self.assertNotIn("everward::simulation", source)
 
-    def test_adapter_uses_the_canonical_probe_loadout(self) -> None:
+    def test_adapter_uses_the_canonical_policy_aware_probe_runtime(self) -> None:
         adapter = (SOURCE / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
-        self.assertIn("SimulationCore::make_canonical_ev0001()", adapter)
+        self.assertIn("ProbeRuntime::make_canonical_ev0001()", adapter)
+        self.assertIn('everward/simulation/software_policy.hpp', adapter)
 
 
 if __name__ == "__main__":
