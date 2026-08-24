@@ -1,206 +1,218 @@
 # Phase 2 Kickoff Scaffold
 
-This document records the architecture boundary established by **ADR-0012** for Phase 2 — One Probe and the implementation status of that boundary after PR #68.
+This document records the architecture contract for **Phase 2 — One Probe** established by ADR-0012 and reconciles it with the implementation now present after PR #100.
 
-It elaborates `ARCHITECTURE.md`, `SIMULATION_PHILOSOPHY.md`, `SAVE_FORMAT.md`, ADR-0002, and ADR-0012. It is an architectural contract: later Phase 2 work may extend the implementation, but must preserve these ownership and dependency rules unless a later accepted ADR explicitly changes them.
+It elaborates `ARCHITECTURE.md`, `SIMULATION_PHILOSOPHY.md`, `SAVE_FORMAT.md`, ADR-0002, and ADR-0012. `PROJECT_STATUS.md` remains the operational continuation record; this file defines the Phase 2 ownership boundary and current interaction surface.
 
 ## Current implementation status
 
-**Foundation implemented.** PR #68 created the production Unreal project under `unreal/` and the first engine-independent C++20 authoritative simulation core under `src/simulation/`.
+**The One Probe slice is ready for its first local integrated Unreal Engine 5.8 playtest.**
 
-Implemented foundation:
+Implemented:
 
-- Unreal Engine 5.8 production project shell;
-- C++20 simulation core buildable/testable independently of Unreal;
-- canonical probe identity, position/velocity, mass, energy, temperature, storage, and basic capability state;
-- deterministic fixed-step movement integration;
-- domain-event delivery;
-- `UProbeSimulationAdapter` as the single Unreal-side simulation caller;
-- `AEverwardGameMode` as the production bootstrap and one default `AEverwardProbePawn` containing exactly one visible presentation, one adapter, and one camera;
-- the adapter now constructs `SimulationCore::make_canonical_ev0001()` so the embodied runtime carries the canonical probe's real hardware loadout;
-- Blueprint-visible simulation tick, position, and velocity command access;
-- `ScanCommand` (`SimulationCore::start_scan`) with validation (empty target, non-positive duration, capability gating, single concurrent scan) and `ScanStarted` / `ScanCompleted` domain events, integrated into the same fixed-step advance used for movement; `SimulationCore::cancel_scan()` explicitly abandons an active scan (rejecting when none is active) and emits `ScanCancelled`, independent of `can_scan` so a scan already paused by a lockout can still be cancelled;
-- `SimulationCore::allocate_power(PowerSubsystem, watts)` with per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against a total `power_capacity_w` budget, rejecting negative requests and any combined allocation that would exceed capacity, and emitting a `PowerAllocationChanged` domain event on success;
-- allocated power draws down `stored_energy_j` over simulated time on the same fixed-step path as movement and scan progress, clamped at zero, emitting an `EnergyDepleted` domain event on the transition from having stored energy to having none;
-- allocated power also accumulates as waste heat into `temperature_k` over simulated time on the same fixed-step path, using a `thermal_capacity_j_per_k` probe field, combined with passive Newtonian cooling back toward a new `ambient_temperature_k` field at a rate set by a new `passive_cooling_w_per_k` field, solved in closed form so `temperature_k` approaches a finite equilibrium under sustained power rather than climbing unbounded, and drifts back toward ambient once power is deallocated;
-- `temperature_k` crossing a new `max_operating_temperature_k` field triggers an overheat lockout: a new `is_overheated` flag is set and an `OverheatStarted` domain event fires; dropping back below the limit clears the flag and fires `OverheatEnded`;
-- `stored_energy_j` reaching zero similarly sets a new `is_energy_depleted` flag, reusing the existing `EnergyDepleted` event as its transition marker;
-- a new `energy_generation_w` probe field models a constant passive power supply (RTG-style, not distance-dependent solar) that offsets allocated consumption on the same fixed-step path; net generation now recharges `stored_energy_j` (clamped at `energy_capacity_j`) and clears `is_energy_depleted` via a new `EnergyRestored` domain event on the zero-to-positive transition, closing the previously one-way depletion lockout. `energy_generation_w`'s own struct default stays `0.0` (preserving an exact, generation-free baseline for the existing test suite's closed-form math) and is configured via `SimulationCore::set_energy_generation_w(watts)`; the canonical EV-0001 probe now gets a real nonzero value (`kCanonicalEv0001EnergyGenerationW`, an order-of-magnitude RTG placeholder) via a new `SimulationCore::make_canonical_ev0001()` factory, distinct from the bare `SimulationCore()` default;
-- `can_scan`/`can_thrust` are derived once per fixed step from both lockout flags combined (`is_overheated || is_energy_depleted`), so the two causes correctly stack rather than one's recovery wrongly restoring capabilities while the other remains active;
-- production-core CMake/CTest coverage in GitHub Actions.
+- production Unreal Engine 5.8 project under `unreal/`;
+- engine-independent C++20 authoritative simulation under `src/simulation/`;
+- canonical EV-0001 runtime state;
+- deterministic fixed-step movement and domain events;
+- authoritative position-driven Unreal presentation transform;
+- scan start/progress/complete/cancel lifecycle;
+- subsystem power allocation and capacity validation;
+- stored-energy consumption plus canonical passive generation;
+- thermal load, passive cooling, overheat lockout, energy-depletion lockout, and recovery where supported;
+- explicit subsystem operational-state hooks;
+- capability-driven telemetry/HUD shell;
+- shared observable commands for movement, scanning, power, and policy interaction;
+- primitive Generation-1 software policy runtime with compute-power gating;
+- adjacent-generation evolution generator foundation;
+- deterministic runtime-generated Phase-2 test environment, spatial references, visible bootstrap target, camera orbit/zoom, and three-axis temporary movement controls;
+- CMake/CTest and static Unreal source-contract coverage in GitHub Actions.
 
-Not yet implemented at this reconciliation point:
+Still intentionally incomplete:
 
-- authoritative snapshot-driven transform for the visible probe (the runtime bootstrap and presentation now exist, but remain at their spawn transform until the next slice);
-- complete component model for sensors, computation, propulsion, and thermal behavior beyond the power-allocation budget, energy/thermal effects, probe-wide lockouts, and initial explicit per-subsystem operational flags (a deterministic failure/restore hook now sheds/rejects allocation and independently gates sensor/propulsion commands; active scans pause while scanning is locked and resume afterward; failure causes, repair mechanics, and richer component health remain pending);
-- software policy state and alter-policy interaction;
-- `ScanCommand`, `allocate_power`, and `set_energy_generation_w` exposure through `UProbeSimulationAdapter`/Blueprint (all three exist in `src/simulation/` only; no Unreal-side caller yet);
-- scan results/discovery payloads (current `ScanCommand` proves the start/validate/complete lifecycle and timing, not scan outcome content);
-- complete inspect/alter-policy interaction paths;
+- real scan-result/discovery content;
+- real world-object targeting;
+- final propulsion/attitude model;
+- rich component health/wear/failure and repair mechanics;
 - production save/load implementation;
+- final software-programming workspace;
+- production Prime Probe mesh/material integration;
 - stronger-hardware production validation capture.
 
-`PROJECT_STATUS.md` is the authoritative continuation record for which of these is next.
+These omissions do not block the first local Phase-2 integration run. See `PHASE2_FIRST_RUN_PLAYTEST.md`.
 
-## 1. Repository layout
+## 1. Repository and ownership boundary
 
-### 1.1 Unreal project root: `unreal/`
+### Unreal project
 
-The production Unreal project lives at the top-level `unreal/` directory, sibling to `src/`, `prototypes/`, `tests/`, `tools/`, `assets/`, and `docs/`.
+The production Unreal project lives under `unreal/`. Historical Phase 1 benchmark projects under `prototypes/` remain evidence, not production gameplay code.
+
+### Simulation truth
+
+`src/simulation/` owns mechanical truth and must remain buildable/testable without Unreal dependencies.
+
+Unreal owns:
+
+- presentation;
+- local input translation;
+- camera;
+- HUD rendering;
+- temporary integration-environment actors;
+- adapter calls into authoritative runtime.
+
+Unreal does **not** independently decide trajectories, scan lifecycle outcomes, energy, heat, subsystem availability, policy effects, or successor capability logic.
+
+### Adapter boundary
+
+`UProbeSimulationAdapter` is the designated Unreal-side boundary into the authoritative One Probe runtime. Presentation classes must not include or call simulation-core implementation directly.
+
+The dependency remains:
 
 ```text
-unreal/
-├── Everward.uproject
-├── Config/               # as production configuration is added
-├── Content/              # production content as it is added
-├── Source/
-│   └── Everward/
-└── README.md
+Unreal input / HUD / presentation
+             |
+             v
+UProbeSimulationAdapter
+             |
+             v
+ProbeRuntime / SimulationCore
+             |
+             v
+authoritative state + domain events
 ```
 
-`prototypes/rendering-benchmark/unreal/` remains frozen historical Phase 1 evidence. It is not the production game project.
+## 2. State channel — simulation to presentation
 
-### 1.2 Simulation core: `src/simulation/`
+The current Phase 2 snapshot/read model includes enough state for the first integrated playtest:
 
-The authoritative simulation core is production C++20 code under `src/simulation/`, compiled independently with CMake/CTest and consumed by the Unreal adapter without introducing Unreal dependencies into simulation truth.
+| Field group | Current state |
+|---|---|
+| Identity | probe ID and generation |
+| Position / velocity | authoritative metres and m/s; Unreal converts position to centimetres once at boundary |
+| Mass | total mass present; component breakdown later |
+| Energy | stored/capacity/generation plus subsystem allocations and total budget |
+| Thermal | current temperature, ambient/passive cooling, operating limit, overheat state |
+| Storage | used/capacity scaffold present; inventory mechanics later |
+| Sensors | capability/operational state, active target, scan remaining time |
+| Computation | operational state, allocated power, primitive policy executor availability |
+| Propulsion | operational/capability state plus current velocity command path |
+| Thermal control | operational state and allocation |
+| Software | active primitive policy ID/rule count/executor state through the runtime read model |
 
-The longer-term logical module decomposition remains the architecture target:
+Future component-level detail should extend this model rather than allowing Unreal presentation to create a second source of truth.
+
+## 3. Command channel — presentation/automation to simulation
+
+Every mutating mechanical interaction follows:
+
+> **Command -> validation -> authoritative state transition -> domain event/readback**
+
+Current command surfaces include:
+
+- set velocity;
+- start scan;
+- cancel scan;
+- allocate subsystem power;
+- install/clear the temporary Generation-1 policy through the runtime control surface.
+
+Manual and automated actions must converge on the same authoritative mechanics.
+
+For example, a manual power change and a software-policy power change both resolve through `SimulationCore::allocate_power()` rather than maintaining separate UI-owned and automation-owned values.
+
+Command rejection must remain observable and explainable to the player.
+
+## 4. Generation-1 software policy boundary
+
+Generation 1 deliberately starts with crude automation:
+
+- one active policy;
+- at most two simple rules;
+- scalar energy/temperature conditions;
+- power-allocation actions;
+- policy execution only while computation is operational and receives at least 25 W.
+
+This is proof of architecture, not the final programming language.
+
+The physical-computation rule is mandatory: software sophistication is constrained by installed compute hardware and available power. Later generations may gain richer state, planning depth, concurrency, simulation, and automation, but should do so through evolved capability rather than free UI privilege.
+
+## 5. Capability-driven interface rule
+
+There is no universal player ability list.
+
+The intended dependency is:
 
 ```text
-src/simulation/
-├── time/
-├── coordinates/
-├── probe/
-├── environment/
-├── software_policy/
-└── boundary/
+installed hardware/software
+    -> capability descriptors
+    -> telemetry + authoritative commands
+    -> manual HUD controls
+    -> automation/script surfaces
 ```
 
-The initial PR #68 implementation is intentionally smaller than that final decomposition. New Phase 2 mechanics should be separated into these responsibilities as they become substantive rather than prematurely creating empty modules.
+A descendant that gains new hardware may expose new commands and information unavailable to its parent. Unknown future capabilities must be addable without redesigning the whole HUD or simulation boundary.
 
-`astronomy`, `industry`, `research`, `engineering`, `messages`, `lineage`, `autonomous_agency`, `difficulty`, and `history` remain later-phase concerns unless required by an earlier accepted gate.
+## 6. Fixed-step simulation and units
 
-### 1.3 Promotion rules
+The Unreal adapter advances authoritative runtime through a fixed-step accumulator. Variable render-frame timing does not directly author mechanical state.
 
-Phase 1 Python prototypes remain technical evidence, not shipping runtime code. Production promotion means reimplementing proven behavior in production-appropriate code while preserving its tested invariants.
+Canonical simulation units remain engine-independent, including metres, seconds/ticks, kelvin, joules/watts, and kilograms.
 
-Promoted simulation code must:
+Unreal presentation uses centimetres. Unit conversion occurs at the adapter/presentation boundary and must not leak into authoritative simulation state.
 
-1. remain buildable and testable with zero Unreal header/type dependency;
-2. preserve deterministic behavior;
-3. reproduce relevant golden fixtures where a prototype fixture actually applies;
-4. leave historical prototype evidence intact rather than rewriting it into production code.
+## 7. Phase-2 test environment
 
-### 1.4 Ownership boundary
+`AEverwardGameMode` creates a deterministic temporary integration environment at runtime so a clean checkout can produce the same first-run setup without an authored `.umap`.
 
-- Mechanical truth does not live under `unreal/Source/`.
-- Unreal code owns presentation, input translation, and the adapter boundary only.
-- No Unreal Actor, Component, Blueprint, or widget may call `src/simulation/` directly except through the designated adapter type.
-- No Unreal-specific type or unit representation belongs in authoritative simulation state.
+The temporary environment includes:
 
-## 2. Authoritative-state/presentation boundary
+- deterministic player start;
+- visible target `phase2-test-target-001` about 50 m along +X;
+- six fixed spatial-reference markers;
+- temporary lighting;
+- camera orbit/zoom support;
+- temporary three-axis velocity-trim controls.
 
-### 2.1 Principle
+This environment is test scaffolding. It must not accumulate Phase 3 astronomy, resource truth, collision gameplay, or final production content.
 
-"Unreal reads authoritative simulation state without owning it" means:
-
-- Unreal does not independently decide scan results, trajectories, energy outcomes, thermal outcomes, component capabilities, or policy effects.
-- Unreal reads simulation-produced state/events and submits commands for the simulation to validate and resolve.
-- Values crossing the boundary are plain data, not mutable references into simulation-owned objects.
-
-### 2.2 State channel — simulation → presentation
-
-The complete Phase 2 target snapshot contains:
-
-| Field group | Target contents | Current status |
-|---|---|---|
-| Identity | probe ID, design ID, lineage ID, generation | foundation present; extend as Phase 2 requires |
-| Position / velocity | canonical simulation-space position and velocity | implemented |
-| Mass | total and component mass | initial total state present; component breakdown pending |
-| Energy | generation, storage, charge, subsystem consumption | initial energy state present; per-subsystem power allocation (sensors, propulsion, computation, thermal) validated against total capacity is present; allocated power draws down stored energy over simulated time, net of a configurable constant passive `energy_generation_w` supply (`EnergyDepleted` on depletion, `EnergyRestored` on recharge back above zero); depletion sets `is_energy_depleted` and locks out `can_scan`/`can_thrust` alongside the overheat lockout, restored on recharge; `energy_generation_w`'s struct default stays `0.0` (test-isolation baseline), and the canonical probe now gets a real nonzero value via `SimulationCore::make_canonical_ev0001()`, wired into `UProbeSimulationAdapter::BeginPlay()`; any distance-dependent solar model remains pending |
-| Thermal | thermally relevant component temperatures and limits | initial temperature state present; allocated power (`total_power_allocated_w()`) accumulates as waste heat into `temperature_k` over simulated time on the same fixed-step path as movement/scan/energy, combined with passive Newtonian cooling back toward `ambient_temperature_k` so sustained load approaches a finite equilibrium rather than climbing unbounded; `temperature_k` crossing `max_operating_temperature_k` now clears `can_scan`/`can_thrust` and fires `OverheatStarted`/`OverheatEnded`; per-component thermal limits beyond this probe-wide response remain pending |
-| Storage | resource inventory and capacity | initial storage state present; inventory mechanics pending |
-| Sensors | sensor components, targets, progress, scan-result references | scan lifecycle state (`is_scanning`, active target, remaining duration) present; sensor components and scan-result content pending |
-| Computation | compute components, utilization, policy assignment | pending |
-| Propulsion | propulsion components, thrust/budget, maneuver state | basic velocity command path present; full propulsion model pending |
-| Component capabilities | operational state and capability flags | basic capability state present; component model pending |
-| Software state | active policy and autonomy parameters | pending |
-
-Domain events carry discrete simulation happenings so presentation can react without becoming authoritative.
-
-### 2.3 Command channel — presentation → simulation
-
-The Phase 2 interaction contract remains:
-
-| Interaction | Boundary behavior | Status |
-|---|---|---|
-| Observe | read current authoritative snapshot/events | foundation present |
-| Inspect | read component/system state | minimal state available; HUD/read model pending |
-| Scan | validated scan command and lifecycle events | `src/simulation/` command/lifecycle present (`start_scan`, `cancel_scan`, `ScanStarted`/`ScanCompleted`/`ScanCancelled`); Unreal-side command path and scan-result content pending |
-| Move | validated movement/trajectory request | initial velocity-command path present |
-| Manage power | validated allocation request | `src/simulation/` command/validation present (`allocate_power`, `PowerAllocationChanged`); Unreal-side command path and component-level power effects pending |
-| Alter policy | validated software-policy request | pending |
-
-Every mutating command follows:
-
-> Command → Validation → State transition → Domain event
-
-Presentation may surface rejection but must not bypass it.
-
-### 2.4 Cadence and simulation time
-
-The Unreal adapter is the sole Unreal-side driver/caller of the simulation core. It uses a fixed-step accumulator rather than allowing raw variable render-frame timing to directly author mechanical state.
-
-The adapter:
-
-1. accumulates rendered frame delta;
-2. drains whole fixed simulation steps;
-3. advances authoritative simulation for each whole step;
-4. reads the resulting snapshot/events;
-5. converts canonical values for presentation;
-6. submits player commands back to the simulation core.
-
-This fixed-step rule is implemented in PR #68 and supersedes the documentation-only repair attempted in PR #67.
-
-### 2.5 Units
-
-Canonical simulation values use engine-independent units such as metres, seconds/ticks, kelvin, joules/watts, and kilograms. Unreal world-space presentation uses centimetres.
-
-Conversion occurs at the adapter/presentation boundary. It must not leak into `src/simulation/` or be performed multiple times for the same value.
-
-### 2.6 Persistence
+## 8. Persistence
 
 Canonical campaign saves remain simulation-owned, explicitly versioned data per ADR-0004 and `SAVE_FORMAT.md`. Unreal object serialization is not the canonical campaign-save architecture.
 
-Presentation-only preferences may eventually be stored separately, but must not become authoritative simulation state.
+Production save/load remains pending and does not block the first integrated Phase-2 run.
 
-## 3. Residual rendering risk
+## 9. Residual rendering risk
 
-Phase 1 hardware evidence on Intel Iris Xe at 2560×1440 recorded a GPU frame time of 61.63 ms and internal rendering around 60.3% resolution. That missed the 60 FPS target on that hardware and demonstrated meaningful GPU risk.
+Phase 1 hardware evidence showed meaningful GPU risk on weaker integrated hardware. That remains tracked but does not justify lowering the cinematic scientific-realism product target.
 
-This remains a tracked production risk, not a blocker on Phase 2:
+Phase 2 should stay visually minimal enough to test embodiment and controls while production visual work begins from the canonical Prime Probe references in parallel.
 
-- keep the first One Probe runtime scene representative but deliberately minimal;
-- make scalability/resolution choices explicit rather than hidden;
-- do not use early Phase 2 as an excuse to lower the visual product target;
-- validate the production One Probe slice on stronger discrete-GPU hardware when available.
+## 10. Phase 2 gate and next evidence
 
-The final product target remains cinematic, immersive, high-fidelity 3D scientific realism.
+The roadmap-required interaction set is now represented in the current slice:
 
-## 4. Current Phase 2 implementation boundary
+- observe;
+- scan;
+- move;
+- inspect systems;
+- manage power;
+- alter a basic software policy.
 
-The kickoff foundation is implemented, but the Phase 2 gate is **not** satisfied merely because the project and simulation core compile.
+The next step is not to declare the phase complete from source code alone. Run `PHASE2_FIRST_RUN_PLAYTEST.md` locally in Unreal Engine 5.8 and capture the structured observation.
 
-Work remains inside Phase 2 until the player can meaningfully inhabit one probe and use the complete required interaction set: observe, scan, move, inspect systems, manage power, and alter basic software policies.
+Passing the integration protocol proves the slice works end-to-end. The actual Phase 2 product gate remains:
 
-Do not use this scaffold to justify premature Phase 3+ implementation. `ROADMAP.md` defines phase order and `PROJECT_STATUS.md` defines the exact continuation point.
+> **Simply existing as the probe is compelling.**
+
+That requires direct playtest iteration.
 
 ## See also
 
-- `PROJECT_STATUS.md` — current operational continuation point.
-- `ROADMAP.md` — authoritative phase sequence and gates.
-- `ARCHITECTURE.md` — logical layers and hard boundaries.
-- `SIMULATION_PHILOSOPHY.md` — simulation truth and determinism.
+- `PROJECT_STATUS.md` — current continuation point;
+- `PHASE2_FIRST_RUN_ENVIRONMENT.md` — temporary integration environment;
+- `PHASE2_FIRST_RUN_PLAYTEST.md` — local evidence protocol;
+- `HUD_AND_CONTROL_INTERFACE.md` — HUD/control architecture;
+- `GEN1_SOFTWARE_POLICY.md` — primitive automation design;
+- `GENERATION_ORIGIN_AND_EVOLUTION.md` — Generation-1 origin/open-ended evolution doctrine;
+- `ADJACENT_GENERATION_EVOLUTION.md` — successor-option generator architecture;
+- `ROADMAP.md` — phase ordering and gates;
+- `ARCHITECTURE.md` — global logical layers/boundaries;
 - `SAVE_FORMAT.md` — persistence contract.
-- `DECISION_LOG.md` ADR-0002 and ADR-0012 — accepted ownership/boundary decisions.
-- `unreal/README.md` — production Unreal project boundary notes.
