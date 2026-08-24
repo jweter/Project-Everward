@@ -1,5 +1,17 @@
 # Generation-1 Prime Probe — Modeling Checklist
 
+## Reference-package preflight
+
+Before starting or reviewing derived work, run:
+
+```bash
+python tools/validate_reference_assets.py
+```
+
+This verifies every canonical/exploratory source image against the versioned
+SHA-256 and pixel dimensions. A mismatch is provenance drift and must be
+resolved explicitly; do not silently replace a canonical source.
+
 ## Blockout gate
 
 - overall length and width match the canonical scale sheet closely enough for gameplay camera evaluation;
