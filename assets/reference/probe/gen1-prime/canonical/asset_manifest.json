@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "asset_family": "Everward Generation-1 Prime Probe",
+  "records": [
+    {
+      "path": "canonical/01_master_design_reference.jpeg",
+      "sha256": "6b48f044011cab32a17857758ab72d5b2917802ffa843a9ca24dc1a334d05654",
+      "width": 1536,
+      "height": 1024,
+      "classification": "canonical"
+    },
+    {
+      "path": "canonical/02_orthographic_six_view.jpeg",
+      "sha256": "a1d6cc11826499ed33c5f511b77f76629da3bbbf68c58932f4e406ee9cd70906",
+      "width": 1536,
+      "height": 1024,
+      "classification": "canonical"
+    },
+    {
+      "path": "canonical/03_dimensions_and_scale.jpeg",
+      "sha256": "54946dbb4edd01314020fa9d57a9a465681646734156a5e1106b90f2a7108382",
+      "width": 1536,
+      "height": 1024,
+      "classification": "canonical"
+    },
+    {
+      "path": "canonical/04_component_system_callouts.jpeg",
+      "sha256": "4fa8245e077fa11155faf2a2d52d8e9d44bb4938d85d6ca545ec91447445661c",
+      "width": 1536,
+      "height": 1024,
+      "classification": "canonical"
+    },
+    {
+      "path": "canonical/05_deployment_configurations.jpeg",
+      "sha256": "86355f49e8db5a7fb29d35fefcd9cde82182a1f29f19e684d66409ef3de60ead",
+      "width": 1536,
+      "height": 1024,
+      "classification": "canonical"
+    },
+    {
+      "path": "canonical/06_manipulator_and_tools.jpeg",
+      "sha256": "32b810215c45a7f50ff5f960f7c6629f532b03bf24599242402fd25cd121cea0",
+      "width": 1536,
+      "height": 1024,
+      "classification": "canonical"
+    },
+    {
+      "path": "canonical/07_materials_and_surface_detail.jpeg",
+      "sha256": "26c755160ac5dcbbba3e5f0d31515bda7ce9bf43722f8d12a89aa50f6e3ddfbd",
+      "width": 1536,
+      "height": 1024,
+      "classification": "canonical"
+    },
+    {
+      "path": "exploratory/design_b_industrial_alternate.jpeg",
+      "sha256": "f7783cd776cbbb9fae8f6d08ef6bc879c7324ab6bac48275a904a28efb689bb5",
+      "width": 1536,
+      "height": 1024,
+      "classification": "exploratory"
+    },
+    {
+      "path": "exploratory/design_c_advanced_alternate.jpeg",
+      "sha256": "2682932b4781148f5562a2a9551dc40f4e4100539474392b3882211147d44be9",
+      "width": 1536,
+      "height": 1024,
+      "classification": "exploratory"
+    }
+  ]
+}
