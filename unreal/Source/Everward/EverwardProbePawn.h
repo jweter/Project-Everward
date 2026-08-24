@@ -20,6 +20,9 @@ class EVERWARD_API AEverwardProbePawn : public APawn
 public:
     AEverwardProbePawn();
 
+    UFUNCTION(BlueprintPure, Category="Everward|Probe")
+    UProbeSimulationAdapter* GetSimulationAdapter() const { return SimulationAdapter; }
+
 private:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UStaticMeshComponent> ProbeMesh;
