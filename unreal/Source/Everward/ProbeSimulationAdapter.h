@@ -6,7 +6,7 @@
 
 namespace everward::simulation
 {
-class SimulationCore;
+class ProbeRuntime;
 }
 
 UENUM(BlueprintType)
@@ -34,6 +34,30 @@ struct EVERWARD_API FEverwardProbeCommandResult
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Command")
     FString Detail;
+};
+
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardSoftwarePolicyStatus
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Policy")
+    bool bInstalled = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Policy")
+    bool bEnabled = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Policy")
+    bool bExecutorAvailable = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Policy")
+    FString PolicyId;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Policy")
+    int32 RuleCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Policy")
+    double MinimumComputationPowerWatts = 0.0;
 };
 
 USTRUCT(BlueprintType)
@@ -168,6 +192,9 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Simulation")
     TArray<FEverwardProbeCapability> GetInstalledCapabilities() const;
 
+    UFUNCTION(BlueprintPure, Category="Everward|Policy")
+    FEverwardSoftwarePolicyStatus GetSoftwarePolicyStatus() const;
+
     UFUNCTION(BlueprintPure, Category="Everward|Command")
     FEverwardProbeCommandResult GetLastCommandResult() const;
 
@@ -185,6 +212,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandAllocatePower(EEverwardPowerSubsystem Subsystem, double Watts);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandInstallBasicSurvivalPolicy();
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandClearSoftwarePolicy();
 
     // Compatibility wrapper retained for existing Blueprint/source callers.
     // New control surfaces should use CommandSetVelocityMetersPerSecond so
@@ -204,5 +237,5 @@ private:
     double FixedStepAccumulatorSeconds = 0.0;
     int64 CommandSequence = 0;
     FEverwardProbeCommandResult LastCommandResult;
-    everward::simulation::SimulationCore* Core = nullptr;
+    everward::simulation::ProbeRuntime* Core = nullptr;
 };
