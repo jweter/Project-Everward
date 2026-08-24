@@ -214,7 +214,8 @@ void AEverwardHUD::DrawHUD()
         false);
     Y += 22.0f;
     DrawText(
-        FString::Printf(TEXT("MANUAL  %s   //   AUTOMATION  %s"),
+        FString::Printf(
+            TEXT("MANUAL CONTROL  %s   //   AUTOMATION API  %s"),
             Selected.bSupportsManualControl ? TEXT("YES") : TEXT("N/A"),
             Selected.bSupportsAutomation ? TEXT("YES") : TEXT("N/A")),
         MutedColor,
