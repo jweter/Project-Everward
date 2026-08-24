@@ -36,8 +36,9 @@ class ManifestValidationTests(unittest.TestCase):
         self._temp = tempfile.TemporaryDirectory()
         self.root = Path(self._temp.name)
         self.assets = self.root / "assets"
-        self.assets.mkdir()
-        self.image = self.assets / "canonical.jpeg"
+        (self.assets / "canonical").mkdir(parents=True)
+        (self.assets / "exploratory").mkdir()
+        self.image = self.assets / "canonical/canonical.jpeg"
         self.image.write_bytes(_jpeg())
         self.manifest = self.root / "manifest.json"
 
@@ -46,7 +47,7 @@ class ManifestValidationTests(unittest.TestCase):
 
     def write_manifest(self, **overrides: object) -> None:
         record: dict[str, object] = {
-            "path": "canonical.jpeg",
+            "path": "canonical/canonical.jpeg",
             "sha256": hashlib.sha256(self.image.read_bytes()).hexdigest(),
             "width": 3,
             "height": 2,
@@ -78,6 +79,26 @@ class ManifestValidationTests(unittest.TestCase):
     def test_rejects_path_escape(self) -> None:
         self.write_manifest(path="../outside.jpeg")
         self.assertIn("must stay inside", "\n".join(self.validate()))
+
+    def test_rejects_symlink_escape(self) -> None:
+        outside = self.root / "outside.jpeg"
+        outside.write_bytes(_jpeg())
+        link = self.assets / "canonical/link.jpeg"
+        link.symlink_to(outside)
+        self.write_manifest(
+            path="canonical/link.jpeg",
+            sha256=hashlib.sha256(outside.read_bytes()).hexdigest(),
+        )
+        self.assertIn("resolved path must stay inside", "\n".join(self.validate()))
+
+    def test_reports_an_unlisted_reference_image(self) -> None:
+        self.write_manifest()
+        (self.assets / "exploratory/unlisted.jpeg").write_bytes(_jpeg())
+        self.assertIn("not listed in the manifest", "\n".join(self.validate()))
+
+    def test_requires_classification_to_match_directory(self) -> None:
+        self.write_manifest(classification="exploratory")
+        self.assertIn("classification must match", "\n".join(self.validate()))
 
 
 if __name__ == "__main__":
