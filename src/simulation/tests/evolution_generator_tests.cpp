@@ -55,6 +55,10 @@ int main() {
     {
         EvolutionContext blocked = AdjacentEvolutionGenerator::make_canonical_ev0001_context(snapshot);
         blocked.requested_option_limit = 32;
+        // High computation here deliberately lets the test inspect the full
+        // nearby frontier rather than having Generation-1's small design-
+        // evaluation budget hide a valid infrared candidate from the result.
+        blocked.computation_maturity = 64.0;
         blocked.science_maturity = 1.20;
         blocked.fabrication_maturity = 1.10;
         auto available = generator.generate(blocked);
