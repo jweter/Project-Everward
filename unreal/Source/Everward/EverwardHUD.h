@@ -21,6 +21,12 @@ public:
     UFUNCTION(BlueprintCallable, Category="Everward|HUD")
     void SelectPreviousCapability();
 
+    UFUNCTION(BlueprintPure, Category="Everward|HUD")
+    bool IsSystemsPanelExpanded() const;
+
+    UFUNCTION(BlueprintPure, Category="Everward|HUD")
+    int32 GetSelectedCapabilityIndex() const;
+
 private:
     bool bSystemsExpanded = false;
     int32 SelectedCapabilityIndex = 0;
