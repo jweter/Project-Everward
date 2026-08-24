@@ -23,6 +23,9 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Probe")
     UProbeSimulationAdapter* GetSimulationAdapter() const { return SimulationAdapter; }
 
+    UFUNCTION(BlueprintCallable, Category="Everward|Camera")
+    void AdjustCameraZoom(float DeltaCentimeters);
+
 private:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UStaticMeshComponent> ProbeMesh;
@@ -35,4 +38,10 @@ private:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Camera", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UCameraComponent> ProbeCamera;
+
+    UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="100.0"))
+    float MinCameraDistanceCentimeters = 350.0f;
+
+    UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="100.0"))
+    float MaxCameraDistanceCentimeters = 1400.0f;
 };

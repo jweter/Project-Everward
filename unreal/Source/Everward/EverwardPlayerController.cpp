@@ -1,6 +1,7 @@
 #include "EverwardPlayerController.h"
 
 #include "EverwardHUD.h"
+#include "EverwardPhase2TestEnvironment.h"
 #include "EverwardProbePawn.h"
 #include "InputCoreTypes.h"
 #include "ProbeSimulationAdapter.h"
@@ -33,6 +34,15 @@ bool ResolvePowerSubsystem(FName CapabilityId, EEverwardPowerSubsystem& OutSubsy
 }
 }
 
+void AEverwardPlayerController::BeginPlay()
+{
+    Super::BeginPlay();
+
+    bShowMouseCursor = false;
+    FInputModeGameOnly InputMode;
+    SetInputMode(InputMode);
+}
+
 void AEverwardPlayerController::SetupInputComponent()
 {
     Super::SetupInputComponent();
@@ -42,6 +52,10 @@ void AEverwardPlayerController::SetupInputComponent()
         return;
     }
 
+    InputComponent->BindAxis(TEXT("EverwardLookYaw"), this, &AEverwardPlayerController::LookYaw);
+    InputComponent->BindAxis(TEXT("EverwardLookPitch"), this, &AEverwardPlayerController::LookPitch);
+    InputComponent->BindAxis(TEXT("EverwardCameraZoom"), this, &AEverwardPlayerController::ZoomCamera);
+
     InputComponent->BindKey(EKeys::Tab, IE_Pressed, this, &AEverwardPlayerController::ToggleSystemsPanel);
     InputComponent->BindKey(EKeys::RightBracket, IE_Pressed, this, &AEverwardPlayerController::SelectNextCapability);
     InputComponent->BindKey(EKeys::LeftBracket, IE_Pressed, this, &AEverwardPlayerController::SelectPreviousCapability);
@@ -50,6 +64,16 @@ void AEverwardPlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::BackSpace, IE_Pressed, this, &AEverwardPlayerController::ExecuteSecondarySystemAction);
     InputComponent->BindKey(EKeys::PageUp, IE_Pressed, this, &AEverwardPlayerController::IncreaseSelectedSystemPower);
     InputComponent->BindKey(EKeys::PageDown, IE_Pressed, this, &AEverwardPlayerController::DecreaseSelectedSystemPower);
+
+    InputComponent->BindKey(EKeys::W, IE_Pressed, this, &AEverwardPlayerController::IncreaseForwardVelocity);
+    InputComponent->BindKey(EKeys::S, IE_Pressed, this, &AEverwardPlayerController::DecreaseForwardVelocity);
+    InputComponent->BindKey(EKeys::D, IE_Pressed, this, &AEverwardPlayerController::IncreaseLateralVelocity);
+    InputComponent->BindKey(EKeys::A, IE_Pressed, this, &AEverwardPlayerController::DecreaseLateralVelocity);
+    InputComponent->BindKey(EKeys::E, IE_Pressed, this, &AEverwardPlayerController::IncreaseVerticalVelocity);
+    InputComponent->BindKey(EKeys::Q, IE_Pressed, this, &AEverwardPlayerController::DecreaseVerticalVelocity);
+
+    // Retain the original engineering-shell aliases while the final input
+    // model remains intentionally unsettled.
     InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AEverwardPlayerController::IncreaseForwardVelocity);
     InputComponent->BindKey(EKeys::Down, IE_Pressed, this, &AEverwardPlayerController::DecreaseForwardVelocity);
     InputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &AEverwardPlayerController::StopPropulsion);
@@ -91,7 +115,9 @@ void AEverwardPlayerController::ExecutePrimarySystemAction()
     const FName CapabilityId = GetSelectedCapabilityId();
     if (CapabilityId == FName(TEXT("sensors")))
     {
-        (void)Adapter->CommandStartScan(Phase2ScanTargetId, Phase2ScanDurationSeconds);
+        (void)Adapter->CommandStartScan(
+            FString(AEverwardPhase2TestEnvironment::BootstrapScanTargetId),
+            Phase2ScanDurationSeconds);
     }
     else if (CapabilityId == FName(TEXT("computation")))
     {
@@ -131,12 +157,32 @@ void AEverwardPlayerController::DecreaseSelectedSystemPower()
 
 void AEverwardPlayerController::IncreaseForwardVelocity()
 {
-    AdjustForwardVelocity(VelocityAdjustmentMetersPerSecond);
+    AdjustVelocityMetersPerSecond(FVector(VelocityAdjustmentMetersPerSecond, 0.0, 0.0));
 }
 
 void AEverwardPlayerController::DecreaseForwardVelocity()
 {
-    AdjustForwardVelocity(-VelocityAdjustmentMetersPerSecond);
+    AdjustVelocityMetersPerSecond(FVector(-VelocityAdjustmentMetersPerSecond, 0.0, 0.0));
+}
+
+void AEverwardPlayerController::IncreaseLateralVelocity()
+{
+    AdjustVelocityMetersPerSecond(FVector(0.0, VelocityAdjustmentMetersPerSecond, 0.0));
+}
+
+void AEverwardPlayerController::DecreaseLateralVelocity()
+{
+    AdjustVelocityMetersPerSecond(FVector(0.0, -VelocityAdjustmentMetersPerSecond, 0.0));
+}
+
+void AEverwardPlayerController::IncreaseVerticalVelocity()
+{
+    AdjustVelocityMetersPerSecond(FVector(0.0, 0.0, VelocityAdjustmentMetersPerSecond));
+}
+
+void AEverwardPlayerController::DecreaseVerticalVelocity()
+{
+    AdjustVelocityMetersPerSecond(FVector(0.0, 0.0, -VelocityAdjustmentMetersPerSecond));
 }
 
 void AEverwardPlayerController::StopPropulsion()
@@ -151,6 +197,35 @@ void AEverwardPlayerController::StopPropulsion()
     if (GetSelectedCapabilityId() == FName(TEXT("propulsion")))
     {
         (void)Adapter->CommandSetVelocityMetersPerSecond(FVector::ZeroVector);
+    }
+}
+
+void AEverwardPlayerController::LookYaw(float Value)
+{
+    if (!FMath::IsNearlyZero(Value))
+    {
+        AddYawInput(Value * MouseLookSensitivity);
+    }
+}
+
+void AEverwardPlayerController::LookPitch(float Value)
+{
+    if (!FMath::IsNearlyZero(Value))
+    {
+        AddPitchInput(Value * MouseLookSensitivity);
+    }
+}
+
+void AEverwardPlayerController::ZoomCamera(float Value)
+{
+    if (FMath::IsNearlyZero(Value))
+    {
+        return;
+    }
+
+    if (AEverwardProbePawn* Probe = Cast<AEverwardProbePawn>(GetPawn()))
+    {
+        Probe->AdjustCameraZoom(-Value * CameraZoomStepCentimeters);
     }
 }
 
@@ -217,7 +292,7 @@ void AEverwardPlayerController::AdjustSelectedSystemPower(double DeltaWatts)
     (void)Adapter->CommandAllocatePower(Subsystem, RequestedWatts);
 }
 
-void AEverwardPlayerController::AdjustForwardVelocity(double DeltaMetersPerSecond)
+void AEverwardPlayerController::AdjustVelocityMetersPerSecond(const FVector& DeltaVelocity)
 {
     const AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD());
     UProbeSimulationAdapter* Adapter = GetProbeAdapter();
@@ -232,6 +307,6 @@ void AEverwardPlayerController::AdjustForwardVelocity(double DeltaMetersPerSecon
     }
 
     FVector RequestedVelocity = Adapter->GetProbeTelemetry().VelocityMetersPerSecond;
-    RequestedVelocity.X += DeltaMetersPerSecond;
+    RequestedVelocity += DeltaVelocity;
     (void)Adapter->CommandSetVelocityMetersPerSecond(RequestedVelocity);
 }

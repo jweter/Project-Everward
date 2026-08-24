@@ -12,6 +12,7 @@ class EVERWARD_API AEverwardPlayerController : public APlayerController
     GENERATED_BODY()
 
 protected:
+    virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
 
 private:
@@ -23,21 +24,24 @@ private:
     void ExecuteSecondarySystemAction();
     void IncreaseSelectedSystemPower();
     void DecreaseSelectedSystemPower();
+
     void IncreaseForwardVelocity();
     void DecreaseForwardVelocity();
+    void IncreaseLateralVelocity();
+    void DecreaseLateralVelocity();
+    void IncreaseVerticalVelocity();
+    void DecreaseVerticalVelocity();
     void StopPropulsion();
+
+    void LookYaw(float Value);
+    void LookPitch(float Value);
+    void ZoomCamera(float Value);
 
     UProbeSimulationAdapter* GetProbeAdapter() const;
     FName GetSelectedCapabilityId() const;
     double GetSelectedCapabilityAllocatedPowerWatts() const;
     void AdjustSelectedSystemPower(double DeltaWatts);
-    void AdjustForwardVelocity(double DeltaMetersPerSecond);
-
-    // Temporary Phase-2 target until Phase 3 introduces real world-object
-    // targeting. It keeps the command path testable without pretending that
-    // target selection already exists.
-    UPROPERTY(EditAnywhere, Category="Everward|Phase2")
-    FString Phase2ScanTargetId = TEXT("phase2-bootstrap-target");
+    void AdjustVelocityMetersPerSecond(const FVector& DeltaVelocity);
 
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double Phase2ScanDurationSeconds = 10.0;
@@ -47,4 +51,10 @@ private:
 
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double VelocityAdjustmentMetersPerSecond = 1.0;
+
+    UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="0.01"))
+    float MouseLookSensitivity = 0.75f;
+
+    UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="1.0"))
+    float CameraZoomStepCentimeters = 120.0f;
 };

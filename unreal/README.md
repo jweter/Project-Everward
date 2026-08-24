@@ -18,6 +18,34 @@ The Phase 2 runtime bootstrap supplies `AEverwardGameMode` and one default `AEve
 
 The adapter synchronizes the pawn's actor location from the authoritative runtime snapshot after deterministic fixed-step simulation advancement. The pawn does not author its own mechanical position.
 
+## Reproducible Phase-2 first-run environment
+
+The production project still does not contain an authored Phase-3 star-system map. Instead, `AEverwardGameMode::InitGame()` creates a temporary Phase-2 integration environment entirely from source so every clean checkout can run the same One Probe test.
+
+The bootstrap now creates:
+
+- a deterministic `APlayerStart` at the world origin;
+- `AEverwardPhase2TestEnvironment`;
+- one visible scan target 50 m along +X;
+- six spatial reference markers for parallax and movement perception;
+- a temporary point light so visibility does not depend on the editor map;
+- an in-world label: `PHASE-2 TARGET // SCAN-001`.
+
+The visible target's canonical temporary identifier is `phase2-test-target-001`. The Sensors action uses that exact identifier. This is not real targeting; Phase 3 must replace it with selected world-object state.
+
+See `docs/PHASE2_FIRST_RUN_ENVIRONMENT.md`.
+
+## Camera controls
+
+The first-run third-person camera is presentation-only:
+
+- mouse X: orbit yaw;
+- mouse Y: orbit pitch;
+- mouse wheel: zoom;
+- zoom is clamped to a practical inspection range.
+
+Camera movement never authors probe position or other simulation state.
+
 ## Capability-driven HUD and command shell
 
 `AEverwardHUD` is the first production HUD/control shell. It intentionally avoids a permanently expanded cockpit interface:
@@ -78,14 +106,21 @@ The HUD displays the installed policy and whether its executor is running or wai
 - `Tab`: open/close systems panel;
 - `[` / `]`: select capability;
 - `Page Up` / `Page Down`: increase/decrease selected subsystem power;
-- with Sensors selected, `Enter` starts a 10-second bootstrap scan and `Backspace` cancels it;
-- with Propulsion selected, `Up` / `Down` nudges authoritative X velocity by 1 m/s and `Space` commands zero velocity;
+- with Sensors selected, `Enter` starts a 10-second scan of the visible Phase-2 target and `Backspace` cancels it;
+- with Propulsion selected:
+  - `W` / `S`: +X / -X velocity trim;
+  - `D` / `A`: +Y / -Y velocity trim;
+  - `E` / `Q`: +Z / -Z velocity trim;
+  - `Space`: command zero velocity;
+  - Up / Down remain +X / -X aliases from the earlier shell;
 - with Computation selected, `Enter` installs Basic Survival and `Backspace` clears it.
 
-The hard-coded bootstrap scan target is explicitly temporary. It exists only to make the already-built scan lifecycle interactively testable before Phase 3 provides real target selection.
+Every velocity trim is 1 m/s and still routes through `CommandSetVelocityMetersPerSecond`. This is deliberately primitive Generation-1 integration control, not a final thruster or attitude model.
 
 The HUD remains presentation only. It does not own mechanical state or policy decisions.
 
-The project still contains no authored production map. `DefaultEngine.ini` selects the production game mode, so Unreal's startup map can spawn the single probe without duplicating simulation ownership.
+## Next validation step
 
-The next Phase 2 playtest-preparation slice is a reproducible One Probe test environment with camera/look controls, visible movement references, and a visible test scan target, followed by local Unreal 5.8 build/run evidence and control-feel refinement.
+The next required evidence is a local Unreal Engine 5.8 build and first-run session exercising the environment, camera, HUD, power management, movement, visible scan target, and Generation-1 policy together.
+
+Hosted CI still cannot compile the Unreal module, so source-contract tests protect architecture but do not replace that local UBT/Editor validation. After the first run, control feel and any compile/runtime defects should be corrected before expanding Phase 2 further.

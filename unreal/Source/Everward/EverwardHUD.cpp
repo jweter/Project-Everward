@@ -245,7 +245,7 @@ void AEverwardHUD::DrawHUD()
     }
     else if (Selected.CapabilityId == FName(TEXT("propulsion")))
     {
-        DrawText(TEXT("[UP/DOWN] X VELOCITY +/-   [SPACE] STOP"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
+        DrawText(TEXT("[W/S] X  [A/D] Y  [Q/E] Z  [SPACE] STOP"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.72f, false);
         Y += 22.0f;
         DrawText(
             FString::Printf(TEXT("VECTOR [%.2f, %.2f, %.2f] m/s"),
@@ -303,7 +303,7 @@ void AEverwardHUD::DrawHUD()
             false);
     }
 
-    DrawText(TEXT("[ / ] SELECT SYSTEM"), MutedColor, SystemPanelX + 14.0f, ExpandedY + ExpandedHeight - 26.0f, nullptr, 0.8f, false);
+    DrawText(TEXT("[ / ] SELECT SYSTEM   //   MOUSE LOOK   WHEEL ZOOM"), MutedColor, SystemPanelX + 14.0f, ExpandedY + ExpandedHeight - 26.0f, nullptr, 0.68f, false);
 }
 
 void AEverwardHUD::ToggleSystemsPanel()
