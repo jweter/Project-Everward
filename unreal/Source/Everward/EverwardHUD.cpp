@@ -60,7 +60,14 @@ void AEverwardHUD::DrawHUD()
     const float TelemetryHeight = 156.0f;
     const float TelemetryY = Canvas->ClipY - Margin - TelemetryHeight;
     DrawRect(PanelColor, Margin, TelemetryY, PanelWidth, TelemetryHeight);
-    DrawText(TEXT("EV-0001  //  GEN 1"), TextColor, Margin + 14.0f, TelemetryY + 10.0f, nullptr, 1.0f, false);
+    DrawText(
+        FString::Printf(TEXT("%s  //  GEN %d"), *Telemetry.ProbeId, Telemetry.Generation),
+        TextColor,
+        Margin + 14.0f,
+        TelemetryY + 10.0f,
+        nullptr,
+        1.0f,
+        false);
     DrawText(
         FString::Printf(TEXT("ENERGY  %s"), *PercentString(Telemetry.StoredEnergyJoules, Telemetry.EnergyCapacityJoules)),
         TextColor,
