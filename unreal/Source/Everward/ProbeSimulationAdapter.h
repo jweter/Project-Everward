@@ -15,6 +15,12 @@ struct EVERWARD_API FEverwardProbeTelemetry
     GENERATED_BODY()
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    FString ProbeId;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    int32 Generation = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
     int64 SimulationTick = 0;
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
@@ -28,6 +34,12 @@ struct EVERWARD_API FEverwardProbeTelemetry
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
     double EnergyCapacityJoules = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    double EnergyGenerationWatts = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    double PowerCapacityWatts = 0.0;
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
     double TemperatureKelvin = 0.0;
