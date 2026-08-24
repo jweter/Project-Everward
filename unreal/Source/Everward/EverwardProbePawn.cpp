@@ -28,11 +28,25 @@ AEverwardProbePawn::AEverwardProbePawn()
 
     CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("ProbeCameraBoom"));
     CameraBoom->SetupAttachment(ProbeMesh);
-    CameraBoom->TargetArmLength = 500.0f;
+    CameraBoom->TargetArmLength = 650.0f;
     CameraBoom->SetRelativeRotation(FRotator(-15.0, 0.0, 0.0));
     CameraBoom->bUsePawnControlRotation = true;
+    CameraBoom->bDoCollisionTest = false;
 
     ProbeCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ProbeCamera"));
     ProbeCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
     ProbeCamera->bUsePawnControlRotation = false;
+}
+
+void AEverwardProbePawn::AdjustCameraZoom(float DeltaCentimeters)
+{
+    if (CameraBoom == nullptr)
+    {
+        return;
+    }
+
+    CameraBoom->TargetArmLength = FMath::Clamp(
+        CameraBoom->TargetArmLength + DeltaCentimeters,
+        MinCameraDistanceCentimeters,
+        MaxCameraDistanceCentimeters);
 }
