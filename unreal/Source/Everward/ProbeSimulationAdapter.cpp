@@ -67,6 +67,32 @@ FVector UProbeSimulationAdapter::GetProbePositionMeters() const
     return FVector(Position.x, Position.y, Position.z);
 }
 
+FEverwardProbeTelemetry UProbeSimulationAdapter::GetProbeTelemetry() const
+{
+    FEverwardProbeTelemetry Telemetry;
+    if (Core == nullptr)
+    {
+        return Telemetry;
+    }
+
+    const auto& Snapshot = Core->snapshot();
+    Telemetry.SimulationTick = Core->tick();
+    Telemetry.SimulationTimeSeconds = static_cast<double>(Telemetry.SimulationTick) / SimulationTicksPerSecond;
+    Telemetry.MassKilograms = Snapshot.mass_kg;
+    Telemetry.StoredEnergyJoules = Snapshot.stored_energy_j;
+    Telemetry.EnergyCapacityJoules = Snapshot.energy_capacity_j;
+    Telemetry.TemperatureKelvin = Snapshot.temperature_k;
+    Telemetry.StorageUsedKilograms = Snapshot.storage_used_kg;
+    Telemetry.StorageCapacityKilograms = Snapshot.storage_capacity_kg;
+    Telemetry.VelocityMetersPerSecond = FVector(
+        Snapshot.velocity_mps.x,
+        Snapshot.velocity_mps.y,
+        Snapshot.velocity_mps.z);
+    Telemetry.bIsOverheated = Snapshot.is_overheated;
+    Telemetry.bIsEnergyDepleted = Snapshot.is_energy_depleted;
+    return Telemetry;
+}
+
 void UProbeSimulationAdapter::SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond)
 {
     if (Core == nullptr)
