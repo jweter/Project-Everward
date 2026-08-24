@@ -76,11 +76,15 @@ FEverwardProbeTelemetry UProbeSimulationAdapter::GetProbeTelemetry() const
     }
 
     const auto& Snapshot = Core->snapshot();
+    Telemetry.ProbeId = UTF8_TO_TCHAR(Snapshot.probe_id.c_str());
+    Telemetry.Generation = static_cast<int32>(Snapshot.generation);
     Telemetry.SimulationTick = Core->tick();
     Telemetry.SimulationTimeSeconds = static_cast<double>(Telemetry.SimulationTick) / SimulationTicksPerSecond;
     Telemetry.MassKilograms = Snapshot.mass_kg;
     Telemetry.StoredEnergyJoules = Snapshot.stored_energy_j;
     Telemetry.EnergyCapacityJoules = Snapshot.energy_capacity_j;
+    Telemetry.EnergyGenerationWatts = Snapshot.energy_generation_w;
+    Telemetry.PowerCapacityWatts = Snapshot.power_capacity_w;
     Telemetry.TemperatureKelvin = Snapshot.temperature_k;
     Telemetry.StorageUsedKilograms = Snapshot.storage_used_kg;
     Telemetry.StorageCapacityKilograms = Snapshot.storage_capacity_kg;
@@ -127,7 +131,7 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
     };
 
     AddCapability(
-        TEXT("propulsion"),
+        FName(TEXT("propulsion")),
         TEXT("Propulsion"),
         TEXT("Translation and maneuvering authority."),
         Snapshot.propulsion_operational,
@@ -137,7 +141,7 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
         Snapshot.power_allocated_propulsion_w);
 
     AddCapability(
-        TEXT("sensors"),
+        FName(TEXT("sensors")),
         TEXT("Sensors"),
         TEXT("Scientific observation and active scanning."),
         Snapshot.sensors_operational,
@@ -147,21 +151,21 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
         Snapshot.power_allocated_sensors_w);
 
     AddCapability(
-        TEXT("computation"),
+        FName(TEXT("computation")),
         TEXT("Computation"),
         TEXT("Onboard planning, automation, and software execution."),
         Snapshot.computation_operational,
-        Snapshot.computation_operational && !Snapshot.is_energy_depleted && !Snapshot.is_overheated,
+        Snapshot.computation_operational,
         false,
         true,
         Snapshot.power_allocated_computation_w);
 
     AddCapability(
-        TEXT("thermal"),
+        FName(TEXT("thermal")),
         TEXT("Thermal Control"),
         TEXT("Heat rejection and thermal-management hardware."),
         Snapshot.thermal_operational,
-        Snapshot.thermal_operational && !Snapshot.is_energy_depleted,
+        Snapshot.thermal_operational,
         true,
         true,
         Snapshot.power_allocated_thermal_w);
