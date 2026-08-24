@@ -8,7 +8,7 @@ The purpose is not visual polish. The purpose is to make the embodied probe test
 
 A useful first run must let the player perceive that the authoritative probe is actually moving and interacting with something visible. A blank Unreal map can technically run the simulation while giving almost no perceptual evidence that movement, camera control, or scanning are working.
 
-For that reason, `AEverwardGameMode` now creates the temporary Phase-2 environment at runtime rather than depending on an editor-authored `.umap`.
+For that reason, `AEverwardGameMode` creates the temporary Phase-2 environment at runtime rather than depending on an editor-authored `.umap`.
 
 This keeps the test setup:
 
@@ -41,7 +41,7 @@ The target is labeled in-world:
 PHASE-2 TARGET // SCAN-001
 ```
 
-The Sensors `Enter` action now submits this same identifier to the existing authoritative scan command.
+The Sensors `Enter` action submits this same identifier to the existing authoritative scan command.
 
 This is not a real targeting system. It deliberately closes only the perceptual loop required for Phase 2:
 
@@ -60,9 +60,9 @@ Six fixed reference markers surround the initial path between the probe and targ
 
 They are not resources, obstacles, asteroids, or gameplay objects. They make it easy to answer during a test:
 
-- did the probe move?
-- in which direction?
-- does motion feel appropriately slow and mechanical?
+- did the probe move?;
+- in which direction?;
+- does motion feel appropriately slow and mechanical?;
 - does the third-person camera communicate scale and orientation?
 
 The environment also owns a temporary point light so visibility does not depend on editor-map lighting.
@@ -118,4 +118,4 @@ This environment has done its job when a clean local Unreal Engine 5.8 run can r
 5. the visible bootstrap target corresponds to the target used by the authoritative scan command;
 6. HUD, power, scan, and Generation-1 policy behavior can all be exercised in the same run.
 
-A later playtest protocol should capture build/runtime evidence and subjective feel separately from this environment definition.
+The environment definition and the evidence protocol are intentionally separate. Execute `PHASE2_FIRST_RUN_PLAYTEST.md` for the actual local test and record the result using `playtests/phase2/first_run_observation.template.json`.
