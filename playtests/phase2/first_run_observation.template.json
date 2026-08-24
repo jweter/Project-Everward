@@ -1,0 +1,45 @@
+{
+  "observation_version": 1,
+  "test_id": "phase2-first-run",
+  "captured_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+  "git_commit": "replace-with-tested-commit-sha",
+  "unreal_engine_version": "5.8",
+  "host": {
+    "os": "Windows",
+    "cpu": "",
+    "gpu": "",
+    "notes": ""
+  },
+  "overall_result": "not_tested",
+  "checks": {
+    "unreal_cpp_build": {"status": "not_tested", "notes": ""},
+    "pie_launch": {"status": "not_tested", "notes": ""},
+    "probe_spawn": {"status": "not_tested", "notes": ""},
+    "test_environment_visible": {"status": "not_tested", "notes": ""},
+    "camera_orbit_zoom": {"status": "not_tested", "notes": ""},
+    "hud_system_discovery": {"status": "not_tested", "notes": ""},
+    "movement_x": {"status": "not_tested", "notes": ""},
+    "movement_y": {"status": "not_tested", "notes": ""},
+    "movement_z": {"status": "not_tested", "notes": ""},
+    "stop_command": {"status": "not_tested", "notes": ""},
+    "power_allocation": {"status": "not_tested", "notes": ""},
+    "scan_complete": {"status": "not_tested", "notes": ""},
+    "scan_cancel": {"status": "not_tested", "notes": ""},
+    "policy_install_clear": {"status": "not_tested", "notes": ""},
+    "policy_compute_gate": {"status": "not_tested", "notes": ""},
+    "manual_automation_shared_state": {"status": "not_tested", "notes": ""}
+  },
+  "subjective_ratings": {
+    "embodiment": null,
+    "hud_clarity": null,
+    "control_discoverability": null,
+    "generation1_clunkiness": null,
+    "movement_readability": null,
+    "automation_comprehension": null,
+    "desire_to_continue": null
+  },
+  "warnings": [],
+  "blockers": [],
+  "playtest_notes": "",
+  "evidence": []
+}

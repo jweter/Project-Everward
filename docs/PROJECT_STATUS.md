@@ -1,253 +1,166 @@
 # Everward Project Status
 
-This file is the durable operational continuation record for human and scheduled development. It records where active work should resume without replacing the authoritative roadmap, design pillars, ADRs, engine direction, or architecture documents.
+This file is the durable operational continuation record for human and scheduled development. It answers: **where are we now, what is verified, what remains open, and what should happen next?** Detailed historical implementation narratives belong in Git history, PRs, and `ERROR_RESOLUTION_LEDGER.md`.
 
 ## Current phase
 
-**Phase 2 — One Probe: started.**
+**Phase 2 — One Probe: ACTIVE, first local integrated playtest pending.**
+
+Phase 1 is complete and Unreal Engine 5.8 is the accepted production direction. Phase 2 now has a functioning engine-independent authoritative runtime plus an Unreal embodiment/control shell sufficient for the first serious local integration run.
 
-Phase 1 is complete. The decision-ready Unreal hardware artifact passes the executable Phase 1 exit gate, Unreal Engine remains the accepted production direction, and PR #68 has now created the first production Phase 2 implementation.
+The next gate is **evidence**, not another speculative subsystem: build and run the current One Probe slice locally in Unreal Engine 5.8, capture the structured first-run observation, then fix the highest-value defect or feel problem revealed by that run.
 
-## What is now on `main`
+## Current `main` baseline
 
-PR #68, merged 2026-08-21, established the first real production runtime foundation:
+As of PR #100, `main` includes:
 
-- top-level Unreal Engine 5.8 project under `unreal/`;
-- engine-independent C++20 authoritative simulation core under `src/simulation/`;
-- canonical first-probe state including identity, position/velocity, mass, energy, temperature, storage, and basic capabilities;
-- deterministic fixed-step movement integration and domain-event delivery;
-- `UProbeSimulationAdapter` as the single Unreal-side caller of the simulation core;
-- Blueprint-visible access to simulation tick, probe position, and velocity commands;
-- CMake/CTest coverage for the production simulation core;
-- GitHub Actions now compiles and tests the production simulation core on every PR in addition to all existing Phase 0/1 checks.
+### Authoritative simulation
 
-The production core compiled and passed its local CMake/CTest validation before push, and fresh independent GitHub CI run #143 completed successfully before PR #68 was merged.
+- engine-independent C++20 simulation under `src/simulation/`;
+- deterministic fixed-step simulation time;
+- canonical EV-0001 identity, generation, mass, position, velocity, energy, thermal state, storage, capability state, and subsystem power allocations;
+- authoritative movement state;
+- scan start/progress/complete/cancel lifecycle;
+- power-budget validation across sensors, propulsion, computation, and thermal subsystems;
+- stored-energy consumption plus canonical passive generation;
+- waste-heat accumulation plus passive cooling;
+- energy-depletion and overheat lockouts with recovery where physically supported;
+- explicit subsystem operational/failure hooks and capability gating;
+- production CMake/CTest coverage in GitHub Actions.
 
-PR #72 added the first command beyond movement, `ScanCommand`, entirely within `src/simulation/`:
+### Generation-1 automation
 
-- `SimulationCore::start_scan(target_id, duration_s)` validates a non-empty target, a positive duration, the `can_scan` capability, and that no scan is already in progress, then transitions probe state (`is_scanning`, `active_scan_target_id`, `scan_remaining_s`) and emits a `ScanStarted` domain event;
-- scan progress is integrated on the same fixed-step `advance_wall_ticks` path used for movement, and emits a `ScanCompleted` domain event once the scan duration elapses;
-- CMake/CTest coverage exercises validation failures, the started/completed event lifecycle, and that a new scan can begin after a prior one completes.
+- engine-independent `ProbeRuntime` software-policy evaluator;
+- one active Generation-1 policy with at most two simple rules;
+- energy-fraction and temperature conditions;
+- power-allocation actions routed through the same `SimulationCore::allocate_power()` mechanics used by manual control;
+- policy execution gated by operational computation hardware and at least 25 W of computation power;
+- policy install/clear/trigger/rejection events;
+- temporary `gen1_basic_survival` integration preset.
 
-This intentionally does not yet touch `unreal/` — `UProbeSimulationAdapter` does not expose `ScanCommand` to Blueprint, and there is no embodied probe runtime scene yet for a scan command to be issued from. It also does not implement scan-result content (what a scan discovers); it proves the start/validate/complete lifecycle and timing only, matching `PHASE2_KICKOFF_SCAFFOLD.md`'s item 4.
+### Unreal embodiment and control shell
 
-PR #73 began power allocation mechanics (item 5), also entirely within `src/simulation/`:
+- one production `AEverwardProbePawn` with one `UProbeSimulationAdapter`;
+- adapter-driven presentation transform from authoritative simulation position;
+- compact authoritative telemetry HUD;
+- collapsed-by-default capability-driven systems panel;
+- command acceptance/rejection feedback;
+- shared adapter commands for velocity, scan start/cancel, power allocation, and Generation-1 policy interaction;
+- deterministic runtime-generated Phase-2 player start and test environment;
+- visible bootstrap scan target `phase2-test-target-001` about 50 m ahead;
+- six spatial reference markers for movement/parallax evidence;
+- temporary local lighting;
+- third-person mouse orbit and wheel zoom;
+- temporary three-axis 1 m/s velocity trims plus stop command.
 
-- `SimulationCore::allocate_power(PowerSubsystem, watts)` validates a non-negative wattage and that the resulting combined allocation across sensors, propulsion, computation, and thermal subsystems does not exceed the probe's `power_capacity_w` budget, then sets that subsystem's allocation and emits a `PowerAllocationChanged` domain event;
-- reallocating a subsystem replaces its existing share rather than accumulating on top of it; an over-capacity request is rejected and leaves existing allocations untouched;
-- CMake/CTest coverage exercises validation failures (negative wattage, over-capacity requests), the happy-path allocation/event lifecycle across all four subsystems, reallocation, and the exact-headroom boundary case.
+### Evolution foundation
 
-A follow-up PR (branch `claude/upbeat-lamport-q96q5d`) continues item 5 with the first consumption effect named as still pending: allocated power now draws down stored energy over simulated time.
+- adjacent-generation evolution generator;
+- successor options derived from current capabilities and prerequisites rather than a fixed universal tech tree;
+- bounded small-step generation changes;
+- deterministic option generation;
+- engineering tradeoff metadata and compute-dependent design breadth.
 
-- `SimulationCore::advance_wall_ticks` now integrates power consumption on the same fixed-step path as movement and scan progress: each step, total allocated wattage across all four subsystems (`total_power_allocated_w()`) draws `watts * elapsed_seconds` joules from `stored_energy_j`, clamped at zero rather than going negative;
-- a new `EnergyDepleted` domain event fires exactly once on the transition from having stored energy to having none (mirroring the `ScanCompleted` transition-only pattern), not on every step energy happens to be draining;
-- new CMake/CTest coverage exercises the no-op case (zero allocated power draws nothing across elapsed time), the happy-path partial drawdown against the expected `watts * seconds` joule figure, and the boundary case of advancing exactly enough ticks to land stored energy precisely at zero, including that continuing to advance afterward stays clamped at zero without re-emitting `EnergyDepleted`.
+### Canonical Prime Probe production references
 
-This also does not yet touch `unreal/` for the same reason as `ScanCommand` and the initial power-allocation slice: `UProbeSimulationAdapter` does not expose `allocate_power` to Blueprint, and there is no embodied probe runtime scene yet. It still does not model thermal load from allocated power or broader per-component operational/failure state beyond the allocation budget and this new energy-consumption effect.
+- Generation-1 Prime Probe A — Scientific Explorer is the canonical original design;
+- canonical master, orthographic, dimensions, system-callout, deployment, manipulator/tool, and material reference sheets are versioned under `assets/reference/probe/gen1-prime/`;
+- alternate B/C concepts remain exploratory references;
+- production 3D blockout is still pending and does not block the first engineering playtest.
 
-A follow-up slice (branch `claude/upbeat-lamport-edtv0l`) closes the thermal-load gap named above: allocated power now also accumulates as waste heat in the probe's `temperature_k`.
+## First-run integration gate
 
-- a new `thermal_capacity_j_per_k` field on `ProbeStateSnapshot` (default `2.5e6`, a plausible order-of-magnitude thermal mass for a ~2500 kg probe structure) converts joules of waste heat into a temperature rise;
-- `SimulationCore::advance_wall_ticks` now also calls `integrate_thermal_load`, on the same fixed-step path as movement, scan progress, and energy consumption: each step, `total_power_allocated_w() * elapsed_seconds` joules are added to `temperature_k` as `delta_joules / thermal_capacity_j_per_k`;
-- this intentionally treats all allocated power (across all four subsystems, including `Thermal`) as waste heat with no offsetting cooling effect, mirroring the same simplification already used for the stored-energy draw; a `Thermal` subsystem allocation that actively removes heat instead would be a new, currently-unspecified mechanical rule and is left for a deliberate follow-up rather than folded in here;
-- no domain event is emitted by this slice: unlike `EnergyDepleted`, there is no currently-defined temperature threshold/transition to mark. Passive radiative cooling toward an ambient baseline and a temperature-limit/overheat response remain unimplemented and are the natural next follow-ups;
-- new CMake/CTest coverage exercises the no-op case (zero allocated power leaves `temperature_k` unchanged across elapsed time), the happy-path single-step rise against the expected `watts * seconds / thermal_capacity_j_per_k` figure, and accumulation across multiple `advance_wall_ticks` calls while cross-checking that the parallel `stored_energy_j` draw from the same allocated wattage is unaffected by the new thermal integration.
+Use `docs/PHASE2_FIRST_RUN_PLAYTEST.md` and the structured observation template under `playtests/phase2/`.
 
-This also does not yet touch `unreal/` for the same reason as the prior two slices, and does not implement passive cooling, temperature limits, or any behavioral response to overheating.
+The first run must objectively exercise:
 
-A follow-up slice (branch `claude/upbeat-lamport-jb8zbf`) closes the passive-cooling gap named above: `temperature_k` now cools passively back toward an ambient baseline instead of only ever rising under load.
+- Unreal C++ build/module load;
+- PIE launch and deterministic EV-0001 spawn;
+- generated test environment;
+- camera orbit/zoom;
+- HUD/system discovery;
+- X/Y/Z authoritative movement and stop;
+- power allocation;
+- scan completion and cancellation;
+- policy install/clear;
+- policy computation-power gate;
+- manual and automation control of the same authoritative state.
 
-- two new `ProbeStateSnapshot` fields: `ambient_temperature_k` (default `293.15`, matching the probe's initial `temperature_k` so a freshly constructed probe starts in thermal equilibrium with its environment before any power is allocated) and `passive_cooling_w_per_k` (default `2.0`, an order-of-magnitude placeholder for a modest radiator/conduction pathway, not a Stefan-Boltzmann radiative model);
-- `integrate_thermal_load` now models Newtonian cooling combined with the existing constant waste-heat input: `dT/dt = (heating_w - passive_cooling_w_per_k * (T - ambient_temperature_k)) / thermal_capacity_j_per_k`, solved in closed form (`T(t) = T_eq + (T0 - T_eq) * exp(-k*t)`, `T_eq = ambient_temperature_k + heating_w / passive_cooling_w_per_k`, `k = passive_cooling_w_per_k / thermal_capacity_j_per_k`) rather than by a fixed-step Euler update, so the result is exact and step-size-independent for any elapsed duration on the same `advance_wall_ticks` path used for movement, scanning, energy consumption, and the prior pure-heating thermal model;
-- under sustained allocated power, `temperature_k` now asymptotically approaches a finite equilibrium (`ambient_temperature_k + total_power_allocated_w() / passive_cooling_w_per_k`) instead of climbing unbounded; with zero allocated power, `temperature_k` decays back toward `ambient_temperature_k` from either side rather than staying frozen at whatever value heating last left it at;
-- if `passive_cooling_w_per_k` is ever `0`, the integration falls back to the prior pure-heating-only accumulation (no divide-by-zero, no cooling pathway) to keep the previous behavior available as a degenerate configuration;
-- new CMake/CTest coverage exercises the no-op case (probe starts exactly at its own ambient baseline with no power allocated: zero net movement), the happy-path warm-toward-equilibrium case under sustained power (asserted against the closed-form equation computed independently in the test, not by re-deriving the implementation's own code), step-size independence (two fixed steps totalling 5 seconds land at the same temperature as one 5-second step, which a naive fixed-step Euler update would not guarantee), and pure passive cooling with zero allocated power (a probe left warmer than ambient cools back toward it, monotonically and without overshooting past it, purely from elapsed time).
-- this same slice also repaired a pre-existing latent bug in `EnergyConsumption`'s exact-depletion boundary test (`exact_depletion_ticks` truncated a fractional tick instead of rounding up, leaving `stored_energy_j` a fraction of a joule above zero so `EnergyDepleted` never fired); see `ERROR_RESOLUTION_LEDGER.md` for the root cause and verification. No `SimulationCore` production behavior changed by this repair — only the test's own tick-rounding.
+Passing that protocol means the slice is **integrated and testable**. It does not by itself satisfy the Phase 2 roadmap gate that simply existing as the probe is compelling.
 
-This also does not yet touch `unreal/` for the same reason as the prior three slices, and does not implement a temperature limit/overheat response or any behavioral consequence of high temperature — both remain open, currently-unspecified follow-ups.
+## Known non-blocking omissions
 
-A follow-up slice (branch `claude/upbeat-lamport-eyesqm`) closes the temperature-limit/overheat gap named above: `temperature_k` now has a behavioral consequence once it crosses a defined limit, rather than only ever being a readable number.
+These are real future work, but they do not block the first local Phase-2 integration run:
 
-- a new `max_operating_temperature_k` field on `ProbeStateSnapshot` (default `373.15`, an order-of-magnitude placeholder for a spacecraft electronics thermal limit, not a modeled material or component-specific failure point) defines the threshold, and a new `is_overheated` flag records the probe's current lockout state;
-- a new `integrate_overheat_response` step runs on the same fixed-step `advance_wall_ticks` path as movement, scanning, energy consumption, and thermal load, after `temperature_k` is updated for that step: crossing at or above `max_operating_temperature_k` sets `is_overheated`, clears `can_scan` and `can_thrust`, and emits a new `OverheatStarted` domain event; dropping back below the threshold restores both capability flags and emits a new `OverheatEnded` domain event; this is edge-triggered on `is_overheated` (mirroring `EnergyDepleted`'s transition-only pattern), so remaining above or below the threshold across further steps does not re-emit either event;
-- while overheated, `start_scan` and `set_velocity_mps` reject exactly as they already do for any other `can_scan`/`can_thrust`-gated command — no new rejection path was needed, only the existing capability flags being driven by a new cause;
-- `can_scan`/`can_thrust` currently have no other source of truth than this response, so unconditionally restoring both to `true` on recovery is safe today; a future independent failure/operational-state system that can also disable these flags would need to reconcile with this response rather than assume it owns them exclusively — noted in `core.hpp` for the next slice that adds one;
-- new CMake/CTest coverage exercises the no-op case (no allocated power never approaches the limit), the happy-path crossing under sustained maximum allocated power (computed from the same closed-form cooling equation `integrate_thermal_load` itself uses, rounded up to a whole tick as `EnergyConsumption`'s own exact-boundary test does) including that scan/thrust commands are rejected while overheated and that `OverheatStarted` does not re-fire on a subsequent step spent still above the limit, and the recovery path (deallocating power lets `temperature_k` decay back below the limit, restoring capabilities and firing `OverheatEnded` exactly once).
+- scan-result/discovery science payloads — Phase 3 concern after the scan interaction itself is proven;
+- real world-object targeting — Phase 3;
+- final thruster/attitude physics and control mapping;
+- component-level health/wear/failure causes and repair mechanics;
+- production save/load implementation;
+- Prime Probe production 3D geometry/materials;
+- final HUD styling;
+- resource extraction, refining, fabrication, replication, and later-phase systems.
 
-This also does not yet touch `unreal/` for the same reason as the prior four slices, and does not implement a behavioral response to full energy depletion (`stored_energy_j` reaching zero) or any broader per-component operational/failure state — both remain open, currently-unspecified follow-ups, as previously noted.
+## Open product/architecture decisions
 
-A follow-up slice (branch `claude/upbeat-lamport-knlfp2`) closes the energy-depletion gap named above: `stored_energy_j` reaching zero now also has a behavioral consequence, mirroring the overheat lockout precedent while explicitly reconciling with it rather than assuming the two causes are independent.
+### Failure and repair semantics
 
-- a new `is_energy_depleted` flag on `ProbeStateSnapshot` is set the moment `stored_energy_j` transitions from having stored energy to having none (the same `previous_energy_j > 0.0 && remaining_energy_j <= 0.0` transition that already fires the existing `EnergyDepleted` domain event, reused rather than duplicated with a second event for the same transition);
-- `can_scan`/`can_thrust` are now derived once per `advance_wall_ticks` step from **both** lockout causes (`is_overheated || is_energy_depleted`) via a new `refresh_capability_lockouts()` step that runs after `integrate_power_consumption` and `integrate_overheat_response`, rather than either response directly writing `true`/`false` to those flags. This is the deliberate scoping the prior continuation note called for: the two causes now correctly stack — one clearing (e.g. `temperature_k` cooling back below `max_operating_temperature_k`) does not wrongly restore capabilities while the other is still active (e.g. `stored_energy_j` still at zero), and vice versa;
-- unlike `is_overheated`, `is_energy_depleted` intentionally has no recovery/restore branch: no mechanic exists yet that raises `stored_energy_j` back above zero (no charge/generation slice has been built), so a `0 -> >0` transition is currently unreachable and was not coded as dead, untestable branches. A future energy-recharge slice should add that transition (and its own recovery event) when it exists;
-- while depleted, `start_scan` and `set_velocity_mps` reject through the same existing capability-gated rejection path already used for overheat and, before that, `can_scan`/`can_thrust` in general — no new rejection code was needed;
-- new CMake/CTest coverage exercises the no-op case (no allocated power never depletes), the happy-path depletion-triggers-lockout case (deliberately using a wattage below the thermal equilibrium that would ever cross `max_operating_temperature_k`, so it stays isolated to energy alone) including that scan/thrust commands are rejected, and a combined-lockout interaction case: sustained maximum power drives the probe into **both** `is_overheated` and `is_energy_depleted`, then deallocating power lets `temperature_k` cool back below the limit (firing `OverheatEnded` exactly once) while `stored_energy_j` stays at zero — proving `can_scan`/`can_thrust` correctly remain locked throughout, not just implemented and cleared as the last-applied side effect would happen to have left them.
+`set_subsystem_operational()` remains a deterministic hook, not a final wear/damage model. Real failure causes, health representation, and repair semantics remain open. Do not invent a broad permanent-failure model before the industrial/recovery loop can support it.
 
-This same slice also found and fixed a significant, unrelated pre-existing defect discovered while adding the above coverage: `.github/workflows/foundation.yml`'s `cmake -S src/simulation -B build/simulation -DCMAKE_BUILD_TYPE=Release` step defines `NDEBUG`, which silently compiles every `assert()` in `simulation_core_tests.cpp` into a no-op — the CTest step has been reporting success unconditionally, regardless of whether any assertion actually held, for every simulation-core slice since PR #68. See `ERROR_RESOLUTION_LEDGER.md`, 2026-08-22, for the full root cause, the fix (`#undef NDEBUG` before `#include <cassert>`, verified end-to-end against the exact CI `cmake`/Release command by confirming CTest now genuinely fails on a deliberately broken assertion and genuinely passes once reverted), and a second, previously-masked test defect this uncovered and also fixed in the same commit (the `EnergyConsumption` boundary test's assumed two-event outcome no longer held once `integrate_overheat_response` existed, at that test's original wattage).
+### Final Generation-1 flight feel
 
-This also does not yet touch `unreal/` for the same reason as the prior five slices, and does not implement any energy-recharge/generation mechanic, per-component operational/failure state beyond the two probe-wide lockouts (overheat and energy depletion), or software policy state.
+The current 1 m/s velocity trims are temporary integration controls, not the final propulsion model. Direct playtest evidence should determine the next movement/attitude slice.
 
-A follow-up slice (branch `claude/upbeat-lamport-vkr9da`) closes the energy-recharge gap named above: `stored_energy_j` can now be recharged by a passive generation source instead of being permanently one-way once depleted, completing option (a) of the two next-slice options this file previously named.
+### Final programming interface
 
-- a new `energy_generation_w` field on `ProbeStateSnapshot` (default `0.0`) models a constant passive power supply — deliberately RTG-style (radioisotope thermoelectric generator) rather than solar, since solar generation would need the star-distance/irradiance model that does not exist yet — configured via a new `SimulationCore::set_energy_generation_w(watts)` hardware/loadout configuration hook (validated non-negative; it does not itself emit a domain event, since it is not a player-facing maneuver command like `allocate_power`);
-- the integration step formerly named `integrate_power_consumption` is renamed `integrate_energy_balance` and now nets `energy_generation_w` against `total_power_allocated_w()` each fixed step: consumption exceeding generation still depletes `stored_energy_j` exactly as before (clamped at zero), generation exceeding consumption now recharges it (clamped at `energy_capacity_j`), and an exact match is a genuine no-op;
-- a new `EnergyRestored` domain event fires exactly once on the `0 -> >0` transition (mirroring `EnergyDepleted`'s `>0 -> 0` transition and `OverheatEnded`'s recovery pattern) and clears `is_energy_depleted`, which `refresh_capability_lockouts()` already combines with `is_overheated` so `can_scan`/`can_thrust` restore once no lockout cause remains active — no other code needed to change for the two causes to keep stacking correctly;
-- `energy_generation_w` defaults to `0.0`: the canonical EV-0001 probe has no generation hardware equipped in this slice, so every pre-existing energy/thermal/overheat/depletion test continues to exercise exactly the same net-draw-only behavior as before, byte-for-byte unchanged;
-- new CMake/CTest coverage exercises validation (negative generation rejected), the exact no-op case where generation precisely offsets allocated consumption, the recovery path (deplete stored energy under a net-negative balance, then drop consumption to zero so the surviving generation recharges it back above zero — firing `EnergyRestored` exactly once, restoring `can_scan`/`can_thrust`, and not re-firing on further steady net-positive steps), and the clamp-at-`energy_capacity_j` ceiling.
+The two-rule Basic Survival policy proves the architectural loop only. Richer scripts, behavior editing, priorities, diagnostics, and compute-scaled automation remain later work. Manual and automated actions must continue to converge on shared authoritative commands.
 
-This does not yet touch `unreal/` for the same reason as the prior six slices, and does not equip the canonical probe with a nonzero `energy_generation_w` default (that remains a deliberate follow-up, likely bundled with future hardware-loadout or embodiment work) or begin option (b), the broader per-component operational/failure state beyond the two probe-wide lockouts.
+## Authorized next work
 
-A follow-up slice (branch `claude/upbeat-lamport-knlfp2`) closes the "equip the canonical probe" warm-up named above:
+Priority order after PR #101:
 
-- a new `SimulationCore::make_canonical_ev0001()` static factory returns a `SimulationCore` pre-configured with the canonical EV-0001 probe's real hardware loadout — currently just `energy_generation_w` set to a new `kCanonicalEv0001EnergyGenerationW` constant (`75.0`, an order-of-magnitude RTG placeholder deliberately modest next to the 100-750 W wattages this test suite already exercises and `power_capacity_w` itself, so energy budgeting still matters);
-- deliberately does **not** change `ProbeStateSnapshot::energy_generation_w`'s own struct default (still `0.0`): several existing tests (`EnergyConsumption`, `EnergyDepletionResponse`, the combined-lockout interaction test) construct a bare `SimulationCore()` and depend on an exact, generation-free baseline for their closed-form expected-value math. Editing that shared default directly — the literal reading of the prior continuation note's "one-field" framing — would have silently broken that baseline across roughly eight existing test blocks; a dedicated factory gives the canonical loadout its own real value with zero risk to that established coverage, and is called out here as a deliberate divergence from the prior note's exact wording for that reason;
-- `UProbeSimulationAdapter::BeginPlay()` in `unreal/` still constructs a bare `SimulationCore()` and has **not** been switched to this factory — that edit lives in `unreal/Source/`, which this sandboxed environment cannot compile or verify (per the same boundary already named for items 1-3 below), so it is left for a run with Unreal build/verification capability;
-- new CTest coverage: confirms the bare default stays exactly generation-free, confirms the factory's probe carries the real constant, and confirms that value is genuinely wired into `integrate_energy_balance` (stored energy rises by exactly `generation_w * elapsed_seconds` with nothing allocated) rather than merely being set and ignored — verified by mutation (temporarily removing the factory's `set_energy_generation_w` call, confirming the new test fails, then reverting byte-identical).
-
-The next engine-independent slice starts the broader per-component operational state named above without prematurely inventing a wear or damage model:
-
-- each sensors, propulsion, computation, and thermal subsystem now has an explicit operational flag in `ProbeStateSnapshot`, controlled by `SimulationCore::set_subsystem_operational` as a deterministic configuration/test hook that later failure mechanics can call;
-- transitioning a subsystem to failed immediately sheds its current power allocation, blocks positive reallocation while failed, and emits `SubsystemOperationalStateChanged`; restoring it emits the same event once, while repeated same-state calls are no-ops;
-- sensor failure blocks scanning but not thrust, propulsion failure blocks thrust but not scanning, and computation/thermal failure remains visible while blocking only allocation because those subsystems do not own player commands yet;
-- an active scan pauses with its target and remaining duration preserved whenever `can_scan` is locked (including sensor failure, energy depletion, or overheating), emits no false completion event while paused, and resumes after every lockout cause clears;
-- component state stacks beneath probe-wide energy-depletion and overheat lockouts through the existing centralized capability derivation, so repairing hardware cannot bypass a still-active probe-wide lockout;
-- Release-mode CMake/CTest coverage exercises all four subsystem transitions, allocation shedding/rejection/restoration, granular command ownership, edge-triggered events, and stacked recovery behavior.
-
-This slice deliberately does not choose a failure trigger, wear rate, repair cost, component health scale, or component-specific thermal limit. Those are product/mechanical rules that need their own evidence-backed slice; the operational-state contract now exists for them to target.
-
-The first Unreal-side embodiment slice closes sequence item 1 now that a real local Unreal 5.8/UBT toolchain is available:
-
-- `AEverwardGameMode`, selected by production `DefaultEngine.ini`, uses `AEverwardProbePawn` as the default pawn for the single local player;
-- the pawn owns exactly one visible engine-sphere bootstrap presentation, one `UProbeSimulationAdapter`, and one third-person camera while containing no direct simulation-core dependency;
-- `UProbeSimulationAdapter::BeginPlay()` now constructs `SimulationCore::make_canonical_ev0001()`, so the embodied runtime uses the canonical probe's nonzero generation hardware rather than the bare test baseline;
-- CI-visible structural tests pin the game-mode selection, one-pawn class, exactly-one presentation/adapter ownership, adapter-boundary isolation, and canonical loadout factory;
-- local Unreal 5.8 verification passed both an `EverwardEditor Win64 Development` UHT/UBT build and a headless `-game -nullrhi` startup; the runtime log selected `EverwardGameMode` and enumerated exactly one `EverwardProbePawn` instance.
-
-This is an intentionally minimal bootstrap, not final probe art. It does not yet drive the presentation transform from authoritative position, add the inspection HUD, or expose the remaining simulation commands to Blueprint.
-
-## Accepted production direction
-
-**Unreal Engine is the accepted production engine direction.**
-
-Authoritative references:
-
-- `ENGINE_DIRECTION.md`
-- `TECHNOLOGY_DECISIONS.md` TD-001
-- `DECISION_LOG.md` ADR-0001
-- `docs/PHASE2_KICKOFF_SCAFFOLD.md`
-
-Godot material remains comparative/historical Phase 1 evidence only. Automation must not treat it as an alternate authorized production path.
-
-## Current blocker
-
-**No roadmap blocker.**
-
-Residual rendering risk remains tracked from the Phase 1 Intel Iris Xe capture: the benchmark was strongly GPU-bound, used internal upscaling, and did not yet prove the final visual target on stronger hardware. Those are production-quality/performance risks, not blockers on Phase 2 implementation.
-
-The production project now compiles and starts headlessly on the user's installed Unreal Engine 5.8 toolchain. Local UBT reports that Visual Studio toolchain 14.51 is newer than Epic's preferred 14.50 version and that the optional XGE coordinator license is not active; UBT successfully falls back to standalone compilation, so neither warning blocks Phase 2 work.
-
-## Exact continuation point
-
-Resume with the next highest-value **Phase 2 — One Probe** slice.
-
-The immediate target is to turn the new runtime foundation into the first visible embodied probe while preserving ADR-0002/ADR-0012 boundaries.
-
-The Unreal 5.8/UBT toolchain is now available and sequence item 1 is implemented and locally engine-verified. Item 2 is the highest-value continuation: make the existing presentation consume authoritative position through the adapter boundary, performing the metres-to-centimetres conversion exactly once there. Item 3 (the minimal inspect/HUD read model) follows after transform ownership is proven.
-
-Recommended next sequence:
-
-1. ~~create a minimal runtime bootstrap in `unreal/` that instantiates exactly one probe presentation and exactly one `UProbeSimulationAdapter`~~ — **done and Unreal 5.8 verified**;
-2. drive the presented probe transform from the authoritative `src/simulation/` snapshot, with metres-to-centimetres conversion occurring only in the adapter/presentation boundary;
-3. add a minimal inspect/HUD read model for mass, energy, temperature, storage, velocity, and simulation time;
-4. ~~add the first real command path beyond movement: `ScanCommand` with validation plus `scan_started` / `scan_complete` events~~ — **done in `src/simulation/`**; still needs Blueprint/adapter exposure once item 1 exists;
-5. begin power allocation and component-state mechanics — **in progress in `src/simulation/`**: the allocation, energy, thermal, probe-wide lockout, canonical-generation, and initial per-subsystem operational-state contracts are implemented and CTest-covered. A failed subsystem now sheds/rejects power allocation; sensors and propulsion independently gate their owned commands; and component recovery cannot bypass energy/overheat lockouts. The embodied adapter now uses `make_canonical_ev0001()`. Still pending within this item: a real failure trigger and repair mechanics, richer component health/thermal state, and Blueprint/adapter command exposure;
-6. continue until the Phase 2 gate is demonstrably true: **simply existing as the probe is compelling.**
-
-Option (a), the canonical-generation warm-up, the first bounded part of option (b), and Unreal embodiment item 1 are now **done**. Item 2's authoritative transform drive is the highest-value continuation *when Unreal verification is available* — it is the shortest remaining path toward the actual One Probe embodiment gate. This particular run's environment has no Unreal Editor/UBT available (a sandboxed, engine-independent-only session), so it could not safely author or verify an `unreal/Source/` change for item 2 and picked the dedicated audit slice named below instead, per this repository's own "automation should not author unverifiable `unreal/Source/` changes" policy. **A future run with Unreal build/verification capability should pick up item 2 next**, ahead of further engine-independent `src/simulation/` work.
-
-**Update, 2026-08-23:** every specifically-named engine-independent test-quality gap in `src/simulation/` (the pre-fix mutation audit, the post-fix mutation audit, its passive-cooling zero-coverage finding, and its `>=`-vs-`>` overheat-boundary finding) is now closed — see the entries below and the dedicated one near the top of this file. No further engine-independent audit slice is currently named as outstanding. A run without Unreal build/verification capability should therefore not default to another audit pass; the genuinely highest-value remaining work within item 5 (a real subsystem-failure trigger, repair mechanics, richer component health) and the still-pending "software policy state and alter-policy interaction" (`PHASE2_KICKOFF_SCAFFOLD.md`) both require a product/mechanical design decision this file cannot make on its own — see "Open product decisions needed" below. Absent Unreal capability and absent such a decision, escalate to Jeremy for one of those before inventing mechanic-level detail (failure trigger, repair cost, or policy semantics) that no design document currently specifies.
-
-The dedicated near-term audit slice named in this section across three prior continuation notes is now **done**: a systematic mutation audit of `simulation_core_tests.cpp`'s pre-NDEBUG-fix-era assertions (movement/tick, `ScanCommand`, `PowerAllocationCommand` — the tests written before the 2026-08-22 NDEBUG fix, whose own re-verification was only an incidental full-suite pass rather than deliberate mutation testing). Nine targeted mutations, one per production code path, each rebuilt/re-tested via the exact CI command and reverted byte-identical; 8 of 9 were caught cleanly, and the 9th (loosening `advance_wall_ticks`'s own negative-ticks guard) revealed that `SimulationClock::advance_by`'s independent guard already covers that case — legitimate defense-in-depth, not a bug, but recorded so a future change to that validation knows the coverage is redundant rather than duplicated-and-independent. Full detail and the exact mutation list: `ERROR_RESOLUTION_LEDGER.md`, 2026-08-23. This closes the specific pre-fix-era gap; it does not claim every later slice's tests were independently re-verified here (each was already mutation-tested at its own introducing PR per that PR's description).
-
-A follow-up run extended that same mutation-audit method to the remaining post-NDEBUG-fix era this prior note explicitly declined to re-verify (`EnergyConsumption` through `SubsystemOperationalState`), again because this environment had no Unreal Editor/UBT available and item 2 (and the rest of the Unreal-side sequence below) remained unsafe to author here. Sixteen targeted mutations across energy balance, thermal load, overheat lockout, capability-lockout stacking, subsystem operational state, `allocate_power`'s operational gate, the scan-pause-while-locked fix, and the canonical-probe factory: 15 caught cleanly. The 16th — loosening `integrate_overheat_response`'s `>=` threshold to `>` — was **not** caught, and unlike the pre-fix audit's redundant-guard finding, this one is a genuine standing gap: the existing crossing test always overshoots the limit by construction (`std::ceil`-rounded ticks), so it cannot distinguish `>=` from `>` at exact equality, and forcing a bit-exact hit through the public API is currently impractical without configuration hooks for `max_operating_temperature_k`/`thermal_capacity_j_per_k` that do not exist. While investigating that, this run also found and fixed a genuine zero-coverage gap: `integrate_thermal_load`'s `cooling_w_per_k <= 0.0` fallback branch (a probe hardware loadout with no radiator) had no configuration hook and was unreachable from any test. Fixed with a new `SimulationCore::set_passive_cooling_w_per_k(double)` hardware-configuration hook (mirroring `set_energy_generation_w`'s pattern, validated non-negative) and a new CTest block exercising both that validation and the fallback branch, itself mutation-checked before being accepted. Full detail: `ERROR_RESOLUTION_LEDGER.md`, 2026-08-23 (second entry). `tools/quality_preflight.py --full` passed in full afterward. The `>=`-vs-`>` overheat-boundary gap remains open and is named here rather than forced shut, since closing it for real would mean adding test-configuration surface area to `SimulationCore` speculatively, beyond what a test-quality audit should decide on its own.
-
-**Update, 2026-08-23:** this specific gap is now closed — see the dedicated entry near the top of this file and `ERROR_RESOLUTION_LEDGER.md`, 2026-08-23, for the new `set_max_operating_temperature_k()` hook and boundary test that closed it.
-
-A follow-up slice (branch `claude/upbeat-lamport-6z2ql1`) closes the scan-cancellation residual risk recorded against the sensor-failure-pause fix (PR #84 / `ERROR_RESOLUTION_LEDGER.md`, 2026-08-22): an active scan could pause when capability was unavailable and later resume, but had no way to be deliberately abandoned.
-
-- a new `SimulationCore::cancel_scan()` rejects with `std::runtime_error` when no scan is in progress; otherwise it immediately clears `is_scanning`, `active_scan_target_id`, and `scan_remaining_s`, and emits a new `ScanCancelled` domain event exactly once;
-- cancellation is deliberately not gated by `can_scan`: a scan may need cancelling precisely because a probe-wide lockout (overheat, energy depletion) or a sensor failure is already preventing it from progressing, and requiring the same capability the scan itself needs would make an already-locked-out scan uncancellable — this is the concrete distinction between "pause while capability is unavailable" (`integrate_scan`, unchanged) and this new deliberate-abandon path;
-- new CMake/CTest coverage exercises the rejection when no scan is active, the happy path (mid-progress cancellation discards state, emits `ScanCancelled` once, never later emits a `ScanCompleted` for the cancelled scan, and allows immediately starting a new scan without the prior "scan already in progress" restriction), and cancellation while `can_scan` is false due to a sensor failure. Both new production branches (the "no scan in progress" guard and the deliberate absence of a `can_scan` gate) were confirmed by targeted mutation — each caught cleanly by the new tests and reverted byte-identical — before this entry was written.
-
-This also does not yet touch `unreal/` for the same reason as every simulation-core-only slice recorded above: no Unreal Editor/UBT toolchain was available in this environment, so `UProbeSimulationAdapter`/Blueprint exposure of `cancel_scan()` remains pending alongside the rest of the still-unexposed `src/simulation/` command surface (`start_scan`, `allocate_power`, `set_energy_generation_w`).
-
-A follow-up run closed the one remaining named standing test-coverage gap from the post-NDEBUG-fix mutation audit above: `integrate_overheat_response`'s `>=`-vs-`>` threshold comparison could previously be weakened without any test catching it, since the existing crossing test always overshoots the limit by construction and can never land `temperature_k` bit-exactly on `max_operating_temperature_k`.
-
-- a new `SimulationCore::set_max_operating_temperature_k(double)` hardware-configuration hook (validated strictly positive, mirroring `set_energy_generation_w`/`set_passive_cooling_w_per_k`'s existing pattern) lets a test move the threshold to meet an unchanging `temperature_k` exactly, rather than trying to land closed-form thermal integration on a moving target: a probe with zero allocated power starts already at thermal equilibrium, so `temperature_k` cannot drift at all across any elapsed duration;
-- a new CTest block sets `max_operating_temperature_k` to the probe's own starting `temperature_k`, advances one tick with no power allocated, and asserts `temperature_k` is bit-exactly unchanged while `is_overheated`/lockout now trigger at that exact equality (confirmed by mutation: weakening `>=` to `>` fails this test cleanly); a second new test covers the setter's own validation;
-- both new production branches (the boundary itself, and the setter's validation guard) were confirmed by targeted mutation, each caught cleanly and reverted byte-identical, before this entry was written. See `ERROR_RESOLUTION_LEDGER.md`, 2026-08-23, for full detail.
-
-This closes the last currently-named engine-independent test-quality gap in `src/simulation/`. It does not add any new mechanic, touch `unreal/`, or change any existing test's expected values.
-
-Also recorded this run, at the product owner's request: `ROADMAP.md`'s Phase 4 (Industrial Bootstrap) gate now has an explicit clarifying note that "self-sustaining" specifically means recoverable — solar/in-system power generation, resource harvesting, and fabrication together must be able to repair damage and restock consumables without a fresh start or outside rescue, so no failure state loop-addressable this way should be permanent (harder difficulties may slow or raise the cost, not remove the loop, absent a deliberate design decision otherwise). This is vision/roadmap documentation only, consistent with what Pillars 2, 3, and 8 and Phases 4-8 already described (industrial self-sufficiency, unlimited progression, independently-instantiated autonomous children with inherited directives, first replication, communication-latency-driven autonomy) — no new mechanic was implemented or authorized to start now. Per the very next paragraph, replication/industry/self-repair mechanics remain explicitly out of scope until One Probe embodiment (Phase 2) is complete.
+1. perform the local Unreal Engine 5.8 first-run protocol;
+2. record the observation JSON and supporting screenshots/log excerpts as appropriate;
+3. fix any build/crash or authoritative-state defect first;
+4. then fix unusable controls or misleading HUD/automation behavior;
+5. then tune Generation-1 embodiment/movement feel from evidence;
+6. only after the first-run loop is stable, select the next Phase 2 gameplay slice or begin integrating the Prime Probe 3D blockout in parallel.
 
 Do not jump ahead to Phase 3 astronomy, Phase 4 industry, replication, aliens, combat, megastructures, or broad procedural content before the One Probe embodiment is functioning and testable.
-
-### Open product decisions needed
-
-Two named-pending items in `PHASE2_KICKOFF_SCAFFOLD.md`'s "not yet implemented" list are deliberately **not** being invented by automation, because no design document currently specifies their mechanical content and guessing would risk conflicting with an actual future decision:
-
-- **Subsystem failure trigger and repair mechanics.** `SimulationCore::set_subsystem_operational()` exists only as a deterministic configuration/test hook; nothing in the simulation ever calls it. A real trigger (wear over operating time? thermal stress? a discrete random-failure model? something else?), a component health scale, and repair mechanics (which need fabrication/materials — a Phase 4 Industrial Bootstrap concern per `ROADMAP.md` — or some earlier-available stand-in) are all open questions.
-- **Software policy state and alter-policy interaction.** `ROADMAP.md` and `PHASE2_KICKOFF_SCAFFOLD.md` both name "alter basic software policies" as a required Phase 2 interaction, and `DomainEventType::PolicyChanged` already exists in `types.hpp` reserved for it, but no document defines what a "policy" concretely is for a single early probe (an operating-mode toggle? an automation preference? something else) or what it does mechanically.
-
-Both are good candidates for Jeremy to make a short, explicit design call on (even a few sentences in `PHASE2_KICKOFF_SCAFFOLD.md` or a new `DECISION_LOG.md` ADR would unblock them) rather than for automation to guess at.
-
-## Fixed-step simulation rule
-
-The substantive clock-drive defect identified after ADR-0012 was implemented in PR #68 rather than left as documentation-only work. Unreal uses a fixed-step accumulator and advances the otherwise-passive simulation core in whole deterministic steps; raw variable render-frame timing does not directly become mechanical simulation state.
-
-PR #67 was closed as superseded by this implementation.
 
 ## Phase 2 production rules
 
 - Simulation owns mechanical truth.
-- Unreal consumes authoritative simulation state and submits commands through the single adapter boundary.
-- `src/simulation/` must remain buildable/testable without Unreal dependencies.
-- Canonical simulation units remain engine-independent; Unreal presentation conversion happens at the boundary.
+- Unreal consumes authoritative state and submits commands through the adapter boundary.
+- `src/simulation/` remains buildable/testable without Unreal dependencies.
+- Manual and automated controls must share authoritative mechanics.
+- Canonical simulation units stay engine-independent; Unreal conversion happens at the presentation boundary.
 - Deterministic headless execution remains required.
-- Save data remains a versioned schema rather than blind Unreal object serialization.
-- Large-scale simulation work must not become inseparable from rendered Actors/Components.
+- Save data remains an explicit versioned schema rather than blind Unreal object serialization.
+- Later descendants expose capabilities from installed hardware/software, not from a universal player ability list.
+- Better computation may enable richer automation/design capability, but cannot bypass physical hardware, materials, manufacturing, or known science.
 
 ## Visual product constraint
 
-Everward must not drift toward a primarily 2D, 2.5D, abstract-map, low-poly, deliberately quirky, or visually lightweight interpretation merely because it is easier to implement.
+Everward must not drift toward a primarily 2D, abstract-map, low-poly, deliberately quirky, or visually lightweight interpretation because it is easier to implement. The target remains cinematic, immersive, high-fidelity 3D scientific realism.
 
-The target remains cinematic, immersive, high-fidelity 3D scientific realism. The player is the probe, and physical presence in a universe worth looking at is a first-class product requirement.
+The temporary Phase-2 sphere, markers, labels, and light are engineering scaffolding only.
 
 ## Automation operating state
 
-Scheduled development is governed by `AGENT_DEVELOPMENT_POLICY.md`.
+Scheduled development follows `AGENT_DEVELOPMENT_POLICY.md`:
 
-Every run should:
-
-1. inspect open PRs and CI first;
-2. repair failed existing work before new roadmap work;
-3. merge only work that is independently verified green and fully merge-ready;
-4. otherwise advance one highest-value authorized slice of the current roadmap phase;
+1. inspect open PRs/CI first;
+2. repair red work before starting new work;
+3. merge only independently verified green and merge-ready work;
+4. otherwise advance one highest-value authorized slice;
 5. keep affected documentation current;
-6. use accepted ADRs and this status file to avoid reopening settled decisions.
+6. preserve accepted design/architecture decisions.
 
 ## Repository posture
 
-- Repository visibility: **Public by deliberate operational choice**.
-- Project IP posture: **Proprietary, all rights reserved**.
-- Public visibility does not grant an open-source license.
-- Default branch: `main`.
-- Substantive autonomous development: branch + pull request; no direct-to-main development.
-
-## Historical evidence
-
-Detailed Phase 1 regression discoveries, benchmark evidence, mutation-test history, and failure/root-cause records belong in their existing proof files and `ERROR_RESOLUTION_LEDGER.md` rather than accumulating here.
-
-This file should stay concise and current: **where we are, what blocks us, what decision is settled, and what work is authorized next.**
+- visibility: **Public by deliberate operational choice**;
+- IP: **Proprietary, all rights reserved**;
+- public visibility does not grant an open-source license;
+- default branch: `main`;
+- substantive development: branch + pull request, not direct-to-main.
