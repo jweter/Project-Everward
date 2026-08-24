@@ -9,6 +9,33 @@ namespace everward::simulation
 class SimulationCore;
 }
 
+UENUM(BlueprintType)
+enum class EEverwardPowerSubsystem : uint8
+{
+    Sensors UMETA(DisplayName="Sensors"),
+    Propulsion UMETA(DisplayName="Propulsion"),
+    Computation UMETA(DisplayName="Computation"),
+    Thermal UMETA(DisplayName="Thermal")
+};
+
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardProbeCommandResult
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Command")
+    int64 Sequence = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Command")
+    FName CommandId;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Command")
+    bool bAccepted = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Command")
+    FString Detail;
+};
+
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardProbeTelemetry
 {
@@ -42,6 +69,21 @@ struct EVERWARD_API FEverwardProbeTelemetry
     double PowerCapacityWatts = 0.0;
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    double PowerAllocatedSensorsWatts = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    double PowerAllocatedPropulsionWatts = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    double PowerAllocatedComputationWatts = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    double PowerAllocatedThermalWatts = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    double TotalPowerAllocatedWatts = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
     double TemperatureKelvin = 0.0;
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
@@ -52,6 +94,15 @@ struct EVERWARD_API FEverwardProbeTelemetry
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
     FVector VelocityMetersPerSecond = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    bool bIsScanning = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    FString ActiveScanTargetId;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    double ScanRemainingSeconds = 0.0;
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
     bool bIsOverheated = false;
@@ -117,6 +168,27 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Simulation")
     TArray<FEverwardProbeCapability> GetInstalledCapabilities() const;
 
+    UFUNCTION(BlueprintPure, Category="Everward|Command")
+    FEverwardProbeCommandResult GetLastCommandResult() const;
+
+    // These command methods are the shared authoritative control boundary.
+    // Manual UI, Blueprint, and future script/automation callers must use the
+    // same methods rather than implementing parallel gameplay mechanics.
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandSetVelocityMetersPerSecond(FVector VelocityMetersPerSecond);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandStartScan(const FString& TargetId, double DurationSeconds);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandCancelScan();
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandAllocatePower(EEverwardPowerSubsystem Subsystem, double Watts);
+
+    // Compatibility wrapper retained for existing Blueprint/source callers.
+    // New control surfaces should use CommandSetVelocityMetersPerSecond so
+    // command acceptance/rejection is observable.
     UFUNCTION(BlueprintCallable, Category="Everward|Simulation")
     void SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond);
 
@@ -126,8 +198,11 @@ private:
     static constexpr double FixedStepSeconds = static_cast<double>(FixedStepTicks) / SimulationTicksPerSecond;
     static constexpr double MetersToCentimeters = 100.0;
 
+    FEverwardProbeCommandResult RecordCommandResult(FName CommandId, bool bAccepted, const FString& Detail);
     void SyncOwnerTransformFromSimulation();
 
     double FixedStepAccumulatorSeconds = 0.0;
+    int64 CommandSequence = 0;
+    FEverwardProbeCommandResult LastCommandResult;
     everward::simulation::SimulationCore* Core = nullptr;
 };
