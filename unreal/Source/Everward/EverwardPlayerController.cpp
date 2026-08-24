@@ -88,9 +88,14 @@ void AEverwardPlayerController::ExecutePrimarySystemAction()
         return;
     }
 
-    if (GetSelectedCapabilityId() == FName(TEXT("sensors")))
+    const FName CapabilityId = GetSelectedCapabilityId();
+    if (CapabilityId == FName(TEXT("sensors")))
     {
         (void)Adapter->CommandStartScan(Phase2ScanTargetId, Phase2ScanDurationSeconds);
+    }
+    else if (CapabilityId == FName(TEXT("computation")))
+    {
+        (void)Adapter->CommandInstallBasicSurvivalPolicy();
     }
 }
 
@@ -103,9 +108,14 @@ void AEverwardPlayerController::ExecuteSecondarySystemAction()
         return;
     }
 
-    if (GetSelectedCapabilityId() == FName(TEXT("sensors")))
+    const FName CapabilityId = GetSelectedCapabilityId();
+    if (CapabilityId == FName(TEXT("sensors")))
     {
         (void)Adapter->CommandCancelScan();
+    }
+    else if (CapabilityId == FName(TEXT("computation")))
+    {
+        (void)Adapter->CommandClearSoftwarePolicy();
     }
 }
 
