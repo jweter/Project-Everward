@@ -73,6 +73,7 @@ def validate_reference_assets(
         return errors + ["asset manifest records must be a non-empty list"]
 
     seen: set[str] = set()
+    resolved_asset_root = asset_root.resolve()
     for index, record in enumerate(records):
         label = f"record {index}"
         if not isinstance(record, dict):
@@ -87,14 +88,26 @@ def validate_reference_assets(
         if path.is_absolute() or ".." in path.parts:
             errors.append(f"{label}: path must stay inside the reference package")
             continue
+        expected_classification = path.parts[0] if path.parts else ""
+        if expected_classification not in {"canonical", "exploratory"}:
+            errors.append(f"{label}: path must be in canonical/ or exploratory/")
+        if record.get("classification") != expected_classification:
+            errors.append(
+                f"{label}: classification must match the source directory "
+                f"({expected_classification})"
+            )
         if relative in seen:
             errors.append(f"{label}: duplicate manifest path")
             continue
         seen.add(relative)
 
         source = asset_root / path
+        resolved_source = source.resolve()
+        if not resolved_source.is_relative_to(resolved_asset_root):
+            errors.append(f"{label}: resolved path must stay inside the reference package")
+            continue
         try:
-            data = source.read_bytes()
+            data = resolved_source.read_bytes()
         except OSError as error:
             errors.append(f"{label}: cannot read asset: {error}")
             continue
@@ -115,8 +128,14 @@ def validate_reference_assets(
                 f"file {width}x{height})"
             )
 
-        if record.get("classification") not in {"canonical", "exploratory"}:
-            errors.append(f"{label}: invalid classification")
+    discovered = {
+        str(path.relative_to(asset_root)).replace("\\", "/")
+        for directory in ("canonical", "exploratory")
+        for path in (asset_root / directory).rglob("*")
+        if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg"}
+    }
+    for relative in sorted(discovered - seen):
+        errors.append(f"{relative}: reference image is not listed in the manifest")
 
     return errors
 
