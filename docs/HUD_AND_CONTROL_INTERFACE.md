@@ -20,9 +20,11 @@ Only high-value state needed during ordinary operation:
 
 - probe identity and generation;
 - energy reserve;
+- current power use versus capacity;
 - thermal state;
 - storage pressure;
 - velocity/motion state;
+- active high-value operations such as scanning;
 - critical alerts.
 
 ### Contextual
@@ -58,7 +60,38 @@ installed hardware/software
     -> contextual HUD presentation
 ```
 
+## Shared authoritative command boundary
+
 Manual control and automation must converge on the same authoritative command layer. Clicking a control and issuing the equivalent script instruction must not create two different mechanical implementations.
+
+The Phase-2 boundary is `UProbeSimulationAdapter`:
+
+```text
+manual input / HUD
+        |
+        v
+UProbeSimulationAdapter command method
+        |
+        v
+SimulationCore authoritative command
+        |
+        v
+state + domain events
+        |
+        v
+adapter telemetry / HUD
+```
+
+Future software policies and scripts must call those same adapter command methods or an equivalent lower-level shared command service. They must not duplicate propulsion, scanning, power, manipulation, tool, or other mechanics.
+
+Every submitted command produces an observable command result containing:
+
+- sequence number;
+- command identifier;
+- accepted/rejected state;
+- human-readable reason/detail.
+
+This makes command failure explainable instead of silently ignored. Thermal lockout, energy depletion, failed hardware, invalid scan lifecycle state, and power-budget violations can therefore be surfaced to the player and later to automation diagnostics through the same model.
 
 ## Teaching the machine
 
@@ -70,13 +103,26 @@ The first probe should expose a deliberately modest, somewhat clunky interface c
 
 ## Current Phase-2 implementation
 
-The first production implementation provides:
+The current production implementation provides:
 
-- compact telemetry;
+- compact authoritative telemetry;
 - emergency energy/thermal alerts;
+- active scan progress promotion;
 - a collapsed-by-default systems panel;
 - installed capability discovery;
 - contextual capability state, power, manual-control availability, and automation availability;
-- keyboard navigation for the temporary engineering shell.
+- shared observable command methods for velocity, scan start, scan cancel, and power allocation;
+- command acceptance/rejection feedback in the HUD;
+- keyboard navigation and manual controls for the temporary engineering shell.
 
-This is a foundation, not final visual styling. Future Phase-2 slices should add real scan and power commands through the same capability/adapter boundary, followed by the first software-policy/automation interaction.
+Temporary engineering-shell controls:
+
+- `Tab`: open/close systems;
+- `[` / `]`: select installed system;
+- `Page Up` / `Page Down`: adjust selected subsystem power;
+- Sensors: `Enter` starts a Phase-2 bootstrap scan and `Backspace` cancels it;
+- Propulsion: `Up` / `Down` changes authoritative X velocity and `Space` commands zero velocity.
+
+The bootstrap scan target exists only because Phase 3 world-object targeting does not exist yet. It must be replaced by real selected-target state when that system arrives rather than becoming permanent gameplay content.
+
+This remains a foundation, not final visual styling or final control mapping. The next high-value Phase-2 interaction is the first software-policy/automation primitive using this exact command boundary, followed by local Unreal playtesting and refinement of the Generation-1 embodiment/control feel.
