@@ -1,5 +1,6 @@
 #include "ProbeSimulationAdapter.h"
 
+#include "GameFramework/Actor.h"
 #include "everward/simulation/core.hpp"
 
 UProbeSimulationAdapter::UProbeSimulationAdapter()
@@ -12,6 +13,7 @@ void UProbeSimulationAdapter::BeginPlay()
     Super::BeginPlay();
     Core = new everward::simulation::SimulationCore(
         everward::simulation::SimulationCore::make_canonical_ev0001());
+    SyncOwnerTransformFromSimulation();
 }
 
 void UProbeSimulationAdapter::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -39,6 +41,8 @@ void UProbeSimulationAdapter::TickComponent(
         Core->advance_wall_ticks(FixedStepTicks);
         FixedStepAccumulatorSeconds -= FixedStepSeconds;
     }
+
+    SyncOwnerTransformFromSimulation();
 
     const auto Events = Core->drain_events();
     for (const auto& Event : Events)
@@ -75,4 +79,26 @@ void UProbeSimulationAdapter::SetProbeVelocityMetersPerSecond(FVector VelocityMe
         VelocityMetersPerSecond.Y,
         VelocityMetersPerSecond.Z
     });
+}
+
+void UProbeSimulationAdapter::SyncOwnerTransformFromSimulation()
+{
+    if (Core == nullptr)
+    {
+        return;
+    }
+
+    AActor* Owner = GetOwner();
+    if (Owner == nullptr)
+    {
+        return;
+    }
+
+    const auto& PositionMeters = Core->snapshot().position_m;
+    const FVector PresentationPositionCentimeters(
+        PositionMeters.x * MetersToCentimeters,
+        PositionMeters.y * MetersToCentimeters,
+        PositionMeters.z * MetersToCentimeters);
+
+    Owner->SetActorLocation(PresentationPositionCentimeters, false, nullptr, ETeleportType::TeleportPhysics);
 }

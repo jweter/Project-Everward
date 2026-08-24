@@ -8,7 +8,7 @@ The player is not an external empire controller. **The player is the probe.** Pr
 
 ## Current project stage
 
-Everward is in **Phase 1 — Technical Proofs**. **Unreal Engine is the accepted production engine direction.** Phase 1 is now validating that decision and identifying any technical blockers before Phase 2 production gameplay begins. Phase 2 — One Probe is not authorized until the Phase 1 exit gate passes with real decision-ready evidence that validates Unreal under the current project constraints.
+Everward is in **Phase 2 — One Probe**. Phase 1 technical proofs and the executable exit gate are complete, and **Unreal Engine 5.8 is the accepted production engine direction**. Production gameplay work now focuses on making one authoritative simulated probe physically present, readable, and controllable through Unreal without allowing presentation code to own mechanical truth.
 
 The first playable proof is intentionally small:
 
@@ -70,17 +70,18 @@ Project-Everward/
 ├── src/
 ├── tests/
 ├── tools/
+├── unreal/                 # production Unreal Engine project
 └── assets/
 ```
 
 ## Near-term development sequence
 
-1. Complete the remaining Phase 1 technical-proof evidence set.
-2. Preserve the already-proven deterministic simulation time, headless acceleration, procedural astronomy, and large-coordinate foundations.
-3. Complete the representative Everward hardware rendering evidence with Unreal as the production target; retain Godot only as comparative benchmark history where useful.
-4. Produce a decision-ready Phase 1 artifact that validates Unreal and identifies any remaining technical risks.
-5. Satisfy the Phase 1 exit gate.
-6. Begin Phase 2 — One Probe in Unreal Engine.
+1. Complete visible One Probe embodiment by driving Unreal presentation from authoritative simulation state.
+2. Add a minimal inspect/HUD read model for mass, energy, temperature, storage, velocity, and simulation time.
+3. Expose scanning and power-management commands through the Unreal adapter/Blueprint boundary.
+4. Implement the remaining basic software-policy interaction required by the Phase 2 gate.
+5. Playtest movement, observation, telemetry, scanning, and systems management until simply existing as the probe is compelling.
+6. Only then advance to Phase 3 — One Star System.
 
 ## Architecture rule
 

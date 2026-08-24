@@ -33,6 +33,9 @@ public:
 private:
     static constexpr int64 FixedStepTicks = 16667;
     static constexpr double FixedStepSeconds = static_cast<double>(FixedStepTicks) / 1000000.0;
+    static constexpr double MetersToCentimeters = 100.0;
+
+    void SyncOwnerTransformFromSimulation();
 
     double FixedStepAccumulatorSeconds = 0.0;
     everward::simulation::SimulationCore* Core = nullptr;
