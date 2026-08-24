@@ -1,7 +1,7 @@
 #include "ProbeSimulationAdapter.h"
 
 #include "GameFramework/Actor.h"
-#include "everward/simulation/core.hpp"
+#include "everward/simulation/software_policy.hpp"
 
 #include <exception>
 #include <string>
@@ -51,8 +51,8 @@ UProbeSimulationAdapter::UProbeSimulationAdapter()
 void UProbeSimulationAdapter::BeginPlay()
 {
     Super::BeginPlay();
-    Core = new everward::simulation::SimulationCore(
-        everward::simulation::SimulationCore::make_canonical_ev0001());
+    Core = new everward::simulation::ProbeRuntime(
+        everward::simulation::ProbeRuntime::make_canonical_ev0001());
     SyncOwnerTransformFromSimulation();
 }
 
@@ -221,6 +221,24 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
     return Capabilities;
 }
 
+FEverwardSoftwarePolicyStatus UProbeSimulationAdapter::GetSoftwarePolicyStatus() const
+{
+    FEverwardSoftwarePolicyStatus Result;
+    if (Core == nullptr)
+    {
+        return Result;
+    }
+
+    const auto Status = Core->policy_status();
+    Result.bInstalled = Status.installed;
+    Result.bEnabled = Status.enabled;
+    Result.bExecutorAvailable = Status.executor_available;
+    Result.PolicyId = UTF8_TO_TCHAR(Status.policy_id.c_str());
+    Result.RuleCount = static_cast<int32>(Status.rule_count);
+    Result.MinimumComputationPowerWatts = Status.minimum_computation_power_w;
+    return Result;
+}
+
 FEverwardProbeCommandResult UProbeSimulationAdapter::GetLastCommandResult() const
 {
     return LastCommandResult;
@@ -320,6 +338,67 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandAllocatePower(
     {
         return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what()));
     }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandInstallBasicSurvivalPolicy()
+{
+    const FName CommandId(TEXT("install_basic_survival_policy"));
+    if (Core == nullptr)
+    {
+        return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    }
+
+    try
+    {
+        everward::simulation::SoftwarePolicy Policy;
+        Policy.id = "gen1_basic_survival";
+        Policy.rules = {
+            {
+                "shed_sensors_below_60_percent_energy",
+                everward::simulation::PolicyConditionKind::EnergyFractionBelow,
+                0.60,
+                everward::simulation::PolicyActionKind::SetPowerAllocation,
+                everward::simulation::PowerSubsystem::Sensors,
+                0.0,
+            },
+            {
+                "shed_propulsion_above_350_kelvin",
+                everward::simulation::PolicyConditionKind::TemperatureAboveKelvin,
+                350.0,
+                everward::simulation::PolicyActionKind::SetPowerAllocation,
+                everward::simulation::PowerSubsystem::Propulsion,
+                0.0,
+            },
+        };
+        Core->install_policy(std::move(Policy));
+        return RecordCommandResult(
+            CommandId,
+            true,
+            FString::Printf(
+                TEXT("GEN1 BASIC SURVIVAL installed; automation requires >= %.0f W computation"),
+                everward::simulation::ProbeRuntime::kGeneration1MinimumPolicyComputationPowerW));
+    }
+    catch (const std::exception& Error)
+    {
+        return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what()));
+    }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandClearSoftwarePolicy()
+{
+    const FName CommandId(TEXT("clear_software_policy"));
+    if (Core == nullptr)
+    {
+        return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    }
+
+    if (!Core->policy_status().installed)
+    {
+        return RecordCommandResult(CommandId, false, TEXT("no software policy installed"));
+    }
+
+    Core->clear_policy();
+    return RecordCommandResult(CommandId, true, TEXT("software policy cleared"));
 }
 
 void UProbeSimulationAdapter::SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond)
