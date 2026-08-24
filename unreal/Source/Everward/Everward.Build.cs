@@ -12,7 +12,8 @@ public class Everward : ModuleRules
         {
             "Core",
             "CoreUObject",
-            "Engine"
+            "Engine",
+            "InputCore"
         });
 
         PublicIncludePaths.Add(Path.GetFullPath(
