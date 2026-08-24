@@ -18,11 +18,12 @@ The Phase 2 runtime bootstrap supplies `AEverwardGameMode` and one default `AEve
 
 The adapter synchronizes the pawn's actor location from `SimulationCore::snapshot().position_m` after deterministic fixed-step simulation advancement. The pawn does not author its own mechanical position.
 
-## Capability-driven HUD foundation
+## Capability-driven HUD and command shell
 
-`AEverwardHUD` is the first production HUD shell. It intentionally avoids a permanently expanded cockpit interface:
+`AEverwardHUD` is the first production HUD/control shell. It intentionally avoids a permanently expanded cockpit interface:
 
-- compact always-visible telemetry shows probe identity/generation, energy, thermal state, storage, velocity, and simulation time;
+- compact always-visible telemetry shows probe identity/generation, energy, total power allocation/capacity, thermal state, storage, velocity, and simulation time;
+- active scanning is promoted while it is running;
 - critical energy/thermal lockouts promote themselves into visible alerts;
 - the systems/control area remains collapsed by default;
 - `Tab` expands or collapses the systems panel;
@@ -32,8 +33,31 @@ The adapter synchronizes the pawn's actor location from `SimulationCore::snapsho
 
 The current Generation-1 capability descriptors are propulsion, sensors, computation, and thermal control because those are the authoritative subsystem concepts the simulation currently models. Future drills, manipulators, lasers, fabrication systems, new sensor modalities, and other descendant hardware should extend the same capability/read-model pattern rather than adding unrelated HUD special cases.
 
-The HUD is presentation only. It never calls `SimulationCore` directly. Manual UI actions and future script/automation actions must ultimately submit the same authoritative command types through the adapter/command boundary.
+## Shared authoritative commands
+
+`UProbeSimulationAdapter` now exposes the first shared command methods:
+
+- `CommandSetVelocityMetersPerSecond`;
+- `CommandStartScan`;
+- `CommandCancelScan`;
+- `CommandAllocatePower`.
+
+Each command returns `FEverwardProbeCommandResult` with a sequence number, command id, accepted/rejected state, and detail. The adapter catches authoritative simulation rejections and makes the reason visible to presentation callers instead of silently swallowing it.
+
+Manual input uses these command methods now. Future scripts and automation must use the same command surface rather than implementing separate mechanics.
+
+Temporary Phase-2 engineering controls:
+
+- `Tab`: open/close systems panel;
+- `[` / `]`: select capability;
+- `Page Up` / `Page Down`: increase/decrease selected subsystem power;
+- with Sensors selected, `Enter` starts a 10-second bootstrap scan and `Backspace` cancels it;
+- with Propulsion selected, `Up` / `Down` nudges authoritative X velocity by 1 m/s and `Space` commands zero velocity.
+
+The hard-coded bootstrap scan target is explicitly temporary. It exists only to make the already-built scan lifecycle interactively testable before Phase 3 provides real target selection.
+
+The HUD remains presentation only. It never calls `SimulationCore` directly. Mechanical outcomes remain authoritative in `src/simulation/`.
 
 The project still contains no authored production map. `DefaultEngine.ini` selects the production game mode, so Unreal's startup map can spawn the single probe without duplicating simulation ownership.
 
-The next Phase 2 interaction slices are adapter-backed scanning and power-management commands, then the first software-policy/automation surface. Those controls should appear contextually from the installed capability model rather than remaining permanently visible.
+The next Phase 2 interaction slice should add the first primitive software policy/automation behavior through this same command boundary, then locally build/run the Unreal 5.8 project and refine the Generation-1 control feel from direct playtest evidence.
