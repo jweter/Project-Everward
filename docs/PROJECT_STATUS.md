@@ -66,7 +66,9 @@ As of PR #100, `main` includes:
 - Generation-1 Prime Probe A — Scientific Explorer is the canonical original design;
 - canonical master, orthographic, dimensions, system-callout, deployment, manipulator/tool, and material reference sheets are versioned under `assets/reference/probe/gen1-prime/`;
 - alternate B/C concepts remain exploratory references;
-- production 3D blockout is still pending and does not block the first engineering playtest.
+- production 3D blockout is still pending and does not block the first engineering playtest;
+- canonical reference hashes and dimensions are now enforced by a standard-library
+  validator in Foundation CI, establishing a safe parallel asset-production handoff.
 
 ## First-run integration gate
 
