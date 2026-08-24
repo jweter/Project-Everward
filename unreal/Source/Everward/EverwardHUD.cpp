@@ -48,6 +48,7 @@ void AEverwardHUD::DrawHUD()
     const UProbeSimulationAdapter* Adapter = Probe->GetSimulationAdapter();
     const FEverwardProbeTelemetry Telemetry = Adapter->GetProbeTelemetry();
     const TArray<FEverwardProbeCapability> Capabilities = Adapter->GetInstalledCapabilities();
+    const FEverwardSoftwarePolicyStatus PolicyStatus = Adapter->GetSoftwarePolicyStatus();
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
 
     const float Margin = 24.0f;
@@ -171,7 +172,7 @@ void AEverwardHUD::DrawHUD()
         return;
     }
 
-    const float ExpandedHeight = 410.0f;
+    const float ExpandedHeight = 450.0f;
     const float ExpandedY = Canvas->ClipY - Margin - ExpandedHeight;
     DrawRect(PanelColor, SystemPanelX, ExpandedY, PanelWidth, ExpandedHeight);
     DrawText(TEXT("SYSTEMS / CONTROL   [TAB CLOSE]"), TextColor, SystemPanelX + 14.0f, ExpandedY + 12.0f, nullptr, 0.95f, false);
@@ -252,6 +253,33 @@ void AEverwardHUD::DrawHUD()
                 Telemetry.VelocityMetersPerSecond.Y,
                 Telemetry.VelocityMetersPerSecond.Z),
             MutedColor,
+            SystemPanelX + 14.0f,
+            Y,
+            nullptr,
+            0.8f,
+            false);
+        Y += 24.0f;
+    }
+    else if (Selected.CapabilityId == FName(TEXT("computation")))
+    {
+        DrawText(TEXT("[ENTER] INSTALL BASIC SURVIVAL   [BACKSPACE] CLEAR"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.76f, false);
+        Y += 22.0f;
+        DrawText(
+            PolicyStatus.bInstalled
+                ? FString::Printf(TEXT("POLICY: %s  //  %d RULES"), *PolicyStatus.PolicyId, PolicyStatus.RuleCount)
+                : TEXT("POLICY: NONE"),
+            MutedColor,
+            SystemPanelX + 14.0f,
+            Y,
+            nullptr,
+            0.8f,
+            false);
+        Y += 22.0f;
+        DrawText(
+            PolicyStatus.bExecutorAvailable
+                ? TEXT("EXECUTOR: RUNNING")
+                : FString::Printf(TEXT("EXECUTOR: NEED >= %.0f W COMPUTE"), PolicyStatus.MinimumComputationPowerWatts),
+            PolicyStatus.bExecutorAvailable ? TextColor : AlertColor,
             SystemPanelX + 14.0f,
             Y,
             nullptr,

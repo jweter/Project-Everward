@@ -101,6 +101,8 @@ enum class DomainEventType {
     OverheatStarted,
     OverheatEnded,
     PolicyChanged,
+    PolicyRuleTriggered,
+    PolicyActionRejected,
     ManeuverStarted,
     ManeuverCompleted
 };

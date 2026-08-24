@@ -64,7 +64,7 @@ installed hardware/software
 
 Manual control and automation must converge on the same authoritative command layer. Clicking a control and issuing the equivalent script instruction must not create two different mechanical implementations.
 
-The Phase-2 boundary is `UProbeSimulationAdapter`:
+The Phase-2 boundary is `UProbeSimulationAdapter`, backed by the engine-independent `ProbeRuntime` and `SimulationCore`:
 
 ```text
 manual input / HUD
@@ -73,7 +73,7 @@ manual input / HUD
 UProbeSimulationAdapter command method
         |
         v
-SimulationCore authoritative command
+ProbeRuntime / SimulationCore authoritative command
         |
         v
 state + domain events
@@ -82,9 +82,9 @@ state + domain events
 adapter telemetry / HUD
 ```
 
-Future software policies and scripts must call those same adapter command methods or an equivalent lower-level shared command service. They must not duplicate propulsion, scanning, power, manipulation, tool, or other mechanics.
+Software policy evaluation lives in the engine-independent runtime. Matching policy actions call the same public `SimulationCore::allocate_power()` command used by manual control; they do not write separate automation-only power state.
 
-Every submitted command produces an observable command result containing:
+Every submitted manual command produces an observable command result containing:
 
 - sequence number;
 - command identifier;
@@ -97,9 +97,13 @@ This makes command failure explainable instead of silently ignored. Thermal lock
 
 Long term, manual operation should help players learn and create automation. A sequence performed manually may become the basis for a reusable routine: target, approach, stabilize, deploy tool, act, retract, depart. The player's progression therefore moves naturally from operating individual mechanisms toward designing behavior.
 
+The first implemented step is deliberately primitive. Generation 1 can install one two-rule policy and must physically power its computation subsystem for the policy executor to run. This gives the player direct evidence that programming is part of the machine, not a detached magic menu.
+
 ## Generation-1 presentation
 
 The first probe should expose a deliberately modest, somewhat clunky interface consistent with its limited hardware and computation. Its HUD should be understandable but not magically sophisticated. Later computation and hardware generations may support richer analysis, stronger automation, more concurrent state, and more advanced control surfaces.
+
+Generation-1 software-policy constraints are documented in `GEN1_SOFTWARE_POLICY.md`.
 
 ## Current Phase-2 implementation
 
@@ -113,6 +117,9 @@ The current production implementation provides:
 - contextual capability state, power, manual-control availability, and automation availability;
 - shared observable command methods for velocity, scan start, scan cancel, and power allocation;
 - command acceptance/rejection feedback in the HUD;
+- one primitive policy slot with a maximum of two simple rules;
+- a 25 W Generation-1 computation requirement for policy execution;
+- policy installation/clear controls and policy/executor status under Computation;
 - keyboard navigation and manual controls for the temporary engineering shell.
 
 Temporary engineering-shell controls:
@@ -121,8 +128,11 @@ Temporary engineering-shell controls:
 - `[` / `]`: select installed system;
 - `Page Up` / `Page Down`: adjust selected subsystem power;
 - Sensors: `Enter` starts a Phase-2 bootstrap scan and `Backspace` cancels it;
-- Propulsion: `Up` / `Down` changes authoritative X velocity and `Space` commands zero velocity.
+- Propulsion: `Up` / `Down` changes authoritative X velocity and `Space` commands zero velocity;
+- Computation: `Enter` installs the temporary `gen1_basic_survival` policy and `Backspace` clears it.
 
 The bootstrap scan target exists only because Phase 3 world-object targeting does not exist yet. It must be replaced by real selected-target state when that system arrives rather than becoming permanent gameplay content.
 
-This remains a foundation, not final visual styling or final control mapping. The next high-value Phase-2 interaction is the first software-policy/automation primitive using this exact command boundary, followed by local Unreal playtesting and refinement of the Generation-1 embodiment/control feel.
+The Basic Survival policy uses an intentionally aggressive 60% energy threshold so its behavior is immediately visible during Phase-2 integration testing. That value is test scaffolding, not final balance.
+
+This remains a foundation, not final visual styling or final control mapping. The next high-value Phase-2 work is a reproducible One Probe test environment with camera/look controls, visible movement references, and a visible test scan target, followed by local Unreal playtesting and refinement of the Generation-1 embodiment/control feel.
