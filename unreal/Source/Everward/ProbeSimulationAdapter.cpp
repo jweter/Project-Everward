@@ -67,6 +67,112 @@ FVector UProbeSimulationAdapter::GetProbePositionMeters() const
     return FVector(Position.x, Position.y, Position.z);
 }
 
+FEverwardProbeTelemetry UProbeSimulationAdapter::GetProbeTelemetry() const
+{
+    FEverwardProbeTelemetry Telemetry;
+    if (Core == nullptr)
+    {
+        return Telemetry;
+    }
+
+    const auto& Snapshot = Core->snapshot();
+    Telemetry.ProbeId = UTF8_TO_TCHAR(Snapshot.probe_id.c_str());
+    Telemetry.Generation = static_cast<int32>(Snapshot.generation);
+    Telemetry.SimulationTick = Core->tick();
+    Telemetry.SimulationTimeSeconds = static_cast<double>(Telemetry.SimulationTick) / SimulationTicksPerSecond;
+    Telemetry.MassKilograms = Snapshot.mass_kg;
+    Telemetry.StoredEnergyJoules = Snapshot.stored_energy_j;
+    Telemetry.EnergyCapacityJoules = Snapshot.energy_capacity_j;
+    Telemetry.EnergyGenerationWatts = Snapshot.energy_generation_w;
+    Telemetry.PowerCapacityWatts = Snapshot.power_capacity_w;
+    Telemetry.TemperatureKelvin = Snapshot.temperature_k;
+    Telemetry.StorageUsedKilograms = Snapshot.storage_used_kg;
+    Telemetry.StorageCapacityKilograms = Snapshot.storage_capacity_kg;
+    Telemetry.VelocityMetersPerSecond = FVector(
+        Snapshot.velocity_mps.x,
+        Snapshot.velocity_mps.y,
+        Snapshot.velocity_mps.z);
+    Telemetry.bIsOverheated = Snapshot.is_overheated;
+    Telemetry.bIsEnergyDepleted = Snapshot.is_energy_depleted;
+    return Telemetry;
+}
+
+TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabilities() const
+{
+    TArray<FEverwardProbeCapability> Capabilities;
+    if (Core == nullptr)
+    {
+        return Capabilities;
+    }
+
+    const auto& Snapshot = Core->snapshot();
+
+    auto AddCapability = [&Capabilities](
+        FName Id,
+        const TCHAR* Name,
+        const TCHAR* Description,
+        bool bOperational,
+        bool bAvailable,
+        bool bSupportsManualControl,
+        bool bSupportsAutomation,
+        double AllocatedPowerWatts)
+    {
+        FEverwardProbeCapability Capability;
+        Capability.CapabilityId = Id;
+        Capability.DisplayName = Name;
+        Capability.Description = Description;
+        Capability.bInstalled = true;
+        Capability.bOperational = bOperational;
+        Capability.bAvailable = bAvailable;
+        Capability.bSupportsManualControl = bSupportsManualControl;
+        Capability.bSupportsAutomation = bSupportsAutomation;
+        Capability.AllocatedPowerWatts = AllocatedPowerWatts;
+        Capabilities.Add(MoveTemp(Capability));
+    };
+
+    AddCapability(
+        FName(TEXT("propulsion")),
+        TEXT("Propulsion"),
+        TEXT("Translation and maneuvering authority."),
+        Snapshot.propulsion_operational,
+        Snapshot.can_thrust,
+        true,
+        true,
+        Snapshot.power_allocated_propulsion_w);
+
+    AddCapability(
+        FName(TEXT("sensors")),
+        TEXT("Sensors"),
+        TEXT("Scientific observation and active scanning."),
+        Snapshot.sensors_operational,
+        Snapshot.can_scan,
+        true,
+        true,
+        Snapshot.power_allocated_sensors_w);
+
+    AddCapability(
+        FName(TEXT("computation")),
+        TEXT("Computation"),
+        TEXT("Onboard planning, automation, and software execution."),
+        Snapshot.computation_operational,
+        Snapshot.computation_operational,
+        false,
+        true,
+        Snapshot.power_allocated_computation_w);
+
+    AddCapability(
+        FName(TEXT("thermal")),
+        TEXT("Thermal Control"),
+        TEXT("Heat rejection and thermal-management hardware."),
+        Snapshot.thermal_operational,
+        Snapshot.thermal_operational,
+        true,
+        true,
+        Snapshot.power_allocated_thermal_w);
+
+    return Capabilities;
+}
+
 void UProbeSimulationAdapter::SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond)
 {
     if (Core == nullptr)
