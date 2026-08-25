@@ -11,11 +11,22 @@ struct Vector3d {
     double z{};
 };
 
+struct EulerAttitudeDegrees {
+    double yaw{};
+    double pitch{};
+    double roll{};
+};
+
 struct ProbeStateSnapshot {
     std::string probe_id{"EV-0001"};
     std::uint32_t generation{1};
     Vector3d position_m{};
     Vector3d velocity_mps{};
+    // Authoritative Generation-1 attitude. Euler angles are sufficient for
+    // the current deterministic command-driven embodiment pass; a future
+    // rigid-body flight model may replace the representation behind this
+    // read model without moving mechanical truth into Unreal.
+    EulerAttitudeDegrees attitude_degrees{};
     double mass_kg{2500.0};
     double stored_energy_j{5.0e8};
     double energy_capacity_j{1.0e9};
@@ -103,6 +114,7 @@ enum class DomainEventType {
     PolicyChanged,
     PolicyRuleTriggered,
     PolicyActionRejected,
+    AttitudeChanged,
     ManeuverStarted,
     ManeuverCompleted
 };
