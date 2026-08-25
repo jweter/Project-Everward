@@ -17,6 +17,7 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         cls.game_mode_h = (SOURCE / "EverwardGameMode.h").read_text(encoding="utf-8")
         cls.game_mode_cpp = (SOURCE / "EverwardGameMode.cpp").read_text(encoding="utf-8")
         cls.controller = (SOURCE / "EverwardPlayerController.cpp").read_text(encoding="utf-8")
+        cls.adapter_source = (SOURCE / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
         cls.pawn_h = (SOURCE / "EverwardProbePawn.h").read_text(encoding="utf-8")
         cls.pawn_cpp = (SOURCE / "EverwardProbePawn.cpp").read_text(encoding="utf-8")
         cls.input_config = (UNREAL / "Config" / "DefaultInput.ini").read_text(encoding="utf-8")
@@ -55,13 +56,19 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         self.assertIn('CameraBoom->bUsePawnControlRotation = true;', self.pawn_cpp)
         self.assertIn('CameraBoom->bDoCollisionTest = false;', self.pawn_cpp)
 
-    def test_phase2_translation_exposes_all_three_world_axes(self) -> None:
+    def test_phase2_translation_is_probe_relative_on_all_three_local_axes(self) -> None:
         for key in ('EKeys::W', 'EKeys::S', 'EKeys::A', 'EKeys::D', 'EKeys::Q', 'EKeys::E'):
             self.assertIn(key, self.controller)
         self.assertIn('FVector(VelocityAdjustmentMetersPerSecond, 0.0, 0.0)', self.controller)
         self.assertIn('FVector(0.0, VelocityAdjustmentMetersPerSecond, 0.0)', self.controller)
         self.assertIn('FVector(0.0, 0.0, VelocityAdjustmentMetersPerSecond)', self.controller)
-        self.assertIn('CommandSetVelocityMetersPerSecond(RequestedVelocity)', self.controller)
+        self.assertIn('CommandAdjustLocalVelocityMetersPerSecond(DeltaLocalVelocity)', self.controller)
+
+    def test_phase2_attitude_controls_cover_yaw_pitch_and_roll(self) -> None:
+        for key in ('EKeys::J', 'EKeys::L', 'EKeys::I', 'EKeys::K', 'EKeys::U', 'EKeys::O'):
+            self.assertIn(key, self.controller)
+        self.assertIn('CommandAdjustAttitudeDegrees(DeltaAttitude)', self.controller)
+        self.assertIn('Owner->SetActorRotation(PresentationAttitude', self.adapter_source)
 
     def test_test_environment_never_bypasses_simulation_adapter_boundary(self) -> None:
         self.assertNotIn('everward::simulation', self.environment_h)
