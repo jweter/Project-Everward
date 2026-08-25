@@ -154,6 +154,42 @@ void AEverwardHUD::DrawHUD()
             false);
     }
 
+    // Flight state is safety-critical and should never disappear just because the
+    // player is inspecting Sensors/Computation/Thermal. Convert authoritative world
+    // velocity back into probe-local axes so the readout answers the useful question:
+    // am I moving forward/back, right/left, or up/down relative to my current attitude?
+    const double SpeedMetersPerSecond = Telemetry.VelocityMetersPerSecond.Size();
+    if (SpeedMetersPerSecond > 0.01)
+    {
+        const FVector LocalVelocity = Probe->GetActorTransform().InverseTransformVectorNoScale(
+            Telemetry.VelocityMetersPerSecond);
+        const float FlightWidth = 430.0f;
+        const float FlightHeight = 72.0f;
+        const float FlightX = (Canvas->ClipX - FlightWidth) * 0.5f;
+        const float FlightY = Margin;
+        DrawRect(PanelColor, FlightX, FlightY, FlightWidth, FlightHeight);
+        DrawText(
+            FString::Printf(TEXT("FLIGHT  %.2f m/s   [SPACE] BRAKE"), SpeedMetersPerSecond),
+            TextColor,
+            FlightX + 14.0f,
+            FlightY + 10.0f,
+            nullptr,
+            0.95f,
+            false);
+        DrawText(
+            FString::Printf(
+                TEXT("FWD %+0.2f   RIGHT %+0.2f   UP %+0.2f m/s"),
+                LocalVelocity.X,
+                LocalVelocity.Y,
+                LocalVelocity.Z),
+            MutedColor,
+            FlightX + 14.0f,
+            FlightY + 38.0f,
+            nullptr,
+            0.82f,
+            false);
+    }
+
     const float SystemPanelX = Canvas->ClipX - Margin - PanelWidth;
     const float CompactHeight = 48.0f;
     const float CompactY = Canvas->ClipY - Margin - CompactHeight;
@@ -245,10 +281,10 @@ void AEverwardHUD::DrawHUD()
     }
     else if (Selected.CapabilityId == FName(TEXT("propulsion")))
     {
-        DrawText(TEXT("[W/S] X  [A/D] Y  [Q/E] Z  [SPACE] STOP"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.72f, false);
+        DrawText(TEXT("[W/S] X  [A/D] Y  [Q/E] Z  [SPACE] GLOBAL BRAKE"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.72f, false);
         Y += 22.0f;
         DrawText(
-            FString::Printf(TEXT("VECTOR [%.2f, %.2f, %.2f] m/s"),
+            FString::Printf(TEXT("WORLD VECTOR [%.2f, %.2f, %.2f] m/s"),
                 Telemetry.VelocityMetersPerSecond.X,
                 Telemetry.VelocityMetersPerSecond.Y,
                 Telemetry.VelocityMetersPerSecond.Z),
