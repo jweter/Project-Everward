@@ -120,6 +120,9 @@ struct EVERWARD_API FEverwardProbeTelemetry
     FVector VelocityMetersPerSecond = FVector::ZeroVector;
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
+    FRotator AttitudeDegrees = FRotator::ZeroRotator;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
     bool bIsScanning = false;
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
@@ -203,6 +206,12 @@ public:
     // same methods rather than implementing parallel gameplay mechanics.
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandSetVelocityMetersPerSecond(FVector VelocityMetersPerSecond);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandAdjustLocalVelocityMetersPerSecond(FVector DeltaLocalVelocityMetersPerSecond);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandAdjustAttitudeDegrees(FRotator DeltaAttitudeDegrees);
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandStartScan(const FString& TargetId, double DurationSeconds);
