@@ -51,6 +51,30 @@ void AEverwardHUD::DrawHUD()
     const FEverwardSoftwarePolicyStatus PolicyStatus = Adapter->GetSoftwarePolicyStatus();
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
 
+    // Persist visible payoff when an authoritative scan lifecycle transitions from
+    // active to complete. Cancellation is explicitly distinguished by the shared
+    // command result, so cancelled work can never fabricate a discovery.
+    if (Telemetry.bIsScanning)
+    {
+        bWasScanning = true;
+        LastObservedScanTargetId = Telemetry.ActiveScanTargetId;
+    }
+    else if (bWasScanning)
+    {
+        bWasScanning = false;
+        const bool bWasCancelled = LastCommand.bAccepted && LastCommand.CommandId == FName(TEXT("cancel_scan"));
+        if (!bWasCancelled && !LastObservedScanTargetId.IsEmpty())
+        {
+            bHasScanDiscovery = true;
+            LastScanTargetId = LastObservedScanTargetId;
+            LastScanObjectClass = TEXT("ROCKY BODY / SURVEY REFERENCE");
+            LastScanComposition = TEXT("SILICATE-RICH // IRON-BEARING MATERIAL");
+            LastScanConfidence = 0.92;
+            LastScanCompletedAtSeconds = Telemetry.SimulationTimeSeconds;
+        }
+        LastObservedScanTargetId.Reset();
+    }
+
     const float Margin = 24.0f;
     const float LineHeight = 22.0f;
     const float PanelWidth = 350.0f;
@@ -146,6 +170,17 @@ void AEverwardHUD::DrawHUD()
                 TEXT("SCAN  %s  //  %.1f s REMAINING"),
                 *Telemetry.ActiveScanTargetId,
                 Telemetry.ScanRemainingSeconds),
+            TextColor,
+            Margin,
+            AlertY,
+            nullptr,
+            0.95f,
+            false);
+    }
+    else if (bHasScanDiscovery)
+    {
+        DrawText(
+            FString::Printf(TEXT("SCAN COMPLETE  //  %s  //  DISCOVERY STORED"), *LastScanTargetId),
             TextColor,
             Margin,
             AlertY,
@@ -278,6 +313,27 @@ void AEverwardHUD::DrawHUD()
             0.8f,
             false);
         Y += 24.0f;
+
+        if (bHasScanDiscovery)
+        {
+            DrawText(TEXT("LAST DISCOVERY"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.82f, false);
+            Y += 20.0f;
+            DrawText(LastScanTargetId, MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.76f, false);
+            Y += 19.0f;
+            DrawText(LastScanObjectClass, TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.74f, false);
+            Y += 19.0f;
+            DrawText(LastScanComposition, MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.70f, false);
+            Y += 19.0f;
+            DrawText(
+                FString::Printf(TEXT("CONFIDENCE %.0f%%  //  ACQUIRED T+%.1fs"), LastScanConfidence * 100.0, LastScanCompletedAtSeconds),
+                MutedColor,
+                SystemPanelX + 14.0f,
+                Y,
+                nullptr,
+                0.70f,
+                false);
+            Y += 24.0f;
+        }
     }
     else if (Selected.CapabilityId == FName(TEXT("propulsion")))
     {
