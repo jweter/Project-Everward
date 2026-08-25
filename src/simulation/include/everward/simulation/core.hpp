@@ -73,11 +73,50 @@ public:
     }
 
     void set_velocity_mps(Vector3d velocity) {
+        require_finite_vector(velocity, "velocity");
         if (!probe_.can_thrust) {
             throw std::runtime_error("propulsion unavailable");
         }
         probe_.velocity_mps = velocity;
         events_.push_back({clock_.tick(), DomainEventType::ManeuverStarted, "velocity command accepted"});
+    }
+
+    void adjust_attitude_degrees(EulerAttitudeDegrees delta) {
+        require_finite_attitude(delta);
+        if (!probe_.can_thrust) {
+            throw std::runtime_error("propulsion unavailable");
+        }
+
+        probe_.attitude_degrees.yaw =
+            normalize_degrees(probe_.attitude_degrees.yaw + delta.yaw);
+        probe_.attitude_degrees.pitch =
+            normalize_degrees(probe_.attitude_degrees.pitch + delta.pitch);
+        probe_.attitude_degrees.roll =
+            normalize_degrees(probe_.attitude_degrees.roll + delta.roll);
+        events_.push_back({
+            clock_.tick(),
+            DomainEventType::AttitudeChanged,
+            "attitude trim accepted"
+        });
+    }
+
+    void adjust_local_velocity_mps(Vector3d local_delta_velocity) {
+        require_finite_vector(local_delta_velocity, "local velocity trim");
+        if (!probe_.can_thrust) {
+            throw std::runtime_error("propulsion unavailable");
+        }
+
+        const Vector3d world_delta = rotate_local_to_world(
+            local_delta_velocity,
+            probe_.attitude_degrees);
+        probe_.velocity_mps.x += world_delta.x;
+        probe_.velocity_mps.y += world_delta.y;
+        probe_.velocity_mps.z += world_delta.z;
+        events_.push_back({
+            clock_.tick(),
+            DomainEventType::ManeuverStarted,
+            "probe-relative velocity trim accepted"
+        });
     }
 
     void start_scan(const std::string& target_id, double duration_s) {
@@ -261,6 +300,58 @@ public:
     }
 
 private:
+    static constexpr double kDegreesToRadians =
+        3.141592653589793238462643383279502884 / 180.0;
+
+    static void require_finite_vector(Vector3d value, const char* label) {
+        if (!std::isfinite(value.x) || !std::isfinite(value.y) ||
+            !std::isfinite(value.z)) {
+            throw std::invalid_argument(std::string(label) + " must be finite");
+        }
+    }
+
+    static void require_finite_attitude(EulerAttitudeDegrees value) {
+        if (!std::isfinite(value.yaw) || !std::isfinite(value.pitch) ||
+            !std::isfinite(value.roll)) {
+            throw std::invalid_argument("attitude trim must be finite");
+        }
+    }
+
+    [[nodiscard]] static double normalize_degrees(double degrees) noexcept {
+        double normalized = std::fmod(degrees, 360.0);
+        if (normalized >= 180.0) {
+            normalized -= 360.0;
+        } else if (normalized < -180.0) {
+            normalized += 360.0;
+        }
+        return normalized;
+    }
+
+    [[nodiscard]] static Vector3d rotate_local_to_world(
+        Vector3d local,
+        EulerAttitudeDegrees attitude) noexcept {
+        const double yaw = attitude.yaw * kDegreesToRadians;
+        const double pitch = attitude.pitch * kDegreesToRadians;
+        const double roll = attitude.roll * kDegreesToRadians;
+
+        const double cy = std::cos(yaw);
+        const double sy = std::sin(yaw);
+        const double cp = std::cos(pitch);
+        const double sp = std::sin(pitch);
+        const double cr = std::cos(roll);
+        const double sr = std::sin(roll);
+
+        // Intrinsic roll (local X), pitch (local Y), then yaw (world Z).
+        // Local +X is forward, +Y is starboard/right, and +Z is up.
+        return {
+            (cy * cp) * local.x + (cy * sp * sr - sy * cr) * local.y +
+                (cy * sp * cr + sy * sr) * local.z,
+            (sy * cp) * local.x + (sy * sp * sr + cy * cr) * local.y +
+                (sy * sp * cr - cy * sr) * local.z,
+            (-sp) * local.x + (cp * sr) * local.y + (cp * cr) * local.z,
+        };
+    }
+
     [[nodiscard]] bool subsystem_operational(PowerSubsystem subsystem) const noexcept {
         switch (subsystem) {
             case PowerSubsystem::Sensors:
