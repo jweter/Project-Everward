@@ -6,7 +6,7 @@ It elaborates `ARCHITECTURE.md`, `SIMULATION_PHILOSOPHY.md`, `SAVE_FORMAT.md`, A
 
 ## Current implementation status
 
-**The One Probe slice is ready for its first local integrated Unreal Engine 5.8 playtest.**
+**The first local Unreal Engine 5.8 playtest is complete; the One Probe slice is in its evidence-driven embodiment/control pass.**
 
 Implemented:
 
@@ -24,7 +24,8 @@ Implemented:
 - shared observable commands for movement, scanning, power, and policy interaction;
 - primitive Generation-1 software policy runtime with compute-power gating;
 - adjacent-generation evolution generator foundation;
-- deterministic runtime-generated Phase-2 test environment, spatial references, visible bootstrap target, camera orbit/zoom, and three-axis temporary movement controls;
+- deterministic runtime-generated Phase-2 test environment, spatial references, visible bootstrap target, and camera orbit/zoom;
+- authoritative yaw/pitch/roll attitude plus probe-relative three-axis movement controls, with Unreal rendering the resulting state;
 - CMake/CTest and static Unreal source-contract coverage in GitHub Actions.
 
 Still intentionally incomplete:
@@ -87,7 +88,8 @@ The current Phase 2 snapshot/read model includes enough state for the first inte
 | Field group | Current state |
 |---|---|
 | Identity | probe ID and generation |
-| Position / velocity | authoritative metres and m/s; Unreal converts position to centimetres once at boundary |
+| Position / velocity | authoritative metres and m/s; local movement commands are projected through current attitude; Unreal converts position to centimetres once at boundary |
+| Attitude | authoritative yaw/pitch/roll degrees; Unreal renders the snapshot as FRotator but does not own orientation truth |
 | Mass | total mass present; component breakdown later |
 | Energy | stored/capacity/generation plus subsystem allocations and total budget |
 | Thermal | current temperature, ambient/passive cooling, operating limit, overheat state |
@@ -108,7 +110,9 @@ Every mutating mechanical interaction follows:
 
 Current command surfaces include:
 
-- set velocity;
+- set absolute velocity (including full stop);
+- adjust probe-relative velocity;
+- adjust yaw/pitch/roll attitude;
 - start scan;
 - cancel scan;
 - allocate subsystem power;
@@ -169,7 +173,7 @@ The temporary environment includes:
 - six fixed spatial-reference markers;
 - temporary lighting;
 - camera orbit/zoom support;
-- temporary three-axis velocity-trim controls.
+- temporary probe-relative three-axis velocity trims and yaw/pitch/roll attitude controls.
 
 This environment is test scaffolding. It must not accumulate Phase 3 astronomy, resource truth, collision gameplay, or final production content.
 
@@ -196,9 +200,9 @@ The roadmap-required interaction set is now represented in the current slice:
 - manage power;
 - alter a basic software policy.
 
-The next step is not to declare the phase complete from source code alone. Run `PHASE2_FIRST_RUN_PLAYTEST.md` locally in Unreal Engine 5.8 and capture the structured observation.
+The first structured run is recorded in `PHASE2_FIRST_RUN_FINDINGS_2026-08-24.md`. The next step is a focused local Unreal Engine 5.8 retest of authoritative attitude, probe-relative translation, visual rotation, and full stop before moving to the persistent all-subsystem telemetry slice.
 
-Passing the integration protocol proves the slice works end-to-end. The actual Phase 2 product gate remains:
+Passing an integration protocol proves a slice works end-to-end. The actual Phase 2 product gate remains:
 
 > **Simply existing as the probe is compelling.**
 
