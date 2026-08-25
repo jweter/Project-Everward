@@ -3,12 +3,14 @@
 Portable CI cannot build the Unreal module, so these checks protect the source-
 level architecture that matters most: telemetry and installed capabilities come
 through UProbeSimulationAdapter, the HUD reads rather than owns simulation
-truth, and contextual UI is wired by the Everward player controller.
+truth, contextual UI is wired by the Everward player controller, and safety-
+critical flight state remains visible/actionable outside contextual subsystem UI.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -59,6 +61,29 @@ class Phase2HudSourceContractTests(unittest.TestCase):
         self.assertIn("EKeys::RightBracket", self.controller)
         self.assertIn("EKeys::LeftBracket", self.controller)
         self.assertIn("AEverwardHUD", self.controller)
+
+    def test_spacebar_brake_is_global_not_propulsion_panel_gated(self) -> None:
+        self.assertIn("EKeys::SpaceBar", self.controller)
+        match = re.search(
+            r"void AEverwardPlayerController::StopPropulsion\(\)\s*\{(?P<body>.*?)\n\}",
+            self.controller,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        body = match.group("body") if match is not None else ""
+        self.assertIn("CommandSetVelocityMetersPerSecond(FVector::ZeroVector)", body)
+        self.assertNotIn("IsSystemsPanelExpanded", body)
+        self.assertNotIn("GetSelectedCapabilityId", body)
+        self.assertNotIn('TEXT("propulsion")', body)
+
+    def test_moving_probe_gets_persistent_local_flight_readout(self) -> None:
+        self.assertIn("SpeedMetersPerSecond > 0.01", self.hud)
+        self.assertIn("InverseTransformVectorNoScale", self.hud)
+        self.assertIn("FLIGHT  %.2f m/s   [SPACE] BRAKE", self.hud)
+        self.assertIn("FWD %+0.2f   RIGHT %+0.2f   UP %+0.2f m/s", self.hud)
+        flight_pos = self.hud.index("FLIGHT  %.2f m/s")
+        compact_return_pos = self.hud.index("if (!bSystemsExpanded)")
+        self.assertLess(flight_pos, compact_return_pos)
 
     def test_game_mode_installs_hud_and_controller(self) -> None:
         self.assertIn("HUDClass = AEverwardHUD::StaticClass()", self.game_mode)

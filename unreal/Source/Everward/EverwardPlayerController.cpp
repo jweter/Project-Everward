@@ -194,17 +194,16 @@ void AEverwardPlayerController::DecreaseVerticalVelocity()
 
 void AEverwardPlayerController::StopPropulsion()
 {
-    const AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD());
+    // Spacebar is the probe's global emergency brake. It must not depend on which
+    // contextual systems page happens to be selected; scan/computation inspection
+    // can never make the player lose access to stop authority.
     UProbeSimulationAdapter* Adapter = GetProbeAdapter();
-    if (EverwardHUD == nullptr || !EverwardHUD->IsSystemsPanelExpanded() || Adapter == nullptr)
+    if (Adapter == nullptr)
     {
         return;
     }
 
-    if (GetSelectedCapabilityId() == FName(TEXT("propulsion")))
-    {
-        (void)Adapter->CommandSetVelocityMetersPerSecond(FVector::ZeroVector);
-    }
+    (void)Adapter->CommandSetVelocityMetersPerSecond(FVector::ZeroVector);
 }
 
 void AEverwardPlayerController::YawProbeLeft()
