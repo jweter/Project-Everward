@@ -83,6 +83,12 @@ public:
     }
 
     void set_velocity_mps(Vector3d velocity) { core_.set_velocity_mps(velocity); }
+    void adjust_attitude_degrees(EulerAttitudeDegrees delta) {
+        core_.adjust_attitude_degrees(delta);
+    }
+    void adjust_local_velocity_mps(Vector3d local_delta_velocity) {
+        core_.adjust_local_velocity_mps(local_delta_velocity);
+    }
     void start_scan(const std::string& target_id, double duration_s) { core_.start_scan(target_id, duration_s); }
     void cancel_scan() { core_.cancel_scan(); }
     void allocate_power(PowerSubsystem subsystem, double watts) { core_.allocate_power(subsystem, watts); }

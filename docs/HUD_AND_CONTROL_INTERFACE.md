@@ -122,7 +122,8 @@ The current production implementation provides:
 - policy installation/clear controls and policy/executor status under Computation;
 - a reproducible source-built Phase-2 environment with a visible bootstrap scan target and spatial movement references;
 - mouse orbit/zoom for presentation inspection;
-- three-axis incremental translation through the existing authoritative velocity command;
+- authoritative yaw/pitch/roll attitude state and observable attitude-trim commands;
+- probe-relative forward/lateral/vertical velocity trims projected through authoritative attitude;
 - keyboard navigation and manual controls for the temporary engineering shell.
 
 Temporary engineering-shell controls:
@@ -134,15 +135,18 @@ Temporary engineering-shell controls:
 - mouse wheel: zoom camera;
 - Sensors: `Enter` scans the visible `phase2-test-target-001` target and `Backspace` cancels it;
 - Propulsion:
-  - `W` / `S`: +X / -X velocity trim;
-  - `D` / `A`: +Y / -Y velocity trim;
-  - `E` / `Q`: +Z / -Z velocity trim;
-  - `Space`: zero velocity;
-  - Up / Down remain +X / -X aliases;
+  - `W` / `S`: local forward / reverse velocity trim;
+  - `D` / `A`: local right / left velocity trim;
+  - `E` / `Q`: local up / down velocity trim;
+  - `J` / `L`: yaw left / right;
+  - `I` / `K`: pitch up / down;
+  - `U` / `O`: roll left / right;
+  - `Space`: zero world velocity while preserving attitude;
+  - Up / Down remain local forward / reverse aliases;
 - Computation: `Enter` installs the temporary `gen1_basic_survival` policy and `Backspace` clears it.
 
 The bootstrap scan target exists only because Phase 3 world-object targeting does not exist yet. It must be replaced by real selected-target state when that system arrives rather than becoming permanent gameplay content.
 
 The Basic Survival policy uses an intentionally aggressive 60% energy threshold so its behavior is immediately visible during Phase-2 integration testing. That value is test scaffolding, not final balance.
 
-This remains a foundation, not final visual styling, camera design, flight model, or control mapping. The next required evidence is a local Unreal Engine 5.8 build/run of the whole One Probe loop, followed by a focused first-run observation protocol and repair of any compile/runtime/control-feel defects that test reveals.
+This remains a foundation, not the final visual styling, camera design, rigid-body flight model, or control mapping. The first local Unreal Engine 5.8 run is recorded in `PHASE2_FIRST_RUN_FINDINGS_2026-08-24.md`. The next local pass should verify that attitude-driven movement materially improves spacecraft embodiment while preserving the intentionally primitive Generation-1 response and useful full-stop behavior.

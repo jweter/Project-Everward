@@ -11,6 +11,10 @@ if(BUILD_TESTING)
     target_link_libraries(everward_simulation_tests PRIVATE everward_simulation)
     add_test(NAME everward_simulation_tests COMMAND everward_simulation_tests)
 
+    add_executable(everward_attitude_control_tests tests/attitude_control_tests.cpp)
+    target_link_libraries(everward_attitude_control_tests PRIVATE everward_simulation)
+    add_test(NAME everward_attitude_control_tests COMMAND everward_attitude_control_tests)
+
     add_executable(everward_evolution_tests tests/evolution_generator_tests.cpp)
     target_link_libraries(everward_evolution_tests PRIVATE everward_simulation)
     add_test(NAME everward_evolution_tests COMMAND everward_evolution_tests)

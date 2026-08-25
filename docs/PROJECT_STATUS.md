@@ -45,6 +45,14 @@ Manual/automation shared-state behavior remains **inconclusive**, not failed: th
 
 The strong clunkiness score is useful evidence: primitive starter-probe handling is not the primary problem. The main deficits are spacecraft embodiment, attitude control, subsystem-state legibility, and understandable automation.
 
+## Current embodiment continuation
+
+The first evidence-driven control slice now adds engine-independent authoritative yaw/pitch/roll state, observable attitude commands, and probe-relative translation. Unreal renders the resulting authoritative rotation and continues to submit movement through `UProbeSimulationAdapter`; it does not own flight truth.
+
+The temporary engineering controls use J/L for yaw, I/K for pitch, U/O for roll, and retain W/S, A/D, E/Q as local forward/lateral/vertical trims. Space remains an absolute full stop. This is deliberately a command-driven Generation-1 flight model, not a claim that final rigid-body/thruster physics is solved.
+
+After CI, the next local UE 5.8 evidence pass should verify orientation, visual rotation, local translation, full stop, and control feel. If that passes without a correctness blocker, the next executable slice is the persistent all-subsystem power/status HUD from the same first-run evidence.
+
 ## Current authoritative foundation
 
 The project still preserves these production rules and implemented foundations:
@@ -93,8 +101,8 @@ The next representation should include at least two articulated manipulator arms
 Priority order:
 
 1. record and merge the first local playtest evidence;
-2. add authoritative orientation/attitude state and yaw/pitch/roll command surfaces;
-3. make translational movement probe-relative while preserving full stop and Generation-1 clunkiness;
+2. verify the implemented authoritative orientation/attitude state and yaw/pitch/roll command surfaces in local UE 5.8;
+3. verify probe-relative translation preserves full stop and Generation-1 clunkiness;
 4. improve the systems HUD with persistent per-system live power/status and total power context;
 5. make automation actions/cause visible and provide a deterministic shared-state retest path;
 6. add physically meaningful sensor/thermal power feedback where supported by the current simulation model;

@@ -28,6 +28,8 @@ class Phase2ProbeCommandSurfaceTests(unittest.TestCase):
     def test_adapter_exposes_one_observable_command_surface(self) -> None:
         self.assertIn("FEverwardProbeCommandResult", self.adapter_header)
         self.assertIn("CommandSetVelocityMetersPerSecond", self.adapter_header)
+        self.assertIn("CommandAdjustLocalVelocityMetersPerSecond", self.adapter_header)
+        self.assertIn("CommandAdjustAttitudeDegrees", self.adapter_header)
         self.assertIn("CommandStartScan", self.adapter_header)
         self.assertIn("CommandCancelScan", self.adapter_header)
         self.assertIn("CommandAllocatePower", self.adapter_header)
@@ -35,6 +37,8 @@ class Phase2ProbeCommandSurfaceTests(unittest.TestCase):
 
     def test_adapter_routes_commands_to_authoritative_simulation(self) -> None:
         self.assertIn("Core->set_velocity_mps", self.adapter_source)
+        self.assertIn("Core->adjust_local_velocity_mps", self.adapter_source)
+        self.assertIn("Core->adjust_attitude_degrees", self.adapter_source)
         self.assertIn("Core->start_scan", self.adapter_source)
         self.assertIn("Core->cancel_scan", self.adapter_source)
         self.assertIn("Core->allocate_power", self.adapter_source)
@@ -57,6 +61,8 @@ class Phase2ProbeCommandSurfaceTests(unittest.TestCase):
         self.assertIn("Adapter->CommandCancelScan", self.controller)
         self.assertIn("Adapter->CommandAllocatePower", self.controller)
         self.assertIn("Adapter->CommandSetVelocityMetersPerSecond", self.controller)
+        self.assertIn("Adapter->CommandAdjustLocalVelocityMetersPerSecond", self.controller)
+        self.assertIn("Adapter->CommandAdjustAttitudeDegrees", self.controller)
 
     def test_contextual_manual_controls_are_bound(self) -> None:
         for key in (
@@ -67,6 +73,12 @@ class Phase2ProbeCommandSurfaceTests(unittest.TestCase):
             "EKeys::Up",
             "EKeys::Down",
             "EKeys::SpaceBar",
+            "EKeys::J",
+            "EKeys::L",
+            "EKeys::I",
+            "EKeys::K",
+            "EKeys::U",
+            "EKeys::O",
         ):
             self.assertIn(key, self.controller)
         self.assertIn("IsSystemsPanelExpanded", self.controller)

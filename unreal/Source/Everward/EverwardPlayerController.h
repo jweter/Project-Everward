@@ -33,6 +33,13 @@ private:
     void DecreaseVerticalVelocity();
     void StopPropulsion();
 
+    void YawProbeLeft();
+    void YawProbeRight();
+    void PitchProbeUp();
+    void PitchProbeDown();
+    void RollProbeLeft();
+    void RollProbeRight();
+
     void LookYaw(float Value);
     void LookPitch(float Value);
     void ZoomCamera(float Value);
@@ -41,7 +48,8 @@ private:
     FName GetSelectedCapabilityId() const;
     double GetSelectedCapabilityAllocatedPowerWatts() const;
     void AdjustSelectedSystemPower(double DeltaWatts);
-    void AdjustVelocityMetersPerSecond(const FVector& DeltaVelocity);
+    void AdjustLocalVelocityMetersPerSecond(const FVector& DeltaLocalVelocity);
+    void AdjustAttitudeDegrees(const FRotator& DeltaAttitude);
 
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double Phase2ScanDurationSeconds = 10.0;
@@ -51,6 +59,9 @@ private:
 
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double VelocityAdjustmentMetersPerSecond = 1.0;
+
+    UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
+    double AttitudeAdjustmentDegrees = 5.0;
 
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="0.01"))
     float MouseLookSensitivity = 0.75f;

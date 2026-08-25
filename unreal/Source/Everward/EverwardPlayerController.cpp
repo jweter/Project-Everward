@@ -72,6 +72,13 @@ void AEverwardPlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::E, IE_Pressed, this, &AEverwardPlayerController::IncreaseVerticalVelocity);
     InputComponent->BindKey(EKeys::Q, IE_Pressed, this, &AEverwardPlayerController::DecreaseVerticalVelocity);
 
+    InputComponent->BindKey(EKeys::J, IE_Pressed, this, &AEverwardPlayerController::YawProbeLeft);
+    InputComponent->BindKey(EKeys::L, IE_Pressed, this, &AEverwardPlayerController::YawProbeRight);
+    InputComponent->BindKey(EKeys::I, IE_Pressed, this, &AEverwardPlayerController::PitchProbeUp);
+    InputComponent->BindKey(EKeys::K, IE_Pressed, this, &AEverwardPlayerController::PitchProbeDown);
+    InputComponent->BindKey(EKeys::U, IE_Pressed, this, &AEverwardPlayerController::RollProbeLeft);
+    InputComponent->BindKey(EKeys::O, IE_Pressed, this, &AEverwardPlayerController::RollProbeRight);
+
     // Retain the original engineering-shell aliases while the final input
     // model remains intentionally unsettled.
     InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AEverwardPlayerController::IncreaseForwardVelocity);
@@ -157,32 +164,32 @@ void AEverwardPlayerController::DecreaseSelectedSystemPower()
 
 void AEverwardPlayerController::IncreaseForwardVelocity()
 {
-    AdjustVelocityMetersPerSecond(FVector(VelocityAdjustmentMetersPerSecond, 0.0, 0.0));
+    AdjustLocalVelocityMetersPerSecond(FVector(VelocityAdjustmentMetersPerSecond, 0.0, 0.0));
 }
 
 void AEverwardPlayerController::DecreaseForwardVelocity()
 {
-    AdjustVelocityMetersPerSecond(FVector(-VelocityAdjustmentMetersPerSecond, 0.0, 0.0));
+    AdjustLocalVelocityMetersPerSecond(FVector(-VelocityAdjustmentMetersPerSecond, 0.0, 0.0));
 }
 
 void AEverwardPlayerController::IncreaseLateralVelocity()
 {
-    AdjustVelocityMetersPerSecond(FVector(0.0, VelocityAdjustmentMetersPerSecond, 0.0));
+    AdjustLocalVelocityMetersPerSecond(FVector(0.0, VelocityAdjustmentMetersPerSecond, 0.0));
 }
 
 void AEverwardPlayerController::DecreaseLateralVelocity()
 {
-    AdjustVelocityMetersPerSecond(FVector(0.0, -VelocityAdjustmentMetersPerSecond, 0.0));
+    AdjustLocalVelocityMetersPerSecond(FVector(0.0, -VelocityAdjustmentMetersPerSecond, 0.0));
 }
 
 void AEverwardPlayerController::IncreaseVerticalVelocity()
 {
-    AdjustVelocityMetersPerSecond(FVector(0.0, 0.0, VelocityAdjustmentMetersPerSecond));
+    AdjustLocalVelocityMetersPerSecond(FVector(0.0, 0.0, VelocityAdjustmentMetersPerSecond));
 }
 
 void AEverwardPlayerController::DecreaseVerticalVelocity()
 {
-    AdjustVelocityMetersPerSecond(FVector(0.0, 0.0, -VelocityAdjustmentMetersPerSecond));
+    AdjustLocalVelocityMetersPerSecond(FVector(0.0, 0.0, -VelocityAdjustmentMetersPerSecond));
 }
 
 void AEverwardPlayerController::StopPropulsion()
@@ -198,6 +205,36 @@ void AEverwardPlayerController::StopPropulsion()
     {
         (void)Adapter->CommandSetVelocityMetersPerSecond(FVector::ZeroVector);
     }
+}
+
+void AEverwardPlayerController::YawProbeLeft()
+{
+    AdjustAttitudeDegrees(FRotator(0.0, -AttitudeAdjustmentDegrees, 0.0));
+}
+
+void AEverwardPlayerController::YawProbeRight()
+{
+    AdjustAttitudeDegrees(FRotator(0.0, AttitudeAdjustmentDegrees, 0.0));
+}
+
+void AEverwardPlayerController::PitchProbeUp()
+{
+    AdjustAttitudeDegrees(FRotator(AttitudeAdjustmentDegrees, 0.0, 0.0));
+}
+
+void AEverwardPlayerController::PitchProbeDown()
+{
+    AdjustAttitudeDegrees(FRotator(-AttitudeAdjustmentDegrees, 0.0, 0.0));
+}
+
+void AEverwardPlayerController::RollProbeLeft()
+{
+    AdjustAttitudeDegrees(FRotator(0.0, 0.0, -AttitudeAdjustmentDegrees));
+}
+
+void AEverwardPlayerController::RollProbeRight()
+{
+    AdjustAttitudeDegrees(FRotator(0.0, 0.0, AttitudeAdjustmentDegrees));
 }
 
 void AEverwardPlayerController::LookYaw(float Value)
@@ -292,7 +329,8 @@ void AEverwardPlayerController::AdjustSelectedSystemPower(double DeltaWatts)
     (void)Adapter->CommandAllocatePower(Subsystem, RequestedWatts);
 }
 
-void AEverwardPlayerController::AdjustVelocityMetersPerSecond(const FVector& DeltaVelocity)
+void AEverwardPlayerController::AdjustLocalVelocityMetersPerSecond(
+    const FVector& DeltaLocalVelocity)
 {
     const AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD());
     UProbeSimulationAdapter* Adapter = GetProbeAdapter();
@@ -306,7 +344,22 @@ void AEverwardPlayerController::AdjustVelocityMetersPerSecond(const FVector& Del
         return;
     }
 
-    FVector RequestedVelocity = Adapter->GetProbeTelemetry().VelocityMetersPerSecond;
-    RequestedVelocity += DeltaVelocity;
-    (void)Adapter->CommandSetVelocityMetersPerSecond(RequestedVelocity);
+    (void)Adapter->CommandAdjustLocalVelocityMetersPerSecond(DeltaLocalVelocity);
+}
+
+void AEverwardPlayerController::AdjustAttitudeDegrees(const FRotator& DeltaAttitude)
+{
+    const AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD());
+    UProbeSimulationAdapter* Adapter = GetProbeAdapter();
+    if (EverwardHUD == nullptr || !EverwardHUD->IsSystemsPanelExpanded() || Adapter == nullptr)
+    {
+        return;
+    }
+
+    if (GetSelectedCapabilityId() != FName(TEXT("propulsion")))
+    {
+        return;
+    }
+
+    (void)Adapter->CommandAdjustAttitudeDegrees(DeltaAttitude);
 }
