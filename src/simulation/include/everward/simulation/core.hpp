@@ -341,14 +341,15 @@ private:
         const double cr = std::cos(roll);
         const double sr = std::sin(roll);
 
-        // Intrinsic roll (local X), pitch (local Y), then yaw (world Z).
-        // Local +X is forward, +Y is starboard/right, and +Z is up.
+        // Match Unreal FRotator's forward/right/up basis exactly so
+        // presentation rotation and authoritative local-space commands cannot
+        // disagree. Local +X is forward, +Y is right, and +Z is up.
         return {
-            (cy * cp) * local.x + (cy * sp * sr - sy * cr) * local.y +
-                (cy * sp * cr + sy * sr) * local.z,
-            (sy * cp) * local.x + (sy * sp * sr + cy * cr) * local.y +
-                (sy * sp * cr - cy * sr) * local.z,
-            (-sp) * local.x + (cp * sr) * local.y + (cp * cr) * local.z,
+            (cp * cy) * local.x + (sr * sp * cy - cr * sy) * local.y +
+                (-(cr * sp * cy + sr * sy)) * local.z,
+            (cp * sy) * local.x + (sr * sp * sy + cr * cy) * local.y +
+                (cy * sr - cr * sp * sy) * local.z,
+            sp * local.x + (-sr * cp) * local.y + (cr * cp) * local.z,
         };
     }
 
