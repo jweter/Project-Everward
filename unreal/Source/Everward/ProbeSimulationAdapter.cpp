@@ -137,6 +137,10 @@ FEverwardProbeTelemetry UProbeSimulationAdapter::GetProbeTelemetry() const
         Snapshot.velocity_mps.x,
         Snapshot.velocity_mps.y,
         Snapshot.velocity_mps.z);
+    Telemetry.AttitudeDegrees = FRotator(
+        Snapshot.attitude_degrees.pitch,
+        Snapshot.attitude_degrees.yaw,
+        Snapshot.attitude_degrees.roll);
     Telemetry.bIsScanning = Snapshot.is_scanning;
     Telemetry.ActiveScanTargetId = UTF8_TO_TCHAR(Snapshot.active_scan_target_id.c_str());
     Telemetry.ScanRemainingSeconds = Snapshot.scan_remaining_s;
@@ -267,6 +271,68 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSetVelocityMetersPer
                 VelocityMetersPerSecond.X,
                 VelocityMetersPerSecond.Y,
                 VelocityMetersPerSecond.Z));
+    }
+    catch (const std::exception& Error)
+    {
+        return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what()));
+    }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandAdjustLocalVelocityMetersPerSecond(
+    FVector DeltaLocalVelocityMetersPerSecond)
+{
+    const FName CommandId(TEXT("adjust_local_velocity"));
+    if (Core == nullptr)
+    {
+        return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    }
+
+    try
+    {
+        Core->adjust_local_velocity_mps({
+            DeltaLocalVelocityMetersPerSecond.X,
+            DeltaLocalVelocityMetersPerSecond.Y,
+            DeltaLocalVelocityMetersPerSecond.Z
+        });
+        return RecordCommandResult(
+            CommandId,
+            true,
+            FString::Printf(
+                TEXT("local velocity trim accepted: [%.2f, %.2f, %.2f] m/s"),
+                DeltaLocalVelocityMetersPerSecond.X,
+                DeltaLocalVelocityMetersPerSecond.Y,
+                DeltaLocalVelocityMetersPerSecond.Z));
+    }
+    catch (const std::exception& Error)
+    {
+        return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what()));
+    }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandAdjustAttitudeDegrees(
+    FRotator DeltaAttitudeDegrees)
+{
+    const FName CommandId(TEXT("adjust_attitude"));
+    if (Core == nullptr)
+    {
+        return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    }
+
+    try
+    {
+        Core->adjust_attitude_degrees({
+            DeltaAttitudeDegrees.Yaw,
+            DeltaAttitudeDegrees.Pitch,
+            DeltaAttitudeDegrees.Roll
+        });
+        return RecordCommandResult(
+            CommandId,
+            true,
+            FString::Printf(
+                TEXT("attitude trim accepted: yaw %.1f, pitch %.1f, roll %.1f deg"),
+                DeltaAttitudeDegrees.Yaw,
+                DeltaAttitudeDegrees.Pitch,
+                DeltaAttitudeDegrees.Roll));
     }
     catch (const std::exception& Error)
     {
@@ -439,5 +505,12 @@ void UProbeSimulationAdapter::SyncOwnerTransformFromSimulation()
         PositionMeters.y * MetersToCentimeters,
         PositionMeters.z * MetersToCentimeters);
 
+    const auto& AttitudeDegrees = Core->snapshot().attitude_degrees;
+    const FRotator PresentationAttitude(
+        AttitudeDegrees.pitch,
+        AttitudeDegrees.yaw,
+        AttitudeDegrees.roll);
+
     Owner->SetActorLocation(PresentationPositionCentimeters, false, nullptr, ETeleportType::TeleportPhysics);
+    Owner->SetActorRotation(PresentationAttitude, ETeleportType::TeleportPhysics);
 }
