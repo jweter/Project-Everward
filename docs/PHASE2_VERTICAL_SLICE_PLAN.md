@@ -15,8 +15,24 @@ Prefer one small vertical slice at a time:
 5. require green CI;
 6. run the exact passed build locally in Unreal;
 7. record Product Reality findings;
-8. merge only when the slice works in the packaged/local test;
+8. merge only when the slice works in the packaged/local test, **unless it qualifies for the parallel-safe lane below**;
 9. choose the next slice from this plan.
+
+### Parallel-safe lane while Product Reality is pending
+
+A pending local Unreal/Product Reality check is a **completion and release gate**, not automatically a repository-wide development stop. Independent, reversible work may continue and may merge before the pending local check when all of the following are true:
+
+- the new work does not assume that the unverified behavior is correct;
+- it does not change, hide, compensate for, or weaken the behavior currently awaiting Product Reality;
+- it reads/writes authoritative state only through existing simulation/adapter boundaries;
+- deterministic or source-contract CI protects the new behavior as far as portable CI can reasonably verify it;
+- the PR and project status explicitly say **implemented, Product Reality pending** rather than claiming the slice or phase complete;
+- the new behavior is added to the next local Unreal test script so its visible/player-facing result is still checked;
+- any Product Reality failure in the earlier slice still outranks later roadmap work and is repaired before phase/release advancement.
+
+Examples of parallel-safe work include a HUD view over already-authoritative telemetry, deterministic data-model work that does not depend on the pending visual result, or reversible presentation around a stable adapter contract. Examples that do **not** qualify include tuning controls whose feel is still unverified, building mechanics on an unverified collision/physics result, or marking a phase/release gate complete without local evidence.
+
+This lane preserves Product Reality as the definition-of-done authority while allowing the repository to keep advancing when the pending check is genuinely independent.
 
 Avoid large speculative feature bundles. Infrastructure work is justified when it directly enables the next visible slice.
 
@@ -45,6 +61,8 @@ Player-visible result:
 - Spacebar is a global emergency brake regardless of selected subsystem.
 
 ### Slice 2 — Persistent subsystem consequences
+
+**Status:** parallel-safe implementation may proceed while Slice 1 Product Reality remains pending. The compact at-a-glance subsystem power/operational-state view is the first independent sub-slice; Slice 2 is not complete until its local Unreal evidence is recorded.
 
 Player-visible result:
 
@@ -256,7 +274,7 @@ Probe art, collision, damage, power, capability state, and manipulators should c
 
 ### Product Reality requirement
 
-A CI-green slice is not complete if the local Unreal build still feels unchanged or the player cannot discover what was added. Every slice needs a concise local test script and visible evidence.
+A CI-green slice is not complete if the local Unreal build still feels unchanged or the player cannot discover what was added. Every slice needs a concise local test script and visible evidence. Parallel-safe work may merge before that evidence only under the lane above; it remains explicitly Product Reality pending and cannot close the slice, phase, or release gate until the local check passes.
 
 ### Visual direction
 
@@ -267,7 +285,7 @@ Temporary primitives remain acceptable for isolated engineering work, but each s
 When automated development is looking for the next Everward task:
 
 1. repair any failing/open higher-priority work first;
-2. finish the current slice before starting a later one;
+2. keep the earliest incomplete slice as the completion/release priority; if its only blocker is a pending local Product Reality check, later work may proceed only when it qualifies for the parallel-safe lane above;
 3. prefer a missing acceptance criterion in the current slice;
 4. otherwise select the earliest not-complete slice in this document whose prerequisites are satisfied;
 5. split it again if it cannot reasonably be implemented, reviewed, and Product-Reality-tested as one small PR;
@@ -284,5 +302,7 @@ A slice is a solid step when:
 - CI is green;
 - local Product Reality evidence has been recorded;
 - the next slice can build on it without rewriting the foundation.
+
+A parallel-safe sub-slice may be merged before the local evidence is available, but it remains **implemented, Product Reality pending** and does not satisfy this definition for the full slice until the evidence is recorded.
 
 The objective is cumulative progress: **each passed build should feel more like inhabiting and operating a real autonomous interstellar machine than the build before it.**
