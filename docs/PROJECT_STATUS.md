@@ -14,7 +14,7 @@ Canonical first-run evidence:
 - `docs/PHASE2_FIRST_RUN_FINDINGS_2026-08-24.md`
 - tested commit: `7f9ea88b8e7857f44f80b2f2327fde758dd2ca1a`
 
-The engineering integration is substantially functional, but the product gate **"simply existing as the probe is compelling"** is not yet met. The next gate is therefore not another unrelated subsystem. It is an embodiment/control/legibility pass driven directly by first-run evidence.
+The engineering integration is substantially functional, but the product gate **"simply existing as the probe is compelling"** is not yet met. The current local Product Reality priority remains the attitude/local-flight continuation. Repository development is no longer globally paused behind that local check: independent reversible work may proceed under the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md`, while the pending Product Reality result remains mandatory before the affected slice, phase, or release gate can be declared complete.
 
 ## First-run result
 
@@ -51,7 +51,33 @@ The first evidence-driven control slice now adds engine-independent authoritativ
 
 The temporary engineering controls use J/L for yaw, I/K for pitch, U/O for roll, and retain W/S, A/D, E/Q as local forward/lateral/vertical trims. Space remains an absolute full stop. This is deliberately a command-driven Generation-1 flight model, not a claim that final rigid-body/thruster physics is solved.
 
-After CI, the next local UE 5.8 evidence pass should verify orientation, visual rotation, local translation, full stop, and control feel. If that passes without a correctness blocker, the next executable slice is the persistent all-subsystem power/status HUD from the same first-run evidence.
+**Product Reality status:** implemented, local UE 5.8 verification still pending. The next local evidence pass must verify orientation, visible rotation, probe-relative translation, full stop, and control feel.
+
+## Parallel-safe subsystem HUD continuation
+
+The first independent Slice-2 sub-slice is now implemented on the active branch without assuming the pending attitude/control result is correct. The collapsed systems HUD reads the existing `UProbeSimulationAdapter` capability list and shows every installed subsystem at a glance with:
+
+- subsystem display name;
+- live allocated power in watts;
+- authoritative `READY`, `LOCKED`, or `FAILED` state;
+- alert emphasis when a capability is unavailable or non-operational;
+- `[TAB DETAILS]` access to the existing expanded control panel.
+
+This does not create a second simulation authority and does not alter attitude, translation, scan, power-allocation, or automation mechanics. Portable source-contract CI protects the adapter/HUD ownership boundary. **Status: implemented, Product Reality pending.** It does not complete Slice 2 by itself.
+
+### Next local UE 5.8 Product Reality script
+
+Run the exact passed build and verify in one session:
+
+1. yaw left/right, pitch up/down, and roll both directions; confirm the visible probe rotates accordingly;
+2. after changing attitude, apply forward/lateral/vertical translation and confirm movement is probe-relative rather than world-axis rail movement;
+3. press Space while moving and confirm the authoritative full stop still works regardless of selected subsystem;
+4. with the systems panel collapsed, confirm Propulsion, Sensors, Computation, and Thermal Control are all visible simultaneously with live watts and `READY`/`LOCKED`/`FAILED` state;
+5. adjust subsystem power and confirm the compact rows update from authoritative telemetry without opening the detail panel;
+6. expand `[TAB DETAILS]` and confirm the existing detail/control workflow still works;
+7. record any visual overlap, clipping, illegibility, stale status, or state mismatch as Product Reality evidence rather than inferring success from CI.
+
+A failure in steps 1–3 outranks further roadmap work. A failure in steps 4–6 blocks Slice-2 completion but does not retroactively invalidate the independent attitude implementation.
 
 ## Current authoritative foundation
 
@@ -72,15 +98,11 @@ The project still preserves these production rules and implemented foundations:
 
 ### Spacecraft attitude and local-space movement
 
-EV-0001 currently translates along world axes and cannot yaw, pitch, or roll. This feels on rails rather than like flying a spacecraft.
-
-The next playable pass should add authoritative orientation/attitude state plus yaw/pitch/roll controls, then make translation probe-relative. Preserve the full-stop command; it was specifically identified as useful and enjoyable with the intentionally clunky Generation-1 handling.
+The authoritative yaw/pitch/roll and probe-relative translation implementation is now present, but its local Unreal feel/visibility is still awaiting Product Reality verification. Do not treat CI alone as proof that the rail-feel problem is solved.
 
 ### Persistent subsystem power/status telemetry
 
-The HUD currently makes the player inspect systems one at a time. The expanded systems panel should show live watts and operational state for all installed subsystems simultaneously, plus total allocation/capacity.
-
-Where possible, state should include an authoritative reason such as `BELOW MINIMUM`, `DISABLED BY POLICY`, or `THERMAL LIMITED` rather than leaving the player to infer why a value changed.
+The compact HUD now exposes live per-system watts and operational state for all installed capabilities simultaneously. Remaining Slice-2 work should add authoritative reason detail such as `BELOW MINIMUM`, `DISABLED BY POLICY`, or `THERMAL LIMITED` where the simulation already provides the necessary cause rather than inventing presentation-only explanations.
 
 ### Explain automation cause and effect
 
@@ -100,14 +122,14 @@ The next representation should include at least two articulated manipulator arms
 
 Priority order:
 
-1. record and merge the first local playtest evidence;
-2. verify the implemented authoritative orientation/attitude state and yaw/pitch/roll command surfaces in local UE 5.8;
-3. verify probe-relative translation preserves full stop and Generation-1 clunkiness;
-4. improve the systems HUD with persistent per-system live power/status and total power context;
-5. make automation actions/cause visible and provide a deterministic shared-state retest path;
-6. add physically meaningful sensor/thermal power feedback where supported by the current simulation model;
-7. integrate a recognizable Prime Probe A blockout/skin with articulated manipulator arms for the next embodiment test;
-8. repeat the same subjective ratings and compare against the first-run baseline before expanding scope.
+1. complete the pending local Product Reality pass for yaw/pitch/roll, visible rotation, probe-relative translation, and full stop;
+2. verify the compact all-subsystem live power/status HUD in that same passed build;
+3. make automation actions/cause visible and provide a deterministic shared-state retest path;
+4. add physically meaningful sensor/thermal power feedback where supported by the current simulation model;
+5. integrate a recognizable Prime Probe A blockout/skin with articulated manipulator arms for the next embodiment test;
+6. repeat the same subjective ratings and compare against the first-run baseline before expanding scope.
+
+Independent reversible work may continue through the `PHASE2_VERTICAL_SLICE_PLAN.md` parallel-safe lane while steps 1–2 await a local session, but no pending Product Reality result may be hidden, compensated for, or used to claim a slice/phase/release complete.
 
 Do not jump ahead to Phase 3 astronomy, broad industry, replication, aliens, combat, megastructures, or unrelated procedural content before the One Probe embodiment/control loop becomes compelling enough to justify expansion.
 
@@ -115,7 +137,7 @@ Do not jump ahead to Phase 3 astronomy, broad industry, replication, aliens, com
 
 ### Final Generation-1 flight model
 
-The next pass should establish real attitude/orientation and probe-relative translation, but it does not need to pretend the final thruster/rigid-body model is solved. Keep commands authoritative, deterministic, and intentionally primitive while avoiding world-axis rail feel.
+The current pass establishes real attitude/orientation and probe-relative translation, but it does not pretend the final thruster/rigid-body model is solved. Keep commands authoritative, deterministic, and intentionally primitive while avoiding world-axis rail feel.
 
 ### Final programming interface
 
@@ -145,14 +167,15 @@ The temporary Phase-2 sphere, markers, labels, and light are engineering scaffol
 
 ## Automation operating state
 
-Scheduled development follows `AGENT_DEVELOPMENT_POLICY.md`:
+Scheduled development follows `AGENT_DEVELOPMENT_POLICY.md` and the parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md`:
 
 1. inspect open PRs/CI first;
 2. repair red work before starting new work;
 3. merge only independently verified green and merge-ready work;
-4. otherwise advance one highest-value authorized slice;
+4. otherwise advance one highest-value authorized slice or a qualifying parallel-safe sub-slice;
 5. keep affected documentation current;
-6. preserve accepted design/architecture decisions.
+6. preserve accepted design/architecture decisions;
+7. never convert portable CI into a substitute for required local Product Reality evidence.
 
 ## Repository posture
 
