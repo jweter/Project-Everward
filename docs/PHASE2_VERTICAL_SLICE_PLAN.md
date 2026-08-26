@@ -275,3 +275,34 @@ Probe art, collision, damage, power, capability state, and manipulators should c
 ### Product Reality requirement
 
 A CI-green slice is not complete if the local Unreal build still feels unchanged or the player cannot discover what was added. Every slice needs a concise local test script and visible evidence. Parallel-safe work may merge before that evidence only under the lane above; it remains explicitly Product Reality pending and cannot close the slice, phase, or release gate until the local check passes.
+
+### Visual direction
+
+Temporary primitives remain acceptable for isolated engineering work, but each serious embodiment test should move closer to the canonical cinematic scientific-realism target. Do not defer all visible improvement to a late “art phase.”
+
+## Automation selection rule
+
+When automated development is looking for the next Everward task:
+
+1. repair any failing/open higher-priority work first;
+2. keep the earliest incomplete slice as the completion/release priority; if its only blocker is a pending local Product Reality check, later work may proceed only when it qualifies for the parallel-safe lane above;
+3. prefer a missing acceptance criterion in the current slice;
+4. otherwise select the earliest not-complete slice in this document whose prerequisites are satisfied;
+5. split it again if it cannot reasonably be implemented, reviewed, and Product-Reality-tested as one small PR;
+6. do not jump to late-game systems merely because they are easier to implement in isolation.
+
+## Definition of a solid step
+
+A slice is a solid step when:
+
+- behavior exists in the actual Unreal playtest, not only documentation;
+- authoritative state/mechanics are covered by tests where practical;
+- the player can identify the new capability without reading commit history;
+- failure/rejection states are understandable;
+- CI is green;
+- local Product Reality evidence has been recorded;
+- the next slice can build on it without rewriting the foundation.
+
+A parallel-safe sub-slice may be merged before the local evidence is available, but it remains **implemented, Product Reality pending** and does not satisfy this definition for the full slice until the evidence is recorded.
+
+The objective is cumulative progress: **each passed build should feel more like inhabiting and operating a real autonomous interstellar machine than the build before it.**
