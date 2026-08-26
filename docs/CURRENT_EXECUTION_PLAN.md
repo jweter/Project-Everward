@@ -14,11 +14,13 @@ When choosing the next Everward development task:
 
 1. inspect current `main`, open PRs, CI, and the latest Product Reality evidence;
 2. repair failing or higher-priority open work first;
-3. finish the current vertical slice before advancing;
+3. keep the earliest incomplete slice as the completion/release priority, but do not turn a pending local Product Reality check into a repository-wide stop when a later sub-slice qualifies for the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md`;
 4. otherwise choose the earliest incomplete slice in `PHASE2_VERTICAL_SLICE_PLAN.md` whose prerequisites are satisfied;
 5. split a slice again if it cannot be implemented, reviewed, and locally Product-Reality-tested as one small PR;
 6. prefer player-visible progress over unrelated infrastructure;
 7. do not jump to later phases merely because a later task is easier to implement in isolation.
+
+Parallel-safe work may merge after green portable CI only when it does not assume, hide, or alter the behavior still awaiting Product Reality, remains reversible, preserves the simulation/adapter ownership boundary, and is explicitly recorded as **implemented, Product Reality pending**. It does not complete the slice or advance a phase/release gate.
 
 ## Current near-term sequence
 
