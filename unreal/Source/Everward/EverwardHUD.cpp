@@ -226,20 +226,55 @@ void AEverwardHUD::DrawHUD()
     }
 
     const float SystemPanelX = Canvas->ClipX - Margin - PanelWidth;
-    const float CompactHeight = 48.0f;
+    const float CompactHeaderHeight = 42.0f;
+    const float CompactRowHeight = 20.0f;
+    const float CompactHeight = CompactHeaderHeight + CompactRowHeight * FMath::Max(Capabilities.Num(), 1);
     const float CompactY = Canvas->ClipY - Margin - CompactHeight;
 
     if (!bSystemsExpanded)
     {
         DrawRect(PanelColor, SystemPanelX, CompactY, PanelWidth, CompactHeight);
         DrawText(
-            FString::Printf(TEXT("SYSTEMS  %d INSTALLED   [TAB]"), Capabilities.Num()),
+            FString::Printf(TEXT("SYSTEMS  %d INSTALLED   [TAB DETAILS]"), Capabilities.Num()),
             TextColor,
             SystemPanelX + 14.0f,
-            CompactY + 14.0f,
+            CompactY + 10.0f,
             nullptr,
-            0.95f,
+            0.90f,
             false);
+
+        if (Capabilities.IsEmpty())
+        {
+            DrawText(
+                TEXT("NO INSTALLED CAPABILITIES"),
+                MutedColor,
+                SystemPanelX + 14.0f,
+                CompactY + CompactHeaderHeight,
+                nullptr,
+                0.78f,
+                false);
+        }
+        else
+        {
+            float CompactRowY = CompactY + CompactHeaderHeight;
+            for (const FEverwardProbeCapability& Capability : Capabilities)
+            {
+                const bool bHealthy = Capability.bOperational && Capability.bAvailable;
+                DrawText(
+                    FString::Printf(
+                        TEXT("%s   %.0f W   [%s]"),
+                        *Capability.DisplayName,
+                        Capability.AllocatedPowerWatts,
+                        *CapabilityState(Capability)),
+                    bHealthy ? TextColor : AlertColor,
+                    SystemPanelX + 14.0f,
+                    CompactRowY,
+                    nullptr,
+                    0.76f,
+                    false);
+                CompactRowY += CompactRowHeight;
+            }
+        }
         return;
     }
 
