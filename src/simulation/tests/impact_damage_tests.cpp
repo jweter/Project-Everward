@@ -131,13 +131,23 @@ int main() {
 
     // The same integrity API can initialize the future damaged awakening and
     // restore a system above zero without creating a separate tutorial-only
-    // health model.
+    // health model. Partial integrity also causes real partial performance.
     {
         DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
         runtime.set_subsystem_integrity(PowerSubsystem::Propulsion, 0.05);
         assert(runtime.snapshot().propulsion_operational);
         assert(runtime.snapshot().can_thrust);
         assert(runtime.subsystem_integrity_band(PowerSubsystem::Propulsion) == IntegrityBand::Critical);
+
+        runtime.adjust_local_velocity_mps({10.0, 0.0, 0.0});
+        assert(nearly_equal(runtime.snapshot().velocity_mps.x, 0.5));
+        runtime.adjust_attitude_degrees({20.0, 0.0, 0.0});
+        assert(nearly_equal(runtime.snapshot().attitude_degrees.yaw, 1.0));
+
+        runtime.set_subsystem_integrity(PowerSubsystem::Sensors, 0.50);
+        runtime.start_scan("degraded-sensor-test", 10.0);
+        assert(nearly_equal(runtime.snapshot().scan_remaining_s, 20.0));
+        runtime.cancel_scan();
 
         runtime.set_subsystem_integrity(PowerSubsystem::Propulsion, 0.0);
         assert(!runtime.snapshot().propulsion_operational);
