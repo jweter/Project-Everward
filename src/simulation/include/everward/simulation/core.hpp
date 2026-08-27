@@ -14,34 +14,10 @@ namespace everward::simulation {
 
 class SimulationCore {
 public:
-    // Order-of-magnitude RTG (radioisotope thermoelectric generator) output
-    // for the canonical EV-0001 probe's real hardware loadout — see
-    // make_canonical_ev0001() below. Deliberately modest relative to the
-    // wattages already exercised by this file's own test suite (100-750 W)
-    // and to power_capacity_w (750 W): the probe still needs to budget power
-    // deliberately rather than this trickle alone eliminating energy-
-    // management tension, while still being enough to matter for genuinely
-    // idle/low-power stretches. Comparable in order of magnitude to real
-    // multi-mission RTGs (e.g. MMRTG, ~110 We), not a modeled specific unit.
     static constexpr double kCanonicalEv0001EnergyGenerationW = 75.0;
 
     SimulationCore() = default;
 
-    // Returns a SimulationCore configured with the canonical EV-0001 probe's
-    // real hardware loadout (currently just its passive generation source),
-    // as distinct from the bare SimulationCore() default used everywhere
-    // else today — including this file's own test suite.
-    // UProbeSimulationAdapter::BeginPlay() in unreal/ constructs its
-    // SimulationCore via this factory rather than the bare default, so the
-    // embodied runtime carries the canonical probe's real hardware loadout.
-    // ProbeStateSnapshot::energy_generation_w's own struct default
-    // deliberately stays at 0.0 rather than being edited directly: many
-    // existing tests (EnergyConsumption, EnergyDepletionResponse, the
-    // combined-lockout interaction test) construct a bare SimulationCore()
-    // and rely on an exact, generation-free energy/timing baseline for their
-    // closed-form expected-value math. This factory gives the canonical
-    // probe's real loadout its own nonzero value without touching that
-    // baseline or any of those tests.
     [[nodiscard]] static SimulationCore make_canonical_ev0001() {
         SimulationCore core;
         core.set_energy_generation_w(kCanonicalEv0001EnergyGenerationW);
@@ -139,18 +115,6 @@ public:
         events_.push_back({clock_.tick(), DomainEventType::ScanStarted, "scan started: " + target_id});
     }
 
-    // Explicitly abandons the active scan rather than letting it either run
-    // to completion or merely pause while capability is unavailable. This
-    // closes the residual gap named in ERROR_RESOLUTION_LEDGER.md (2026-08-22,
-    // "Active scans completed while sensor hardware was failed"): a failure
-    // pauses a scan, preserving its progress for later resumption, but until
-    // now there was no way to deliberately discard it instead. Cancellation
-    // is intentionally not gated by can_scan/sensors_operational: a scan may
-    // need to be abandoned precisely because hardware has failed or a lockout
-    // is active, and requiring the same capability the scan itself needs
-    // would make an already-locked-out scan uncancellable. Advancing the
-    // simulation with no active scan is already a harmless no-op in
-    // integrate_scan(), so cancelling one is symmetric with that.
     void cancel_scan() {
         if (!probe_.is_scanning) {
             throw std::runtime_error("no scan in progress");
@@ -205,12 +169,6 @@ public:
                             subsystem_name(subsystem) + " allocation set to " + std::to_string(watts) + " W"});
     }
 
-    // Sets explicit hardware-operational state without inventing a wear or
-    // damage trigger before Phase 2 defines one. This is the component-level
-    // equivalent of set_energy_generation_w(): a deterministic configuration
-    // hook that later mechanics can call. A failure immediately sheds that
-    // subsystem's allocation and blocks positive reallocation; sensors and
-    // propulsion also feed the command capability derivation below.
     void set_subsystem_operational(PowerSubsystem subsystem, bool operational) {
         bool& current = subsystem_operational_ref(subsystem);
         if (current == operational) {
@@ -226,14 +184,6 @@ public:
                             subsystem_name(subsystem) + (operational ? " restored" : " failed")});
     }
 
-    // Configures the probe's constant passive power supply (see
-    // ProbeStateSnapshot::energy_generation_w in types.hpp for what this
-    // models and why it defaults to 0.0). This is a hardware/loadout
-    // configuration hook rather than a player-facing maneuver command like
-    // allocate_power(), so it does not itself emit a domain event. The
-    // meaningful event is integrate_energy_balance()'s EnergyRestored,
-    // fired when a resulting net-positive balance actually recharges
-    // stored_energy_j back above zero.
     void set_energy_generation_w(double watts) {
         if (watts < 0.0) {
             throw std::invalid_argument("watts must be non-negative");
@@ -241,22 +191,6 @@ public:
         probe_.energy_generation_w = watts;
     }
 
-    // Configures the probe's passive radiative/conductive cooling pathway
-    // (see ProbeStateSnapshot::passive_cooling_w_per_k and
-    // integrate_thermal_load()'s Newtonian-cooling comment for what this
-    // models). This is a hardware/loadout configuration hook in the same
-    // spirit as set_energy_generation_w() rather than a player-facing
-    // maneuver command, so it does not itself emit a domain event.
-    //
-    // Zero is an explicitly valid, meaningful value: it disables the
-    // passive-cooling term entirely and falls back to the pure waste-heat
-    // accumulation integrate_thermal_load() already implements for that
-    // case (a probe hardware loadout with no radiator at all). Before this
-    // setter existed, that fallback branch was unreachable from any test in
-    // this file — passive_cooling_w_per_k had no configuration hook and
-    // every test relied on the struct's own nonzero default — so it was
-    // exercised by nothing; see the 2026-08-23 post-NDEBUG-fix mutation
-    // audit in ERROR_RESOLUTION_LEDGER.md.
     void set_passive_cooling_w_per_k(double watts_per_k) {
         if (watts_per_k < 0.0) {
             throw std::invalid_argument("watts_per_k must be non-negative");
@@ -264,34 +198,51 @@ public:
         probe_.passive_cooling_w_per_k = watts_per_k;
     }
 
-    // Configures the probe's overheat-lockout threshold (see
-    // ProbeStateSnapshot::max_operating_temperature_k in types.hpp and
-    // integrate_overheat_response() below for what this gates). Another
-    // hardware/loadout configuration hook in the same spirit as
-    // set_energy_generation_w()/set_passive_cooling_w_per_k(): it configures
-    // probe hardware rather than issuing a player-facing maneuver command, so
-    // it does not itself emit a domain event.
-    //
-    // This exists specifically to close a standing test-coverage gap named
-    // in the 2026-08-23 post-NDEBUG-fix mutation audit
-    // (ERROR_RESOLUTION_LEDGER.md): integrate_overheat_response()'s `>=`
-    // threshold comparison could previously be weakened to `>` without any
-    // test catching it, because the only existing crossing test intentionally
-    // overshoots the limit (std::ceil-rounded ticks) and can never land
-    // temperature_k bit-exactly on max_operating_temperature_k. With this
-    // setter, a test can instead hold temperature_k exactly at its own
-    // starting value (zero net heating leaves it unchanged — see
-    // integrate_thermal_load()) and move the threshold to meet it exactly,
-    // rather than trying to hit a moving target through closed-form thermal
-    // integration.
-    //
-    // Requires a positive absolute temperature in kelvin; zero or negative
-    // values are not physically meaningful thresholds.
     void set_max_operating_temperature_k(double kelvin) {
         if (!(kelvin > 0.0)) {
             throw std::invalid_argument("kelvin must be positive");
         }
         probe_.max_operating_temperature_k = kelvin;
+    }
+
+    // Contact detection lives in the engine-independent ProbeRuntime, while
+    // this method is the sole mutation boundary for applying the resulting
+    // physical resolution to authoritative probe state. Unreal may visualize
+    // the same envelopes, but it does not author the mechanical outcome.
+    void resolve_contact(
+        const std::string& body_id,
+        Vector3d resolved_position_m,
+        Vector3d contact_point_m,
+        Vector3d surface_normal,
+        Vector3d relative_velocity_mps,
+        double normal_speed_mps,
+        Vector3d resolved_velocity_mps) {
+        if (body_id.empty()) {
+            throw std::invalid_argument("contact body_id must not be empty");
+        }
+        require_finite_vector(resolved_position_m, "resolved contact position");
+        require_finite_vector(contact_point_m, "contact point");
+        require_finite_vector(surface_normal, "contact surface normal");
+        require_finite_vector(relative_velocity_mps, "contact relative velocity");
+        require_finite_vector(resolved_velocity_mps, "resolved contact velocity");
+        if (!std::isfinite(normal_speed_mps) || normal_speed_mps < 0.0) {
+            throw std::invalid_argument("contact normal speed must be finite and non-negative");
+        }
+
+        probe_.position_m = resolved_position_m;
+        probe_.velocity_mps = resolved_velocity_mps;
+        probe_.has_contact_history = true;
+        probe_.last_contact_body_id = body_id;
+        probe_.last_contact_point_m = contact_point_m;
+        probe_.last_contact_surface_normal = surface_normal;
+        probe_.last_contact_relative_velocity_mps = relative_velocity_mps;
+        probe_.last_contact_normal_speed_mps = normal_speed_mps;
+        probe_.last_contact_tick = clock_.tick();
+        events_.push_back({
+            clock_.tick(),
+            DomainEventType::Contact,
+            "contact: " + body_id + " normal speed " + std::to_string(normal_speed_mps) + " m/s"
+        });
     }
 
     [[nodiscard]] double total_power_allocated_w() const noexcept {
@@ -341,9 +292,6 @@ private:
         const double cr = std::cos(roll);
         const double sr = std::sin(roll);
 
-        // Match Unreal FRotator's forward/right/up basis exactly so
-        // presentation rotation and authoritative local-space commands cannot
-        // disagree. Local +X is forward, +Y is right, and +Z is up.
         return {
             (cp * cy) * local.x + (sr * sp * cy - cr * sy) * local.y +
                 (-(cr * sp * cy + sr * sy)) * local.z,
@@ -408,6 +356,7 @@ private:
         }
         return "unknown";
     }
+
     [[nodiscard]] static double ticks_to_seconds(std::int64_t ticks) noexcept {
         return static_cast<double>(ticks) / static_cast<double>(SimulationClock::TicksPerSecond);
     }
@@ -419,12 +368,6 @@ private:
     }
 
     void integrate_scan(double seconds) {
-        // A scan retains its target and remaining duration while capability
-        // is unavailable, but cannot make progress. This applies uniformly
-        // to sensor hardware failure and the existing probe-wide energy or
-        // overheat lockouts because all three feed can_scan. Recovery resumes
-        // the same scan rather than fabricating completion or discarding work
-        // without an explicit cancellation domain event.
         if (!probe_.is_scanning || !probe_.can_scan) {
             return;
         }
@@ -439,30 +382,6 @@ private:
         }
     }
 
-    // Energy balance: allocated power draws down stored_energy_j exactly as
-    // before, but the probe's constant passive generation source
-    // (energy_generation_w — see its own doc comment in types.hpp for why
-    // this models an RTG-style constant supply rather than solar) now
-    // offsets that draw every fixed step. The net of the two determines
-    // whether stored_energy_j falls, rises, or stays exactly put over the
-    // elapsed step: consumption exceeding generation still depletes as
-    // before (clamped at zero); generation exceeding consumption now
-    // recharges (clamped at energy_capacity_j); and an exact match is a
-    // genuine no-op, matching this integration's original zero-consumption
-    // no-op case (the canonical probe's default energy_generation_w of 0.0
-    // means that original no-op case is unchanged in practice).
-    //
-    // Energy-depletion/restoration response: once stored_energy_j is drawn
-    // down to zero, the probe locks out scanning and propulsion the same way
-    // integrate_overheat_response() does for temperature_k, via the shared
-    // is_overheated/is_energy_depleted -> can_scan/can_thrust derivation in
-    // refresh_capability_lockouts(). This is edge-triggered: EnergyDepleted
-    // fires once on the > 0 -> 0 transition and the new EnergyRestored fires
-    // once on the 0 -> > 0 transition (mirroring OverheatStarted/
-    // OverheatEnded), not on every step spent steadily at either end. This
-    // closes the one-way-lockout gap the prior slice deliberately left open
-    // pending this mechanic: see ProbeStateSnapshot::is_energy_depleted's own
-    // comment in types.hpp.
     void integrate_energy_balance(double seconds) {
         const double net_rate_w = probe_.energy_generation_w - total_power_allocated_w();
         if (net_rate_w == 0.0 || seconds <= 0.0) {
@@ -498,52 +417,18 @@ private:
         const double cooling_w_per_k = probe_.passive_cooling_w_per_k;
 
         if (cooling_w_per_k <= 0.0) {
-            // No passive cooling pathway configured: fall back to the pure
-            // waste-heat accumulation used before this slice.
             if (heating_w > 0.0) {
                 probe_.temperature_k += (heating_w * seconds) / probe_.thermal_capacity_j_per_k;
             }
             return;
         }
 
-        // All allocated power is treated as waste heat dissipated into the
-        // probe's thermal mass (thermal_capacity_j_per_k), the same
-        // simplification used for the stored-energy draw above. Passive
-        // radiative/conductive cooling toward probe_.ambient_temperature_k is
-        // modeled as Newtonian cooling proportional to the temperature
-        // difference (passive_cooling_w_per_k, in watts per kelvin above
-        // ambient):
-        //
-        //   dT/dt = (heating_w - cooling_w_per_k * (T - T_ambient)) / thermal_capacity_j_per_k
-        //
-        // This has a closed-form solution that decays exponentially toward a
-        // fixed equilibrium temperature (T_ambient + heating_w / cooling_w_per_k)
-        // under sustained heating, rather than climbing unbounded. Solving it
-        // exactly (instead of a fixed-step Euler update) keeps the result
-        // correct and step-size-independent for any elapsed duration,
-        // matching how large `advance_wall_ticks` calls behave elsewhere in
-        // this simulation. See integrate_overheat_response() below for the
-        // behavioral response once this crosses max_operating_temperature_k.
         const double decay_rate_per_s = cooling_w_per_k / probe_.thermal_capacity_j_per_k;
         const double equilibrium_k = probe_.ambient_temperature_k + heating_w / cooling_w_per_k;
         const double delta_from_equilibrium_k = probe_.temperature_k - equilibrium_k;
         probe_.temperature_k = equilibrium_k + delta_from_equilibrium_k * std::exp(-decay_rate_per_s * seconds);
     }
 
-    // Temperature-limit/overheat response: once temperature_k reaches or
-    // exceeds max_operating_temperature_k, the probe locks out scanning and
-    // propulsion (mirrors the ScanCommand/allocate_power capability-gating
-    // pattern) until it cools back below the threshold. This is edge-triggered
-    // on the is_overheated flag rather than re-applied every step, matching
-    // EnergyDepleted's transition-only event pattern: OverheatStarted fires
-    // once on crossing into the lockout and OverheatEnded once on recovering
-    // from it, not on every step spent at/above or below the threshold.
-    //
-    // can_scan/can_thrust now have a second independent source of truth,
-    // is_energy_depleted (see integrate_energy_balance() above), so this
-    // no longer restores them directly: it only updates is_overheated and
-    // its transition events, and leaves the actual capability derivation to
-    // refresh_capability_lockouts(), which combines both causes.
     void integrate_overheat_response() {
         const bool exceeds_limit = probe_.temperature_k >= probe_.max_operating_temperature_k;
 
@@ -558,13 +443,6 @@ private:
         }
     }
 
-    // Derives can_scan/can_thrust from every current lockout cause. Called
-    // once per advance_wall_ticks step after both integrate_energy_balance
-    // (is_energy_depleted) and integrate_overheat_response (is_overheated)
-    // have updated their flags for that step, so neither cause's recovery
-    // (e.g. cooling back below max_operating_temperature_k) can wrongly
-    // restore capabilities while the other cause is still active (e.g.
-    // stored_energy_j still at zero), and vice versa.
     void refresh_capability_lockouts() noexcept {
         const bool probe_locked_out = probe_.is_overheated || probe_.is_energy_depleted;
         probe_.can_scan = !probe_locked_out && probe_.sensors_operational;
