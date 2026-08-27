@@ -58,33 +58,76 @@ struct EvolutionCandidate {
     double thermal_cost_factor{1.0};
     bool adds_new_capability{false};
     std::vector<std::string> grants_tags;
+
+    // Refinements are intentionally uncapped. refinement_rank identifies the
+    // next repeated step without imposing a maximum level, while the cost
+    // scales make extreme specialization increasingly expensive rather than
+    // forbidden. New-capability candidates keep the default values.
+    std::uint64_t refinement_rank{0};
+    double resource_cost_scale{1.0};
+    double construction_time_scale{1.0};
+};
+
+struct EvolutionFrontier {
+    std::vector<EvolutionCandidate> improve_existing;
+    std::vector<EvolutionCandidate> add_new_capability;
 };
 
 class AdjacentEvolutionGenerator {
 public:
-    [[nodiscard]] std::vector<EvolutionCandidate> generate(const EvolutionContext& context) const {
-        std::vector<EvolutionCandidate> candidates;
+    [[nodiscard]] EvolutionFrontier generate_frontier(const EvolutionContext& context) const {
+        EvolutionFrontier frontier;
 
         for (const auto& trait : context.installed_traits) {
-            append_refinement_candidates(trait, candidates);
+            append_refinement_candidates(trait, frontier.improve_existing);
         }
-        append_adjacent_capability_candidates(context, candidates);
+        append_adjacent_capability_candidates(context, frontier.add_new_capability);
 
-        // Stable lexical ordering makes the result deterministic and keeps
-        // save/replay behavior independent of container iteration order.
-        std::stable_sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) {
-            if (a.engineering_distance != b.engineering_distance) {
-                return a.engineering_distance < b.engineering_distance;
-            }
-            return a.id < b.id;
-        });
+        sort_candidates(frontier.improve_existing);
+        sort_candidates(frontier.add_new_capability);
 
         const std::size_t option_budget = std::min(
             context.requested_option_limit,
             option_budget_from_computation(context.computation_maturity));
-        if (candidates.size() > option_budget) {
-            candidates.resize(option_budget);
+
+        // If both paths are currently reachable, always preserve at least one
+        // visible choice in each category. The player is choosing between
+        // "become better at what I already do" and "become able to do
+        // something I cannot do yet"; refinements must not crowd all adjacent
+        // inventions out of the frontier merely because their numeric step is
+        // slightly smaller.
+        if (!frontier.improve_existing.empty() &&
+            !frontier.add_new_capability.empty() &&
+            option_budget >= 2) {
+            const std::size_t addition_budget = std::max<std::size_t>(1, option_budget / 3);
+            const std::size_t refinement_budget = option_budget - addition_budget;
+            resize_to_budget(frontier.improve_existing, refinement_budget);
+            resize_to_budget(frontier.add_new_capability, addition_budget);
+        } else if (!frontier.improve_existing.empty()) {
+            resize_to_budget(frontier.improve_existing, option_budget);
+            frontier.add_new_capability.clear();
+        } else {
+            frontier.improve_existing.clear();
+            resize_to_budget(frontier.add_new_capability, option_budget);
         }
+
+        return frontier;
+    }
+
+    [[nodiscard]] std::vector<EvolutionCandidate> generate(const EvolutionContext& context) const {
+        EvolutionFrontier frontier = generate_frontier(context);
+        std::vector<EvolutionCandidate> candidates;
+        candidates.reserve(
+            frontier.improve_existing.size() + frontier.add_new_capability.size());
+        candidates.insert(
+            candidates.end(),
+            frontier.improve_existing.begin(),
+            frontier.improve_existing.end());
+        candidates.insert(
+            candidates.end(),
+            frontier.add_new_capability.begin(),
+            frontier.add_new_capability.end());
+        sort_candidates(candidates);
         return candidates;
     }
 
@@ -124,6 +167,39 @@ private:
         const double safe = std::max(1.0, maturity);
         const std::size_t bonus = static_cast<std::size_t>(std::floor(std::log2(safe) * 2.0));
         return 4 + bonus;
+    }
+
+    static void sort_candidates(std::vector<EvolutionCandidate>& candidates) {
+        // Stable lexical ordering makes the result deterministic and keeps
+        // save/replay behavior independent of container iteration order.
+        std::stable_sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) {
+            if (a.engineering_distance != b.engineering_distance) {
+                return a.engineering_distance < b.engineering_distance;
+            }
+            return a.id < b.id;
+        });
+    }
+
+    static void resize_to_budget(
+        std::vector<EvolutionCandidate>& candidates,
+        std::size_t budget) {
+        if (candidates.size() > budget) {
+            candidates.resize(budget);
+        }
+    }
+
+    [[nodiscard]] static double extreme_specialization_cost_scale(double source_maturity) noexcept {
+        // No maximum level. Cost grows continuously and predictably instead of
+        // turning into a hard cap. Linear growth is deliberately numerically
+        // stable at very large maturity values; later economic balancing can
+        // change the curve without changing the open-ended progression rule.
+        const double excess = std::max(0.0, source_maturity - 1.0);
+        return 1.0 + 0.50 * excess;
+    }
+
+    [[nodiscard]] static double extreme_specialization_time_scale(double source_maturity) noexcept {
+        const double excess = std::max(0.0, source_maturity - 1.0);
+        return 1.0 + 0.25 * excess;
     }
 
     [[nodiscard]] static const std::vector<RefinementAxis>& axes_for(EvolutionDomain domain) {
@@ -199,6 +275,12 @@ private:
             candidate.mass_cost_factor = axis.mass_cost_factor;
             candidate.power_cost_factor = axis.power_cost_factor;
             candidate.thermal_cost_factor = axis.thermal_cost_factor;
+            candidate.refinement_rank = static_cast<std::uint64_t>(
+                std::floor(std::max(0.0, trait.maturity - 1.0) / axis.maturity_step)) + 1;
+            candidate.resource_cost_scale =
+                extreme_specialization_cost_scale(trait.maturity);
+            candidate.construction_time_scale =
+                extreme_specialization_time_scale(trait.maturity);
             out.push_back(std::move(candidate));
         }
     }
