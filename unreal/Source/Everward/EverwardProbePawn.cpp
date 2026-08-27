@@ -1,6 +1,7 @@
 #include "EverwardProbePawn.h"
 
 #include "Camera/CameraComponent.h"
+#include "Components/InputComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -178,7 +179,7 @@ void AEverwardProbePawn::AdvanceCameraAlignedRighting(float DeltaSeconds)
 
     if (bPitchDone && bYawDone && bRollDone)
     {
-        const FEverwardProbeCommandResult FinalResult = SimulationAdapter->CommandAdjustAttitudeDegrees(
+        (void)SimulationAdapter->CommandAdjustAttitudeDegrees(
             FRotator(PitchRemaining, YawRemaining, RollRemaining));
         bCameraAlignedRighting = false;
         return;
