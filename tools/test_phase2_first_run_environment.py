@@ -24,9 +24,12 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
 
     def test_environment_has_one_visible_bootstrap_scan_target(self) -> None:
         self.assertIn('BootstrapScanTargetId = TEXT("phase2-test-target-001")', self.environment_h)
+        self.assertIn('BootstrapBodyCenterXMeters = 50.0', self.environment_h)
+        self.assertIn('BootstrapBodyRadiusMeters = 2.0', self.environment_h)
         self.assertIn('CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BootstrapScanTarget"))', self.environment_cpp)
-        self.assertIn('FVector(5000.0, 0.0, 0.0)', self.environment_cpp)
-        self.assertIn('PHASE-2 TARGET // SCAN-001', self.environment_cpp)
+        self.assertIn('BootstrapBodyCenterXMeters * 100.0', self.environment_cpp)
+        self.assertIn('PHASE-2 PHYSICAL BODY // SCAN-001', self.environment_cpp)
+        self.assertIn('SetCollisionEnabled(ECollisionEnabled::QueryOnly)', self.environment_cpp)
         self.assertIn('UPointLightComponent', self.environment_cpp)
 
     def test_environment_has_spatial_references_for_motion_perception(self) -> None:
@@ -78,6 +81,13 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         self.assertIn('DorsalMarker->SetRelativeLocation(FVector(-8.0, 0.0, 45.0))', self.pawn_cpp)
         self.assertIn('PortShoulder->SetRelativeLocation(FVector(-12.0, -48.0, -2.0))', self.pawn_cpp)
         self.assertIn('StarboardShoulder->SetRelativeLocation(FVector(-12.0, 48.0, -2.0))', self.pawn_cpp)
+
+    def test_probe_has_collision_envelope_separate_from_decorative_meshes(self) -> None:
+        self.assertIn('USphereComponent', self.pawn_h)
+        self.assertIn('ProbeCollisionEnvelope', self.pawn_h)
+        self.assertIn('TEXT("ProbeCollisionEnvelope")', self.pawn_cpp)
+        self.assertIn('SetSphereRadius(75.0f)', self.pawn_cpp)
+        self.assertIn('ProbeMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision)', self.pawn_cpp)
 
     def test_r_key_rights_probe_toward_camera_in_clunky_authoritative_steps(self) -> None:
         self.assertIn('EKeys::R', self.pawn_cpp)
