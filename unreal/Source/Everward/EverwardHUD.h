@@ -31,16 +31,22 @@ private:
     bool bSystemsExpanded = false;
     int32 SelectedCapabilityIndex = 0;
 
-    // Phase-2 scan-discovery read model. Completion/cancellation truth still
-    // comes from the authoritative adapter telemetry/command boundary; the HUD
-    // only persists the most recent completed discovery so the payoff does not
-    // disappear the frame scanning ends.
-    bool bWasScanning = false;
+    // Phase-2 scan-discovery read model. Completion/cancellation truth comes
+    // from the adapter's authoritative domain-event projection rather than
+    // being inferred from whichever manual command happened most recently.
     bool bHasScanDiscovery = false;
+    int64 LastHandledScanNoticeSequence = 0;
     FString LastObservedScanTargetId;
     FString LastScanTargetId;
     FString LastScanObjectClass;
     FString LastScanComposition;
     double LastScanConfidence = 0.0;
     double LastScanCompletedAtSeconds = 0.0;
+
+    // Brief global feedback banners make rejected commands and automation
+    // actions visible even when their owning subsystem detail page is closed.
+    int64 LastObservedCommandSequence = 0;
+    int64 LastObservedAutomationSequence = 0;
+    double CommandBannerExpiresAtWorldSeconds = 0.0;
+    double AutomationBannerExpiresAtWorldSeconds = 0.0;
 };
