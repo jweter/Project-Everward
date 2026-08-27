@@ -17,6 +17,16 @@ struct EulerAttitudeDegrees {
     double roll{};
 };
 
+// Engine-independent physical body used by the first Phase-2 contact solver.
+// Bodies are intentionally simple spheres for this foundation slice. More
+// detailed shape/mesh support can replace or extend this representation later
+// without making Unreal Engine the owner of collision truth.
+struct StaticSphereBody {
+    std::string body_id;
+    Vector3d center_m{};
+    double radius_m{1.0};
+};
+
 struct ProbeStateSnapshot {
     std::string probe_id{"EV-0001"};
     std::uint32_t generation{1};
@@ -28,6 +38,20 @@ struct ProbeStateSnapshot {
     // read model without moving mechanical truth into Unreal.
     EulerAttitudeDegrees attitude_degrees{};
     double mass_kg{2500.0};
+
+    // Temporary Generation-1 physical collision envelope. This is deliberately
+    // independent from decorative presentation geometry. The Prime Probe A
+    // blockout will replace this scalar sphere with a body-corresponding
+    // compound envelope while preserving the same contact telemetry contract.
+    double collision_envelope_radius_m{0.75};
+    bool has_contact_history{false};
+    std::string last_contact_body_id{};
+    Vector3d last_contact_point_m{};
+    Vector3d last_contact_surface_normal{};
+    Vector3d last_contact_relative_velocity_mps{};
+    double last_contact_normal_speed_mps{0.0};
+    std::int64_t last_contact_tick{0};
+
     double stored_energy_j{5.0e8};
     double energy_capacity_j{1.0e9};
     // Constant passive power supply applied every fixed step alongside
@@ -36,49 +60,24 @@ struct ProbeStateSnapshot {
     // source rather than solar: solar generation would need the
     // star-distance/irradiance model that does not exist yet, while a
     // constant baseline is the self-contained addition available today.
-    // Defaults to 0.0 so a bare, engine-neutral SimulationCore() (used
-    // throughout the test suite, and still by UProbeSimulationAdapter in
-    // unreal/) keeps an exact, generation-free energy/timing baseline.
-    // set_energy_generation_w() configures it directly (e.g. for tests), and
-    // SimulationCore::make_canonical_ev0001() in core.hpp is the one place
-    // the canonical EV-0001 probe's real nonzero hardware-loadout value
-    // lives, without disturbing this struct-level default.
+    // Defaults to 0.0 so a bare, engine-neutral SimulationCore() keeps an
+    // exact, generation-free energy/timing baseline.
     double energy_generation_w{0.0};
     // Set once stored_energy_j transitions from having stored energy to
     // having none, and cleared again once a net-positive energy balance
-    // (energy_generation_w exceeding allocated consumption) recharges it
-    // back above zero — see integrate_energy_balance() in core.hpp, which
-    // also mirrors is_overheated's capability-lockout pattern below. With
-    // the canonical probe's default energy_generation_w of 0.0 this remains
-    // a one-way transition in practice today, exactly as before this field
-    // existed, but the mechanism itself is no longer inherently one-way.
+    // recharges it back above zero.
     bool is_energy_depleted{false};
     double temperature_k{293.15};
     double thermal_capacity_j_per_k{2.5e6};
     double ambient_temperature_k{293.15};
     double passive_cooling_w_per_k{2.0};
-    // Order-of-magnitude placeholder for the temperature at which onboard
-    // components can no longer operate safely (roughly 100C / 373.15K), not
-    // a modeled material or component-specific failure point. Crossing it
-    // triggers the overheat lockout below.
     double max_operating_temperature_k{373.15};
-    // is_overheated and is_energy_depleted are two independent causes of the
-    // same can_scan/can_thrust capability lockout; SimulationCore derives
-    // both flags from `is_overheated || is_energy_depleted` each step so
-    // that one cause clearing (e.g. cooling below max_operating_temperature_k)
-    // does not wrongly restore capabilities while the other cause is still
-    // active (e.g. stored_energy_j still at zero).
     bool is_overheated{false};
     double storage_used_kg{0.0};
     double storage_capacity_kg{500.0};
     bool can_scan{true};
     bool can_thrust{true};
     // Independent hardware-operational state for each power subsystem.
-    // These flags are deliberately separate from the probe-wide overheat and
-    // energy-depletion lockouts: a sensor failure blocks scanning without
-    // disabling propulsion, while a propulsion failure does the inverse.
-    // Computation and thermal do not own player commands yet, but still shed
-    // and reject power allocation while failed.
     bool sensors_operational{true};
     bool propulsion_operational{true};
     bool computation_operational{true};
@@ -116,7 +115,8 @@ enum class DomainEventType {
     PolicyActionRejected,
     AttitudeChanged,
     ManeuverStarted,
-    ManeuverCompleted
+    ManeuverCompleted,
+    Contact
 };
 
 struct DomainEvent {

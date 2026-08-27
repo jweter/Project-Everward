@@ -55,8 +55,6 @@ void AEverwardHUD::DrawHUD()
     const FEverwardScanLifecycleNotice ScanNotice = Adapter->GetLastScanLifecycleNotice();
     const double WorldNow = GetWorld() != nullptr ? GetWorld()->GetTimeSeconds() : 0.0;
 
-    // Keep short global feedback windows without turning transient command
-    // messages into permanent HUD clutter.
     if (LastCommand.Sequence > 0 && LastCommand.Sequence != LastObservedCommandSequence)
     {
         LastObservedCommandSequence = LastCommand.Sequence;
@@ -68,10 +66,6 @@ void AEverwardHUD::DrawHUD()
         AutomationBannerExpiresAtWorldSeconds = WorldNow + 6.0;
     }
 
-    // Scan completion/cancellation is projected from authoritative domain
-    // events by the adapter. This avoids the old fragile inference from the
-    // last manual command, which could misclassify an automation-driven abort
-    // as a completed discovery.
     if (Telemetry.bIsScanning)
     {
         LastObservedScanTargetId = Telemetry.ActiveScanTargetId;
@@ -105,60 +99,25 @@ void AEverwardHUD::DrawHUD()
     DrawRect(PanelColor, Margin, TelemetryY, PanelWidth, TelemetryHeight);
     DrawText(
         FString::Printf(TEXT("%s  //  GEN %d"), *Telemetry.ProbeId, Telemetry.Generation),
-        TextColor,
-        Margin + 14.0f,
-        TelemetryY + 10.0f,
-        nullptr,
-        1.0f,
-        false);
+        TextColor, Margin + 14.0f, TelemetryY + 10.0f, nullptr, 1.0f, false);
     DrawText(
         FString::Printf(TEXT("ENERGY  %s"), *PercentString(Telemetry.StoredEnergyJoules, Telemetry.EnergyCapacityJoules)),
-        TextColor,
-        Margin + 14.0f,
-        TelemetryY + 38.0f,
-        nullptr,
-        1.0f,
-        false);
+        TextColor, Margin + 14.0f, TelemetryY + 38.0f, nullptr, 1.0f, false);
     DrawText(
         FString::Printf(TEXT("POWER   %.0f / %.0f W"), Telemetry.TotalPowerAllocatedWatts, Telemetry.PowerCapacityWatts),
-        TextColor,
-        Margin + 14.0f,
-        TelemetryY + 38.0f + LineHeight,
-        nullptr,
-        1.0f,
-        false);
+        TextColor, Margin + 14.0f, TelemetryY + 38.0f + LineHeight, nullptr, 1.0f, false);
     DrawText(
         FString::Printf(TEXT("THERMAL %.1f K"), Telemetry.TemperatureKelvin),
-        TextColor,
-        Margin + 14.0f,
-        TelemetryY + 38.0f + LineHeight * 2.0f,
-        nullptr,
-        1.0f,
-        false);
+        TextColor, Margin + 14.0f, TelemetryY + 38.0f + LineHeight * 2.0f, nullptr, 1.0f, false);
     DrawText(
         FString::Printf(TEXT("STORAGE %s"), *PercentString(Telemetry.StorageUsedKilograms, Telemetry.StorageCapacityKilograms)),
-        TextColor,
-        Margin + 14.0f,
-        TelemetryY + 38.0f + LineHeight * 3.0f,
-        nullptr,
-        1.0f,
-        false);
+        TextColor, Margin + 14.0f, TelemetryY + 38.0f + LineHeight * 3.0f, nullptr, 1.0f, false);
     DrawText(
         FString::Printf(TEXT("VELOCITY %.2f m/s"), Telemetry.VelocityMetersPerSecond.Size()),
-        TextColor,
-        Margin + 14.0f,
-        TelemetryY + 38.0f + LineHeight * 4.0f,
-        nullptr,
-        1.0f,
-        false);
+        TextColor, Margin + 14.0f, TelemetryY + 38.0f + LineHeight * 4.0f, nullptr, 1.0f, false);
     DrawText(
         FString::Printf(TEXT("SIM %.1f s"), Telemetry.SimulationTimeSeconds),
-        MutedColor,
-        Margin + 14.0f,
-        TelemetryY + 38.0f + LineHeight * 5.0f,
-        nullptr,
-        0.9f,
-        false);
+        MutedColor, Margin + 14.0f, TelemetryY + 38.0f + LineHeight * 5.0f, nullptr, 0.9f, false);
 
     float AlertY = Margin;
     if (Telemetry.bIsEnergyDepleted || Telemetry.bIsOverheated)
@@ -180,16 +139,53 @@ void AEverwardHUD::DrawHUD()
         AlertY += 28.0f;
     }
 
+    // Contact is authoritative simulation telemetry, not an Unreal hit event.
+    // A 5 m/s normal-speed warning is only a temporary operator cue for this
+    // slice; actual energy/severity/damage classification belongs to Slice 4.
+    const double ContactAgeSeconds = Telemetry.bHasContactHistory
+        ? FMath::Max(
+            0.0,
+            static_cast<double>(Telemetry.SimulationTick - Telemetry.LastContactTick) / 1000000.0)
+        : 999999.0;
+    if (Telemetry.bHasContactHistory && ContactAgeSeconds <= 4.0)
+    {
+        const bool bHighSpeedContact = Telemetry.LastContactNormalSpeedMetersPerSecond >= 5.0;
+        DrawText(
+            FString::Printf(
+                TEXT("%s // %s // NORMAL %.2f m/s"),
+                bHighSpeedContact ? TEXT("CONTACT WARNING") : TEXT("CONTACT"),
+                *Telemetry.LastContactBodyId,
+                Telemetry.LastContactNormalSpeedMetersPerSecond),
+            bHighSpeedContact ? AlertColor : TextColor,
+            Margin,
+            AlertY,
+            nullptr,
+            0.95f,
+            false);
+        AlertY += 22.0f;
+        DrawText(
+            FString::Printf(
+                TEXT("POINT [%.2f %.2f %.2f] m // NORMAL [%.2f %.2f %.2f]"),
+                Telemetry.LastContactPointMeters.X,
+                Telemetry.LastContactPointMeters.Y,
+                Telemetry.LastContactPointMeters.Z,
+                Telemetry.LastContactSurfaceNormal.X,
+                Telemetry.LastContactSurfaceNormal.Y,
+                Telemetry.LastContactSurfaceNormal.Z),
+            MutedColor,
+            Margin,
+            AlertY,
+            nullptr,
+            0.72f,
+            false);
+        AlertY += 24.0f;
+    }
+
     if (LastCommand.Sequence > 0 && !LastCommand.bAccepted && WorldNow <= CommandBannerExpiresAtWorldSeconds)
     {
         DrawText(
             FString::Printf(TEXT("COMMAND REJECTED // %s"), *LastCommand.Detail),
-            AlertColor,
-            Margin,
-            AlertY,
-            nullptr,
-            0.92f,
-            false);
+            AlertColor, Margin, AlertY, nullptr, 0.92f, false);
         AlertY += 24.0f;
     }
 
@@ -198,11 +194,7 @@ void AEverwardHUD::DrawHUD()
         DrawText(
             AutomationNotice.Detail,
             AutomationNotice.bRejected ? AlertColor : TextColor,
-            Margin,
-            AlertY,
-            nullptr,
-            0.88f,
-            false);
+            Margin, AlertY, nullptr, 0.88f, false);
         AlertY += 24.0f;
     }
 
@@ -213,29 +205,15 @@ void AEverwardHUD::DrawHUD()
                 TEXT("SCAN  %s  //  %.1f s REMAINING"),
                 *Telemetry.ActiveScanTargetId,
                 Telemetry.ScanRemainingSeconds),
-            TextColor,
-            Margin,
-            AlertY,
-            nullptr,
-            0.95f,
-            false);
+            TextColor, Margin, AlertY, nullptr, 0.95f, false);
     }
     else if (bHasScanDiscovery)
     {
         DrawText(
             FString::Printf(TEXT("SCAN COMPLETE  //  %s  //  DISCOVERY STORED"), *LastScanTargetId),
-            TextColor,
-            Margin,
-            AlertY,
-            nullptr,
-            0.95f,
-            false);
+            TextColor, Margin, AlertY, nullptr, 0.95f, false);
     }
 
-    // Flight state is safety-critical and should never disappear just because the
-    // player is inspecting Sensors/Computation/Thermal. Convert authoritative world
-    // velocity back into probe-local axes so the readout answers the useful question:
-    // am I moving forward/back, right/left, or up/down relative to my current attitude?
     const double SpeedMetersPerSecond = Telemetry.VelocityMetersPerSecond.Size();
     if (SpeedMetersPerSecond > 0.01)
     {
@@ -248,24 +226,14 @@ void AEverwardHUD::DrawHUD()
         DrawRect(PanelColor, FlightX, FlightY, FlightWidth, FlightHeight);
         DrawText(
             FString::Printf(TEXT("FLIGHT  %.2f m/s   [SPACE] BRAKE"), SpeedMetersPerSecond),
-            TextColor,
-            FlightX + 14.0f,
-            FlightY + 10.0f,
-            nullptr,
-            0.95f,
-            false);
+            TextColor, FlightX + 14.0f, FlightY + 10.0f, nullptr, 0.95f, false);
         DrawText(
             FString::Printf(
                 TEXT("FWD %+0.2f   RIGHT %+0.2f   UP %+0.2f m/s"),
                 LocalVelocity.X,
                 LocalVelocity.Y,
                 LocalVelocity.Z),
-            MutedColor,
-            FlightX + 14.0f,
-            FlightY + 38.0f,
-            nullptr,
-            0.82f,
-            false);
+            MutedColor, FlightX + 14.0f, FlightY + 38.0f, nullptr, 0.82f, false);
     }
 
     const float SystemPanelX = Canvas->ClipX - Margin - PanelWidth;
@@ -279,23 +247,12 @@ void AEverwardHUD::DrawHUD()
         DrawRect(PanelColor, SystemPanelX, CompactY, PanelWidth, CompactHeight);
         DrawText(
             FString::Printf(TEXT("SYSTEMS  %d INSTALLED   [TAB DETAILS]"), Capabilities.Num()),
-            TextColor,
-            SystemPanelX + 14.0f,
-            CompactY + 10.0f,
-            nullptr,
-            0.90f,
-            false);
+            TextColor, SystemPanelX + 14.0f, CompactY + 10.0f, nullptr, 0.90f, false);
 
         if (Capabilities.IsEmpty())
         {
-            DrawText(
-                TEXT("NO INSTALLED CAPABILITIES"),
-                MutedColor,
-                SystemPanelX + 14.0f,
-                CompactY + CompactHeaderHeight,
-                nullptr,
-                0.78f,
-                false);
+            DrawText(TEXT("NO INSTALLED CAPABILITIES"), MutedColor,
+                SystemPanelX + 14.0f, CompactY + CompactHeaderHeight, nullptr, 0.78f, false);
         }
         else
         {
@@ -304,25 +261,16 @@ void AEverwardHUD::DrawHUD()
             {
                 const bool bHealthy = Capability.bOperational && Capability.bAvailable;
                 DrawText(
-                    FString::Printf(
-                        TEXT("%s   %.0f W   [%s]"),
+                    FString::Printf(TEXT("%s   %.0f W   [%s]"),
                         *Capability.DisplayName,
                         Capability.AllocatedPowerWatts,
                         *CapabilityState(Capability)),
                     bHealthy ? TextColor : AlertColor,
-                    SystemPanelX + 14.0f,
-                    CompactRowY,
-                    nullptr,
-                    0.76f,
-                    false);
+                    SystemPanelX + 14.0f, CompactRowY, nullptr, 0.76f, false);
                 DrawText(
                     Capability.StatusReason,
                     bHealthy ? MutedColor : AlertColor,
-                    SystemPanelX + 22.0f,
-                    CompactRowY + 17.0f,
-                    nullptr,
-                    0.63f,
-                    false);
+                    SystemPanelX + 22.0f, CompactRowY + 17.0f, nullptr, 0.63f, false);
                 CompactRowY += CompactRowHeight;
             }
         }
@@ -332,11 +280,13 @@ void AEverwardHUD::DrawHUD()
     const float ExpandedHeight = 500.0f;
     const float ExpandedY = Canvas->ClipY - Margin - ExpandedHeight;
     DrawRect(PanelColor, SystemPanelX, ExpandedY, PanelWidth, ExpandedHeight);
-    DrawText(TEXT("SYSTEMS / CONTROL   [TAB CLOSE]"), TextColor, SystemPanelX + 14.0f, ExpandedY + 12.0f, nullptr, 0.95f, false);
+    DrawText(TEXT("SYSTEMS / CONTROL   [TAB CLOSE]"), TextColor,
+        SystemPanelX + 14.0f, ExpandedY + 12.0f, nullptr, 0.95f, false);
 
     if (Capabilities.IsEmpty())
     {
-        DrawText(TEXT("NO INSTALLED CAPABILITIES"), MutedColor, SystemPanelX + 14.0f, ExpandedY + 48.0f, nullptr, 0.9f, false);
+        DrawText(TEXT("NO INSTALLED CAPABILITIES"), MutedColor,
+            SystemPanelX + 14.0f, ExpandedY + 48.0f, nullptr, 0.9f, false);
         return;
     }
 
@@ -350,11 +300,7 @@ void AEverwardHUD::DrawHUD()
         DrawText(
             FString::Printf(TEXT("%s%s  [%s]"), *Prefix, *Capability.DisplayName, *CapabilityState(Capability)),
             Index == SelectedCapabilityIndex ? TextColor : MutedColor,
-            SystemPanelX + 14.0f,
-            Y,
-            nullptr,
-            0.9f,
-            false);
+            SystemPanelX + 14.0f, Y, nullptr, 0.9f, false);
         Y += 24.0f;
     }
 
@@ -364,54 +310,33 @@ void AEverwardHUD::DrawHUD()
     Y += 26.0f;
     DrawText(
         FString::Printf(TEXT("POWER %.0f W   [PGUP/PGDN ADJUST]"), Selected.AllocatedPowerWatts),
-        MutedColor,
-        SystemPanelX + 14.0f,
-        Y,
-        nullptr,
-        0.82f,
-        false);
+        MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.82f, false);
     Y += 22.0f;
     DrawText(
         Selected.MinimumOperatingPowerWatts > 0.0
-            ? FString::Printf(
-                TEXT("STATUS %s   //   MIN %.0f W"),
-                *Selected.StatusReason,
-                Selected.MinimumOperatingPowerWatts)
+            ? FString::Printf(TEXT("STATUS %s   //   MIN %.0f W"),
+                *Selected.StatusReason, Selected.MinimumOperatingPowerWatts)
             : FString::Printf(TEXT("STATUS %s"), *Selected.StatusReason),
         Selected.bOperational && Selected.bAvailable ? MutedColor : AlertColor,
-        SystemPanelX + 14.0f,
-        Y,
-        nullptr,
-        0.74f,
-        false);
+        SystemPanelX + 14.0f, Y, nullptr, 0.74f, false);
     Y += 22.0f;
     DrawText(
-        FString::Printf(
-            TEXT("MANUAL CONTROL  %s   //   AUTOMATION API  %s"),
+        FString::Printf(TEXT("MANUAL CONTROL  %s   //   AUTOMATION API  %s"),
             Selected.bSupportsManualControl ? TEXT("YES") : TEXT("N/A"),
             Selected.bSupportsAutomation ? TEXT("YES") : TEXT("N/A")),
-        MutedColor,
-        SystemPanelX + 14.0f,
-        Y,
-        nullptr,
-        0.82f,
-        false);
+        MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.82f, false);
     Y += 28.0f;
 
     if (Selected.CapabilityId == FName(TEXT("sensors")))
     {
-        DrawText(TEXT("[ENTER] START SCAN   [BACKSPACE] CANCEL"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
+        DrawText(TEXT("[ENTER] START SCAN   [BACKSPACE] CANCEL"), TextColor,
+            SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
         Y += 22.0f;
         DrawText(
             Telemetry.bIsScanning
                 ? FString::Printf(TEXT("ACTIVE: %s  %.1f s"), *Telemetry.ActiveScanTargetId, Telemetry.ScanRemainingSeconds)
                 : TEXT("ACTIVE: NONE"),
-            MutedColor,
-            SystemPanelX + 14.0f,
-            Y,
-            nullptr,
-            0.8f,
-            false);
+            MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
         Y += 24.0f;
 
         if (bHasScanDiscovery)
@@ -425,58 +350,42 @@ void AEverwardHUD::DrawHUD()
             DrawText(LastScanComposition, MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.70f, false);
             Y += 19.0f;
             DrawText(
-                FString::Printf(TEXT("CONFIDENCE %.0f%%  //  ACQUIRED T+%.1fs"), LastScanConfidence * 100.0, LastScanCompletedAtSeconds),
-                MutedColor,
-                SystemPanelX + 14.0f,
-                Y,
-                nullptr,
-                0.70f,
-                false);
+                FString::Printf(TEXT("CONFIDENCE %.0f%%  //  ACQUIRED T+%.1fs"),
+                    LastScanConfidence * 100.0, LastScanCompletedAtSeconds),
+                MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.70f, false);
             Y += 24.0f;
         }
     }
     else if (Selected.CapabilityId == FName(TEXT("propulsion")))
     {
-        DrawText(TEXT("[W/S] X  [A/D] Y  [Q/E] Z  [SPACE] GLOBAL BRAKE"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.72f, false);
+        DrawText(TEXT("[W/S] X  [A/D] Y  [Q/E] Z  [SPACE] GLOBAL BRAKE"), TextColor,
+            SystemPanelX + 14.0f, Y, nullptr, 0.72f, false);
         Y += 22.0f;
         DrawText(
             FString::Printf(TEXT("WORLD VECTOR [%.2f, %.2f, %.2f] m/s"),
                 Telemetry.VelocityMetersPerSecond.X,
                 Telemetry.VelocityMetersPerSecond.Y,
                 Telemetry.VelocityMetersPerSecond.Z),
-            MutedColor,
-            SystemPanelX + 14.0f,
-            Y,
-            nullptr,
-            0.8f,
-            false);
+            MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
         Y += 24.0f;
     }
     else if (Selected.CapabilityId == FName(TEXT("computation")))
     {
-        DrawText(TEXT("[ENTER] INSTALL BASIC SURVIVAL   [BACKSPACE] CLEAR"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.76f, false);
+        DrawText(TEXT("[ENTER] INSTALL BASIC SURVIVAL   [BACKSPACE] CLEAR"), TextColor,
+            SystemPanelX + 14.0f, Y, nullptr, 0.76f, false);
         Y += 22.0f;
         DrawText(
             PolicyStatus.bInstalled
                 ? FString::Printf(TEXT("POLICY: %s  //  %d RULES"), *PolicyStatus.PolicyId, PolicyStatus.RuleCount)
                 : TEXT("POLICY: NONE"),
-            MutedColor,
-            SystemPanelX + 14.0f,
-            Y,
-            nullptr,
-            0.8f,
-            false);
+            MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
         Y += 22.0f;
         DrawText(
             PolicyStatus.bExecutorAvailable
                 ? TEXT("EXECUTOR: RUNNING")
                 : FString::Printf(TEXT("EXECUTOR: NEED >= %.0f W COMPUTE"), PolicyStatus.MinimumComputationPowerWatts),
             PolicyStatus.bExecutorAvailable ? TextColor : AlertColor,
-            SystemPanelX + 14.0f,
-            Y,
-            nullptr,
-            0.8f,
-            false);
+            SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
         Y += 22.0f;
         if (AutomationNotice.Sequence > 0)
         {
@@ -485,11 +394,7 @@ void AEverwardHUD::DrawHUD()
             DrawText(
                 AutomationNotice.Detail,
                 AutomationNotice.bRejected ? AlertColor : MutedColor,
-                SystemPanelX + 14.0f,
-                Y,
-                nullptr,
-                0.62f,
-                false);
+                SystemPanelX + 14.0f, Y, nullptr, 0.62f, false);
             Y += 22.0f;
         }
     }
@@ -497,19 +402,15 @@ void AEverwardHUD::DrawHUD()
     if (LastCommand.Sequence > 0)
     {
         DrawText(
-            FString::Printf(
-                TEXT("CMD %s: %s"),
+            FString::Printf(TEXT("CMD %s: %s"),
                 LastCommand.bAccepted ? TEXT("OK") : TEXT("REJECTED"),
                 *LastCommand.Detail),
             LastCommand.bAccepted ? TextColor : AlertColor,
-            SystemPanelX + 14.0f,
-            ExpandedY + ExpandedHeight - 52.0f,
-            nullptr,
-            0.75f,
-            false);
+            SystemPanelX + 14.0f, ExpandedY + ExpandedHeight - 52.0f, nullptr, 0.75f, false);
     }
 
-    DrawText(TEXT("[ / ] SELECT SYSTEM   //   MOUSE LOOK   WHEEL ZOOM"), MutedColor, SystemPanelX + 14.0f, ExpandedY + ExpandedHeight - 26.0f, nullptr, 0.68f, false);
+    DrawText(TEXT("[ / ] SELECT SYSTEM   //   MOUSE LOOK   WHEEL ZOOM"), MutedColor,
+        SystemPanelX + 14.0f, ExpandedY + ExpandedHeight - 26.0f, nullptr, 0.68f, false);
 }
 
 void AEverwardHUD::ToggleSystemsPanel()

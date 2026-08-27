@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -47,11 +48,11 @@ struct SoftwarePolicyStatus {
     double minimum_computation_power_w{0.0};
 };
 
-// Authoritative One-Probe runtime wrapper that couples the mechanical
-// SimulationCore to the first primitive software-policy evaluator. The core
-// remains the sole owner of physical state. Policies observe a snapshot and
-// submit the exact same public ProbeRuntime commands used by manual control;
-// they never mutate ProbeStateSnapshot directly.
+// Authoritative One-Probe runtime wrapper. SimulationCore owns the probe's
+// mechanical state and integration. ProbeRuntime adds world-contact constraints
+// and software policy evaluation without moving either responsibility into
+// Unreal Engine. Static sphere bodies are intentionally the first simple shape
+// representation; later planetary/mesh bodies can extend this contract.
 class ProbeRuntime {
 public:
     static constexpr std::size_t kGeneration1MaxPolicyRules = 2;
@@ -63,13 +64,6 @@ public:
 
     [[nodiscard]] static ProbeRuntime make_canonical_ev0001() {
         ProbeRuntime runtime(SimulationCore::make_canonical_ev0001());
-
-        // Generation-1 begins with enough sensor power to observe/scan and
-        // enough computation power to execute its tiny policy slot. Together
-        // these equal the canonical 75 W passive source, so the idle starting
-        // configuration is energy-neutral rather than silently draining or
-        // charging the battery. Propulsion remains the current command-driven
-        // Phase-2 model until its physical thrust/power relationship is built.
         runtime.core_.allocate_power(PowerSubsystem::Sensors, kGeneration1MinimumSensorPowerW);
         runtime.core_.allocate_power(
             PowerSubsystem::Computation,
@@ -82,7 +76,9 @@ public:
     [[nodiscard]] std::int64_t tick() const noexcept { return core_.tick(); }
 
     void advance_wall_ticks(std::int64_t wall_ticks) {
+        const Vector3d start_position = core_.snapshot().position_m;
         core_.advance_wall_ticks(wall_ticks);
+        resolve_static_contacts(start_position);
         evaluate_policy();
     }
 
@@ -94,6 +90,36 @@ public:
             return a.tick < b.tick;
         });
         return events;
+    }
+
+    // World geometry registration remains engine independent. Unreal's test
+    // environment registers matching presentation bodies through the adapter;
+    // the runtime owns whether the probe can actually pass through them.
+    void add_static_sphere_body(StaticSphereBody body) {
+        if (body.body_id.empty()) {
+            throw std::invalid_argument("physical body id must not be empty");
+        }
+        if (!(body.radius_m > 0.0) || !std::isfinite(body.radius_m)) {
+            throw std::invalid_argument("physical body radius must be finite and positive");
+        }
+        if (!finite_vector(body.center_m)) {
+            throw std::invalid_argument("physical body center must be finite");
+        }
+        const auto duplicate = std::find_if(
+            static_bodies_.begin(), static_bodies_.end(),
+            [&body](const StaticSphereBody& existing) {
+                return existing.body_id == body.body_id;
+            });
+        if (duplicate != static_bodies_.end()) {
+            throw std::invalid_argument("physical body id already registered: " + body.body_id);
+        }
+        static_bodies_.push_back(std::move(body));
+    }
+
+    void clear_static_bodies() noexcept { static_bodies_.clear(); }
+
+    [[nodiscard]] const std::vector<StaticSphereBody>& static_bodies() const noexcept {
+        return static_bodies_;
     }
 
     void set_velocity_mps(Vector3d velocity) { core_.set_velocity_mps(velocity); }
@@ -118,11 +144,6 @@ public:
 
     void allocate_power(PowerSubsystem subsystem, double watts) {
         core_.allocate_power(subsystem, watts);
-
-        // Sensor power is now a real gameplay consequence. Dropping below the
-        // Generation-1 operating floor immediately removes active scanning
-        // capability. An in-progress scan is explicitly aborted rather than
-        // being allowed to finish for free with unpowered hardware.
         if (subsystem == PowerSubsystem::Sensors &&
             watts < kGeneration1MinimumSensorPowerW &&
             core_.snapshot().is_scanning) {
@@ -175,6 +196,139 @@ public:
     }
 
 private:
+    struct ContactCandidate {
+        const StaticSphereBody* body{nullptr};
+        double fraction{1.0};
+        Vector3d probe_center_at_contact{};
+        Vector3d normal{};
+    };
+
+    [[nodiscard]] static bool finite_vector(Vector3d value) noexcept {
+        return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+    }
+
+    [[nodiscard]] static Vector3d add(Vector3d a, Vector3d b) noexcept {
+        return {a.x + b.x, a.y + b.y, a.z + b.z};
+    }
+
+    [[nodiscard]] static Vector3d subtract(Vector3d a, Vector3d b) noexcept {
+        return {a.x - b.x, a.y - b.y, a.z - b.z};
+    }
+
+    [[nodiscard]] static Vector3d scale(Vector3d value, double scalar) noexcept {
+        return {value.x * scalar, value.y * scalar, value.z * scalar};
+    }
+
+    [[nodiscard]] static double dot(Vector3d a, Vector3d b) noexcept {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+    }
+
+    [[nodiscard]] static double length(Vector3d value) noexcept {
+        return std::sqrt(dot(value, value));
+    }
+
+    [[nodiscard]] static Vector3d normalized_or_x(Vector3d value) noexcept {
+        const double magnitude = length(value);
+        if (magnitude <= 1e-12) {
+            return {1.0, 0.0, 0.0};
+        }
+        return scale(value, 1.0 / magnitude);
+    }
+
+    [[nodiscard]] bool sweep_probe_against_body(
+        Vector3d start,
+        Vector3d end,
+        const StaticSphereBody& body,
+        ContactCandidate& candidate) const noexcept {
+        const Vector3d delta = subtract(end, start);
+        const Vector3d from_center = subtract(start, body.center_m);
+        const double combined_radius = body.radius_m + core_.snapshot().collision_envelope_radius_m;
+        const double a = dot(delta, delta);
+        const double c = dot(from_center, from_center) - combined_radius * combined_radius;
+
+        double fraction = std::numeric_limits<double>::infinity();
+        if (c <= 0.0) {
+            fraction = 0.0;
+        } else if (a > 1e-18) {
+            const double b = 2.0 * dot(from_center, delta);
+            const double discriminant = b * b - 4.0 * a * c;
+            if (discriminant >= 0.0) {
+                const double root = (-b - std::sqrt(discriminant)) / (2.0 * a);
+                if (root >= 0.0 && root <= 1.0) {
+                    fraction = root;
+                }
+            }
+        }
+
+        if (!std::isfinite(fraction)) {
+            return false;
+        }
+
+        const Vector3d center_at_contact = add(start, scale(delta, fraction));
+        const Vector3d normal = normalized_or_x(subtract(center_at_contact, body.center_m));
+        const double inward_normal_speed = std::max(0.0, -dot(core_.snapshot().velocity_mps, normal));
+
+        // If we begin touching/overlapping but are already moving away, do not
+        // manufacture another contact event or pin the probe to the surface.
+        if (fraction == 0.0 && inward_normal_speed <= 1e-9) {
+            return false;
+        }
+
+        candidate.body = &body;
+        candidate.fraction = fraction;
+        candidate.probe_center_at_contact = center_at_contact;
+        candidate.normal = normal;
+        return true;
+    }
+
+    void resolve_static_contacts(Vector3d start_position) {
+        if (static_bodies_.empty()) {
+            return;
+        }
+
+        const Vector3d integrated_end = core_.snapshot().position_m;
+        ContactCandidate earliest;
+        earliest.fraction = std::numeric_limits<double>::infinity();
+
+        for (const StaticSphereBody& body : static_bodies_) {
+            ContactCandidate candidate;
+            if (sweep_probe_against_body(start_position, integrated_end, body, candidate) &&
+                candidate.fraction < earliest.fraction) {
+                earliest = candidate;
+            }
+        }
+
+        if (earliest.body == nullptr) {
+            return;
+        }
+
+        const Vector3d incoming_velocity = core_.snapshot().velocity_mps;
+        const double normal_component = dot(incoming_velocity, earliest.normal);
+        const double normal_speed = std::max(0.0, -normal_component);
+        Vector3d resolved_velocity = incoming_velocity;
+        if (normal_component < 0.0) {
+            resolved_velocity = subtract(incoming_velocity, scale(earliest.normal, normal_component));
+        }
+
+        const double combined_radius =
+            earliest.body->radius_m + core_.snapshot().collision_envelope_radius_m;
+        const Vector3d resolved_center = add(
+            earliest.body->center_m,
+            scale(earliest.normal, combined_radius + 1e-6));
+        const Vector3d surface_point = add(
+            earliest.body->center_m,
+            scale(earliest.normal, earliest.body->radius_m));
+
+        core_.resolve_contact(
+            earliest.body->body_id,
+            resolved_center,
+            surface_point,
+            earliest.normal,
+            incoming_velocity,
+            normal_speed,
+            resolved_velocity);
+    }
+
     [[nodiscard]] bool policy_executor_available() const noexcept {
         const auto& state = core_.snapshot();
         return state.computation_operational &&
@@ -291,12 +445,6 @@ private:
             return;
         }
 
-        // Generation 1 is intentionally primitive: rules are evaluated in
-        // authored order after each fixed simulation advance. Each matching
-        // rule performs one simple command. A policy can even command its own
-        // computation allocation to zero, disabling itself until the player
-        // manually restores enough compute power. This is deliberate early-
-        // machine clunkiness rather than hidden convenience logic.
         for (const auto& rule : active_policy_.rules) {
             const auto state_before_action = core_.snapshot();
             if (!condition_matches(rule, state_before_action)) {
@@ -309,9 +457,6 @@ private:
             }
 
             try {
-                // Critical architecture rule: automation uses the same public
-                // authoritative runtime command as manual power allocation,
-                // including its sensor-power consequence behavior.
                 allocate_power(rule.subsystem, rule.action_watts);
                 policy_events_.push_back({
                     tick(),
@@ -332,8 +477,6 @@ private:
                 });
             }
 
-            // If a rule disables computation, stop immediately. The remaining
-            // rules cannot execute without the physical compute budget.
             if (!policy_executor_available()) {
                 break;
             }
@@ -341,6 +484,7 @@ private:
     }
 
     SimulationCore core_{};
+    std::vector<StaticSphereBody> static_bodies_{};
     bool has_policy_{false};
     SoftwarePolicy active_policy_{};
     std::vector<DomainEvent> policy_events_{};

@@ -26,4 +26,8 @@ if(BUILD_TESTING)
     add_executable(everward_subsystem_consequence_tests tests/subsystem_consequence_tests.cpp)
     target_link_libraries(everward_subsystem_consequence_tests PRIVATE everward_simulation)
     add_test(NAME everward_subsystem_consequence_tests COMMAND everward_subsystem_consequence_tests)
+
+    add_executable(everward_contact_physics_tests tests/contact_physics_tests.cpp)
+    target_link_libraries(everward_contact_physics_tests PRIVATE everward_simulation)
+    add_test(NAME everward_contact_physics_tests COMMAND everward_contact_physics_tests)
 endif()

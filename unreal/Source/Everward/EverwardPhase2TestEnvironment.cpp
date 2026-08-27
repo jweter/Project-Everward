@@ -21,9 +21,18 @@ AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
 
     ScanTargetMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BootstrapScanTarget"));
     ScanTargetMesh->SetupAttachment(SceneRoot);
-    ScanTargetMesh->SetRelativeLocation(FVector(5000.0, 0.0, 0.0));
-    ScanTargetMesh->SetRelativeScale3D(FVector(4.0, 4.0, 4.0));
-    ScanTargetMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    ScanTargetMesh->SetRelativeLocation(FVector(
+        BootstrapBodyCenterXMeters * 100.0,
+        BootstrapBodyCenterYMeters * 100.0,
+        BootstrapBodyCenterZMeters * 100.0));
+    // Engine BasicShapes/Sphere has a 50 cm radius, so scale 4.0 presents the
+    // same 2.0 m radius registered in the authoritative simulation runtime.
+    const double BootstrapSphereScale = BootstrapBodyRadiusMeters * 100.0 / 50.0;
+    ScanTargetMesh->SetRelativeScale3D(FVector(BootstrapSphereScale));
+    // Unreal collision is presentation/query support only. The actual blocking
+    // result comes from the engine-independent swept-sphere contact solver.
+    ScanTargetMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    ScanTargetMesh->SetCollisionResponseToAllChannels(ECR_Block);
     if (SphereMesh.Succeeded())
     {
         ScanTargetMesh->SetStaticMesh(SphereMesh.Object);
@@ -31,12 +40,15 @@ AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
 
     ScanTargetLabel = CreateDefaultSubobject<UTextRenderComponent>(TEXT("BootstrapScanTargetLabel"));
     ScanTargetLabel->SetupAttachment(SceneRoot);
-    ScanTargetLabel->SetRelativeLocation(FVector(5000.0, 0.0, 500.0));
+    ScanTargetLabel->SetRelativeLocation(FVector(
+        BootstrapBodyCenterXMeters * 100.0,
+        BootstrapBodyCenterYMeters * 100.0,
+        BootstrapBodyCenterZMeters * 100.0 + 500.0));
     ScanTargetLabel->SetRelativeRotation(FRotator(0.0, 180.0, 0.0));
     ScanTargetLabel->SetHorizontalAlignment(EHTA_Center);
     ScanTargetLabel->SetWorldSize(120.0f);
     ScanTargetLabel->SetTextRenderColor(FColor(110, 220, 255));
-    ScanTargetLabel->SetText(FText::FromString(TEXT("PHASE-2 TARGET // SCAN-001")));
+    ScanTargetLabel->SetText(FText::FromString(TEXT("PHASE-2 PHYSICAL BODY // SCAN-001")));
 
     KeyLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Phase2KeyLight"));
     KeyLight->SetupAttachment(SceneRoot);
