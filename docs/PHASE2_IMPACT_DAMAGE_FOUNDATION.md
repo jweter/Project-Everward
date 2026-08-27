@@ -1,8 +1,8 @@
 # Phase 2 — Impact Severity and Component Damage Foundation
 
-Status: **implementation started; portable CI required; local Product Reality remains pending on the preceding contact slice.**
+Status: **implemented in PR #116; portable CI required; local Product Reality remains pending on the preceding contact slice and this damage slice.**
 
-This slice intentionally begins without waiting for the local collision playtest, but it does not declare the collision/contact prerequisite complete. The implementation is layered so a Product Reality correction to contact resolution can be made without discarding the damage model.
+This slice intentionally began without waiting for the local collision playtest, but it does not declare the collision/contact prerequisite complete. The implementation is layered so a Product Reality correction to contact resolution can be made without discarding the damage model.
 
 ## Objective
 
@@ -66,6 +66,12 @@ The first operational bands are:
 
 A key design requirement from the canonical awakening is preserved: **a system at 5% integrity is badly damaged but can still be functional.** Zero integrity is the hard offline threshold in this first model.
 
+Partial integrity already has real consequences in this slice:
+
+- Propulsion command authority scales with propulsion integrity for local velocity and attitude trims. At 5%, a requested trim produces 5% of nominal response.
+- Sensor integrity stretches scan time. At 50%, a nominal 10-second scan requires 20 seconds.
+- At zero integrity, the affected subsystem is routed through the existing operational-state failure path and its capabilities become unavailable.
+
 This distinction is essential for staged Self Repair. A future repair action can move a component through meaningful states rather than only toggling `broken/working`.
 
 ## Temporary Phase-2 impact zones
@@ -104,52 +110,31 @@ The canonical priority remains:
 
 ## Current implementation
 
-`impact_damage.hpp` adds:
-
-- `ImpactSeverity`;
-- `IntegrityBand`;
-- `ComponentIntegritySnapshot`;
-- `ImpactDamageRecord`;
-- `ImpactDamageModel`;
-- `DamageAwareProbeRuntime`.
+`impact_damage.hpp` adds `ImpactSeverity`, `IntegrityBand`, `ComponentIntegritySnapshot`, `ImpactDamageRecord`, `ImpactDamageModel`, and `DamageAwareProbeRuntime`.
 
 `DamageAwareProbeRuntime` composes the existing tested `ProbeRuntime`. Collision remains owned by `ProbeRuntime`; the damage layer consumes its authoritative contact record after each simulation advance. It does not recreate collision logic.
 
 If an impact reduces a component to zero integrity, the damage layer routes the result through the existing subsystem-operational state, so existing capability consequences apply rather than creating a parallel truth system.
 
+The Unreal adapter now uses `DamageAwareProbeRuntime` and exposes latest impact energy/severity, affected subsystem, integrity before/after, and current integrity for Sensors, Propulsion, Computation, and Thermal. The HUD renders that authoritative state instead of calculating damage itself. Compact and expanded subsystem views display integrity alongside power and operational state.
+
 ## Portable acceptance coverage
 
-The new C++ regression suite verifies:
+The C++ regression suite verifies energy-based severity, integrity bands including functional 5% systems, deterministic impact zoning, nondamaging contact, no duplicate damage, catastrophic subsystem failure, damaged-start initialization/restoration, propulsion degradation, and sensor scan-time degradation.
 
-1. energy-based severity thresholds;
-2. integrity-band semantics including a functional 5% system;
-3. forward impact -> sensor damage;
-4. aft/lateral/dorsal component zoning;
-5. low-energy contact causes no integrity loss;
-6. one contact cannot be double-counted;
-7. catastrophic impact can take a subsystem offline through existing capability state;
-8. the same integrity API can initialize, disable, and restore a subsystem for the future awakening loop.
+A Python source-contract suite protects the simulation/adapter/HUD ownership boundary because portable CI cannot compile or visually inspect the Unreal module.
 
-## Next integration step in this slice
+## Remaining gate
 
-After the portable damage model is green, wire `DamageAwareProbeRuntime` into the Unreal adapter and expose:
+This implementation should remain **open/unmerged** until the preceding physical-contact behavior has been checked locally, because impact behavior depends directly on that contact result. This is a completion/merge gate, not a development stop.
 
-- latest impact energy and severity;
-- affected component;
-- integrity before/after;
-- current integrity of all installed systems;
-- a short player-facing damage banner;
-- integrity bands in the subsystem HUD.
+Once contact passes Product Reality, test the exact damage build locally in Unreal:
 
-That presentation/integration work should remain unmerged until the preceding collision/contact Product Reality result is known, because the project plan explicitly treats mechanics built on unverified collision feel as non-parallel-safe completion work.
-
-## Product Reality target
-
-Once wired into Unreal, the player should be able to perform three obvious tests:
-
-1. touch the body gently and see `CONTACT` with no damage;
-2. strike it at a moderate speed and see a named subsystem lose integrity but remain usable;
-3. strike it hard enough to take the impacted subsystem offline and see the existing capability lockout immediately reflect the damage.
+1. touch the body gently and confirm `CONTACT`/low-energy telemetry with no integrity loss;
+2. strike it near 10 m/s normal speed and confirm a `DAMAGING` result around 125 kJ, a named subsystem, and partial integrity loss;
+3. verify partial sensor/propulsion damage visibly slows the corresponding capability;
+4. strike hard enough for a catastrophic result and confirm the impacted subsystem becomes unavailable through the existing capability HUD;
+5. repeat from different probe orientations and confirm the affected component follows probe-relative impact zones rather than fixed world axes.
 
 The important feeling is not "my health bar went down." It is:
 
