@@ -8,6 +8,8 @@ Use [`PHASE2_VERTICAL_SLICE_PLAN.md`](PHASE2_VERTICAL_SLICE_PLAN.md) as the deta
 
 The master phase boundaries remain defined by [`ROADMAP.md`](ROADMAP.md).
 
+The canonical damaged-awakening, staged self-repair, and starter-zone departure experience is defined in [`STARTER_AWAKENING_AND_SELF_REPAIR.md`](STARTER_AWAKENING_AND_SELF_REPAIR.md). Earlier slices should preserve the component, damage, resource, power, manipulator, and repair architecture required to assemble that opening without a later rewrite.
+
 ## Selection rule
 
 When choosing the next Everward development task:
@@ -37,6 +39,9 @@ Parallel-safe work may merge after green portable CI only when it does not assum
 11. deeper science gameplay;
 12. resource/sample loop;
 13. processing/fabrication;
-14. repair/recoverability.
+14. repair/recoverability, including authoritative component integrity and staged Self Repair priorities;
+15. assemble the canonical starter awakening: damaged surface start -> reachable mining -> staged recovery -> every required system at 100% -> first departure.
+
+The canonical Self Repair planner must prioritize **restore capability before restoring perfection**: preserve survival, restore important offline systems to minimum useful operation, bring all required systems online, then reassess and repair the weakest/highest-value systems in stages toward 100%.
 
 Everward is explicitly both a space game and a planetary-environment game. Each completed slice should make the next tested build visibly more like inhabiting and operating a real autonomous interstellar machine.

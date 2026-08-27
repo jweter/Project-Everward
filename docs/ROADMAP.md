@@ -67,16 +67,18 @@ Current production foundation on `main`:
 - canonical first-probe state for identity, position/velocity, mass, energy, temperature, storage, and basic capabilities;
 - deterministic fixed-step movement integration and domain-event delivery;
 - `UProbeSimulationAdapter` as the single Unreal-side caller into authoritative simulation;
-- Blueprint-visible simulation tick, position, and velocity-command access;
+- visible probe-relative movement and attitude control;
+- subsystem power/capability consequences and observable automation actions;
+- a physical collision/contact foundation with authoritative contact telemetry;
 - CMake/CTest production-core coverage integrated into GitHub Actions.
 
-Immediate development target: create the first visible embodied probe in Unreal, driven from authoritative simulation state through the adapter boundary. Then add minimal inspection telemetry, scanning, power allocation, and software-policy interaction until the complete One Probe interaction set is testable.
+Immediate development target: validate the current collision/contact build in Product Reality, then deepen physically grounded impact consequences, component structure, and the Prime Generation-1 body while preserving the simulation-authority boundary.
 
-Phase 2 target state remains one embodied machine with mass, energy, storage, sensors, computation, propulsion, position, velocity, temperature, component capabilities, and software state.
+Phase 2 target state remains one embodied machine with mass, energy, storage, sensors, computation, propulsion, position, velocity, temperature, component capabilities, physical contact, and software state.
 
-Player must be able to observe, scan, move, inspect systems, manage power, and alter basic software policies.
+Player must be able to observe, scan, move, inspect systems, manage power, understand physical contact, and alter basic software policies.
 
-The Unreal layer presents authoritative simulation state and submits commands; it must never become the owner of mechanical truth. See ADR-0002, ADR-0012, `PHASE2_KICKOFF_SCAFFOLD.md`, and `PROJECT_STATUS.md`.
+The Unreal layer presents authoritative simulation state and submits commands; it must never become the owner of mechanical truth. See ADR-0002, ADR-0012, `PHASE2_KICKOFF_SCAFFOLD.md`, `PHASE2_VERTICAL_SLICE_PLAN.md`, and `PROJECT_STATUS.md`.
 
 **Gate:** simply existing as the probe is compelling.
 
@@ -88,11 +90,32 @@ Add survey, spectroscopy, resource determination, travel between local objects, 
 
 ## Phase 4 — Industrial Bootstrap
 
-Add mining, power production, refining, storage, fabrication, and construction.
+Add mining, power production, refining, storage, fabrication, construction, and physically grounded self-repair.
 
-Self-sustaining specifically means recoverable: solar (or other in-system) power generation, resource harvesting, and fabrication together must be able to repair damage and restock depleted consumables without requiring a fresh start or outside rescue. No failure state this loop can address should be permanent — see Pillar 3 (Unlimited Progression) and the Serenity/Explorer "generous recovery" difficulty framing in Pillar 6; harder difficulties may make the loop slower or costlier, never impossible, short of a deliberate design decision to the contrary. (Product-owner intent recorded 2026-08-23; not yet implemented — Phase 2 One Probe embodiment is still in progress and takes priority per `PROJECT_STATUS.md`.)
+Self-sustaining specifically means recoverable: solar (or other in-system) power generation, resource harvesting, and fabrication together must be able to repair damage and restock depleted consumables without requiring a fresh start or outside rescue. No failure state this loop can address should be permanent — see Pillar 3 (Unlimited Progression) and the Serenity/Explorer "generous recovery" difficulty framing in Pillar 6; harder difficulties may make the loop slower or costlier, never impossible, short of a deliberate design decision to the contrary.
 
-**Gate:** one probe can create a self-sustaining industrial foothold.
+### Canonical Self Repair capability
+
+Self Repair is a first-class machine capability, not passive health regeneration. Repairs consume **materials + energy + time** and operate on identifiable probe components/systems.
+
+The default repair planner follows one canonical priority rule:
+
+> **Restore capability before restoring perfection.**
+
+Its intended behavior is:
+
+1. preserve immediate existence: core/computation viability, minimum power, thermal safety, and whatever repair/manipulator capability is needed to continue recovery;
+2. restore strategically important `OFFLINE` systems to their minimum useful operating threshold before polishing already-functional systems;
+3. continue until every required system is online;
+4. once required systems are online, reassess integrity, strategic importance, current mission needs, power/material cost, and unlock value;
+5. improve the weakest/highest-value systems in useful stages toward full integrity;
+6. reassess after every repair because newly restored sensing, reach, processing, power, or access can change the correct next target.
+
+The player should be able to inspect why a repair is recommended, its material/energy/time cost, and what capability it will restore. The player ultimately controls their own body and may later override the recommended order.
+
+The full canonical design is defined in [`STARTER_AWAKENING_AND_SELF_REPAIR.md`](STARTER_AWAKENING_AND_SELF_REPAIR.md).
+
+**Gate:** one probe can recover itself and create a self-sustaining industrial foothold.
 
 ## Phase 5 — Research and Engineering
 
@@ -122,11 +145,33 @@ Messages become physical delayed information. Children operate from local knowle
 
 Target: 30–60 minutes.
 
-Player awakens, surveys, finds resources, mines, refines, manufactures, researches, designs a successor, replicates, departs for another system, arrives, and discovers something worth investigating.
+The canonical opening is now the **damaged awakening and self-repair loop**:
+
+```text
+wake stranded on a moon/planet
+-> survive on damaged solar + battery reserve
+-> use a partially working mining/manipulator arm
+-> gather material physically within reach
+-> spend material + energy + time on staged self-repair
+-> restore a capability
+-> use that capability to reach/identify/process the next needed resource
+-> bring all required systems online
+-> repair all required starter systems to 100%
+-> confirm flight readiness
+-> leave the starter zone under the probe's own power
+```
+
+The repair order is not a fixed quest script. The authoritative Self Repair planner should protect survival, prefer important offline capabilities over polishing one working system, then reassess after each repair until the whole required machine is restored.
+
+After departure, the vertical slice expands into survey, mining, refining, manufacturing, research, successor design, replication, interstellar departure/arrival, and a discovery worth investigating.
+
+This opening teaches the game through the player's own body: repairing Sensors teaches observation, repairing manipulators increases physical reach, restoring processing makes gathered material useful, restoring power/thermal capability enables heavier work, and restoring attitude/propulsion finally makes flight possible.
+
+The starter zone must always contain a valid recovery chain. Constraint is desirable; an unrecoverable soft-lock is not.
 
 Visual quality should already communicate the intended cinematic scientific-realism identity; the vertical slice is not a temporary low-fidelity 2D interpretation of the final game.
 
-**Gate:** ready for external playtesting.
+**Gate:** the player can awaken damaged, rebuild their own body, earn first departure, and continue into the broader Everward loop; ready for external playtesting.
 
 ## Phase 10 — Autonomous Children
 
@@ -142,13 +187,17 @@ Implement deterministic region generation, stellar populations, planetary divers
 
 ## Phase 12 — Generational Progression
 
-Deepen successor engineering across propulsion, sensors, computation, industry, defense, energy, thermal management, and structure. Resolve through playtesting whether modification limits use one major change, points, engineering budget, or a hybrid.
+Deepen successor engineering across propulsion, sensors, computation, industry, defense, energy, thermal management, structure, and self-repair. Resolve through playtesting whether modification limits use one major change, points, engineering budget, or a hybrid.
+
+Self Repair should itself evolve across generations through better diagnostics, repair speed, energy/material efficiency, substitution, simultaneous repairs, predictive maintenance, specialized tools, redundant hardware, repair drones/swarms, and advanced fabrication. Later probes should become dramatically more resilient without turning damage into meaningless instant regeneration.
 
 **Gate:** generation 20 is dramatically more capable than generation 1 while still presenting engineering tradeoffs.
 
 ## Phase 13 — Difficulty Framework
 
 Implement Serenity, Explorer, Voyager, Survivor, and Abyss. Difficulty changes resource pressure, environmental lethality, recovery, hostility, and long-term threat rather than merely enemy hit points.
+
+Difficulty may change repair cost, time, scarcity, automation quality, reserve margins, and consequences. The canonical opening must still respect the chosen mode's intended recoverability rules and avoid accidental impossible starts.
 
 **Gate:** the same expedition feels meaningfully different across presets.
 
@@ -182,7 +231,7 @@ Observation precedes understanding.
 
 ## Phase 18 — Conflict
 
-Develop combat from existing physics, sensor, propulsion, manufacturing, communication, and automation systems so it feels native to Everward rather than bolted on.
+Develop combat from existing physics, sensor, propulsion, manufacturing, communication, automation, damage, and repair systems so it feels native to Everward rather than bolted on.
 
 ## Phase 19 — Infinite Progression Framework
 
@@ -198,23 +247,23 @@ On Abyss, late-game threats may scale far enough to challenge ancient, highly de
 
 ## Phase 21 — Alpha
 
-Required identity is complete: embodiment, scanning, resources, industry, replication, generations, interstellar expansion, descendants, communication latency, research, environments, difficulty, progression, saves, and substantial procedural space.
+Required identity is complete: embodiment, scanning, resources, industry, self-repair, replication, generations, interstellar expansion, descendants, communication latency, research, environments, difficulty, progression, saves, and substantial procedural space.
 
 No missing feature should still be required to prove the fundamental game.
 
 ## Phase 22 — Visual Production
 
-Aggressively improve Unreal-based stars, planets, atmospheres, rings, particles, structures, probes, lighting, shaders, transitions, camera, HUD, and photo mode.
+Aggressively improve Unreal-based stars, planets, atmospheres, rings, particles, structures, probes, lighting, shaders, transitions, camera, HUD, repair/reconstruction feedback, and photo mode.
 
 Target the “wallpaper screenshot” standard.
 
 ## Phase 23 — Audio Production
 
-Develop environmental sonification, machinery, communications, sensors, adaptive music, danger transitions, and discovery transitions.
+Develop environmental sonification, machinery, communications, sensors, repair/fabrication sounds, adaptive music, danger transitions, and discovery transitions.
 
 ## Phase 24 — UX and Accessibility
 
-Scale interfaces from one probe to a vast lineage. Address readable telemetry, color accessibility, UI scaling, remapping, HUD customization, automation, descendant search, alerts, and navigation.
+Scale interfaces from one probe to a vast lineage. Address readable telemetry, color accessibility, UI scaling, remapping, HUD customization, repair priority explanations, automation, descendant search, alerts, and navigation.
 
 ## Phase 25 — Optimization
 
@@ -224,11 +273,13 @@ Optimize inactive-region simulation, event aggregation, distant agents, determin
 
 ## Phase 26 — Beta
 
-Focus on balancing, defects, performance, onboarding, save migration, content distribution, procedural quality, and difficulty validation. Avoid major new systems.
+Focus on balancing, defects, performance, onboarding, save migration, content distribution, procedural quality, recovery-path validation, and difficulty validation. Avoid major new systems.
 
 ## Phase 27 — Steam Demo
 
-Polish awakening, scanning, mining, industrial bootstrap, first successor, and first departure. The demo must communicate the actual fantasy, not merely showcase technology.
+Polish the canonical opening: damaged awakening, initial survival power, physically reachable mining, staged Self Repair, capability-by-capability recovery, full departure readiness, first lift-off, scanning, broader mining/industrial bootstrap, first successor, and first departure toward the next major destination.
+
+The demo must communicate the actual fantasy: **you wake as a damaged machine, rebuild yourself, then use that restored body to begin an interstellar lineage.** It must not merely showcase technology.
 
 ## Phase 28 — Release Decision
 
@@ -260,6 +311,6 @@ Do not initially build:
 - a complete soundtrack,
 - Steam integration.
 
-The first question remains:
+The first question is now even more concrete:
 
-> Is starting as one machine and bootstrapping the first self-sustaining interstellar lineage actually fun?
+> Is waking as one damaged machine, rebuilding yourself into full capability, and bootstrapping the first self-sustaining interstellar lineage actually fun?
