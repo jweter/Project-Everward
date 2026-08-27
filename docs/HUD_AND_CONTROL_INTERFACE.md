@@ -82,7 +82,7 @@ state + domain events
 adapter telemetry / HUD
 ```
 
-Software policy evaluation lives in the engine-independent runtime. Matching policy actions call the same public `SimulationCore::allocate_power()` command used by manual control; they do not write separate automation-only power state.
+Software policy evaluation lives in the engine-independent runtime. Matching policy actions call the same public `ProbeRuntime::allocate_power()` path used by manual control, which then delegates to `SimulationCore::allocate_power()`. This preserves the same subsystem consequences for human and automated commands rather than maintaining automation-only state.
 
 Every submitted manual command produces an observable command result containing:
 
@@ -91,7 +91,7 @@ Every submitted manual command produces an observable command result containing:
 - accepted/rejected state;
 - human-readable reason/detail.
 
-This makes command failure explainable instead of silently ignored. Thermal lockout, energy depletion, failed hardware, invalid scan lifecycle state, and power-budget violations can therefore be surfaced to the player and later to automation diagnostics through the same model.
+This makes command failure explainable instead of silently ignored. Thermal lockout, energy depletion, failed hardware, invalid scan lifecycle state, minimum operating power, and power-budget violations can therefore be surfaced to the player and later to automation diagnostics through the same model.
 
 ## Teaching the machine
 
@@ -114,17 +114,26 @@ The current production implementation provides:
 - active scan progress promotion;
 - a collapsed-by-default systems panel;
 - installed capability discovery;
-- contextual capability state, power, manual-control availability, and automation availability;
+- live power and `READY` / `LOCKED` / `FAILED` state for every installed subsystem;
+- an explicit reason beneath each capability state rather than requiring the player to infer why it changed;
 - shared observable command methods for velocity, scan start, scan cancel, and power allocation;
-- command acceptance/rejection feedback in the HUD;
+- brief global feedback for rejected commands even when the relevant subsystem detail page is closed;
 - one primitive policy slot with a maximum of two simple rules;
 - a 25 W Generation-1 computation requirement for policy execution;
 - policy installation/clear controls and policy/executor status under Computation;
+- a 50 W Generation-1 minimum sensor-power requirement for active scanning;
+- active scans abort if sensor allocation is deliberately or automatically dropped below that 50 W floor;
+- restoring sensor power to at least 50 W restores the ability to begin a new scan;
+- automation action notices that state what allocation changed and the condition that caused it;
+- authoritative scan completion/cancellation projection from simulation domain events, preventing power/automation aborts from being mistaken for successful discoveries;
 - a reproducible source-built Phase-2 environment with a visible bootstrap scan target and spatial movement references;
 - mouse orbit/zoom for presentation inspection;
 - authoritative yaw/pitch/roll attitude state and observable attitude-trim commands;
 - probe-relative forward/lateral/vertical velocity trims projected through authoritative attitude;
+- a temporary asymmetric orientation skin plus camera-aligned `R` righting aid;
 - keyboard navigation and manual controls for the temporary engineering shell.
+
+Canonical EV-0001 now starts with 50 W allocated to Sensors and 25 W to Computation. Those allocations exactly match its current 75 W passive generation source, making the idle starting state energy-neutral while keeping both active scanning and the Generation-1 policy executor available. This is a Phase-2 starting configuration, not final balance.
 
 Temporary engineering-shell controls:
 
@@ -133,6 +142,7 @@ Temporary engineering-shell controls:
 - `Page Up` / `Page Down`: adjust selected subsystem power;
 - mouse X / Y: orbit camera yaw / pitch;
 - mouse wheel: zoom camera;
+- `R`: begin/cancel camera-aligned probe righting;
 - Sensors: `Enter` scans the visible `phase2-test-target-001` target and `Backspace` cancels it;
 - Propulsion:
   - `W` / `S`: local forward / reverse velocity trim;
@@ -147,6 +157,6 @@ Temporary engineering-shell controls:
 
 The bootstrap scan target exists only because Phase 3 world-object targeting does not exist yet. It must be replaced by real selected-target state when that system arrives rather than becoming permanent gameplay content.
 
-The Basic Survival policy uses an intentionally aggressive 60% energy threshold so its behavior is immediately visible during Phase-2 integration testing. That value is test scaffolding, not final balance.
+The Basic Survival policy uses an intentionally aggressive 60% energy threshold so its behavior is immediately visible during Phase-2 integration testing. EV-0001 currently begins at 50% stored energy, so installing the policy while its 25 W computation budget is available should quickly demonstrate automation by shedding Sensors from 50 W to 0 W and explaining why. That value is test scaffolding, not final balance.
 
-This remains a foundation, not the final visual styling, camera design, rigid-body flight model, or control mapping. The first local Unreal Engine 5.8 run is recorded in `PHASE2_FIRST_RUN_FINDINGS_2026-08-24.md`. The next local pass should verify that attitude-driven movement materially improves spacecraft embodiment while preserving the intentionally primitive Generation-1 response and useful full-stop behavior.
+This remains a foundation, not the final visual styling, camera design, rigid-body flight model, propulsion power model, or control mapping. Local Unreal Product Reality still outranks source/CI evidence: the next combined pass should verify the merged orientation/righting behavior and then verify the subsystem cause/effect behavior described in `PHASE2_SUBSYSTEM_CAUSE_EFFECT_TEST.md` before Slice 2 is considered complete.

@@ -2,6 +2,7 @@
 
 #include "CanvasItem.h"
 #include "Engine/Canvas.h"
+#include "Engine/World.h"
 #include "EverwardProbePawn.h"
 #include "ProbeSimulationAdapter.h"
 
@@ -50,20 +51,36 @@ void AEverwardHUD::DrawHUD()
     const TArray<FEverwardProbeCapability> Capabilities = Adapter->GetInstalledCapabilities();
     const FEverwardSoftwarePolicyStatus PolicyStatus = Adapter->GetSoftwarePolicyStatus();
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
+    const FEverwardAutomationNotice AutomationNotice = Adapter->GetLastAutomationNotice();
+    const FEverwardScanLifecycleNotice ScanNotice = Adapter->GetLastScanLifecycleNotice();
+    const double WorldNow = GetWorld() != nullptr ? GetWorld()->GetTimeSeconds() : 0.0;
 
-    // Persist visible payoff when an authoritative scan lifecycle transitions from
-    // active to complete. Cancellation is explicitly distinguished by the shared
-    // command result, so cancelled work can never fabricate a discovery.
+    // Keep short global feedback windows without turning transient command
+    // messages into permanent HUD clutter.
+    if (LastCommand.Sequence > 0 && LastCommand.Sequence != LastObservedCommandSequence)
+    {
+        LastObservedCommandSequence = LastCommand.Sequence;
+        CommandBannerExpiresAtWorldSeconds = WorldNow + 4.0;
+    }
+    if (AutomationNotice.Sequence > 0 && AutomationNotice.Sequence != LastObservedAutomationSequence)
+    {
+        LastObservedAutomationSequence = AutomationNotice.Sequence;
+        AutomationBannerExpiresAtWorldSeconds = WorldNow + 6.0;
+    }
+
+    // Scan completion/cancellation is projected from authoritative domain
+    // events by the adapter. This avoids the old fragile inference from the
+    // last manual command, which could misclassify an automation-driven abort
+    // as a completed discovery.
     if (Telemetry.bIsScanning)
     {
-        bWasScanning = true;
         LastObservedScanTargetId = Telemetry.ActiveScanTargetId;
     }
-    else if (bWasScanning)
+
+    if (ScanNotice.Sequence > 0 && ScanNotice.Sequence != LastHandledScanNoticeSequence)
     {
-        bWasScanning = false;
-        const bool bWasCancelled = LastCommand.bAccepted && LastCommand.CommandId == FName(TEXT("cancel_scan"));
-        if (!bWasCancelled && !LastObservedScanTargetId.IsEmpty())
+        LastHandledScanNoticeSequence = ScanNotice.Sequence;
+        if (ScanNotice.bCompleted && !LastObservedScanTargetId.IsEmpty())
         {
             bHasScanDiscovery = true;
             LastScanTargetId = LastObservedScanTargetId;
@@ -163,6 +180,32 @@ void AEverwardHUD::DrawHUD()
         AlertY += 28.0f;
     }
 
+    if (LastCommand.Sequence > 0 && !LastCommand.bAccepted && WorldNow <= CommandBannerExpiresAtWorldSeconds)
+    {
+        DrawText(
+            FString::Printf(TEXT("COMMAND REJECTED // %s"), *LastCommand.Detail),
+            AlertColor,
+            Margin,
+            AlertY,
+            nullptr,
+            0.92f,
+            false);
+        AlertY += 24.0f;
+    }
+
+    if (AutomationNotice.Sequence > 0 && WorldNow <= AutomationBannerExpiresAtWorldSeconds)
+    {
+        DrawText(
+            AutomationNotice.Detail,
+            AutomationNotice.bRejected ? AlertColor : TextColor,
+            Margin,
+            AlertY,
+            nullptr,
+            0.88f,
+            false);
+        AlertY += 24.0f;
+    }
+
     if (Telemetry.bIsScanning)
     {
         DrawText(
@@ -227,7 +270,7 @@ void AEverwardHUD::DrawHUD()
 
     const float SystemPanelX = Canvas->ClipX - Margin - PanelWidth;
     const float CompactHeaderHeight = 42.0f;
-    const float CompactRowHeight = 20.0f;
+    const float CompactRowHeight = 36.0f;
     const float CompactHeight = CompactHeaderHeight + CompactRowHeight * FMath::Max(Capabilities.Num(), 1);
     const float CompactY = Canvas->ClipY - Margin - CompactHeight;
 
@@ -272,13 +315,21 @@ void AEverwardHUD::DrawHUD()
                     nullptr,
                     0.76f,
                     false);
+                DrawText(
+                    Capability.StatusReason,
+                    bHealthy ? MutedColor : AlertColor,
+                    SystemPanelX + 22.0f,
+                    CompactRowY + 17.0f,
+                    nullptr,
+                    0.63f,
+                    false);
                 CompactRowY += CompactRowHeight;
             }
         }
         return;
     }
 
-    const float ExpandedHeight = 450.0f;
+    const float ExpandedHeight = 500.0f;
     const float ExpandedY = Canvas->ClipY - Margin - ExpandedHeight;
     DrawRect(PanelColor, SystemPanelX, ExpandedY, PanelWidth, ExpandedHeight);
     DrawText(TEXT("SYSTEMS / CONTROL   [TAB CLOSE]"), TextColor, SystemPanelX + 14.0f, ExpandedY + 12.0f, nullptr, 0.95f, false);
@@ -318,6 +369,20 @@ void AEverwardHUD::DrawHUD()
         Y,
         nullptr,
         0.82f,
+        false);
+    Y += 22.0f;
+    DrawText(
+        Selected.MinimumOperatingPowerWatts > 0.0
+            ? FString::Printf(
+                TEXT("STATUS %s   //   MIN %.0f W"),
+                *Selected.StatusReason,
+                Selected.MinimumOperatingPowerWatts)
+            : FString::Printf(TEXT("STATUS %s"), *Selected.StatusReason),
+        Selected.bOperational && Selected.bAvailable ? MutedColor : AlertColor,
+        SystemPanelX + 14.0f,
+        Y,
+        nullptr,
+        0.74f,
         false);
     Y += 22.0f;
     DrawText(
@@ -412,7 +477,21 @@ void AEverwardHUD::DrawHUD()
             nullptr,
             0.8f,
             false);
-        Y += 24.0f;
+        Y += 22.0f;
+        if (AutomationNotice.Sequence > 0)
+        {
+            DrawText(TEXT("LAST AUTOMATION"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.72f, false);
+            Y += 18.0f;
+            DrawText(
+                AutomationNotice.Detail,
+                AutomationNotice.bRejected ? AlertColor : MutedColor,
+                SystemPanelX + 14.0f,
+                Y,
+                nullptr,
+                0.62f,
+                false);
+            Y += 22.0f;
+        }
     }
 
     if (LastCommand.Sequence > 0)

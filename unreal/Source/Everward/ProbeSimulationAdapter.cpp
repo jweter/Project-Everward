@@ -41,6 +41,19 @@ const TCHAR* PowerSubsystemName(EEverwardPowerSubsystem Subsystem)
 
     return TEXT("unknown");
 }
+
+FString SharedProbeLockoutReason(const everward::simulation::ProbeStateSnapshot& Snapshot)
+{
+    if (Snapshot.is_energy_depleted)
+    {
+        return TEXT("ENERGY DEPLETED");
+    }
+    if (Snapshot.is_overheated)
+    {
+        return TEXT("THERMAL LOCKOUT");
+    }
+    return FString();
+}
 }
 
 UProbeSimulationAdapter::UProbeSimulationAdapter()
@@ -88,6 +101,26 @@ void UProbeSimulationAdapter::TickComponent(
     for (const auto& Event : Events)
     {
         UE_LOG(LogTemp, VeryVerbose, TEXT("Everward simulation event at tick %lld"), Event.tick);
+
+        if (Event.type == everward::simulation::DomainEventType::PolicyRuleTriggered ||
+            Event.type == everward::simulation::DomainEventType::PolicyActionRejected)
+        {
+            LastAutomationNotice.Sequence = ++AutomationSequence;
+            LastAutomationNotice.bRejected =
+                Event.type == everward::simulation::DomainEventType::PolicyActionRejected;
+            LastAutomationNotice.Detail = UTF8_TO_TCHAR(Event.detail.c_str());
+        }
+
+        if (Event.type == everward::simulation::DomainEventType::ScanCompleted ||
+            Event.type == everward::simulation::DomainEventType::ScanCancelled)
+        {
+            LastScanLifecycleNotice.Sequence = ++ScanLifecycleSequence;
+            LastScanLifecycleNotice.bCompleted =
+                Event.type == everward::simulation::DomainEventType::ScanCompleted;
+            LastScanLifecycleNotice.bCancelled =
+                Event.type == everward::simulation::DomainEventType::ScanCancelled;
+            LastScanLifecycleNotice.Detail = UTF8_TO_TCHAR(Event.detail.c_str());
+        }
     }
 }
 
@@ -158,6 +191,7 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
     }
 
     const auto& Snapshot = Core->snapshot();
+    const FString SharedLockout = SharedProbeLockoutReason(Snapshot);
 
     auto AddCapability = [&Capabilities](
         FName Id,
@@ -167,7 +201,9 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
         bool bAvailable,
         bool bSupportsManualControl,
         bool bSupportsAutomation,
-        double AllocatedPowerWatts)
+        double AllocatedPowerWatts,
+        double MinimumOperatingPowerWatts,
+        FString StatusReason)
     {
         FEverwardProbeCapability Capability;
         Capability.CapabilityId = Id;
@@ -179,8 +215,20 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
         Capability.bSupportsManualControl = bSupportsManualControl;
         Capability.bSupportsAutomation = bSupportsAutomation;
         Capability.AllocatedPowerWatts = AllocatedPowerWatts;
+        Capability.MinimumOperatingPowerWatts = MinimumOperatingPowerWatts;
+        Capability.StatusReason = MoveTemp(StatusReason);
         Capabilities.Add(MoveTemp(Capability));
     };
+
+    FString PropulsionReason = TEXT("NOMINAL // COMMAND-DRIVEN PHASE-2 THRUST");
+    if (!Snapshot.propulsion_operational)
+    {
+        PropulsionReason = TEXT("HARDWARE FAILURE");
+    }
+    else if (!SharedLockout.IsEmpty())
+    {
+        PropulsionReason = SharedLockout;
+    }
 
     AddCapability(
         FName(TEXT("propulsion")),
@@ -190,27 +238,73 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
         Snapshot.can_thrust,
         true,
         true,
-        Snapshot.power_allocated_propulsion_w);
+        Snapshot.power_allocated_propulsion_w,
+        0.0,
+        PropulsionReason);
+
+    const bool bSensorsHaveOperatingPower =
+        Snapshot.power_allocated_sensors_w >=
+        everward::simulation::ProbeRuntime::kGeneration1MinimumSensorPowerW;
+    FString SensorReason = TEXT("NOMINAL");
+    if (!Snapshot.sensors_operational)
+    {
+        SensorReason = TEXT("HARDWARE FAILURE");
+    }
+    else if (!SharedLockout.IsEmpty())
+    {
+        SensorReason = SharedLockout;
+    }
+    else if (!bSensorsHaveOperatingPower)
+    {
+        SensorReason = FString::Printf(
+            TEXT("BELOW MINIMUM POWER // NEED %.0f W"),
+            everward::simulation::ProbeRuntime::kGeneration1MinimumSensorPowerW);
+    }
 
     AddCapability(
         FName(TEXT("sensors")),
         TEXT("Sensors"),
         TEXT("Scientific observation and active scanning."),
         Snapshot.sensors_operational,
-        Snapshot.can_scan,
+        Snapshot.can_scan && bSensorsHaveOperatingPower,
         true,
         true,
-        Snapshot.power_allocated_sensors_w);
+        Snapshot.power_allocated_sensors_w,
+        everward::simulation::ProbeRuntime::kGeneration1MinimumSensorPowerW,
+        SensorReason);
+
+    const bool bComputationHasOperatingPower =
+        Snapshot.power_allocated_computation_w >=
+        everward::simulation::ProbeRuntime::kGeneration1MinimumPolicyComputationPowerW;
+    FString ComputationReason = bComputationHasOperatingPower
+        ? TEXT("AUTOMATION EXECUTOR READY")
+        : FString::Printf(
+            TEXT("BELOW MINIMUM POWER // NEED %.0f W"),
+            everward::simulation::ProbeRuntime::kGeneration1MinimumPolicyComputationPowerW);
+    if (!Snapshot.computation_operational)
+    {
+        ComputationReason = TEXT("HARDWARE FAILURE");
+    }
 
     AddCapability(
         FName(TEXT("computation")),
         TEXT("Computation"),
         TEXT("Onboard planning, automation, and software execution."),
         Snapshot.computation_operational,
-        Snapshot.computation_operational,
+        Snapshot.computation_operational && bComputationHasOperatingPower,
         false,
         true,
-        Snapshot.power_allocated_computation_w);
+        Snapshot.power_allocated_computation_w,
+        everward::simulation::ProbeRuntime::kGeneration1MinimumPolicyComputationPowerW,
+        ComputationReason);
+
+    FString ThermalReason = Snapshot.thermal_operational
+        ? TEXT("PASSIVE COOLING PATH AVAILABLE")
+        : TEXT("HARDWARE FAILURE");
+    if (Snapshot.thermal_operational && Snapshot.is_overheated)
+    {
+        ThermalReason = TEXT("PROBE OVERHEATED // RECOVERY IN PROGRESS");
+    }
 
     AddCapability(
         FName(TEXT("thermal")),
@@ -220,7 +314,9 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
         Snapshot.thermal_operational,
         true,
         true,
-        Snapshot.power_allocated_thermal_w);
+        Snapshot.power_allocated_thermal_w,
+        0.0,
+        ThermalReason);
 
     return Capabilities;
 }
@@ -246,6 +342,16 @@ FEverwardSoftwarePolicyStatus UProbeSimulationAdapter::GetSoftwarePolicyStatus()
 FEverwardProbeCommandResult UProbeSimulationAdapter::GetLastCommandResult() const
 {
     return LastCommandResult;
+}
+
+FEverwardAutomationNotice UProbeSimulationAdapter::GetLastAutomationNotice() const
+{
+    return LastAutomationNotice;
+}
+
+FEverwardScanLifecycleNotice UProbeSimulationAdapter::GetLastScanLifecycleNotice() const
+{
+    return LastScanLifecycleNotice;
 }
 
 FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSetVelocityMetersPerSecond(FVector VelocityMetersPerSecond)
@@ -394,11 +500,23 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandAllocatePower(
 
     try
     {
+        const bool bWasScanning = Core->snapshot().is_scanning;
         Core->allocate_power(ToSimulationPowerSubsystem(Subsystem), Watts);
+        const bool bSensorPowerAbortedScan =
+            Subsystem == EEverwardPowerSubsystem::Sensors &&
+            bWasScanning &&
+            !Core->snapshot().is_scanning &&
+            Watts < everward::simulation::ProbeRuntime::kGeneration1MinimumSensorPowerW;
+
         return RecordCommandResult(
             CommandId,
             true,
-            FString::Printf(TEXT("%s power set to %.0f W"), PowerSubsystemName(Subsystem), Watts));
+            bSensorPowerAbortedScan
+                ? FString::Printf(
+                    TEXT("sensors power set to %.0f W // active scan aborted below %.0f W minimum"),
+                    Watts,
+                    everward::simulation::ProbeRuntime::kGeneration1MinimumSensorPowerW)
+                : FString::Printf(TEXT("%s power set to %.0f W"), PowerSubsystemName(Subsystem), Watts));
     }
     catch (const std::exception& Error)
     {

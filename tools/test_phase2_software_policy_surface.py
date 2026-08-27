@@ -2,8 +2,9 @@
 
 Hosted CI cannot compile Unreal, so these checks protect the architectural
 contract: the policy evaluator lives in the engine-independent simulation
-layer, its actions call the same authoritative power command used manually,
-and the Unreal controller merely installs/clears policy through the adapter.
+layer, its actions call the same authoritative runtime power command used
+manually, and the Unreal controller merely installs/clears policy through the
+adapter.
 """
 
 from __future__ import annotations
@@ -35,7 +36,8 @@ class Phase2SoftwarePolicySurfaceTests(unittest.TestCase):
         self.assertIn("computation_operational", self.policy)
 
     def test_policy_actions_use_authoritative_manual_command(self) -> None:
-        self.assertIn("core_.allocate_power(rule.subsystem, rule.action_watts)", self.policy)
+        self.assertIn("allocate_power(rule.subsystem, rule.action_watts)", self.policy)
+        self.assertIn("core_.allocate_power(subsystem, watts)", self.policy)
         self.assertNotIn("power_allocated_sensors_w = rule.action_watts", self.policy)
         self.assertNotIn("power_allocated_propulsion_w = rule.action_watts", self.policy)
 

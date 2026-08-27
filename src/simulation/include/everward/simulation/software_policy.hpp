@@ -50,18 +50,32 @@ struct SoftwarePolicyStatus {
 // Authoritative One-Probe runtime wrapper that couples the mechanical
 // SimulationCore to the first primitive software-policy evaluator. The core
 // remains the sole owner of physical state. Policies observe a snapshot and
-// submit the exact same public SimulationCore commands used by manual control;
+// submit the exact same public ProbeRuntime commands used by manual control;
 // they never mutate ProbeStateSnapshot directly.
 class ProbeRuntime {
 public:
     static constexpr std::size_t kGeneration1MaxPolicyRules = 2;
     static constexpr double kGeneration1MinimumPolicyComputationPowerW = 25.0;
+    static constexpr double kGeneration1MinimumSensorPowerW = 50.0;
 
     ProbeRuntime() = default;
     explicit ProbeRuntime(SimulationCore core) : core_(std::move(core)) {}
 
     [[nodiscard]] static ProbeRuntime make_canonical_ev0001() {
-        return ProbeRuntime(SimulationCore::make_canonical_ev0001());
+        ProbeRuntime runtime(SimulationCore::make_canonical_ev0001());
+
+        // Generation-1 begins with enough sensor power to observe/scan and
+        // enough computation power to execute its tiny policy slot. Together
+        // these equal the canonical 75 W passive source, so the idle starting
+        // configuration is energy-neutral rather than silently draining or
+        // charging the battery. Propulsion remains the current command-driven
+        // Phase-2 model until its physical thrust/power relationship is built.
+        runtime.core_.allocate_power(PowerSubsystem::Sensors, kGeneration1MinimumSensorPowerW);
+        runtime.core_.allocate_power(
+            PowerSubsystem::Computation,
+            kGeneration1MinimumPolicyComputationPowerW);
+        (void)runtime.core_.drain_events();
+        return runtime;
     }
 
     [[nodiscard]] const ProbeStateSnapshot& snapshot() const noexcept { return core_.snapshot(); }
@@ -89,9 +103,33 @@ public:
     void adjust_local_velocity_mps(Vector3d local_delta_velocity) {
         core_.adjust_local_velocity_mps(local_delta_velocity);
     }
-    void start_scan(const std::string& target_id, double duration_s) { core_.start_scan(target_id, duration_s); }
+
+    void start_scan(const std::string& target_id, double duration_s) {
+        const auto& state = core_.snapshot();
+        if (state.power_allocated_sensors_w < kGeneration1MinimumSensorPowerW) {
+            throw std::runtime_error(
+                "sensors below minimum operating power: need >= " +
+                whole_watts(kGeneration1MinimumSensorPowerW) + " W");
+        }
+        core_.start_scan(target_id, duration_s);
+    }
+
     void cancel_scan() { core_.cancel_scan(); }
-    void allocate_power(PowerSubsystem subsystem, double watts) { core_.allocate_power(subsystem, watts); }
+
+    void allocate_power(PowerSubsystem subsystem, double watts) {
+        core_.allocate_power(subsystem, watts);
+
+        // Sensor power is now a real gameplay consequence. Dropping below the
+        // Generation-1 operating floor immediately removes active scanning
+        // capability. An in-progress scan is explicitly aborted rather than
+        // being allowed to finish for free with unpowered hardware.
+        if (subsystem == PowerSubsystem::Sensors &&
+            watts < kGeneration1MinimumSensorPowerW &&
+            core_.snapshot().is_scanning) {
+            core_.cancel_scan();
+        }
+    }
+
     void set_subsystem_operational(PowerSubsystem subsystem, bool operational) {
         core_.set_subsystem_operational(subsystem, operational);
     }
@@ -214,6 +252,40 @@ private:
         return 0.0;
     }
 
+    [[nodiscard]] static std::string whole_watts(double watts) {
+        return std::to_string(static_cast<long long>(std::llround(watts)));
+    }
+
+    [[nodiscard]] static std::string subsystem_label(PowerSubsystem subsystem) {
+        switch (subsystem) {
+            case PowerSubsystem::Sensors:
+                return "Sensors";
+            case PowerSubsystem::Propulsion:
+                return "Propulsion";
+            case PowerSubsystem::Computation:
+                return "Computation";
+            case PowerSubsystem::Thermal:
+                return "Thermal";
+        }
+        return "Unknown";
+    }
+
+    [[nodiscard]] static std::string condition_summary(const SoftwarePolicyRule& rule) {
+        switch (rule.condition) {
+            case PolicyConditionKind::EnergyFractionBelow:
+                return "energy reserve below " +
+                       std::to_string(static_cast<long long>(std::llround(rule.threshold * 100.0))) + "%";
+            case PolicyConditionKind::EnergyFractionAbove:
+                return "energy reserve above " +
+                       std::to_string(static_cast<long long>(std::llround(rule.threshold * 100.0))) + "%";
+            case PolicyConditionKind::TemperatureAboveKelvin:
+                return "temperature above " + whole_watts(rule.threshold) + " K";
+            case PolicyConditionKind::TemperatureBelowKelvin:
+                return "temperature below " + whole_watts(rule.threshold) + " K";
+        }
+        return "condition matched";
+    }
+
     void evaluate_policy() {
         if (!has_policy_ || !active_policy_.enabled || !policy_executor_available()) {
             return;
@@ -231,24 +303,32 @@ private:
                 continue;
             }
 
-            if (std::fabs(current_allocation(rule.subsystem, state_before_action) - rule.action_watts) < 1e-9) {
+            const double allocation_before = current_allocation(rule.subsystem, state_before_action);
+            if (std::fabs(allocation_before - rule.action_watts) < 1e-9) {
                 continue;
             }
 
             try {
                 // Critical architecture rule: automation uses the same public
-                // authoritative command as a manual power-allocation action.
-                core_.allocate_power(rule.subsystem, rule.action_watts);
+                // authoritative runtime command as manual power allocation,
+                // including its sensor-power consequence behavior.
+                allocate_power(rule.subsystem, rule.action_watts);
                 policy_events_.push_back({
                     tick(),
                     DomainEventType::PolicyRuleTriggered,
-                    "policy " + active_policy_.id + " rule " + rule.id + " executed"
+                    "AUTOMATION: " + subsystem_label(rule.subsystem) + " " +
+                        whole_watts(allocation_before) + " W -> " +
+                        whole_watts(rule.action_watts) + " W // " +
+                        condition_summary(rule)
                 });
             } catch (const std::exception& error) {
                 policy_events_.push_back({
                     tick(),
                     DomainEventType::PolicyActionRejected,
-                    "policy " + active_policy_.id + " rule " + rule.id + " rejected: " + error.what()
+                    "AUTOMATION REJECTED: " + subsystem_label(rule.subsystem) + " " +
+                        whole_watts(allocation_before) + " W -> " +
+                        whole_watts(rule.action_watts) + " W // " +
+                        condition_summary(rule) + " // " + error.what()
                 });
             }
 
