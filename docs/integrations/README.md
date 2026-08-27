@@ -1,8 +1,10 @@
 # Third-Party Integration Guide Index
 
-Last reviewed: 2026-08-20
+Last reviewed: 2026-08-27
 
 Everward is proprietary commercial software in a public repository. External creative, automation, and AI-development tools must therefore be integrated with strict IP, licensing, provenance, safety, and replaceability boundaries.
+
+Cross-project external-repository inventory and dispositions are tracked in the Knowledge Engine Core ledger: https://github.com/jweter/knowledge-engine-core/blob/main/docs/integrations/EXTERNAL_REPO_RESEARCH_LEDGER.md. Newly researched candidates must be recorded there before substantive integration work begins.
 
 ## Governing rules
 
