@@ -2,6 +2,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "Components/InputComponent.h"
+#include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -17,6 +18,16 @@ AEverwardProbePawn::AEverwardProbePawn()
     SetRootComponent(ProbeMesh);
     ProbeMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     ProbeMesh->SetRelativeScale3D(FVector(1.15, 0.55, 0.36));
+
+    // 75 cm matches ProbeStateSnapshot::collision_envelope_radius_m. This
+    // component is for presentation/query visibility only; the engine-neutral
+    // runtime performs swept contact and resolves authoritative motion.
+    ProbeCollisionEnvelope = CreateDefaultSubobject<USphereComponent>(TEXT("ProbeCollisionEnvelope"));
+    ProbeCollisionEnvelope->SetupAttachment(ProbeMesh);
+    ProbeCollisionEnvelope->SetSphereRadius(75.0f);
+    ProbeCollisionEnvelope->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    ProbeCollisionEnvelope->SetCollisionResponseToAllChannels(ECR_Overlap);
+    ProbeCollisionEnvelope->SetGenerateOverlapEvents(false);
 
     static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMeshAsset(
         TEXT("/Engine/BasicShapes/Sphere.Sphere"));
@@ -36,9 +47,6 @@ AEverwardProbePawn::AEverwardProbePawn()
         Component->SetCanEverAffectNavigation(false);
     };
 
-    // Forward is intentionally unmistakable: the sensor blister sits on the
-    // local +X end of the body. This is a temporary embodied orientation cue,
-    // not a final Prime Probe A production asset.
     ForwardSensor = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ForwardSensor"));
     ConfigureOrientationPiece(ForwardSensor);
     if (SphereMeshAsset.Succeeded())
@@ -48,8 +56,6 @@ AEverwardProbePawn::AEverwardProbePawn()
     ForwardSensor->SetRelativeLocation(FVector(86.0, 0.0, 4.0));
     ForwardSensor->SetRelativeScale3D(FVector(0.34, 0.28, 0.25));
 
-    // The dorsal marker makes local +Z/up and roll immediately readable from
-    // a third-person camera. Its deliberate asymmetry is the important part.
     DorsalMarker = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DorsalMarker"));
     ConfigureOrientationPiece(DorsalMarker);
     if (CubeMeshAsset.Succeeded())
@@ -59,8 +65,6 @@ AEverwardProbePawn::AEverwardProbePawn()
     DorsalMarker->SetRelativeLocation(FVector(-8.0, 0.0, 45.0));
     DorsalMarker->SetRelativeScale3D(FVector(0.30, 0.045, 0.16));
 
-    // Broad shoulders reinforce the body's local left/right plane so pitch,
-    // yaw, and roll changes can be judged without relying on HUD numbers.
     PortShoulder = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PortShoulder"));
     ConfigureOrientationPiece(PortShoulder);
     if (CubeMeshAsset.Succeeded())
@@ -79,8 +83,6 @@ AEverwardProbePawn::AEverwardProbePawn()
     StarboardShoulder->SetRelativeLocation(FVector(-12.0, 48.0, -2.0));
     StarboardShoulder->SetRelativeScale3D(FVector(0.26, 0.12, 0.07));
 
-    // The pawn owns the only simulation adapter in the Phase 2 bootstrap.
-    // No other presentation component calls src/simulation directly.
     SimulationAdapter = CreateDefaultSubobject<UProbeSimulationAdapter>(TEXT("ProbeSimulationAdapter"));
 
     CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("ProbeCameraBoom"));
@@ -104,11 +106,8 @@ void AEverwardProbePawn::Tick(float DeltaSeconds)
 void AEverwardProbePawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
-
     if (PlayerInputComponent != nullptr)
     {
-        // Global handling aid: tap R to begin a slow, chunky reorientation to
-        // the current camera-facing attitude; tap R again to cancel it.
         PlayerInputComponent->BindKey(
             EKeys::R,
             IE_Pressed,
@@ -119,11 +118,7 @@ void AEverwardProbePawn::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
 void AEverwardProbePawn::AdjustCameraZoom(float DeltaCentimeters)
 {
-    if (CameraBoom == nullptr)
-    {
-        return;
-    }
-
+    if (CameraBoom == nullptr) return;
     CameraBoom->TargetArmLength = FMath::Clamp(
         CameraBoom->TargetArmLength + DeltaCentimeters,
         MinCameraDistanceCentimeters,
@@ -138,34 +133,20 @@ void AEverwardProbePawn::BeginOrCancelCameraAlignedRighting()
         RightingAccumulatorSeconds = 0.0f;
         return;
     }
-
-    if (Controller == nullptr || SimulationAdapter == nullptr)
-    {
-        return;
-    }
+    if (Controller == nullptr || SimulationAdapter == nullptr) return;
 
     const FRotator ViewRotation = Controller->GetControlRotation().GetNormalized();
-    CameraAlignedRightingTarget = FRotator(
-        ViewRotation.Pitch,
-        ViewRotation.Yaw,
-        0.0f);
+    CameraAlignedRightingTarget = FRotator(ViewRotation.Pitch, ViewRotation.Yaw, 0.0f);
     bCameraAlignedRighting = true;
     RightingAccumulatorSeconds = RightingCommandIntervalSeconds;
 }
 
 void AEverwardProbePawn::AdvanceCameraAlignedRighting(float DeltaSeconds)
 {
-    if (!bCameraAlignedRighting || SimulationAdapter == nullptr)
-    {
-        return;
-    }
+    if (!bCameraAlignedRighting || SimulationAdapter == nullptr) return;
 
     RightingAccumulatorSeconds += DeltaSeconds;
-    if (RightingAccumulatorSeconds < RightingCommandIntervalSeconds)
-    {
-        return;
-    }
-
+    if (RightingAccumulatorSeconds < RightingCommandIntervalSeconds) return;
     RightingAccumulatorSeconds = 0.0f;
 
     const FRotator Current = SimulationAdapter->GetProbeTelemetry().AttitudeDegrees.GetNormalized();
@@ -194,8 +175,6 @@ void AEverwardProbePawn::AdvanceCameraAlignedRighting(float DeltaSeconds)
     const FEverwardProbeCommandResult Result = SimulationAdapter->CommandAdjustAttitudeDegrees(Step);
     if (!Result.bAccepted)
     {
-        // If propulsion is locked/failed, do not leave a hidden controller
-        // continuously retrying a maneuver the authoritative simulation rejects.
         bCameraAlignedRighting = false;
     }
 }
