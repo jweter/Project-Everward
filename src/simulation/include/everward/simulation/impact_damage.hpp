@@ -332,14 +332,34 @@ public:
     }
 
     void set_velocity_mps(Vector3d velocity) { runtime_.set_velocity_mps(velocity); }
+
+    // Damaged propulsion remains usable above zero integrity, but each manual
+    // trim has proportionally less authority. A 5% propulsion system can
+    // therefore move, just extremely badly, which is central to the intended
+    // damaged-machine progression model.
     void adjust_attitude_degrees(EulerAttitudeDegrees delta) {
+        const double effectiveness = subsystem_integrity(PowerSubsystem::Propulsion);
+        delta.yaw *= effectiveness;
+        delta.pitch *= effectiveness;
+        delta.roll *= effectiveness;
         runtime_.adjust_attitude_degrees(delta);
     }
     void adjust_local_velocity_mps(Vector3d local_delta_velocity) {
+        const double effectiveness = subsystem_integrity(PowerSubsystem::Propulsion);
+        local_delta_velocity.x *= effectiveness;
+        local_delta_velocity.y *= effectiveness;
+        local_delta_velocity.z *= effectiveness;
         runtime_.adjust_local_velocity_mps(local_delta_velocity);
     }
+
+    // Sensor damage increases the time needed to complete the same scan. The
+    // underlying power/availability checks still run first in ProbeRuntime;
+    // integrity modifies performance without creating a parallel scan system.
     void start_scan(const std::string& target_id, double duration_s) {
-        runtime_.start_scan(target_id, duration_s);
+        const double effectiveness = std::max(
+            0.05,
+            subsystem_integrity(PowerSubsystem::Sensors));
+        runtime_.start_scan(target_id, duration_s / effectiveness);
     }
     void cancel_scan() { runtime_.cancel_scan(); }
     void allocate_power(PowerSubsystem subsystem, double watts) {
