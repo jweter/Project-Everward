@@ -3,6 +3,7 @@
 #include "EverwardPhase2TestEnvironment.h"
 #include "GameFramework/Actor.h"
 #include "everward/simulation/software_policy.hpp"
+#include "everward/simulation/impact_damage.hpp"
 
 #include <exception>
 #include <string>
@@ -33,11 +34,35 @@ const TCHAR* PowerSubsystemName(EEverwardPowerSubsystem Subsystem)
     return TEXT("unknown");
 }
 
+const TCHAR* SimulationSubsystemName(everward::simulation::PowerSubsystem Subsystem)
+{
+    switch (Subsystem)
+    {
+        case everward::simulation::PowerSubsystem::Sensors: return TEXT("SENSORS");
+        case everward::simulation::PowerSubsystem::Propulsion: return TEXT("PROPULSION");
+        case everward::simulation::PowerSubsystem::Computation: return TEXT("COMPUTATION");
+        case everward::simulation::PowerSubsystem::Thermal: return TEXT("THERMAL");
+    }
+    return TEXT("UNKNOWN");
+}
+
 FString SharedProbeLockoutReason(const everward::simulation::ProbeStateSnapshot& Snapshot)
 {
     if (Snapshot.is_energy_depleted) return TEXT("ENERGY DEPLETED");
     if (Snapshot.is_overheated) return TEXT("THERMAL LOCKOUT");
     return FString();
+}
+
+FString IntegrityReason(
+    const everward::simulation::DamageAwareProbeRuntime& Runtime,
+    everward::simulation::PowerSubsystem Subsystem)
+{
+    const double Integrity = Runtime.subsystem_integrity(Subsystem);
+    const auto Band = Runtime.subsystem_integrity_band(Subsystem);
+    return FString::Printf(
+        TEXT("INTEGRITY %.0f%% // %s"),
+        Integrity * 100.0,
+        UTF8_TO_TCHAR(everward::simulation::ImpactDamageModel::integrity_band_name(Band)));
 }
 }
 
@@ -49,12 +74,12 @@ UProbeSimulationAdapter::UProbeSimulationAdapter()
 void UProbeSimulationAdapter::BeginPlay()
 {
     Super::BeginPlay();
-    Core = new everward::simulation::ProbeRuntime(
-        everward::simulation::ProbeRuntime::make_canonical_ev0001());
+    Core = new everward::simulation::DamageAwareProbeRuntime(
+        everward::simulation::DamageAwareProbeRuntime::make_canonical_ev0001());
 
     // Register the same sphere rendered by the temporary Phase-2 environment.
     // The runtime, not Unreal collision response, decides whether EV-0001 can
-    // pass through it.
+    // pass through it. Slice 4 then derives damage from that contact truth.
     Core->add_static_sphere_body({
         std::string(TCHAR_TO_UTF8(AEverwardPhase2TestEnvironment::BootstrapScanTargetId)),
         {
@@ -91,6 +116,21 @@ void UProbeSimulationAdapter::TickComponent(
     }
 
     SyncOwnerTransformFromSimulation();
+
+    const auto DamageRecords = Core->drain_damage_records();
+    for (const auto& Record : DamageRecords)
+    {
+        UE_LOG(
+            LogTemp,
+            Log,
+            TEXT("Everward impact: %s %.0f J -> %s // %s %.0f%% -> %.0f%%"),
+            UTF8_TO_TCHAR(everward::simulation::ImpactDamageModel::severity_name(Record.severity)),
+            Record.impact_energy_j,
+            *FString(UTF8_TO_TCHAR(Record.body_id.c_str())),
+            SimulationSubsystemName(Record.affected_subsystem),
+            Record.integrity_before * 100.0,
+            Record.integrity_after * 100.0);
+    }
 
     const auto Events = Core->drain_events();
     for (const auto& Event : Events)
@@ -159,6 +199,24 @@ FEverwardProbeTelemetry UProbeSimulationAdapter::GetProbeTelemetry() const
         Snapshot.last_contact_relative_velocity_mps.z);
     Telemetry.LastContactNormalSpeedMetersPerSecond = Snapshot.last_contact_normal_speed_mps;
     Telemetry.LastContactTick = Snapshot.last_contact_tick;
+
+    const auto& Integrity = Core->component_integrity();
+    Telemetry.SensorsIntegrity = Integrity.sensors;
+    Telemetry.PropulsionIntegrity = Integrity.propulsion;
+    Telemetry.ComputationIntegrity = Integrity.computation;
+    Telemetry.ThermalIntegrity = Integrity.thermal;
+    if (Core->last_impact().has_value())
+    {
+        const auto& Impact = *Core->last_impact();
+        Telemetry.bHasImpactHistory = true;
+        Telemetry.LastImpactEnergyJoules = Impact.impact_energy_j;
+        Telemetry.LastImpactSeverity = UTF8_TO_TCHAR(
+            everward::simulation::ImpactDamageModel::severity_name(Impact.severity));
+        Telemetry.LastImpactSubsystem = SimulationSubsystemName(Impact.affected_subsystem);
+        Telemetry.LastImpactIntegrityBefore = Impact.integrity_before;
+        Telemetry.LastImpactIntegrityAfter = Impact.integrity_after;
+    }
+
     Telemetry.StoredEnergyJoules = Snapshot.stored_energy_j;
     Telemetry.EnergyCapacityJoules = Snapshot.energy_capacity_j;
     Telemetry.EnergyGenerationWatts = Snapshot.energy_generation_w;
@@ -199,7 +257,8 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
         FName Id, const TCHAR* Name, const TCHAR* Description,
         bool bOperational, bool bAvailable, bool bSupportsManualControl,
         bool bSupportsAutomation, double AllocatedPowerWatts,
-        double MinimumOperatingPowerWatts, FString StatusReason)
+        double MinimumOperatingPowerWatts, double IntegrityFraction,
+        FString StatusReason)
     {
         FEverwardProbeCapability Capability;
         Capability.CapabilityId = Id;
@@ -212,20 +271,24 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
         Capability.bSupportsAutomation = bSupportsAutomation;
         Capability.AllocatedPowerWatts = AllocatedPowerWatts;
         Capability.MinimumOperatingPowerWatts = MinimumOperatingPowerWatts;
+        Capability.IntegrityFraction = IntegrityFraction;
         Capability.StatusReason = MoveTemp(StatusReason);
         Capabilities.Add(MoveTemp(Capability));
     };
 
+    const double PropulsionIntegrity = Core->subsystem_integrity(everward::simulation::PowerSubsystem::Propulsion);
     FString PropulsionReason = TEXT("NOMINAL // COMMAND-DRIVEN PHASE-2 THRUST");
     if (!Snapshot.propulsion_operational) PropulsionReason = TEXT("HARDWARE FAILURE");
     else if (!SharedLockout.IsEmpty()) PropulsionReason = SharedLockout;
+    PropulsionReason += TEXT(" // ") + IntegrityReason(*Core, everward::simulation::PowerSubsystem::Propulsion);
     AddCapability(FName(TEXT("propulsion")), TEXT("Propulsion"),
         TEXT("Translation and maneuvering authority."), Snapshot.propulsion_operational,
         Snapshot.can_thrust, true, true, Snapshot.power_allocated_propulsion_w, 0.0,
-        PropulsionReason);
+        PropulsionIntegrity, PropulsionReason);
 
     const bool bSensorsHaveOperatingPower = Snapshot.power_allocated_sensors_w >=
         everward::simulation::ProbeRuntime::kGeneration1MinimumSensorPowerW;
+    const double SensorsIntegrity = Core->subsystem_integrity(everward::simulation::PowerSubsystem::Sensors);
     FString SensorReason = TEXT("NOMINAL");
     if (!Snapshot.sensors_operational) SensorReason = TEXT("HARDWARE FAILURE");
     else if (!SharedLockout.IsEmpty()) SensorReason = SharedLockout;
@@ -234,36 +297,41 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
         SensorReason = FString::Printf(TEXT("BELOW MINIMUM POWER // NEED %.0f W"),
             everward::simulation::ProbeRuntime::kGeneration1MinimumSensorPowerW);
     }
+    SensorReason += TEXT(" // ") + IntegrityReason(*Core, everward::simulation::PowerSubsystem::Sensors);
     AddCapability(FName(TEXT("sensors")), TEXT("Sensors"),
         TEXT("Scientific observation and active scanning."), Snapshot.sensors_operational,
         Snapshot.can_scan && bSensorsHaveOperatingPower, true, true,
         Snapshot.power_allocated_sensors_w,
         everward::simulation::ProbeRuntime::kGeneration1MinimumSensorPowerW,
-        SensorReason);
+        SensorsIntegrity, SensorReason);
 
     const bool bComputationHasOperatingPower = Snapshot.power_allocated_computation_w >=
         everward::simulation::ProbeRuntime::kGeneration1MinimumPolicyComputationPowerW;
+    const double ComputationIntegrity = Core->subsystem_integrity(everward::simulation::PowerSubsystem::Computation);
     FString ComputationReason = bComputationHasOperatingPower
         ? TEXT("AUTOMATION EXECUTOR READY")
         : FString::Printf(TEXT("BELOW MINIMUM POWER // NEED %.0f W"),
             everward::simulation::ProbeRuntime::kGeneration1MinimumPolicyComputationPowerW);
     if (!Snapshot.computation_operational) ComputationReason = TEXT("HARDWARE FAILURE");
+    ComputationReason += TEXT(" // ") + IntegrityReason(*Core, everward::simulation::PowerSubsystem::Computation);
     AddCapability(FName(TEXT("computation")), TEXT("Computation"),
         TEXT("Onboard planning, automation, and software execution."),
         Snapshot.computation_operational,
         Snapshot.computation_operational && bComputationHasOperatingPower,
         false, true, Snapshot.power_allocated_computation_w,
         everward::simulation::ProbeRuntime::kGeneration1MinimumPolicyComputationPowerW,
-        ComputationReason);
+        ComputationIntegrity, ComputationReason);
 
+    const double ThermalIntegrity = Core->subsystem_integrity(everward::simulation::PowerSubsystem::Thermal);
     FString ThermalReason = Snapshot.thermal_operational
         ? TEXT("PASSIVE COOLING PATH AVAILABLE") : TEXT("HARDWARE FAILURE");
     if (Snapshot.thermal_operational && Snapshot.is_overheated)
         ThermalReason = TEXT("PROBE OVERHEATED // RECOVERY IN PROGRESS");
+    ThermalReason += TEXT(" // ") + IntegrityReason(*Core, everward::simulation::PowerSubsystem::Thermal);
     AddCapability(FName(TEXT("thermal")), TEXT("Thermal Control"),
         TEXT("Heat rejection and thermal-management hardware."),
         Snapshot.thermal_operational, Snapshot.thermal_operational, true, true,
-        Snapshot.power_allocated_thermal_w, 0.0, ThermalReason);
+        Snapshot.power_allocated_thermal_w, 0.0, ThermalIntegrity, ThermalReason);
 
     return Capabilities;
 }
