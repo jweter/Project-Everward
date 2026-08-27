@@ -6,7 +6,7 @@
 
 namespace everward::simulation
 {
-class ProbeRuntime;
+class DamageAwareProbeRuntime;
 }
 
 UENUM(BlueprintType)
@@ -137,6 +137,36 @@ struct EVERWARD_API FEverwardProbeTelemetry
     UPROPERTY(BlueprintReadOnly, Category="Everward|Contact")
     int64 LastContactTick = 0;
 
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Damage")
+    bool bHasImpactHistory = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Damage")
+    double LastImpactEnergyJoules = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Damage")
+    FString LastImpactSeverity;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Damage")
+    FString LastImpactSubsystem;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Damage")
+    double LastImpactIntegrityBefore = 1.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Damage")
+    double LastImpactIntegrityAfter = 1.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Damage")
+    double SensorsIntegrity = 1.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Damage")
+    double PropulsionIntegrity = 1.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Damage")
+    double ComputationIntegrity = 1.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Damage")
+    double ThermalIntegrity = 1.0;
+
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
     double StoredEnergyJoules = 0.0;
 
@@ -231,6 +261,9 @@ struct EVERWARD_API FEverwardProbeCapability
     double MinimumOperatingPowerWatts = 0.0;
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Capability")
+    double IntegrityFraction = 1.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Capability")
     FString StatusReason;
 };
 
@@ -313,5 +346,5 @@ private:
     FEverwardProbeCommandResult LastCommandResult;
     FEverwardAutomationNotice LastAutomationNotice;
     FEverwardScanLifecycleNotice LastScanLifecycleNotice;
-    everward::simulation::ProbeRuntime* Core = nullptr;
+    everward::simulation::DamageAwareProbeRuntime* Core = nullptr;
 };
