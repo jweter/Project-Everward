@@ -22,16 +22,24 @@ class OneProbeProductionBootstrapTests(unittest.TestCase):
         game_mode = (SOURCE / "EverwardGameMode.cpp").read_text(encoding="utf-8")
         self.assertIn("DefaultPawnClass = AEverwardProbePawn::StaticClass();", game_mode)
 
-    def test_probe_presentation_owns_exactly_one_adapter(self) -> None:
+    def test_probe_presentation_owns_exactly_one_adapter_and_one_root_mesh(self) -> None:
         pawn = (SOURCE / "EverwardProbePawn.cpp").read_text(encoding="utf-8")
         adapter_constructions = re.findall(
             r"CreateDefaultSubobject<UProbeSimulationAdapter>", pawn
         )
-        presentation_constructions = re.findall(
-            r"CreateDefaultSubobject<UStaticMeshComponent>", pawn
-        )
         self.assertEqual(adapter_constructions, ["CreateDefaultSubobject<UProbeSimulationAdapter>"])
-        self.assertEqual(presentation_constructions, ["CreateDefaultSubobject<UStaticMeshComponent>"])
+
+        # The architectural invariant is one authoritative adapter and one root
+        # presentation mesh. Additional static-mesh children are valid visual
+        # scaffolding (orientation cues today, production probe parts later) as
+        # long as they attach under the root rather than becoming parallel probe
+        # bodies or simulation authorities.
+        self.assertEqual(
+            pawn.count('CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProbePresentation"))'),
+            1,
+        )
+        self.assertEqual(pawn.count("SetRootComponent(ProbeMesh);"), 1)
+        self.assertIn("Component->SetupAttachment(ProbeMesh);", pawn)
 
     def test_presentation_does_not_bypass_the_adapter_boundary(self) -> None:
         for filename in (

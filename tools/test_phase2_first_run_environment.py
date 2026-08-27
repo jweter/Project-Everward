@@ -70,6 +70,28 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         self.assertIn('CommandAdjustAttitudeDegrees(DeltaAttitude)', self.controller)
         self.assertIn('Owner->SetActorRotation(PresentationAttitude', self.adapter_source)
 
+    def test_probe_orientation_skin_makes_forward_up_and_level_readable(self) -> None:
+        for component in ('ForwardSensor', 'DorsalMarker', 'PortShoulder', 'StarboardShoulder'):
+            self.assertIn(component, self.pawn_h)
+            self.assertIn(f'TEXT("{component}")', self.pawn_cpp)
+        self.assertIn('ForwardSensor->SetRelativeLocation(FVector(86.0, 0.0, 4.0))', self.pawn_cpp)
+        self.assertIn('DorsalMarker->SetRelativeLocation(FVector(-8.0, 0.0, 45.0))', self.pawn_cpp)
+        self.assertIn('PortShoulder->SetRelativeLocation(FVector(-12.0, -48.0, -2.0))', self.pawn_cpp)
+        self.assertIn('StarboardShoulder->SetRelativeLocation(FVector(-12.0, 48.0, -2.0))', self.pawn_cpp)
+
+    def test_r_key_rights_probe_toward_camera_in_clunky_authoritative_steps(self) -> None:
+        self.assertIn('EKeys::R', self.pawn_cpp)
+        self.assertIn('BeginOrCancelCameraAlignedRighting', self.pawn_cpp)
+        self.assertIn('Controller->GetControlRotation().GetNormalized()', self.pawn_cpp)
+        self.assertIn('CameraAlignedRightingTarget = FRotator(', self.pawn_cpp)
+        self.assertIn('ViewRotation.Pitch', self.pawn_cpp)
+        self.assertIn('ViewRotation.Yaw', self.pawn_cpp)
+        self.assertIn('RightingDegreesPerSecond = 36.0f', self.pawn_h)
+        self.assertIn('RightingCommandIntervalSeconds = 0.10f', self.pawn_h)
+        self.assertIn('FMath::FindDeltaAngleDegrees', self.pawn_cpp)
+        self.assertIn('CommandAdjustAttitudeDegrees(Step)', self.pawn_cpp)
+        self.assertNotIn('SetActorRotation(', self.pawn_cpp)
+
     def test_test_environment_never_bypasses_simulation_adapter_boundary(self) -> None:
         self.assertNotIn('everward::simulation', self.environment_h)
         self.assertNotIn('everward::simulation', self.environment_cpp)
