@@ -113,6 +113,30 @@ struct EVERWARD_API FEverwardProbeTelemetry
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
     double MassKilograms = 0.0;
 
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Contact")
+    double CollisionEnvelopeRadiusMeters = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Contact")
+    bool bHasContactHistory = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Contact")
+    FString LastContactBodyId;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Contact")
+    FVector LastContactPointMeters = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Contact")
+    FVector LastContactSurfaceNormal = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Contact")
+    FVector LastContactRelativeVelocityMetersPerSecond = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Contact")
+    double LastContactNormalSpeedMetersPerSecond = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Contact")
+    int64 LastContactTick = 0;
+
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry")
     double StoredEnergyJoules = 0.0;
 
@@ -246,9 +270,6 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Scan")
     FEverwardScanLifecycleNotice GetLastScanLifecycleNotice() const;
 
-    // These command methods are the shared authoritative control boundary.
-    // Manual UI, Blueprint, and future script/automation callers must use the
-    // same methods rather than implementing parallel gameplay mechanics.
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandSetVelocityMetersPerSecond(FVector VelocityMetersPerSecond);
 
@@ -273,9 +294,6 @@ public:
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandClearSoftwarePolicy();
 
-    // Compatibility wrapper retained for existing Blueprint/source callers.
-    // New control surfaces should use CommandSetVelocityMetersPerSecond so
-    // command acceptance/rejection is observable.
     UFUNCTION(BlueprintCallable, Category="Everward|Simulation")
     void SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond);
 
