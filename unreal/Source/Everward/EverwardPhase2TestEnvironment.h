@@ -9,9 +9,10 @@ class USceneComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 
-// Temporary Phase-2 integration environment. It exists so the One Probe
-// runtime has reproducible spatial references and a visible scan target even
-// before Phase 3 introduces authored star-system content and real targeting.
+// Temporary Phase-2 integration environment. The visible scan target is now
+// also the first reproducible physical body. Shared meter-space constants keep
+// Unreal presentation geometry aligned with the engine-independent contact
+// body registered by UProbeSimulationAdapter.
 UCLASS()
 class EVERWARD_API AEverwardPhase2TestEnvironment : public AActor
 {
@@ -21,6 +22,10 @@ public:
     AEverwardPhase2TestEnvironment();
 
     static constexpr const TCHAR* BootstrapScanTargetId = TEXT("phase2-test-target-001");
+    static constexpr double BootstrapBodyCenterXMeters = 50.0;
+    static constexpr double BootstrapBodyCenterYMeters = 0.0;
+    static constexpr double BootstrapBodyCenterZMeters = 0.0;
+    static constexpr double BootstrapBodyRadiusMeters = 2.0;
 
 private:
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
