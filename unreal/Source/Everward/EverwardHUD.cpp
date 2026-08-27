@@ -139,9 +139,9 @@ void AEverwardHUD::DrawHUD()
         AlertY += 28.0f;
     }
 
-    // Contact is authoritative simulation telemetry, not an Unreal hit event.
-    // A 5 m/s normal-speed warning is only a temporary operator cue for this
-    // slice; actual energy/severity/damage classification belongs to Slice 4.
+    // Contact and damage are authoritative simulation telemetry, not Unreal
+    // hit events. Slice 4 replaces the old speed-only warning with the actual
+    // energy/severity/component result produced by the damage runtime.
     const double ContactAgeSeconds = Telemetry.bHasContactHistory
         ? FMath::Max(
             0.0,
@@ -149,20 +149,45 @@ void AEverwardHUD::DrawHUD()
         : 999999.0;
     if (Telemetry.bHasContactHistory && ContactAgeSeconds <= 4.0)
     {
-        const bool bHighSpeedContact = Telemetry.LastContactNormalSpeedMetersPerSecond >= 5.0;
+        const bool bDamagingImpact = Telemetry.bHasImpactHistory &&
+            Telemetry.LastImpactIntegrityAfter < Telemetry.LastImpactIntegrityBefore;
         DrawText(
-            FString::Printf(
-                TEXT("%s // %s // NORMAL %.2f m/s"),
-                bHighSpeedContact ? TEXT("CONTACT WARNING") : TEXT("CONTACT"),
-                *Telemetry.LastContactBodyId,
-                Telemetry.LastContactNormalSpeedMetersPerSecond),
-            bHighSpeedContact ? AlertColor : TextColor,
+            Telemetry.bHasImpactHistory
+                ? FString::Printf(
+                    TEXT("IMPACT %s // %s // %.1f kJ // NORMAL %.2f m/s"),
+                    *Telemetry.LastImpactSeverity,
+                    *Telemetry.LastImpactSubsystem,
+                    Telemetry.LastImpactEnergyJoules / 1000.0,
+                    Telemetry.LastContactNormalSpeedMetersPerSecond)
+                : FString::Printf(
+                    TEXT("CONTACT // %s // NORMAL %.2f m/s"),
+                    *Telemetry.LastContactBodyId,
+                    Telemetry.LastContactNormalSpeedMetersPerSecond),
+            bDamagingImpact ? AlertColor : TextColor,
             Margin,
             AlertY,
             nullptr,
             0.95f,
             false);
         AlertY += 22.0f;
+
+        if (Telemetry.bHasImpactHistory)
+        {
+            DrawText(
+                FString::Printf(
+                    TEXT("%s INTEGRITY %.0f%% -> %.0f%%"),
+                    *Telemetry.LastImpactSubsystem,
+                    Telemetry.LastImpactIntegrityBefore * 100.0,
+                    Telemetry.LastImpactIntegrityAfter * 100.0),
+                bDamagingImpact ? AlertColor : MutedColor,
+                Margin,
+                AlertY,
+                nullptr,
+                0.78f,
+                false);
+            AlertY += 20.0f;
+        }
+
         DrawText(
             FString::Printf(
                 TEXT("POINT [%.2f %.2f %.2f] m // NORMAL [%.2f %.2f %.2f]"),
@@ -261,9 +286,10 @@ void AEverwardHUD::DrawHUD()
             {
                 const bool bHealthy = Capability.bOperational && Capability.bAvailable;
                 DrawText(
-                    FString::Printf(TEXT("%s   %.0f W   [%s]"),
+                    FString::Printf(TEXT("%s   %.0f W   %.0f%%   [%s]"),
                         *Capability.DisplayName,
                         Capability.AllocatedPowerWatts,
+                        Capability.IntegrityFraction * 100.0,
                         *CapabilityState(Capability)),
                     bHealthy ? TextColor : AlertColor,
                     SystemPanelX + 14.0f, CompactRowY, nullptr, 0.76f, false);
@@ -298,7 +324,11 @@ void AEverwardHUD::DrawHUD()
         const FEverwardProbeCapability& Capability = Capabilities[Index];
         const FString Prefix = Index == SelectedCapabilityIndex ? TEXT("> ") : TEXT("  ");
         DrawText(
-            FString::Printf(TEXT("%s%s  [%s]"), *Prefix, *Capability.DisplayName, *CapabilityState(Capability)),
+            FString::Printf(TEXT("%s%s  %.0f%%  [%s]"),
+                *Prefix,
+                *Capability.DisplayName,
+                Capability.IntegrityFraction * 100.0,
+                *CapabilityState(Capability)),
             Index == SelectedCapabilityIndex ? TextColor : MutedColor,
             SystemPanelX + 14.0f, Y, nullptr, 0.9f, false);
         Y += 24.0f;
@@ -309,7 +339,9 @@ void AEverwardHUD::DrawHUD()
     DrawText(Selected.Description, TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.82f, false);
     Y += 26.0f;
     DrawText(
-        FString::Printf(TEXT("POWER %.0f W   [PGUP/PGDN ADJUST]"), Selected.AllocatedPowerWatts),
+        FString::Printf(TEXT("POWER %.0f W   //   INTEGRITY %.0f%%   [PGUP/PGDN ADJUST]"),
+            Selected.AllocatedPowerWatts,
+            Selected.IntegrityFraction * 100.0),
         MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.82f, false);
     Y += 22.0f;
     DrawText(
