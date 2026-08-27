@@ -4,16 +4,23 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 HUD_SOURCE = ROOT / "unreal/Source/Everward/EverwardHUD.cpp"
 HUD_HEADER = ROOT / "unreal/Source/Everward/EverwardHUD.h"
+ADAPTER_HEADER = ROOT / "unreal/Source/Everward/ProbeSimulationAdapter.h"
+ADAPTER_SOURCE = ROOT / "unreal/Source/Everward/ProbeSimulationAdapter.cpp"
 
 
 class Phase2ScanDiscoverySurfaceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.hud = HUD_SOURCE.read_text(encoding="utf-8")
         self.header = HUD_HEADER.read_text(encoding="utf-8")
+        self.adapter_header = ADAPTER_HEADER.read_text(encoding="utf-8")
+        self.adapter_source = ADAPTER_SOURCE.read_text(encoding="utf-8")
 
     def test_completed_scan_is_persisted_and_visible(self) -> None:
         self.assertIn("bHasScanDiscovery", self.header)
-        self.assertIn("bWasScanning", self.header)
+        self.assertIn("LastHandledScanNoticeSequence", self.header)
+        self.assertIn("GetLastScanLifecycleNotice", self.adapter_header)
+        self.assertIn("DomainEventType::ScanCompleted", self.adapter_source)
+        self.assertIn("ScanNotice.bCompleted", self.hud)
         self.assertIn("SCAN COMPLETE  //  %s  //  DISCOVERY STORED", self.hud)
         self.assertIn("LAST DISCOVERY", self.hud)
         self.assertIn("ROCKY BODY / SURVEY REFERENCE", self.hud)
@@ -21,8 +28,10 @@ class Phase2ScanDiscoverySurfaceTests(unittest.TestCase):
         self.assertIn("CONFIDENCE %.0f%%  //  ACQUIRED T+%.1fs", self.hud)
 
     def test_cancelled_scan_does_not_create_discovery(self) -> None:
-        self.assertIn('LastCommand.CommandId == FName(TEXT("cancel_scan"))', self.hud)
-        self.assertIn("if (!bWasCancelled", self.hud)
+        self.assertIn("DomainEventType::ScanCancelled", self.adapter_source)
+        self.assertIn("LastScanLifecycleNotice.bCancelled", self.adapter_source)
+        self.assertIn("if (ScanNotice.bCompleted && !LastObservedScanTargetId.IsEmpty())", self.hud)
+        self.assertNotIn('LastCommand.CommandId == FName(TEXT("cancel_scan"))', self.hud)
 
 
 if __name__ == "__main__":
