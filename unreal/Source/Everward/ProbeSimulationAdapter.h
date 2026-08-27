@@ -37,6 +37,39 @@ struct EVERWARD_API FEverwardProbeCommandResult
 };
 
 USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardAutomationNotice
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Automation")
+    int64 Sequence = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Automation")
+    bool bRejected = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Automation")
+    FString Detail;
+};
+
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardScanLifecycleNotice
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
+    int64 Sequence = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
+    bool bCompleted = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
+    bool bCancelled = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
+    FString Detail;
+};
+
+USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardSoftwarePolicyStatus
 {
     GENERATED_BODY()
@@ -169,6 +202,12 @@ struct EVERWARD_API FEverwardProbeCapability
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Capability")
     double AllocatedPowerWatts = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Capability")
+    double MinimumOperatingPowerWatts = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Capability")
+    FString StatusReason;
 };
 
 UCLASS(ClassGroup=(Everward), meta=(BlueprintSpawnableComponent))
@@ -200,6 +239,12 @@ public:
 
     UFUNCTION(BlueprintPure, Category="Everward|Command")
     FEverwardProbeCommandResult GetLastCommandResult() const;
+
+    UFUNCTION(BlueprintPure, Category="Everward|Automation")
+    FEverwardAutomationNotice GetLastAutomationNotice() const;
+
+    UFUNCTION(BlueprintPure, Category="Everward|Scan")
+    FEverwardScanLifecycleNotice GetLastScanLifecycleNotice() const;
 
     // These command methods are the shared authoritative control boundary.
     // Manual UI, Blueprint, and future script/automation callers must use the
@@ -245,6 +290,10 @@ private:
 
     double FixedStepAccumulatorSeconds = 0.0;
     int64 CommandSequence = 0;
+    int64 AutomationSequence = 0;
+    int64 ScanLifecycleSequence = 0;
     FEverwardProbeCommandResult LastCommandResult;
+    FEverwardAutomationNotice LastAutomationNotice;
+    FEverwardScanLifecycleNotice LastScanLifecycleNotice;
     everward::simulation::ProbeRuntime* Core = nullptr;
 };
