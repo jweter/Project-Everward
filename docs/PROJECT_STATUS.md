@@ -4,36 +4,35 @@ This file is the durable operational continuation record for human and scheduled
 
 ## Current phase
 
-**Phase 2 — One Probe: ACTIVE, first local integrated playtest complete.**
+**Phase 2 — One Probe: ACTIVE.**
 
-Phase 1 is complete and Unreal Engine 5.8 is the accepted production direction. The first serious local Phase-2 run has now exercised the current One Probe slice in Unreal and produced structured evidence.
+Phase 1 is complete and Unreal Engine 5.8 is the accepted production direction. The first serious local Phase-2 run proved the integrated simulation/Unreal shell works, but the product gate **“simply existing as the probe is compelling”** is not yet met.
 
-Canonical first-run evidence:
+Canonical first-run evidence remains:
 
 - `playtests/phase2/observations/phase2-first-run-20260824-225821.json`
 - `docs/PHASE2_FIRST_RUN_FINDINGS_2026-08-24.md`
 - tested commit: `7f9ea88b8e7857f44f80b2f2327fde758dd2ca1a`
 
-The engineering integration is substantially functional, but the product gate **"simply existing as the probe is compelling"** is not yet met. The current local Product Reality priority remains the attitude/local-flight continuation. Repository development is no longer globally paused behind that local check: independent reversible work may proceed under the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md`, while the pending Product Reality result remains mandatory before the affected slice, phase, or release gate can be declared complete.
+The repository has advanced substantially beyond that first-run build through the explicit parallel-safe lane. Those later mechanics are **implemented but do not count as locally accepted Product Reality until the exact Unreal test passes.**
 
-## First-run result
+Current `main`: `6d3b108ba310ac770ee8d0c182d318fef25d1229` after the portfolio secret-gate rollout. No development PR is currently open.
 
-Confirmed working locally in Unreal Engine 5.8:
+## Verified local foundation
+
+The first local Unreal Engine 5.8 run confirmed:
 
 - Unreal C++ build and PIE launch;
 - deterministic EV-0001 spawn and generated Phase-2 environment;
 - camera orbit/zoom;
-- X/Y/Z authoritative translation;
-- full-stop command;
+- authoritative translation and full stop;
 - capability discovery/selection;
 - power allocation across Propulsion, Sensors, Computation, and Thermal Control;
 - sensor scan completion and cancellation;
 - Basic Survival policy install/clear;
 - computation execution gate below/above 25 W.
 
-Manual/automation shared-state behavior remains **inconclusive**, not failed: the attempted Sensors check did not produce an observable policy-triggered zeroing event, likely because the test did not guarantee the policy trigger condition.
-
-### Subjective ratings
+The original subjective baseline remains:
 
 - embodiment: **2/5**
 - HUD clarity: **2/5**
@@ -43,137 +42,207 @@ Manual/automation shared-state behavior remains **inconclusive**, not failed: th
 - automation comprehension: **1/5**
 - desire to continue: **1/5**
 
-The strong clunkiness score is useful evidence: primitive starter-probe handling is not the primary problem. The main deficits are spacecraft embodiment, attitude control, subsystem-state legibility, and understandable automation.
+That baseline is the comparison point for the next serious local build.
 
-## Current embodiment continuation
+## Implemented since the first-run baseline
 
-The first evidence-driven control slice now adds engine-independent authoritative yaw/pitch/roll state, observable attitude commands, and probe-relative translation. Unreal renders the resulting authoritative rotation and continues to submit movement through `UProbeSimulationAdapter`; it does not own flight truth.
+### Probe orientation and camera-aligned righting
 
-The temporary engineering controls use J/L for yaw, I/K for pitch, U/O for roll, and retain W/S, A/D, E/Q as local forward/lateral/vertical trims. Space remains an absolute full stop. This is deliberately a command-driven Generation-1 flight model, not a claim that final rigid-body/thruster physics is solved.
+Merged work now provides:
 
-**Product Reality status:** implemented, local UE 5.8 verification still pending. The next local evidence pass must verify orientation, visible rotation, probe-relative translation, full stop, and control feel.
+- authoritative yaw/pitch/roll state;
+- probe-relative translation;
+- asymmetric temporary orientation cues so forward/up/roll are visually legible;
+- camera-aligned `R` righting through the existing simulation adapter rather than direct Unreal rotation;
+- Space remaining an absolute full stop.
 
-## Parallel-safe subsystem HUD continuation
+**Status: implemented, Product Reality pending.**
 
-The first independent Slice-2 sub-slice is now implemented on the active branch without assuming the pending attitude/control result is correct. The collapsed systems HUD reads the existing `UProbeSimulationAdapter` capability list and shows every installed subsystem at a glance with:
+### Subsystem consequences and automation explanation
 
-- subsystem display name;
-- live allocated power in watts;
-- authoritative `READY`, `LOCKED`, or `FAILED` state;
-- alert emphasis when a capability is unavailable or non-operational;
-- `[TAB DETAILS]` access to the existing expanded control panel.
+The systems HUD and runtime now expose more than raw wattage:
 
-This does not create a second simulation authority and does not alter attitude, translation, scan, power-allocation, or automation mechanics. Portable source-contract CI protects the adapter/HUD ownership boundary. **Status: implemented, Product Reality pending.** It does not complete Slice 2 by itself.
+- all installed subsystems show live power and `READY` / `LOCKED` / `FAILED` state;
+- reason text explains limitations such as minimum-power lockout;
+- Sensors require 50 W for active scanning;
+- dropping below the minimum aborts an active scan through authoritative mechanics;
+- rejected commands produce visible global feedback;
+- Basic Survival can visibly report cause/effect such as an automatic Sensors power shed;
+- manual and automated changes converge on the same runtime commands.
 
-### Next local UE 5.8 Product Reality script
+**Status: implemented, Product Reality pending.**
 
-Run the exact passed build and verify in one session:
+### Physical contact foundation
 
-1. yaw left/right, pitch up/down, and roll both directions; confirm the visible probe rotates accordingly;
-2. after changing attitude, apply forward/lateral/vertical translation and confirm movement is probe-relative rather than world-axis rail movement;
-3. press Space while moving and confirm the authoritative full stop still works regardless of selected subsystem;
-4. with the systems panel collapsed, confirm Propulsion, Sensors, Computation, and Thermal Control are all visible simultaneously with live watts and `READY`/`LOCKED`/`FAILED` state;
-5. adjust subsystem power and confirm the compact rows update from authoritative telemetry without opening the detail panel;
-6. expand `[TAB DETAILS]` and confirm the existing detail/control workflow still works;
-7. record any visual overlap, clipping, illegibility, stale status, or state mismatch as Product Reality evidence rather than inferring success from CI.
+Phase-2 contact mechanics are now engine-independent and deterministic:
 
-A failure in steps 1–3 outranks further roadmap work. A failure in steps 4–6 blocks Slice-2 completion but does not retroactively invalidate the independent attitude implementation.
+- EV-0001 has a temporary physical collision envelope separate from decorative art;
+- registered physical bodies can block inward motion;
+- swept contact prevents simple high-speed tunneling through the test target;
+- glancing contact can preserve tangential motion;
+- contact records body ID, point, surface normal, relative velocity, inward normal speed, and tick;
+- Unreal displays contact but does not own mechanical truth.
+
+**Status: implemented, Product Reality pending.** The local test must prove the probe does not ghost through the target and that contact behavior remains understandable in the actual UE build.
+
+### Impact severity and component integrity
+
+The contact record now feeds a deterministic damage foundation:
+
+- impact severity derives from physically meaningful kinetic-energy inputs rather than arbitrary ship hit points;
+- Sensors, Propulsion, Computation, and Thermal Control carry component integrity in `0..1`;
+- integrity bands expose offline/critical/degraded/operational/nominal condition;
+- cumulative impact damage can impair or disable specific components;
+- partial Propulsion integrity reduces local velocity/attitude trim authority;
+- partial Sensors integrity increases scan time;
+- catastrophic damage routes through existing subsystem-operational consequences;
+- damage-aware policy ordering and integrity/operational synchronization were corrected during review before merge;
+- Unreal receives impact/integrity telemetry through the simulation adapter.
+
+**Status: implemented, Product Reality pending.** Collision acceptance still precedes claiming damage behavior complete.
+
+### Canonical damaged awakening and Self Repair direction
+
+The canonical opening is now durable project direction:
+
+`damaged planetary/moon awakening -> minimal power -> reachable mining/manipulation -> staged self-repair -> capabilities return -> all required starter systems reach 100% -> first departure`
+
+Self Repair follows the rule **restore capability before restoring perfection**:
+
+1. preserve immediate existence;
+2. restore important offline systems to minimum useful operation;
+3. bring required systems online before polishing one system to 100%;
+4. reassess integrity, strategic value, mission need, cost, and unlock value;
+5. repair in useful stages toward 100%;
+6. reassess after every repair.
+
+The player retains agency over the recommendation and material/energy/time cost. Current component-integrity work is intentionally shaped so this later recovery loop does not require a replacement damage model.
+
+### Open-ended successor evolution
+
+Adjacent-generation evolution now explicitly preserves both:
+
+- **improve an existing system**;
+- **add a new capability**.
+
+Specialization has no arbitrary maturity cap. Costs/tradeoffs grow instead of a hard technology ceiling, and the player sees only the reachable frontier rather than a spoiler-heavy complete technology tree. This is foundation architecture; it does not advance the current Phase-2 embodiment gate by itself.
+
+### Repository security
+
+The repository now has the pinned portfolio TruffleHog introduced-change gate with read-only history access, `--no-verification`, suppressed findings, and an ephemeral detection self-test. This is security-only and does not alter simulation/gameplay behavior.
 
 ## Current authoritative foundation
 
-The project still preserves these production rules and implemented foundations:
+Everward continues to preserve:
 
 - engine-independent C++20 simulation under `src/simulation/`;
 - deterministic fixed-step simulation time;
-- canonical EV-0001 state for identity, generation, mass, position, velocity, energy, thermal state, storage, capabilities, and subsystem power;
+- canonical EV-0001 identity, generation, mass, motion, power, thermal, storage, capability, component-integrity, and subsystem state;
 - scan lifecycle and power-budget validation;
 - energy/thermal lockouts and recovery hooks;
-- engine-independent Generation-1 `ProbeRuntime` software-policy evaluator;
+- Generation-1 software-policy evaluation;
 - manual and automated actions converging on authoritative mechanics;
 - capability-driven Unreal HUD/control shell and `UProbeSimulationAdapter` boundary;
+- deterministic physical-body/contact records;
+- component-specific impact/damage foundation;
 - adjacent-generation evolution foundation;
-- canonical Prime Probe A reference package with provenance validation in Foundation CI.
+- canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
+- explicit versioned save architecture rather than blind Unreal object serialization.
 
-## Highest-value product findings
+## Exact next local UE 5.8 Product Reality pass
 
-### Spacecraft attitude and local-space movement
+Use the exact passed build and validate the accumulated Phase-2 chain in order:
 
-The authoritative yaw/pitch/roll and probe-relative translation implementation is now present, but its local Unreal feel/visibility is still awaiting Product Reality verification. Do not treat CI alone as proof that the rail-feel problem is solved.
+1. yaw, pitch, and roll both directions; confirm visible probe orientation changes correctly;
+2. put EV-0001 into an awkward attitude, orbit the camera, press `R`, and verify the stepped camera-aligned righting aid is understandable and still simulation-authoritative;
+3. translate after attitude changes and verify motion is probe-relative; confirm Space still performs an absolute full stop;
+4. verify all subsystem rows show live watts, state, and reason text;
+5. start a scan with Sensors at 50 W, reduce below minimum, and verify authoritative abort + visible lock/rejection reason;
+6. restore Sensors and verify scanning returns;
+7. install Basic Survival and verify a deterministic visible automation cause/effect event without fabricated discoveries;
+8. approach the registered physical target at low speed and verify solid contact rather than ghosting through it;
+9. repeat with a glancing approach and verify tangential motion is preserved plausibly;
+10. create a damaging impact and verify impact severity, affected component, integrity change, and resulting subsystem consequences agree;
+11. verify no stale policy action executes after Computation is destroyed and no operational/integrity state contradiction appears;
+12. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
+13. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline.
 
-### Persistent subsystem power/status telemetry
+A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
 
-The compact HUD now exposes live per-system watts and operational state for all installed capabilities simultaneously. Remaining Slice-2 work should add authoritative reason detail such as `BELOW MINIMUM`, `DISABLED BY POLICY`, or `THERMAL LIMITED` where the simulation already provides the necessary cause rather than inventing presentation-only explanations.
-
-### Explain automation cause and effect
-
-Automation comprehension scored 1/5. When a software policy acts, the player should see what policy acted, what it changed, and why. The next build should include a deterministic retest path that guarantees a Basic Survival trigger so manual/automation shared-state behavior can be proven in one session.
-
-### Perceptible subsystem consequences
-
-Sensors and Thermal Control accept power changes but their gameplay effects are not yet obvious enough. Future allocation changes should produce physically grounded, authoritative consequences rather than presentation-only feedback.
-
-### Prime Probe embodiment for the next serious test
-
-The temporary sphere has completed its engineering-scaffold purpose. The next serious embodiment test should use a recognizable Generation-1 Prime Probe A blockout/skin based on the canonical Scientific Explorer reference set.
-
-The next representation should include at least two articulated manipulator arms with constrained shoulder/elbow/wrist/tool motion. They may begin as a blockout and simple deployment/pose system, but they should be architected as real future capabilities for servicing, instruments, grabbing, mining, and construction rather than permanent decorative geometry.
-
-## Authorized next work
+## Authorized next development
 
 Priority order:
 
-1. complete the pending local Product Reality pass for yaw/pitch/roll, visible rotation, probe-relative translation, and full stop;
-2. verify the compact all-subsystem live power/status HUD in that same passed build;
-3. make automation actions/cause visible and provide a deterministic shared-state retest path;
-4. add physically meaningful sensor/thermal power feedback where supported by the current simulation model;
-5. integrate a recognizable Prime Probe A blockout/skin with articulated manipulator arms for the next embodiment test;
-6. repeat the same subjective ratings and compare against the first-run baseline before expanding scope.
+1. complete the accumulated local Phase-2 Product Reality pass above;
+2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
+3. once the contact/damage foundation is locally credible, begin **Slice 5 — Prime Generation-1 probe body blockout** using canonical Probe A / Scientific Explorer references;
+4. follow with **Slice 6 — articulated manipulator arms** designed as real future servicing/mining/construction capability rather than decoration;
+5. then move into object selection and physical interaction;
+6. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 
-Independent reversible work may continue through the `PHASE2_VERTICAL_SLICE_PLAN.md` parallel-safe lane while steps 1–2 await a local session, but no pending Product Reality result may be hidden, compensated for, or used to claim a slice/phase/release complete.
+While local Product Reality is unavailable, only work that satisfies the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md` may merge. Do not build new mechanics that assume unverified contact/damage behavior is correct.
 
-Do not jump ahead to Phase 3 astronomy, broad industry, replication, aliens, combat, megastructures, or unrelated procedural content before the One Probe embodiment/control loop becomes compelling enough to justify expansion.
+## Product priorities after acceptance
 
-## Open product/architecture decisions
+### Prime Probe embodiment
+
+The temporary orientation skin remains engineering scaffolding. The next serious embodiment test should use a recognizable Generation-1 Prime Probe A blockout with identifiable structural spine, core/computation region, power hardware, propulsion, sensors, thermal radiators, and manipulator mounts.
+
+### Manipulators
+
+At least two articulated arms should begin with constrained shoulder/elbow/wrist/tool-interface motion and a clean authoritative command/state path suitable for later servicing, instruments, grabbing, mining, and construction.
+
+### Physical interaction
+
+The next embodied gameplay loop remains:
+
+`detect -> select -> approach -> scan -> reach -> grasp -> move -> release`
+
+### Recovery architecture
+
+Damage, mining, processing, fabrication, and Self Repair must converge on identifiable components and real materials/energy/time costs. Avoid a monolithic health bar or invisible resource teleportation.
+
+## Open architecture decisions
 
 ### Final Generation-1 flight model
 
-The current pass establishes real attitude/orientation and probe-relative translation, but it does not pretend the final thruster/rigid-body model is solved. Keep commands authoritative, deterministic, and intentionally primitive while avoiding world-axis rail feel.
+Current command-driven attitude and translation are deliberate Phase-2 mechanics, not a claim that final thruster/rigid-body flight is solved. Keep truth deterministic and simulation-owned while eliminating world-axis rail feel.
 
-### Final programming interface
+### Final player programming interface
 
-The two-rule Basic Survival policy remains an architectural proof, not the final player-facing programming system. Richer scripts, priorities, diagnostics, and compute-scaled automation remain later work. Manual and automated actions must continue to converge on shared authoritative commands.
+Basic Survival remains an architectural proof. Richer scripts, priorities, diagnostics, and compute-scaled automation are later work. Manual and automated actions must continue to converge on shared authoritative commands.
 
-### Failure and repair semantics
+### Final repair semantics
 
-`set_subsystem_operational()` remains a deterministic hook, not a final wear/damage model. Real failure causes, health representation, and repair semantics remain open until the industrial/recovery loop can support them.
+Current component integrity is the authoritative bridge into staged Self Repair, but exact repair recipes, minimum useful thresholds, fabrication requirements, and field-repair rates remain later industrial/recovery design work.
 
-## Phase 2 production rules
+## Phase-2 production rules
 
 - Simulation owns mechanical truth.
 - Unreal consumes authoritative state and submits commands through the adapter boundary.
 - `src/simulation/` remains buildable/testable without Unreal dependencies.
-- Manual and automated controls must share authoritative mechanics.
+- Manual and automated controls share authoritative mechanics.
 - Canonical simulation units stay engine-independent; Unreal conversion happens at the presentation boundary.
 - Deterministic headless execution remains required.
-- Save data remains an explicit versioned schema rather than blind Unreal object serialization.
-- Later descendants expose capabilities from installed hardware/software, not from a universal player ability list.
-- Better computation may enable richer automation/design capability, but cannot bypass physical hardware, materials, manufacturing, or known science.
+- Save data remains an explicit versioned schema.
+- Later descendants expose capabilities from installed hardware/software, not a universal ability list.
+- Better computation may enable richer automation/design capability but cannot bypass physical hardware, materials, manufacturing, or known science.
 
 ## Visual product constraint
 
-Everward must not drift toward a primarily 2D, abstract-map, low-poly, deliberately quirky, or visually lightweight interpretation because it is easier to implement. The target remains cinematic, immersive, high-fidelity 3D scientific realism.
+Everward remains a cinematic, immersive, high-fidelity 3D scientific-realism project. It must not drift toward a primarily 2D, abstract-map, low-poly, deliberately quirky, or visually lightweight interpretation merely because that is easier to implement.
 
-The temporary Phase-2 sphere, markers, labels, and light are engineering scaffolding only and should no longer be treated as sufficient for serious embodiment evaluation.
+Temporary primitives are acceptable only as engineering scaffolding. Each serious embodiment test should move closer to the canonical Prime Probe A target.
 
 ## Automation operating state
 
-Scheduled development follows `AGENT_DEVELOPMENT_POLICY.md` and the parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md`:
+Scheduled development follows `AGENT_DEVELOPMENT_POLICY.md`, `CURRENT_EXECUTION_PLAN.md`, and the parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md`:
 
 1. inspect open PRs/CI first;
 2. repair red work before starting new work;
 3. merge only independently verified green and merge-ready work;
-4. otherwise advance one highest-value authorized slice or a qualifying parallel-safe sub-slice;
-5. keep affected documentation current;
+4. otherwise advance one highest-value authorized slice or qualifying parallel-safe sub-slice;
+5. keep this status current when repository reality changes;
 6. preserve accepted design/architecture decisions;
 7. never convert portable CI into a substitute for required local Product Reality evidence.
 
