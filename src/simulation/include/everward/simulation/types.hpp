@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 
@@ -27,6 +28,33 @@ struct StaticSphereBody {
     double radius_m{1.0};
 };
 
+// Authoritative local-space contact samples for the Prime Generation-1 body.
+// This is the first step away from the temporary 8 m bounding sphere. The
+// samples deliberately approximate the long central hull plus the two broad
+// radiator/wing regions while remaining simple enough for deterministic swept
+// sphere-vs-sphere contact tests in the engine-independent runtime.
+struct ProbeCollisionSphereSample {
+    Vector3d local_center_m{};
+    double radius_m{1.0};
+};
+
+struct ProbeCompoundCollisionEnvelope {
+    static constexpr std::size_t SampleCount = 5;
+
+    std::array<ProbeCollisionSphereSample, SampleCount> samples{{
+        // Forward science/hull section.
+        {{5.0, 0.0, 0.0}, 1.35},
+        // Central computation/reactor hull.
+        {{0.0, 0.0, 0.0}, 1.60},
+        // Aft propulsion/hull section.
+        {{-5.0, 0.0, 0.0}, 1.50},
+        // Port radiator/wing region.
+        {{-0.5, -3.0, 0.0}, 1.00},
+        // Starboard radiator/wing region.
+        {{-0.5, 3.0, 0.0}, 1.00},
+    }};
+};
+
 struct ProbeStateSnapshot {
     std::string probe_id{"EV-0001"};
     std::uint32_t generation{1};
@@ -39,11 +67,13 @@ struct ProbeStateSnapshot {
     EulerAttitudeDegrees attitude_degrees{};
     double mass_kg{2500.0};
 
-    // Conservative Prime Generation-1 blockout collision envelope. The first
-    // recognizable ~15 m body is represented by an 8 m bounding sphere so
-    // contact occurs near the visible fore/aft/radiator extents rather than at
-    // the obsolete 0.75 m engineering-shell placeholder. A later compound
-    // envelope can refine this without changing the contact telemetry contract.
+    // New authoritative shape description. The contact solver migration will
+    // consume these five local-space samples and retire the legacy sphere below.
+    ProbeCompoundCollisionEnvelope compound_collision_envelope{};
+
+    // Transitional compatibility field used by the existing swept-sphere solver.
+    // It remains at 8 m only until the compound-envelope solver lands; do not
+    // treat this as the final physical size of EV-0001.
     double collision_envelope_radius_m{8.0};
     bool has_contact_history{false};
     std::string last_contact_body_id{};
