@@ -316,6 +316,19 @@ struct EVERWARD_API FEverwardManipulatorArmState
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
     double WristDegrees = 0.0;
 
+    // Commanded joint targets, distinct from the current (slewing) angles
+    // above. Joint articulation input reads these back rather than the
+    // in-motion angle so repeated nudges accumulate against the last
+    // commanded target instead of the transient current pose.
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    double CommandedShoulderDegrees = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    double CommandedElbowDegrees = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    double CommandedWristDegrees = 0.0;
+
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
     bool bToolAttached = false;
 };

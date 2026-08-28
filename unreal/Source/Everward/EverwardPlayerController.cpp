@@ -80,10 +80,20 @@ void AEverwardPlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::O, IE_Pressed, this, &AEverwardPlayerController::RollProbeRight);
 
     // Slice 6 foundation: deploy/stow toggle per arm, plus a single tool
-    // attach/detach toggle. Joint articulation input remains a follow-up.
+    // attach/detach toggle.
     InputComponent->BindKey(EKeys::One, IE_Pressed, this, &AEverwardPlayerController::TogglePortManipulatorArm);
     InputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AEverwardPlayerController::ToggleStarboardManipulatorArm);
     InputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AEverwardPlayerController::ToggleManipulatorTool);
+
+    // Slice 6 joint-articulation follow-up: dedicated manipulator HUD page,
+    // arm/joint selection, and target-angle nudging.
+    InputComponent->BindKey(EKeys::M, IE_Pressed, this, &AEverwardPlayerController::ToggleManipulatorPanel);
+    InputComponent->BindKey(EKeys::N, IE_Pressed, this, &AEverwardPlayerController::CycleManipulatorArmSelection);
+    InputComponent->BindKey(EKeys::Four, IE_Pressed, this, &AEverwardPlayerController::SelectManipulatorJointShoulder);
+    InputComponent->BindKey(EKeys::Five, IE_Pressed, this, &AEverwardPlayerController::SelectManipulatorJointElbow);
+    InputComponent->BindKey(EKeys::Six, IE_Pressed, this, &AEverwardPlayerController::SelectManipulatorJointWrist);
+    InputComponent->BindKey(EKeys::Comma, IE_Pressed, this, &AEverwardPlayerController::DecreaseManipulatorJointTarget);
+    InputComponent->BindKey(EKeys::Period, IE_Pressed, this, &AEverwardPlayerController::IncreaseManipulatorJointTarget);
 
     // Retain the original engineering-shell aliases while the final input
     // model remains intentionally unsettled.
@@ -281,6 +291,56 @@ void AEverwardPlayerController::ToggleManipulatorTool()
     }
 }
 
+void AEverwardPlayerController::ToggleManipulatorPanel()
+{
+    if (AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD()))
+    {
+        EverwardHUD->ToggleManipulatorPanel();
+    }
+}
+
+void AEverwardPlayerController::CycleManipulatorArmSelection()
+{
+    if (AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD()))
+    {
+        EverwardHUD->CycleSelectedManipulatorArm();
+    }
+}
+
+void AEverwardPlayerController::SelectManipulatorJointShoulder()
+{
+    if (AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD()))
+    {
+        EverwardHUD->SelectManipulatorJointShoulder();
+    }
+}
+
+void AEverwardPlayerController::SelectManipulatorJointElbow()
+{
+    if (AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD()))
+    {
+        EverwardHUD->SelectManipulatorJointElbow();
+    }
+}
+
+void AEverwardPlayerController::SelectManipulatorJointWrist()
+{
+    if (AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD()))
+    {
+        EverwardHUD->SelectManipulatorJointWrist();
+    }
+}
+
+void AEverwardPlayerController::IncreaseManipulatorJointTarget()
+{
+    AdjustSelectedManipulatorJointTargetDegrees(ManipulatorJointAdjustmentDegrees);
+}
+
+void AEverwardPlayerController::DecreaseManipulatorJointTarget()
+{
+    AdjustSelectedManipulatorJointTargetDegrees(-ManipulatorJointAdjustmentDegrees);
+}
+
 void AEverwardPlayerController::LookYaw(float Value)
 {
     if (!FMath::IsNearlyZero(Value))
@@ -434,6 +494,51 @@ void AEverwardPlayerController::ToggleManipulatorArmDeployment(EEverwardManipula
         {
             (void)Adapter->CommandDeployManipulatorArm(ArmId);
         }
+        return;
+    }
+}
+
+void AEverwardPlayerController::AdjustSelectedManipulatorJointTargetDegrees(double DeltaDegrees)
+{
+    const AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD());
+    UProbeSimulationAdapter* Adapter = GetProbeAdapter();
+    if (EverwardHUD == nullptr || !EverwardHUD->IsManipulatorPanelExpanded() || Adapter == nullptr)
+    {
+        return;
+    }
+
+    const EEverwardManipulatorArmId ArmId =
+        EverwardHUD->GetSelectedManipulatorArmIndex() == 0
+            ? EEverwardManipulatorArmId::Port
+            : EEverwardManipulatorArmId::Starboard;
+    const int32 JointIndex = EverwardHUD->GetSelectedManipulatorJointIndex();
+    const EEverwardManipulatorJoint Joint =
+        JointIndex == 0 ? EEverwardManipulatorJoint::Shoulder :
+        JointIndex == 1 ? EEverwardManipulatorJoint::Elbow :
+        EEverwardManipulatorJoint::Wrist;
+
+    for (const FEverwardManipulatorArmState& ArmState : Adapter->GetManipulatorArmStates())
+    {
+        if (ArmState.ArmId != ArmId)
+        {
+            continue;
+        }
+
+        // Nudge from the last commanded target rather than the current
+        // (still-slewing) angle, so repeated presses accumulate toward the
+        // intended pose instead of chasing a moving current value.
+        double CommandedDegrees = 0.0;
+        switch (Joint)
+        {
+            case EEverwardManipulatorJoint::Shoulder: CommandedDegrees = ArmState.CommandedShoulderDegrees; break;
+            case EEverwardManipulatorJoint::Elbow: CommandedDegrees = ArmState.CommandedElbowDegrees; break;
+            case EEverwardManipulatorJoint::Wrist: CommandedDegrees = ArmState.CommandedWristDegrees; break;
+        }
+
+        // Rejected (e.g. arm not fully deployed) surfaces through the
+        // existing COMMAND REJECTED banner; joint clamping to the physical
+        // range happens authoritatively in ManipulatorRig, not here.
+        (void)Adapter->CommandSetManipulatorJointTargetDegrees(ArmId, Joint, CommandedDegrees + DeltaDegrees);
         return;
     }
 }
