@@ -17,6 +17,13 @@ static bool has_layer(const std::vector<AudioPerceptionLayer>& layers, AudioPerc
     return std::find(layers.begin(), layers.end(), layer) != layers.end();
 }
 
+static bool has_candidate(const EvolutionContext& context, const std::string& id) {
+    const auto candidates = EvolvingSensorium::adjacent_candidates(context);
+    return std::any_of(candidates.begin(), candidates.end(), [&](const auto& candidate) {
+        return candidate.id == id;
+    });
+}
+
 int main() {
     ProbeStateSnapshot snapshot;
 
@@ -32,6 +39,11 @@ int main() {
         assert(!state.adaptive_ambience);
         assert(!state.generative_music);
         assert(!state.songwriting);
+
+        // The first richer physical-audio capability is already adjacent to
+        // the canonical probe instead of requiring a scripted future class.
+        context.fabrication_maturity = 1.10;
+        assert(has_candidate(context, "sensorium.vibration.add"));
     }
 
     // Dedicated sensing hardware makes physical contact and EM phenomena
@@ -65,6 +77,7 @@ int main() {
         assert(state.adaptive_ambience);
         assert(state.generative_music);
         assert(!state.vocal_synthesis);
+        assert(has_candidate(context, "sensorium.music-generation.add"));
     }
 
     // Very advanced computation may become artistic rather than merely
@@ -76,12 +89,13 @@ int main() {
         context.computation_maturity = 16.0;
         context.installed_traits = {
             {"sensors.science", "Scientific suite", EvolutionDomain::Sensors, 4.0, {"sensor", "scientific-sonification"}},
-            {"compute.design", "Design simulation", EvolutionDomain::Computation, 4.0, {"compute", "design-simulation", "adaptive-audio"}},
+            {"compute.design", "Design simulation", EvolutionDomain::Computation, 4.0, {"compute", "design-simulation", "adaptive-audio", "music-generation", "vocal-synthesis"}},
         };
         const auto state = EvolvingSensorium::evaluate(context);
         assert(state.generative_music);
         assert(state.vocal_synthesis);
         assert(state.songwriting);
+        assert(has_candidate(context, "sensorium.songwriting.add"));
 
         const auto layers = EvolvingSensorium::active_layers(context);
         assert(has_layer(layers, AudioPerceptionLayer::GenerativeMusic));
