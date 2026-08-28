@@ -36,9 +36,7 @@ AEverwardProbePawn::AEverwardProbePawn()
     };
 
     // Simple Prime A embodiment: one coherent tube, two thermal/radiator wings,
-    // a clear aft engine, forward science/sensor head, and real manipulator
-    // geometry. This intentionally favors a readable spacecraft silhouette over
-    // the previous scatter of disconnected engineering primitives.
+    // a clear aft engine, forward science head, and visible manipulator geometry.
     ProbeMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PrimeCentralTube"));
     ConfigureMesh(ProbeMesh, ProbeRoot);
     if (CylinderMeshAsset.Succeeded()) ProbeMesh->SetStaticMesh(CylinderMeshAsset.Object);
@@ -108,13 +106,13 @@ AEverwardProbePawn::AEverwardProbePawn()
         const TCHAR* Prefix = bPort ? TEXT("Port") : TEXT("Starboard");
         const float Side = bPort ? -1.0f : 1.0f;
 
-        USceneComponent*& ShoulderPivot = bPort ? PortShoulderPivot : StarboardShoulderPivot;
-        UStaticMeshComponent*& Shoulder = bPort ? PortShoulder : StarboardShoulder;
-        UStaticMeshComponent*& UpperArm = bPort ? PortUpperArm : StarboardUpperArm;
-        USceneComponent*& ElbowPivot = bPort ? PortElbowPivot : StarboardElbowPivot;
-        UStaticMeshComponent*& Forearm = bPort ? PortForearm : StarboardForearm;
-        USceneComponent*& WristPivot = bPort ? PortWristPivot : StarboardWristPivot;
-        UStaticMeshComponent*& ToolHead = bPort ? PortToolHead : StarboardToolHead;
+        TObjectPtr<USceneComponent>& ShoulderPivot = bPort ? PortShoulderPivot : StarboardShoulderPivot;
+        TObjectPtr<UStaticMeshComponent>& Shoulder = bPort ? PortShoulder : StarboardShoulder;
+        TObjectPtr<UStaticMeshComponent>& UpperArm = bPort ? PortUpperArm : StarboardUpperArm;
+        TObjectPtr<USceneComponent>& ElbowPivot = bPort ? PortElbowPivot : StarboardElbowPivot;
+        TObjectPtr<UStaticMeshComponent>& Forearm = bPort ? PortForearm : StarboardForearm;
+        TObjectPtr<USceneComponent>& WristPivot = bPort ? PortWristPivot : StarboardWristPivot;
+        TObjectPtr<UStaticMeshComponent>& ToolHead = bPort ? PortToolHead : StarboardToolHead;
 
         ShoulderPivot = CreateDefaultSubobject<USceneComponent>(*FString::Printf(TEXT("%sShoulderPivot"), Prefix));
         ShoulderPivot->SetupAttachment(ProbeRoot);
@@ -157,11 +155,9 @@ AEverwardProbePawn::AEverwardProbePawn()
     ConfigureArm(true);
     ConfigureArm(false);
 
-    // This remains the existing simulation-owned temporary spherical contact
-    // proxy. The user's Product Reality feedback correctly identifies its poor
-    // fit around an elongated spacecraft; a compound/capsule authoritative
-    // contact shape is tracked as the next physics correction rather than being
-    // hidden by cosmetic mesh changes here.
+    // The current engine-independent contact model is still a sphere. The
+    // elongated body makes its lateral overreach obvious, so compound/capsule
+    // contact is now an explicit follow-up instead of being cosmetically hidden.
     ProbeCollisionEnvelope = CreateDefaultSubobject<USphereComponent>(TEXT("ProbeCollisionEnvelope"));
     ProbeCollisionEnvelope->SetupAttachment(ProbeRoot);
     ProbeCollisionEnvelope->SetSphereRadius(800.0f);
@@ -232,7 +228,6 @@ void AEverwardProbePawn::ApplyPrimeFunctionalMaterials()
     ApplyMaterialFamily(PortManeuverPod, ManeuverHardware, 0.76f, 0.44f);
     ApplyMaterialFamily(StarboardManeuverPod, ManeuverHardware, 0.76f, 0.44f);
     ApplyMaterialFamily(DorsalMarker, SensorMast, 0.52f, 0.36f);
-
     ApplyMaterialFamily(PortShoulder, JointHardware, 0.84f, 0.46f);
     ApplyMaterialFamily(StarboardShoulder, JointHardware, 0.84f, 0.46f);
     ApplyMaterialFamily(PortUpperArm, ArmStructure, 0.80f, 0.43f);
@@ -252,10 +247,10 @@ void AEverwardProbePawn::UpdateManipulatorVisuals()
     {
         const bool bPort = State.ArmId == EEverwardManipulatorArmId::Port;
         const float Side = bPort ? -1.0f : 1.0f;
-        USceneComponent* ShoulderPivot = bPort ? PortShoulderPivot : StarboardShoulderPivot;
-        USceneComponent* ElbowPivot = bPort ? PortElbowPivot : StarboardElbowPivot;
-        USceneComponent* WristPivot = bPort ? PortWristPivot : StarboardWristPivot;
-        UStaticMeshComponent* ToolHead = bPort ? PortToolHead : StarboardToolHead;
+        USceneComponent* ShoulderPivot = bPort ? PortShoulderPivot.Get() : StarboardShoulderPivot.Get();
+        USceneComponent* ElbowPivot = bPort ? PortElbowPivot.Get() : StarboardElbowPivot.Get();
+        USceneComponent* WristPivot = bPort ? PortWristPivot.Get() : StarboardWristPivot.Get();
+        UStaticMeshComponent* ToolHead = bPort ? PortToolHead.Get() : StarboardToolHead.Get();
         if (ShoulderPivot == nullptr || ElbowPivot == nullptr || WristPivot == nullptr) continue;
 
         const float Deploy = FMath::Clamp(static_cast<float>(State.DeploymentFraction), 0.0f, 1.0f);
