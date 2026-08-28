@@ -79,6 +79,12 @@ void AEverwardPlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::U, IE_Pressed, this, &AEverwardPlayerController::RollProbeLeft);
     InputComponent->BindKey(EKeys::O, IE_Pressed, this, &AEverwardPlayerController::RollProbeRight);
 
+    // Slice 6 foundation: deploy/stow toggle per arm, plus a single tool
+    // attach/detach toggle. Joint articulation input remains a follow-up.
+    InputComponent->BindKey(EKeys::One, IE_Pressed, this, &AEverwardPlayerController::TogglePortManipulatorArm);
+    InputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AEverwardPlayerController::ToggleStarboardManipulatorArm);
+    InputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AEverwardPlayerController::ToggleManipulatorTool);
+
     // Retain the original engineering-shell aliases while the final input
     // model remains intentionally unsettled.
     InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AEverwardPlayerController::IncreaseForwardVelocity);
@@ -236,6 +242,45 @@ void AEverwardPlayerController::RollProbeRight()
     AdjustAttitudeDegrees(FRotator(0.0, 0.0, AttitudeAdjustmentDegrees));
 }
 
+void AEverwardPlayerController::TogglePortManipulatorArm()
+{
+    ToggleManipulatorArmDeployment(EEverwardManipulatorArmId::Port);
+}
+
+void AEverwardPlayerController::ToggleStarboardManipulatorArm()
+{
+    ToggleManipulatorArmDeployment(EEverwardManipulatorArmId::Starboard);
+}
+
+void AEverwardPlayerController::ToggleManipulatorTool()
+{
+    UProbeSimulationAdapter* Adapter = GetProbeAdapter();
+    if (Adapter == nullptr)
+    {
+        return;
+    }
+
+    // Attach/detach targets whichever arm is deployed; Port takes priority
+    // when both are deployed. This single-key toggle is a Slice 6 foundation
+    // control, not a final per-arm tool interface.
+    for (const FEverwardManipulatorArmState& ArmState : Adapter->GetManipulatorArmStates())
+    {
+        if (!ArmState.bIsDeployed)
+        {
+            continue;
+        }
+        if (ArmState.bToolAttached)
+        {
+            (void)Adapter->CommandDetachManipulatorTool(ArmState.ArmId);
+        }
+        else
+        {
+            (void)Adapter->CommandAttachManipulatorTool(ArmState.ArmId);
+        }
+        return;
+    }
+}
+
 void AEverwardPlayerController::LookYaw(float Value)
 {
     if (!FMath::IsNearlyZero(Value))
@@ -361,4 +406,34 @@ void AEverwardPlayerController::AdjustAttitudeDegrees(const FRotator& DeltaAttit
     }
 
     (void)Adapter->CommandAdjustAttitudeDegrees(DeltaAttitude);
+}
+
+void AEverwardPlayerController::ToggleManipulatorArmDeployment(EEverwardManipulatorArmId ArmId)
+{
+    UProbeSimulationAdapter* Adapter = GetProbeAdapter();
+    if (Adapter == nullptr)
+    {
+        return;
+    }
+
+    for (const FEverwardManipulatorArmState& ArmState : Adapter->GetManipulatorArmStates())
+    {
+        if (ArmState.ArmId != ArmId)
+        {
+            continue;
+        }
+
+        // A single key toggles direction rather than requiring separate
+        // deploy/stow keys per arm. Mid-transition presses reverse cleanly
+        // (ManipulatorRig::begin_deploy/begin_stow both support this).
+        if (ArmState.bIsDeployed || ArmState.bIsDeploying)
+        {
+            (void)Adapter->CommandStowManipulatorArm(ArmId);
+        }
+        else
+        {
+            (void)Adapter->CommandDeployManipulatorArm(ArmId);
+        }
+        return;
+    }
 }

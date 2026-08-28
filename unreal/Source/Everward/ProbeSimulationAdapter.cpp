@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "everward/simulation/software_policy.hpp"
 #include "everward/simulation/impact_damage.hpp"
+#include "everward/simulation/manipulator.hpp"
 
 #include <exception>
 #include <string>
@@ -53,6 +54,65 @@ FString SharedProbeLockoutReason(const everward::simulation::ProbeStateSnapshot&
     return FString();
 }
 
+everward::simulation::ManipulatorArmId ToSimulationManipulatorArmId(EEverwardManipulatorArmId ArmId)
+{
+    switch (ArmId)
+    {
+        case EEverwardManipulatorArmId::Port: return everward::simulation::ManipulatorArmId::Port;
+        case EEverwardManipulatorArmId::Starboard: return everward::simulation::ManipulatorArmId::Starboard;
+    }
+    return everward::simulation::ManipulatorArmId::Port;
+}
+
+const TCHAR* ManipulatorArmName(EEverwardManipulatorArmId ArmId)
+{
+    switch (ArmId)
+    {
+        case EEverwardManipulatorArmId::Port: return TEXT("port");
+        case EEverwardManipulatorArmId::Starboard: return TEXT("starboard");
+    }
+    return TEXT("unknown");
+}
+
+everward::simulation::ManipulatorJoint ToSimulationManipulatorJoint(EEverwardManipulatorJoint Joint)
+{
+    switch (Joint)
+    {
+        case EEverwardManipulatorJoint::Shoulder: return everward::simulation::ManipulatorJoint::Shoulder;
+        case EEverwardManipulatorJoint::Elbow: return everward::simulation::ManipulatorJoint::Elbow;
+        case EEverwardManipulatorJoint::Wrist: return everward::simulation::ManipulatorJoint::Wrist;
+    }
+    return everward::simulation::ManipulatorJoint::Shoulder;
+}
+
+const TCHAR* ManipulatorJointName(EEverwardManipulatorJoint Joint)
+{
+    switch (Joint)
+    {
+        case EEverwardManipulatorJoint::Shoulder: return TEXT("shoulder");
+        case EEverwardManipulatorJoint::Elbow: return TEXT("elbow");
+        case EEverwardManipulatorJoint::Wrist: return TEXT("wrist");
+    }
+    return TEXT("unknown");
+}
+
+FEverwardManipulatorArmState ToUnrealManipulatorArmState(
+    EEverwardManipulatorArmId ArmId,
+    const everward::simulation::ManipulatorArmState& State)
+{
+    FEverwardManipulatorArmState Out;
+    Out.ArmId = ArmId;
+    Out.bIsDeployed = State.is_deployed;
+    Out.bIsDeploying = State.is_deploying;
+    Out.bIsStowing = State.is_stowing;
+    Out.DeploymentFraction = State.deployment_fraction;
+    Out.ShoulderDegrees = State.angles.shoulder_degrees;
+    Out.ElbowDegrees = State.angles.elbow_degrees;
+    Out.WristDegrees = State.angles.wrist_degrees;
+    Out.bToolAttached = State.tool_attached;
+    return Out;
+}
+
 FString IntegrityReason(
     const everward::simulation::DamageAwareProbeRuntime& Runtime,
     everward::simulation::PowerSubsystem Subsystem)
@@ -76,6 +136,7 @@ void UProbeSimulationAdapter::BeginPlay()
     Super::BeginPlay();
     Core = new everward::simulation::DamageAwareProbeRuntime(
         everward::simulation::DamageAwareProbeRuntime::make_canonical_ev0001());
+    Manipulators = new everward::simulation::ManipulatorRig();
 
     // Register the same sphere rendered by the temporary Phase-2 environment.
     // The runtime, not Unreal collision response, decides whether EV-0001 can
@@ -97,6 +158,8 @@ void UProbeSimulationAdapter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     delete Core;
     Core = nullptr;
+    delete Manipulators;
+    Manipulators = nullptr;
     Super::EndPlay(EndPlayReason);
 }
 
@@ -112,6 +175,10 @@ void UProbeSimulationAdapter::TickComponent(
     while (FixedStepAccumulatorSeconds >= FixedStepSeconds)
     {
         Core->advance_wall_ticks(FixedStepTicks);
+        if (Manipulators != nullptr)
+        {
+            Manipulators->advance(FixedStepSeconds);
+        }
         FixedStepAccumulatorSeconds -= FixedStepSeconds;
     }
 
@@ -155,6 +222,20 @@ void UProbeSimulationAdapter::TickComponent(
             LastScanLifecycleNotice.bCancelled =
                 Event.type == everward::simulation::DomainEventType::ScanCancelled;
             LastScanLifecycleNotice.Detail = UTF8_TO_TCHAR(Event.detail.c_str());
+        }
+    }
+
+    if (Manipulators != nullptr)
+    {
+        const auto ManipulatorEvents = Manipulators->drain_events();
+        for (const auto& Event : ManipulatorEvents)
+        {
+            UE_LOG(
+                LogTemp,
+                Log,
+                TEXT("Everward manipulator: %s // %s"),
+                Event.arm == everward::simulation::ManipulatorArmId::Port ? TEXT("PORT") : TEXT("STARBOARD"),
+                UTF8_TO_TCHAR(Event.detail.c_str()));
         }
     }
 }
@@ -350,6 +431,17 @@ FEverwardSoftwarePolicyStatus UProbeSimulationAdapter::GetSoftwarePolicyStatus()
     return Result;
 }
 
+TArray<FEverwardManipulatorArmState> UProbeSimulationAdapter::GetManipulatorArmStates() const
+{
+    TArray<FEverwardManipulatorArmState> Result;
+    if (Manipulators == nullptr) return Result;
+    Result.Add(ToUnrealManipulatorArmState(
+        EEverwardManipulatorArmId::Port, Manipulators->arm(everward::simulation::ManipulatorArmId::Port)));
+    Result.Add(ToUnrealManipulatorArmState(
+        EEverwardManipulatorArmId::Starboard, Manipulators->arm(everward::simulation::ManipulatorArmId::Starboard)));
+    return Result;
+}
+
 FEverwardProbeCommandResult UProbeSimulationAdapter::GetLastCommandResult() const { return LastCommandResult; }
 FEverwardAutomationNotice UProbeSimulationAdapter::GetLastAutomationNotice() const { return LastAutomationNotice; }
 FEverwardScanLifecycleNotice UProbeSimulationAdapter::GetLastScanLifecycleNotice() const { return LastScanLifecycleNotice; }
@@ -471,6 +563,74 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandClearSoftwarePolicy(
         return RecordCommandResult(CommandId, false, TEXT("no software policy installed"));
     Core->clear_policy();
     return RecordCommandResult(CommandId, true, TEXT("software policy cleared"));
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandDeployManipulatorArm(EEverwardManipulatorArmId ArmId)
+{
+    const FName CommandId(TEXT("deploy_manipulator_arm"));
+    if (Manipulators == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    try
+    {
+        Manipulators->begin_deploy(ToSimulationManipulatorArmId(ArmId));
+        return RecordCommandResult(CommandId, true,
+            FString::Printf(TEXT("%s arm deploying"), ManipulatorArmName(ArmId)));
+    }
+    catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandStowManipulatorArm(EEverwardManipulatorArmId ArmId)
+{
+    const FName CommandId(TEXT("stow_manipulator_arm"));
+    if (Manipulators == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    try
+    {
+        Manipulators->begin_stow(ToSimulationManipulatorArmId(ArmId));
+        return RecordCommandResult(CommandId, true,
+            FString::Printf(TEXT("%s arm stowing"), ManipulatorArmName(ArmId)));
+    }
+    catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSetManipulatorJointTargetDegrees(
+    EEverwardManipulatorArmId ArmId, EEverwardManipulatorJoint Joint, double TargetDegrees)
+{
+    const FName CommandId(TEXT("set_manipulator_joint_target"));
+    if (Manipulators == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    try
+    {
+        Manipulators->command_joint_target_degrees(
+            ToSimulationManipulatorArmId(ArmId), ToSimulationManipulatorJoint(Joint), TargetDegrees);
+        return RecordCommandResult(CommandId, true,
+            FString::Printf(TEXT("%s %s target set to %.1f deg"),
+                ManipulatorArmName(ArmId), ManipulatorJointName(Joint), TargetDegrees));
+    }
+    catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandAttachManipulatorTool(EEverwardManipulatorArmId ArmId)
+{
+    const FName CommandId(TEXT("attach_manipulator_tool"));
+    if (Manipulators == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    try
+    {
+        Manipulators->attach_tool(ToSimulationManipulatorArmId(ArmId));
+        return RecordCommandResult(CommandId, true,
+            FString::Printf(TEXT("%s arm tool attached"), ManipulatorArmName(ArmId)));
+    }
+    catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandDetachManipulatorTool(EEverwardManipulatorArmId ArmId)
+{
+    const FName CommandId(TEXT("detach_manipulator_tool"));
+    if (Manipulators == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    try
+    {
+        Manipulators->detach_tool(ToSimulationManipulatorArmId(ArmId));
+        return RecordCommandResult(CommandId, true,
+            FString::Printf(TEXT("%s arm tool detached"), ManipulatorArmName(ArmId)));
+    }
+    catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
 }
 
 void UProbeSimulationAdapter::SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond)

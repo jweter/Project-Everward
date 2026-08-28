@@ -131,6 +131,8 @@ Requirements:
 
 ### Slice 6 — Articulated manipulator arms
 
+**Status:** foundation sub-slice implemented via the parallel-safe lane (authoritative deploy/stow/tool mechanics, adapter command/telemetry surface, minimal input, compact HUD status) — see `PHASE2_MANIPULATOR_ARM_FOUNDATION_TEST.md`. Joint articulation input, visible arm geometry/animation, and a dedicated manipulator HUD page remain the next sub-slice; Slice 6 is not complete until those land and local Unreal evidence is recorded.
+
 Add at least two real articulated manipulators to the Prime probe.
 
 Initial mechanical chain:

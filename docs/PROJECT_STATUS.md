@@ -16,7 +16,7 @@ Canonical first-run evidence remains:
 
 The repository has advanced substantially beyond that first-run build through the explicit parallel-safe lane. Those later mechanics are **implemented but do not count as locally accepted Product Reality until the exact Unreal test passes.**
 
-Current `main`: `6d3b108ba310ac770ee8d0c182d318fef25d1229` after the portfolio secret-gate rollout. No development PR is currently open.
+Current `main`: `87967a01a364240aa1ea5c943edbb3c1ed55fb47`, after the evolving-sensorium-audio foundation (#122) and the Prime Generation-1 body blockout (#123, Slice 5). This continuation record had not yet been refreshed for those two merges; this pass folds them in alongside the manipulator arm foundation below.
 
 ## Verified local foundation
 
@@ -101,6 +101,31 @@ The contact record now feeds a deterministic damage foundation:
 
 **Status: implemented, Product Reality pending.** Collision acceptance still precedes claiming damage behavior complete.
 
+### Prime Generation-1 probe body blockout (Slice 5)
+
+The tiny engineering-shell placeholder is replaced with a modular ~15 m Prime Generation-1 blockout: structural spine, computation/core and power/reactor housings, main propulsion, forward sensor hardware, paired radiators and maneuvering pods, a dorsal marker, and paired manipulator shoulder mounts. The authoritative collision envelope and Unreal mirror both moved to an 8 m bounding sphere, and camera orbit/zoom was rescaled for the larger body.
+
+**Status: implemented, Product Reality pending.** See `PHASE2_PRIME_GEN1_BODY_BLOCKOUT_TEST.md`.
+
+### Evolving machine sensorium and audio progression
+
+`EvolvingSensorium` is a new engine-independent foundation module (parallel to `AdjacentGenerationEvolution`) modeling audio/perception as something a lineage earns rather than a stock soundtrack: essential accessibility cues are never progression-gated, while internal-machine perception, contact/vibration sensing, electromagnetic and scientific sonification, adaptive ambience, generative music, vocal synthesis, and songwriting are reachable adjacent upgrades keyed off installed traits and computation/science maturity.
+
+**Status: foundation architecture; not yet wired to Unreal audio presentation.**
+
+### Manipulator arm foundation (Slice 6, in progress)
+
+The first sub-slice of **Slice 6 — articulated manipulator arms** lands on the two shoulder mounts Slice 5 already exposes:
+
+- new engine-independent `ManipulatorRig` (Port/Starboard arms, each with shoulder/elbow/wrist joints);
+- deploy/stow is gradual and reversible mid-transition rather than an instant flag flip, and fires its lifecycle event exactly once per transition;
+- joint targets are only accepted on a fully deployed arm, are clamped (not rejected) to a constrained range, and slew toward the target at a bounded rate;
+- a tool interface can only attach to a deployed arm, and an arm cannot stow with a tool still attached;
+- `UProbeSimulationAdapter` exposes deploy/stow/joint/tool commands and per-arm telemetry, advanced on the same fixed-step cadence as the rest of the probe;
+- minimal input (`1`/`2` deploy-stow toggle per arm, `3` tool attach/detach toggle) and a compact HUD status line per arm.
+
+**Status: implemented, Product Reality pending.** Joint articulation input, visible arm geometry/animation, and a dedicated manipulator HUD page are the next sub-slice; see `PHASE2_MANIPULATOR_ARM_FOUNDATION_TEST.md` for the explicit remaining scope and the local test script.
+
 ### Canonical damaged awakening and Self Repair direction
 
 The canonical opening is now durable project direction:
@@ -145,7 +170,10 @@ Everward continues to preserve:
 - capability-driven Unreal HUD/control shell and `UProbeSimulationAdapter` boundary;
 - deterministic physical-body/contact records;
 - component-specific impact/damage foundation;
+- modular Prime Generation-1 probe body blockout with a rescaled collision envelope;
 - adjacent-generation evolution foundation;
+- evolving machine sensorium/audio progression foundation;
+- manipulator arm deploy/stow/joint/tool foundation (Slice 6, in progress);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - explicit versioned save architecture rather than blind Unreal object serialization.
 
@@ -175,10 +203,9 @@ Priority order:
 
 1. complete the accumulated local Phase-2 Product Reality pass above;
 2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
-3. once the contact/damage foundation is locally credible, begin **Slice 5 — Prime Generation-1 probe body blockout** using canonical Probe A / Scientific Explorer references;
-4. follow with **Slice 6 — articulated manipulator arms** designed as real future servicing/mining/construction capability rather than decoration;
-5. then move into object selection and physical interaction;
-6. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
+3. continue **Slice 6 — articulated manipulator arms**: joint articulation input, visible arm geometry/animation, and a dedicated manipulator HUD page, designed as real future servicing/mining/construction capability rather than decoration;
+4. then move into object selection and physical interaction;
+5. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 
 While local Product Reality is unavailable, only work that satisfies the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md` may merge. Do not build new mechanics that assume unverified contact/damage behavior is correct.
 
