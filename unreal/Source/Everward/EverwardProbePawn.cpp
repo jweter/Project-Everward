@@ -27,132 +27,137 @@ AEverwardProbePawn::AEverwardProbePawn()
     static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMeshAsset(
         TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 
-    auto ConfigureVisualPiece = [this](UStaticMeshComponent* Component)
+    auto ConfigureMesh = [](UStaticMeshComponent* Component, USceneComponent* Parent)
     {
-        Component->SetupAttachment(ProbeRoot);
+        Component->SetupAttachment(Parent);
         Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         Component->SetGenerateOverlapEvents(false);
         Component->SetCanEverAffectNavigation(false);
     };
 
-    // Prime Generation-1 blockout: approximately 15 m long, with a clear
-    // fore/aft propulsion axis and visually distinct system modules. These are
-    // deliberately simple primitives so silhouette, scale, camera framing and
-    // component layout can be Product-Reality-tested before production art.
-    ProbeMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StructuralSpine"));
-    ConfigureVisualPiece(ProbeMesh);
-    if (CubeMeshAsset.Succeeded())
-    {
-        ProbeMesh->SetStaticMesh(CubeMeshAsset.Object);
-    }
-    ProbeMesh->SetRelativeScale3D(FVector(8.2, 0.42, 0.34));
+    // Simple Prime A embodiment: one coherent tube, two thermal/radiator wings,
+    // a clear aft engine, forward science head, and visible manipulator geometry.
+    ProbeMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PrimeCentralTube"));
+    ConfigureMesh(ProbeMesh, ProbeRoot);
+    if (CylinderMeshAsset.Succeeded()) ProbeMesh->SetStaticMesh(CylinderMeshAsset.Object);
+    ProbeMesh->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
+    ProbeMesh->SetRelativeScale3D(FVector(1.05, 1.05, 10.8));
 
-    CoreHousing = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ComputationCoreHousing"));
-    ConfigureVisualPiece(CoreHousing);
-    if (SphereMeshAsset.Succeeded())
-    {
-        CoreHousing->SetStaticMesh(SphereMeshAsset.Object);
-    }
-    CoreHousing->SetRelativeLocation(FVector(120.0, 0.0, 10.0));
-    CoreHousing->SetRelativeScale3D(FVector(1.30, 1.05, 0.90));
+    CoreHousing = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ComputationCoreSleeve"));
+    ConfigureMesh(CoreHousing, ProbeRoot);
+    if (CylinderMeshAsset.Succeeded()) CoreHousing->SetStaticMesh(CylinderMeshAsset.Object);
+    CoreHousing->SetRelativeLocation(FVector(150.0, 0.0, 0.0));
+    CoreHousing->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
+    CoreHousing->SetRelativeScale3D(FVector(1.22, 1.22, 1.55));
 
-    ReactorHousing = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PowerReactorHousing"));
-    ConfigureVisualPiece(ReactorHousing);
-    if (SphereMeshAsset.Succeeded())
-    {
-        ReactorHousing->SetStaticMesh(SphereMeshAsset.Object);
-    }
-    ReactorHousing->SetRelativeLocation(FVector(-250.0, 0.0, -5.0));
-    ReactorHousing->SetRelativeScale3D(FVector(1.18, 1.00, 0.95));
+    ReactorHousing = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PowerReactorSleeve"));
+    ConfigureMesh(ReactorHousing, ProbeRoot);
+    if (CylinderMeshAsset.Succeeded()) ReactorHousing->SetStaticMesh(CylinderMeshAsset.Object);
+    ReactorHousing->SetRelativeLocation(FVector(-260.0, 0.0, 0.0));
+    ReactorHousing->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
+    ReactorHousing->SetRelativeScale3D(FVector(1.18, 1.18, 1.85));
 
     MainEngine = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MainPropulsionAssembly"));
-    ConfigureVisualPiece(MainEngine);
-    if (CylinderMeshAsset.Succeeded())
-    {
-        MainEngine->SetStaticMesh(CylinderMeshAsset.Object);
-    }
-    MainEngine->SetRelativeLocation(FVector(-640.0, 0.0, 0.0));
+    ConfigureMesh(MainEngine, ProbeRoot);
+    if (CylinderMeshAsset.Succeeded()) MainEngine->SetStaticMesh(CylinderMeshAsset.Object);
+    MainEngine->SetRelativeLocation(FVector(-620.0, 0.0, 0.0));
     MainEngine->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
-    MainEngine->SetRelativeScale3D(FVector(1.45, 1.45, 2.20));
+    MainEngine->SetRelativeScale3D(FVector(1.40, 1.40, 1.55));
 
-    ForwardSensor = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ForwardSensor"));
-    ConfigureVisualPiece(ForwardSensor);
-    if (CylinderMeshAsset.Succeeded())
-    {
-        ForwardSensor->SetStaticMesh(CylinderMeshAsset.Object);
-    }
-    ForwardSensor->SetRelativeLocation(FVector(610.0, 0.0, 22.0));
+    ForwardSensor = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ForwardScienceSensor"));
+    ConfigureMesh(ForwardSensor, ProbeRoot);
+    if (CylinderMeshAsset.Succeeded()) ForwardSensor->SetStaticMesh(CylinderMeshAsset.Object);
+    ForwardSensor->SetRelativeLocation(FVector(620.0, 0.0, 0.0));
     ForwardSensor->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
-    ForwardSensor->SetRelativeScale3D(FVector(0.72, 0.72, 1.55));
+    ForwardSensor->SetRelativeScale3D(FVector(0.72, 0.72, 1.35));
 
-    PortRadiator = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PortThermalRadiator"));
-    ConfigureVisualPiece(PortRadiator);
-    if (CubeMeshAsset.Succeeded())
-    {
-        PortRadiator->SetStaticMesh(CubeMeshAsset.Object);
-    }
-    PortRadiator->SetRelativeLocation(FVector(-40.0, -270.0, 8.0));
-    PortRadiator->SetRelativeScale3D(FVector(3.70, 2.00, 0.07));
+    PortRadiator = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PortThermalWing"));
+    ConfigureMesh(PortRadiator, ProbeRoot);
+    if (CubeMeshAsset.Succeeded()) PortRadiator->SetStaticMesh(CubeMeshAsset.Object);
+    PortRadiator->SetRelativeLocation(FVector(-30.0, -195.0, 0.0));
+    PortRadiator->SetRelativeScale3D(FVector(3.25, 1.85, 0.065));
 
-    StarboardRadiator = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StarboardThermalRadiator"));
-    ConfigureVisualPiece(StarboardRadiator);
-    if (CubeMeshAsset.Succeeded())
-    {
-        StarboardRadiator->SetStaticMesh(CubeMeshAsset.Object);
-    }
-    StarboardRadiator->SetRelativeLocation(FVector(-40.0, 270.0, 8.0));
-    StarboardRadiator->SetRelativeScale3D(FVector(3.70, 2.00, 0.07));
+    StarboardRadiator = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StarboardThermalWing"));
+    ConfigureMesh(StarboardRadiator, ProbeRoot);
+    if (CubeMeshAsset.Succeeded()) StarboardRadiator->SetStaticMesh(CubeMeshAsset.Object);
+    StarboardRadiator->SetRelativeLocation(FVector(-30.0, 195.0, 0.0));
+    StarboardRadiator->SetRelativeScale3D(FVector(3.25, 1.85, 0.065));
 
     PortManeuverPod = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PortManeuveringPod"));
-    ConfigureVisualPiece(PortManeuverPod);
-    if (SphereMeshAsset.Succeeded())
-    {
-        PortManeuverPod->SetStaticMesh(SphereMeshAsset.Object);
-    }
-    PortManeuverPod->SetRelativeLocation(FVector(-360.0, -155.0, 42.0));
-    PortManeuverPod->SetRelativeScale3D(FVector(0.58, 0.42, 0.42));
+    ConfigureMesh(PortManeuverPod, ProbeRoot);
+    if (SphereMeshAsset.Succeeded()) PortManeuverPod->SetStaticMesh(SphereMeshAsset.Object);
+    PortManeuverPod->SetRelativeLocation(FVector(-315.0, -118.0, 32.0));
+    PortManeuverPod->SetRelativeScale3D(FVector(0.38, 0.32, 0.32));
 
     StarboardManeuverPod = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StarboardManeuveringPod"));
-    ConfigureVisualPiece(StarboardManeuverPod);
-    if (SphereMeshAsset.Succeeded())
-    {
-        StarboardManeuverPod->SetStaticMesh(SphereMeshAsset.Object);
-    }
-    StarboardManeuverPod->SetRelativeLocation(FVector(-360.0, 155.0, 42.0));
-    StarboardManeuverPod->SetRelativeScale3D(FVector(0.58, 0.42, 0.42));
+    ConfigureMesh(StarboardManeuverPod, ProbeRoot);
+    if (SphereMeshAsset.Succeeded()) StarboardManeuverPod->SetStaticMesh(SphereMeshAsset.Object);
+    StarboardManeuverPod->SetRelativeLocation(FVector(-315.0, 118.0, 32.0));
+    StarboardManeuverPod->SetRelativeScale3D(FVector(0.38, 0.32, 0.32));
 
     DorsalMarker = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DorsalSensorMast"));
-    ConfigureVisualPiece(DorsalMarker);
-    if (CubeMeshAsset.Succeeded())
-    {
-        DorsalMarker->SetStaticMesh(CubeMeshAsset.Object);
-    }
-    DorsalMarker->SetRelativeLocation(FVector(160.0, 0.0, 125.0));
-    DorsalMarker->SetRelativeScale3D(FVector(1.10, 0.16, 0.60));
+    ConfigureMesh(DorsalMarker, ProbeRoot);
+    if (CubeMeshAsset.Succeeded()) DorsalMarker->SetStaticMesh(CubeMeshAsset.Object);
+    DorsalMarker->SetRelativeLocation(FVector(260.0, 0.0, 112.0));
+    DorsalMarker->SetRelativeScale3D(FVector(0.72, 0.14, 0.42));
 
-    PortShoulder = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PortShoulder"));
-    ConfigureVisualPiece(PortShoulder);
-    if (CylinderMeshAsset.Succeeded())
+    auto ConfigureArm = [&](bool bPort)
     {
-        PortShoulder->SetStaticMesh(CylinderMeshAsset.Object);
-    }
-    PortShoulder->SetRelativeLocation(FVector(70.0, -215.0, -45.0));
-    PortShoulder->SetRelativeRotation(FRotator(90.0, 0.0, 0.0));
-    PortShoulder->SetRelativeScale3D(FVector(0.52, 0.52, 0.60));
+        const TCHAR* Prefix = bPort ? TEXT("Port") : TEXT("Starboard");
+        const float Side = bPort ? -1.0f : 1.0f;
 
-    StarboardShoulder = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StarboardShoulder"));
-    ConfigureVisualPiece(StarboardShoulder);
-    if (CylinderMeshAsset.Succeeded())
-    {
-        StarboardShoulder->SetStaticMesh(CylinderMeshAsset.Object);
-    }
-    StarboardShoulder->SetRelativeLocation(FVector(70.0, 215.0, -45.0));
-    StarboardShoulder->SetRelativeRotation(FRotator(90.0, 0.0, 0.0));
-    StarboardShoulder->SetRelativeScale3D(FVector(0.52, 0.52, 0.60));
+        TObjectPtr<USceneComponent>& ShoulderPivot = bPort ? PortShoulderPivot : StarboardShoulderPivot;
+        TObjectPtr<UStaticMeshComponent>& Shoulder = bPort ? PortShoulder : StarboardShoulder;
+        TObjectPtr<UStaticMeshComponent>& UpperArm = bPort ? PortUpperArm : StarboardUpperArm;
+        TObjectPtr<USceneComponent>& ElbowPivot = bPort ? PortElbowPivot : StarboardElbowPivot;
+        TObjectPtr<UStaticMeshComponent>& Forearm = bPort ? PortForearm : StarboardForearm;
+        TObjectPtr<USceneComponent>& WristPivot = bPort ? PortWristPivot : StarboardWristPivot;
+        TObjectPtr<UStaticMeshComponent>& ToolHead = bPort ? PortToolHead : StarboardToolHead;
 
-    // 8 m is a conservative body-corresponding bounding sphere for the first
-    // ~15 m Prime blockout. The engine-neutral runtime still performs swept
-    // contact/resolution; this Unreal component only mirrors that envelope.
+        ShoulderPivot = CreateDefaultSubobject<USceneComponent>(*FString::Printf(TEXT("%sShoulderPivot"), Prefix));
+        ShoulderPivot->SetupAttachment(ProbeRoot);
+        ShoulderPivot->SetRelativeLocation(FVector(120.0, Side * 105.0, -92.0));
+
+        Shoulder = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("%sShoulder"), Prefix));
+        ConfigureMesh(Shoulder, ShoulderPivot);
+        if (CylinderMeshAsset.Succeeded()) Shoulder->SetStaticMesh(CylinderMeshAsset.Object);
+        Shoulder->SetRelativeRotation(FRotator(90.0, 0.0, 0.0));
+        Shoulder->SetRelativeScale3D(FVector(0.34, 0.34, 0.42));
+
+        UpperArm = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("%sUpperArm"), Prefix));
+        ConfigureMesh(UpperArm, ShoulderPivot);
+        if (CubeMeshAsset.Succeeded()) UpperArm->SetStaticMesh(CubeMeshAsset.Object);
+        UpperArm->SetRelativeLocation(FVector(90.0, 0.0, 0.0));
+        UpperArm->SetRelativeScale3D(FVector(1.80, 0.18, 0.18));
+
+        ElbowPivot = CreateDefaultSubobject<USceneComponent>(*FString::Printf(TEXT("%sElbowPivot"), Prefix));
+        ElbowPivot->SetupAttachment(ShoulderPivot);
+        ElbowPivot->SetRelativeLocation(FVector(180.0, 0.0, 0.0));
+
+        Forearm = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("%sForearm"), Prefix));
+        ConfigureMesh(Forearm, ElbowPivot);
+        if (CubeMeshAsset.Succeeded()) Forearm->SetStaticMesh(CubeMeshAsset.Object);
+        Forearm->SetRelativeLocation(FVector(75.0, 0.0, 0.0));
+        Forearm->SetRelativeScale3D(FVector(1.50, 0.16, 0.16));
+
+        WristPivot = CreateDefaultSubobject<USceneComponent>(*FString::Printf(TEXT("%sWristPivot"), Prefix));
+        WristPivot->SetupAttachment(ElbowPivot);
+        WristPivot->SetRelativeLocation(FVector(150.0, 0.0, 0.0));
+
+        ToolHead = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("%sMiningToolHead"), Prefix));
+        ConfigureMesh(ToolHead, WristPivot);
+        if (CylinderMeshAsset.Succeeded()) ToolHead->SetStaticMesh(CylinderMeshAsset.Object);
+        ToolHead->SetRelativeLocation(FVector(38.0, 0.0, 0.0));
+        ToolHead->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
+        ToolHead->SetRelativeScale3D(FVector(0.28, 0.28, 0.70));
+    };
+
+    ConfigureArm(true);
+    ConfigureArm(false);
+
+    // The current engine-independent contact model is still a sphere. The
+    // elongated body makes its lateral overreach obvious, so compound/capsule
+    // contact is now an explicit follow-up instead of being cosmetically hidden.
     ProbeCollisionEnvelope = CreateDefaultSubobject<USphereComponent>(TEXT("ProbeCollisionEnvelope"));
     ProbeCollisionEnvelope->SetupAttachment(ProbeRoot);
     ProbeCollisionEnvelope->SetSphereRadius(800.0f);
@@ -164,7 +169,7 @@ AEverwardProbePawn::AEverwardProbePawn()
 
     CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("ProbeCameraBoom"));
     CameraBoom->SetupAttachment(ProbeRoot);
-    CameraBoom->TargetArmLength = 2600.0f;
+    CameraBoom->TargetArmLength = 2200.0f;
     CameraBoom->SetRelativeRotation(FRotator(-12.0, 0.0, 0.0));
     CameraBoom->bUsePawnControlRotation = true;
     CameraBoom->bDoCollisionTest = false;
@@ -178,15 +183,11 @@ void AEverwardProbePawn::BeginPlay()
 {
     Super::BeginPlay();
     ApplyPrimeFunctionalMaterials();
+    UpdateManipulatorVisuals();
 }
 
 void AEverwardProbePawn::ApplyPrimeFunctionalMaterials()
 {
-    // This is intentionally a first functional skin rather than final art.
-    // Each system family receives a restrained physically motivated value/color
-    // treatment so the blockout reads as a machine with identifiable hardware.
-    // Production materials can replace these instances without changing the
-    // simulation, collision, component layout, or gameplay contracts.
     auto ApplyMaterialFamily = [this](
         UStaticMeshComponent* Component,
         const FLinearColor& BaseColor,
@@ -196,14 +197,8 @@ void AEverwardProbePawn::ApplyPrimeFunctionalMaterials()
         if (Component == nullptr) return;
         UMaterialInterface* BaseMaterial = Component->GetMaterial(0);
         if (BaseMaterial == nullptr) return;
-
-        UMaterialInstanceDynamic* DynamicMaterial =
-            UMaterialInstanceDynamic::Create(BaseMaterial, this);
+        UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
         if (DynamicMaterial == nullptr) return;
-
-        // Engine basic-shape materials expose Color in current UE builds. The
-        // additional conventional parameter names make this pass compatible
-        // with the later Everward master materials without branching code.
         DynamicMaterial->SetVectorParameterValue(TEXT("Color"), BaseColor);
         DynamicMaterial->SetVectorParameterValue(TEXT("BaseColor"), BaseColor);
         DynamicMaterial->SetScalarParameterValue(TEXT("Metallic"), Metallic);
@@ -220,6 +215,8 @@ void AEverwardProbePawn::ApplyPrimeFunctionalMaterials()
     const FLinearColor ManeuverHardware(0.28f, 0.30f, 0.32f, 1.0f);
     const FLinearColor SensorMast(0.16f, 0.19f, 0.21f, 1.0f);
     const FLinearColor JointHardware(0.12f, 0.13f, 0.14f, 1.0f);
+    const FLinearColor ArmStructure(0.27f, 0.29f, 0.31f, 1.0f);
+    const FLinearColor ToolMaterial(0.16f, 0.12f, 0.09f, 1.0f);
 
     ApplyMaterialFamily(ProbeMesh, StructuralAlloy, 0.82f, 0.42f);
     ApplyMaterialFamily(CoreHousing, ProtectedCore, 0.30f, 0.50f);
@@ -233,12 +230,52 @@ void AEverwardProbePawn::ApplyPrimeFunctionalMaterials()
     ApplyMaterialFamily(DorsalMarker, SensorMast, 0.52f, 0.36f);
     ApplyMaterialFamily(PortShoulder, JointHardware, 0.84f, 0.46f);
     ApplyMaterialFamily(StarboardShoulder, JointHardware, 0.84f, 0.46f);
+    ApplyMaterialFamily(PortUpperArm, ArmStructure, 0.80f, 0.43f);
+    ApplyMaterialFamily(StarboardUpperArm, ArmStructure, 0.80f, 0.43f);
+    ApplyMaterialFamily(PortForearm, ArmStructure, 0.80f, 0.43f);
+    ApplyMaterialFamily(StarboardForearm, ArmStructure, 0.80f, 0.43f);
+    ApplyMaterialFamily(PortToolHead, ToolMaterial, 0.72f, 0.52f);
+    ApplyMaterialFamily(StarboardToolHead, ToolMaterial, 0.72f, 0.52f);
+}
+
+void AEverwardProbePawn::UpdateManipulatorVisuals()
+{
+    if (SimulationAdapter == nullptr) return;
+
+    const TArray<FEverwardManipulatorArmState> States = SimulationAdapter->GetManipulatorArmStates();
+    for (const FEverwardManipulatorArmState& State : States)
+    {
+        const bool bPort = State.ArmId == EEverwardManipulatorArmId::Port;
+        const float Side = bPort ? -1.0f : 1.0f;
+        USceneComponent* ShoulderPivot = bPort ? PortShoulderPivot.Get() : StarboardShoulderPivot.Get();
+        USceneComponent* ElbowPivot = bPort ? PortElbowPivot.Get() : StarboardElbowPivot.Get();
+        USceneComponent* WristPivot = bPort ? PortWristPivot.Get() : StarboardWristPivot.Get();
+        UStaticMeshComponent* ToolHead = bPort ? PortToolHead.Get() : StarboardToolHead.Get();
+        if (ShoulderPivot == nullptr || ElbowPivot == nullptr || WristPivot == nullptr) continue;
+
+        const float Deploy = FMath::Clamp(static_cast<float>(State.DeploymentFraction), 0.0f, 1.0f);
+        const float FoldPitch = FMath::Lerp(-102.0f, -38.0f, Deploy);
+        ShoulderPivot->SetRelativeRotation(FRotator(
+            FoldPitch + static_cast<float>(State.ShoulderDegrees),
+            0.0f,
+            Side * FMath::Lerp(8.0f, 24.0f, Deploy)));
+        ElbowPivot->SetRelativeRotation(FRotator(static_cast<float>(State.ElbowDegrees), 0.0f, 0.0f));
+        WristPivot->SetRelativeRotation(FRotator(static_cast<float>(State.WristDegrees), 0.0f, 0.0f));
+
+        if (ToolHead != nullptr)
+        {
+            ToolHead->SetRelativeScale3D(State.bToolAttached
+                ? FVector(0.34, 0.34, 0.82)
+                : FVector(0.24, 0.24, 0.56));
+        }
+    }
 }
 
 void AEverwardProbePawn::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     AdvanceCameraAlignedRighting(DeltaSeconds);
+    UpdateManipulatorVisuals();
 }
 
 void AEverwardProbePawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

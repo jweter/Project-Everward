@@ -29,19 +29,20 @@ class OneProbeProductionBootstrapTests(unittest.TestCase):
         )
         self.assertEqual(adapter_constructions, ["CreateDefaultSubobject<UProbeSimulationAdapter>"])
 
-        # Slice 5 intentionally replaces the single root mesh with a neutral
-        # scene root plus modular visual components. The architectural invariant
-        # is still one probe presentation tree and one authoritative adapter.
+        # The Prime A body now has a hierarchical manipulator presentation, but
+        # the pawn still owns exactly one top-level presentation root and one
+        # authoritative adapter. Child meshes may attach to ProbeRoot or to
+        # manipulator pivots beneath that root.
         self.assertEqual(
             pawn.count('CreateDefaultSubobject<USceneComponent>(TEXT("ProbeRoot"))'),
             1,
         )
         self.assertEqual(pawn.count("SetRootComponent(ProbeRoot);"), 1)
-        self.assertIn("Component->SetupAttachment(ProbeRoot);", pawn)
+        self.assertIn("Component->SetupAttachment(Parent);", pawn)
+        self.assertIn("ConfigureMesh(ProbeMesh, ProbeRoot);", pawn)
+        self.assertIn("ShoulderPivot->SetupAttachment(ProbeRoot);", pawn)
         self.assertNotIn("SetRootComponent(ProbeMesh);", pawn)
 
-        # Multiple visible system meshes are expected now; none may become an
-        # independent simulation authority or physics-simulating body.
         self.assertGreaterEqual(
             pawn.count("CreateDefaultSubobject<UStaticMeshComponent>"),
             10,
