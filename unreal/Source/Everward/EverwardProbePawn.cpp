@@ -37,38 +37,40 @@ AEverwardProbePawn::AEverwardProbePawn()
 
     // Simple Prime A embodiment: one coherent tube, two thermal/radiator wings,
     // a clear aft engine, forward science head, and visible manipulator geometry.
+    // UE's BasicShapes/Cylinder is long on local Z, so pitch 90 degrees aligns
+    // each longitudinal cylinder with EV-0001's fore/aft X axis.
     ProbeMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PrimeCentralTube"));
     ConfigureMesh(ProbeMesh, ProbeRoot);
     if (CylinderMeshAsset.Succeeded()) ProbeMesh->SetStaticMesh(CylinderMeshAsset.Object);
-    ProbeMesh->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
+    ProbeMesh->SetRelativeRotation(FRotator(90.0, 0.0, 0.0));
     ProbeMesh->SetRelativeScale3D(FVector(1.05, 1.05, 10.8));
 
     CoreHousing = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ComputationCoreSleeve"));
     ConfigureMesh(CoreHousing, ProbeRoot);
     if (CylinderMeshAsset.Succeeded()) CoreHousing->SetStaticMesh(CylinderMeshAsset.Object);
     CoreHousing->SetRelativeLocation(FVector(150.0, 0.0, 0.0));
-    CoreHousing->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
+    CoreHousing->SetRelativeRotation(FRotator(90.0, 0.0, 0.0));
     CoreHousing->SetRelativeScale3D(FVector(1.22, 1.22, 1.55));
 
     ReactorHousing = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PowerReactorSleeve"));
     ConfigureMesh(ReactorHousing, ProbeRoot);
     if (CylinderMeshAsset.Succeeded()) ReactorHousing->SetStaticMesh(CylinderMeshAsset.Object);
     ReactorHousing->SetRelativeLocation(FVector(-260.0, 0.0, 0.0));
-    ReactorHousing->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
+    ReactorHousing->SetRelativeRotation(FRotator(90.0, 0.0, 0.0));
     ReactorHousing->SetRelativeScale3D(FVector(1.18, 1.18, 1.85));
 
     MainEngine = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MainPropulsionAssembly"));
     ConfigureMesh(MainEngine, ProbeRoot);
     if (CylinderMeshAsset.Succeeded()) MainEngine->SetStaticMesh(CylinderMeshAsset.Object);
     MainEngine->SetRelativeLocation(FVector(-620.0, 0.0, 0.0));
-    MainEngine->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
+    MainEngine->SetRelativeRotation(FRotator(90.0, 0.0, 0.0));
     MainEngine->SetRelativeScale3D(FVector(1.40, 1.40, 1.55));
 
     ForwardSensor = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ForwardScienceSensor"));
     ConfigureMesh(ForwardSensor, ProbeRoot);
     if (CylinderMeshAsset.Succeeded()) ForwardSensor->SetStaticMesh(CylinderMeshAsset.Object);
     ForwardSensor->SetRelativeLocation(FVector(620.0, 0.0, 0.0));
-    ForwardSensor->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
+    ForwardSensor->SetRelativeRotation(FRotator(90.0, 0.0, 0.0));
     ForwardSensor->SetRelativeScale3D(FVector(0.72, 0.72, 1.35));
 
     PortRadiator = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PortThermalWing"));
@@ -148,7 +150,7 @@ AEverwardProbePawn::AEverwardProbePawn()
         ConfigureMesh(ToolHead, WristPivot);
         if (CylinderMeshAsset.Succeeded()) ToolHead->SetStaticMesh(CylinderMeshAsset.Object);
         ToolHead->SetRelativeLocation(FVector(38.0, 0.0, 0.0));
-        ToolHead->SetRelativeRotation(FRotator(0.0, 90.0, 0.0));
+        ToolHead->SetRelativeRotation(FRotator(90.0, 0.0, 0.0));
         ToolHead->SetRelativeScale3D(FVector(0.28, 0.28, 0.70));
     };
 

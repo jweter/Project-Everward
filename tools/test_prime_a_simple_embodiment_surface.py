@@ -20,7 +20,8 @@ class PrimeASimpleEmbodimentSurfaceTests(unittest.TestCase):
         ):
             self.assertIn(token, self.pawn_cpp)
         self.assertIn("CylinderMeshAsset", self.pawn_cpp)
-        self.assertIn("ProbeMesh->SetRelativeRotation(FRotator(0.0, 90.0, 0.0))", self.pawn_cpp)
+        self.assertIn("ProbeMesh->SetRelativeRotation(FRotator(90.0, 0.0, 0.0))", self.pawn_cpp)
+        self.assertNotIn("ProbeMesh->SetRelativeRotation(FRotator(0.0, 90.0, 0.0))", self.pawn_cpp)
 
     def test_manipulator_geometry_is_present_and_driven_by_authoritative_state(self) -> None:
         for token in (
