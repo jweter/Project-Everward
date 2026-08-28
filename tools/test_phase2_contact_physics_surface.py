@@ -48,8 +48,10 @@ class Phase2ContactPhysicsSurfaceTests(unittest.TestCase):
     def test_probe_collision_envelope_is_not_decorative_mesh_collision(self) -> None:
         self.assertIn("ProbeCollisionEnvelope", self.pawn_h)
         self.assertIn("USphereComponent", self.pawn_h)
-        self.assertIn("SetSphereRadius(75.0f)", self.pawn_cpp)
-        self.assertIn("ProbeMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision)", self.pawn_cpp)
+        self.assertIn("collision_envelope_radius_m{8.0}", self.types)
+        self.assertIn("SetSphereRadius(800.0f)", self.pawn_cpp)
+        self.assertIn("Component->SetCollisionEnabled(ECollisionEnabled::NoCollision)", self.pawn_cpp)
+        self.assertNotIn("SetSimulatePhysics(true)", self.pawn_cpp)
 
     def test_contact_telemetry_crosses_adapter_boundary(self) -> None:
         for field in (
