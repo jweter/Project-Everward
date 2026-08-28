@@ -59,10 +59,10 @@ The compact telemetry panel (top-left) now shows a `PORT ARM` / `STBD ARM` line 
 ## Explicitly not complete in this slice
 
 - visible arm geometry/skeletal mesh and animation (only the existing shoulder mount blockout meshes are present; the arms do not yet visually move);
-- joint articulation input (shoulder/elbow/wrist target commands exist on the adapter but have no bound key/UI yet);
-- a dedicated manipulator HUD systems page (current display is a compact status line only, following the same telemetry-panel pattern as energy/power/thermal);
 - power draw and integrity-based effectiveness for manipulator motion;
 - grasping/holding an object, which requires Slice 7's object-interaction foundation;
 - collision between the arm and the probe body or environment.
+
+Joint articulation input and a dedicated manipulator HUD page were the next sub-slice named above; see `PHASE2_MANIPULATOR_JOINT_ARTICULATION_TEST.md` for that follow-up (implemented, Product Reality pending) and its local test script.
 
 Those build on this authoritative deploy/stow/tool foundation rather than requiring a later rewrite of it.

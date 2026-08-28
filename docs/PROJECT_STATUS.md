@@ -113,7 +113,7 @@ The tiny engineering-shell placeholder is replaced with a modular ~15 m Prime Ge
 
 **Status: foundation architecture; not yet wired to Unreal audio presentation.**
 
-### Manipulator arm foundation (Slice 6, in progress)
+### Manipulator arm foundation and joint articulation (Slice 6, in progress)
 
 The first sub-slice of **Slice 6 — articulated manipulator arms** lands on the two shoulder mounts Slice 5 already exposes:
 
@@ -124,7 +124,16 @@ The first sub-slice of **Slice 6 — articulated manipulator arms** lands on the
 - `UProbeSimulationAdapter` exposes deploy/stow/joint/tool commands and per-arm telemetry, advanced on the same fixed-step cadence as the rest of the probe;
 - minimal input (`1`/`2` deploy-stow toggle per arm, `3` tool attach/detach toggle) and a compact HUD status line per arm.
 
-**Status: implemented, Product Reality pending.** Joint articulation input, visible arm geometry/animation, and a dedicated manipulator HUD page are the next sub-slice; see `PHASE2_MANIPULATOR_ARM_FOUNDATION_TEST.md` for the explicit remaining scope and the local test script.
+**Status: implemented, Product Reality pending.** See `PHASE2_MANIPULATOR_ARM_FOUNDATION_TEST.md`.
+
+A second sub-slice adds the joint articulation input and dedicated manipulator HUD page that foundation deferred, over the same already-authoritative joint commands:
+
+- `UProbeSimulationAdapter`'s per-arm telemetry now also reports each joint's commanded target, not only its current (slewing) angle, so input can nudge from the last intended pose;
+- a dedicated `M`-toggled manipulator HUD page shows both arms, the selected arm/joint, and current -> commanded degrees per joint, with `DEPLOY ARM TO COMMAND JOINTS` shown in place of joint rows for a stowed arm;
+- `N` cycles the arm joint input targets, `4`/`5`/`6` select Shoulder/Elbow/Wrist, `,`/`.` nudge the selected joint's commanded target;
+- no engine-independent simulation behavior changed; clamping and slew-rate limiting remain entirely inside `manipulator.hpp`.
+
+**Status: implemented, Product Reality pending.** Visible arm geometry/animation is the remaining Slice 6 sub-slice; see `PHASE2_MANIPULATOR_JOINT_ARTICULATION_TEST.md` for the explicit remaining scope and the local test script.
 
 ### Canonical damaged awakening and Self Repair direction
 
@@ -173,7 +182,7 @@ Everward continues to preserve:
 - modular Prime Generation-1 probe body blockout with a rescaled collision envelope;
 - adjacent-generation evolution foundation;
 - evolving machine sensorium/audio progression foundation;
-- manipulator arm deploy/stow/joint/tool foundation (Slice 6, in progress);
+- manipulator arm deploy/stow/joint/tool foundation plus joint articulation input and a dedicated manipulator HUD page (Slice 6, in progress);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - explicit versioned save architecture rather than blind Unreal object serialization.
 
@@ -192,8 +201,9 @@ Use the exact passed build and validate the accumulated Phase-2 chain in order:
 9. repeat with a glancing approach and verify tangential motion is preserved plausibly;
 10. create a damaging impact and verify impact severity, affected component, integrity change, and resulting subsystem consequences agree;
 11. verify no stale policy action executes after Computation is destroyed and no operational/integrity state contradiction appears;
-12. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
-13. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline.
+12. deploy an arm, open the manipulator page (`M`), and verify each joint's commanded target can be selected (`4`/`5`/`6`) and nudged (`,`/`.`) independently, with the current angle visibly slewing toward the commanded target rather than snapping, and joint commands rejected while the arm is not deployed;
+13. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
+14. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline.
 
 A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
 
@@ -203,7 +213,7 @@ Priority order:
 
 1. complete the accumulated local Phase-2 Product Reality pass above;
 2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
-3. continue **Slice 6 — articulated manipulator arms**: joint articulation input, visible arm geometry/animation, and a dedicated manipulator HUD page, designed as real future servicing/mining/construction capability rather than decoration;
+3. continue **Slice 6 — articulated manipulator arms**: visible arm geometry/animation is the remaining sub-slice (joint articulation input and a dedicated manipulator HUD page are now implemented), designed as real future servicing/mining/construction capability rather than decoration;
 4. then move into object selection and physical interaction;
 5. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 

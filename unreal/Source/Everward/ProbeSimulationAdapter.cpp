@@ -109,6 +109,9 @@ FEverwardManipulatorArmState ToUnrealManipulatorArmState(
     Out.ShoulderDegrees = State.angles.shoulder_degrees;
     Out.ElbowDegrees = State.angles.elbow_degrees;
     Out.WristDegrees = State.angles.wrist_degrees;
+    Out.CommandedShoulderDegrees = State.commanded_angles.shoulder_degrees;
+    Out.CommandedElbowDegrees = State.commanded_angles.elbow_degrees;
+    Out.CommandedWristDegrees = State.commanded_angles.wrist_degrees;
     Out.bToolAttached = State.tool_attached;
     return Out;
 }

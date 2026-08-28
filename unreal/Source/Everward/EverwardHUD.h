@@ -27,9 +27,43 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|HUD")
     int32 GetSelectedCapabilityIndex() const;
 
+    // Dedicated manipulator HUD page: joint articulation input needs an
+    // explicit selected-arm/selected-joint read model the same way the
+    // systems panel has a selected capability, since two arms can be
+    // deployed and mid-pose simultaneously.
+    UFUNCTION(BlueprintCallable, Category="Everward|HUD")
+    void ToggleManipulatorPanel();
+
+    UFUNCTION(BlueprintCallable, Category="Everward|HUD")
+    void CycleSelectedManipulatorArm();
+
+    UFUNCTION(BlueprintCallable, Category="Everward|HUD")
+    void SelectManipulatorJointShoulder();
+
+    UFUNCTION(BlueprintCallable, Category="Everward|HUD")
+    void SelectManipulatorJointElbow();
+
+    UFUNCTION(BlueprintCallable, Category="Everward|HUD")
+    void SelectManipulatorJointWrist();
+
+    UFUNCTION(BlueprintPure, Category="Everward|HUD")
+    bool IsManipulatorPanelExpanded() const;
+
+    // 0 = Port, 1 = Starboard.
+    UFUNCTION(BlueprintPure, Category="Everward|HUD")
+    int32 GetSelectedManipulatorArmIndex() const;
+
+    // 0 = Shoulder, 1 = Elbow, 2 = Wrist.
+    UFUNCTION(BlueprintPure, Category="Everward|HUD")
+    int32 GetSelectedManipulatorJointIndex() const;
+
 private:
     bool bSystemsExpanded = false;
     int32 SelectedCapabilityIndex = 0;
+
+    bool bManipulatorPanelExpanded = false;
+    int32 SelectedManipulatorArmIndex = 0;
+    int32 SelectedManipulatorJointIndex = 0;
 
     // Phase-2 scan-discovery read model. Completion/cancellation truth comes
     // from the adapter's authoritative domain-event projection rather than

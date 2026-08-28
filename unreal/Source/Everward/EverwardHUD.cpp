@@ -56,6 +56,36 @@ FString ManipulatorArmLine(const FString& Label, const FEverwardManipulatorArmSt
         *StateText,
         Arm.bToolAttached ? TEXT("  //  TOOL") : TEXT(""));
 }
+
+const TCHAR* ManipulatorJointIndexName(int32 JointIndex)
+{
+    switch (JointIndex)
+    {
+        case 0: return TEXT("SHOULDER");
+        case 1: return TEXT("ELBOW");
+        default: return TEXT("WRIST");
+    }
+}
+
+// Current -> commanded target for one joint, selected by JointIndex
+// (0=Shoulder, 1=Elbow, 2=Wrist), matching FEverwardManipulatorArmState's
+// field-for-field mirror of ManipulatorArmAngles.
+FString ManipulatorJointLine(int32 JointIndex, const FEverwardManipulatorArmState& Arm)
+{
+    double Current = 0.0;
+    double Commanded = 0.0;
+    switch (JointIndex)
+    {
+        case 0: Current = Arm.ShoulderDegrees; Commanded = Arm.CommandedShoulderDegrees; break;
+        case 1: Current = Arm.ElbowDegrees; Commanded = Arm.CommandedElbowDegrees; break;
+        default: Current = Arm.WristDegrees; Commanded = Arm.CommandedWristDegrees; break;
+    }
+    return FString::Printf(
+        TEXT("%-8s %6.1f DEG -> %6.1f DEG"),
+        ManipulatorJointIndexName(JointIndex),
+        Current,
+        Commanded);
+}
 }
 
 void AEverwardHUD::DrawHUD()
@@ -158,6 +188,55 @@ void AEverwardHUD::DrawHUD()
             nullptr,
             0.86f,
             false);
+    }
+
+    // Dedicated manipulator HUD page (Slice 6 joint-articulation follow-up).
+    // Rendered above the compact telemetry panel so it never overlaps the
+    // always-visible PORT/STBD status lines it elaborates on.
+    if (bManipulatorPanelExpanded && !ManipulatorArms.IsEmpty())
+    {
+        SelectedManipulatorArmIndex = FMath::Clamp(SelectedManipulatorArmIndex, 0, ManipulatorArms.Num() - 1);
+        SelectedManipulatorJointIndex = FMath::Clamp(SelectedManipulatorJointIndex, 0, 2);
+
+        const float PanelHeight = 34.0f + LineHeight * (2.0f * ManipulatorArms.Num() + 4.0f);
+        const float PanelY = TelemetryY - 12.0f - PanelHeight;
+        DrawRect(PanelColor, Margin, PanelY, PanelWidth, PanelHeight);
+        DrawText(TEXT("MANIPULATOR CONTROL   [M CLOSE]"), TextColor,
+            Margin + 14.0f, PanelY + 10.0f, nullptr, 0.90f, false);
+
+        float ArmY = PanelY + 34.0f;
+        for (int32 ArmIndex = 0; ArmIndex < ManipulatorArms.Num(); ++ArmIndex)
+        {
+            const FEverwardManipulatorArmState& Arm = ManipulatorArms[ArmIndex];
+            const bool bArmSelected = ArmIndex == SelectedManipulatorArmIndex;
+            const FString Label = Arm.ArmId == EEverwardManipulatorArmId::Port ? TEXT("PORT") : TEXT("STBD");
+            DrawText(
+                FString::Printf(TEXT("%s%s"), bArmSelected ? TEXT("> ") : TEXT("  "), *ManipulatorArmLine(Label, Arm)),
+                bArmSelected ? TextColor : MutedColor,
+                Margin + 14.0f, ArmY, nullptr, 0.82f, false);
+            ArmY += LineHeight;
+
+            if (!Arm.bIsDeployed)
+            {
+                DrawText(TEXT("    DEPLOY ARM TO COMMAND JOINTS"), MutedColor,
+                    Margin + 14.0f, ArmY, nullptr, 0.7f, false);
+                ArmY += LineHeight;
+                continue;
+            }
+
+            for (int32 JointIndex = 0; JointIndex < 3; ++JointIndex)
+            {
+                const bool bJointSelected = bArmSelected && JointIndex == SelectedManipulatorJointIndex;
+                DrawText(
+                    FString::Printf(TEXT("  %s%s"), bJointSelected ? TEXT("> ") : TEXT("  "), *ManipulatorJointLine(JointIndex, Arm)),
+                    bJointSelected ? TextColor : MutedColor,
+                    Margin + 14.0f, ArmY, nullptr, 0.7f, false);
+                ArmY += LineHeight;
+            }
+        }
+
+        DrawText(TEXT("[N] ARM   [4/5/6] SHOULDER/ELBOW/WRIST   [,][.] TARGET"), MutedColor,
+            Margin + 14.0f, PanelY + PanelHeight - LineHeight, nullptr, 0.62f, false);
     }
 
     float AlertY = Margin;
@@ -509,4 +588,44 @@ bool AEverwardHUD::IsSystemsPanelExpanded() const
 int32 AEverwardHUD::GetSelectedCapabilityIndex() const
 {
     return SelectedCapabilityIndex;
+}
+
+void AEverwardHUD::ToggleManipulatorPanel()
+{
+    bManipulatorPanelExpanded = !bManipulatorPanelExpanded;
+}
+
+void AEverwardHUD::CycleSelectedManipulatorArm()
+{
+    SelectedManipulatorArmIndex = SelectedManipulatorArmIndex == 0 ? 1 : 0;
+}
+
+void AEverwardHUD::SelectManipulatorJointShoulder()
+{
+    SelectedManipulatorJointIndex = 0;
+}
+
+void AEverwardHUD::SelectManipulatorJointElbow()
+{
+    SelectedManipulatorJointIndex = 1;
+}
+
+void AEverwardHUD::SelectManipulatorJointWrist()
+{
+    SelectedManipulatorJointIndex = 2;
+}
+
+bool AEverwardHUD::IsManipulatorPanelExpanded() const
+{
+    return bManipulatorPanelExpanded;
+}
+
+int32 AEverwardHUD::GetSelectedManipulatorArmIndex() const
+{
+    return SelectedManipulatorArmIndex;
+}
+
+int32 AEverwardHUD::GetSelectedManipulatorJointIndex() const
+{
+    return SelectedManipulatorJointIndex;
 }
