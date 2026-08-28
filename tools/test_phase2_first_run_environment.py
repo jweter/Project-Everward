@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 UNREAL = ROOT / "unreal"
 SOURCE = UNREAL / "Source" / "Everward"
+SIM_TYPES = ROOT / "src" / "simulation" / "include" / "everward" / "simulation" / "types.hpp"
 
 
 class Phase2FirstRunEnvironmentTests(unittest.TestCase):
@@ -20,6 +21,7 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         cls.adapter_source = (SOURCE / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
         cls.pawn_h = (SOURCE / "EverwardProbePawn.h").read_text(encoding="utf-8")
         cls.pawn_cpp = (SOURCE / "EverwardProbePawn.cpp").read_text(encoding="utf-8")
+        cls.sim_types = SIM_TYPES.read_text(encoding="utf-8")
         cls.input_config = (UNREAL / "Config" / "DefaultInput.ini").read_text(encoding="utf-8")
 
     def test_environment_has_one_visible_bootstrap_scan_target(self) -> None:
@@ -48,7 +50,7 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         self.assertIn('AEverwardPhase2TestEnvironment::BootstrapScanTargetId', self.controller)
         self.assertNotIn('phase2-bootstrap-target', self.controller)
 
-    def test_camera_orbit_and_zoom_are_configured(self) -> None:
+    def test_camera_orbit_and_zoom_are_configured_for_prime_body_scale(self) -> None:
         self.assertIn('AxisName="EverwardLookYaw"', self.input_config)
         self.assertIn('AxisName="EverwardLookPitch"', self.input_config)
         self.assertIn('AxisName="EverwardCameraZoom"', self.input_config)
@@ -56,6 +58,9 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         self.assertIn('BindAxis(TEXT("EverwardLookPitch")', self.controller)
         self.assertIn('BindAxis(TEXT("EverwardCameraZoom")', self.controller)
         self.assertIn('void AdjustCameraZoom(float DeltaCentimeters);', self.pawn_h)
+        self.assertIn('CameraBoom->TargetArmLength = 2600.0f;', self.pawn_cpp)
+        self.assertIn('MinCameraDistanceCentimeters = 1400.0f', self.pawn_h)
+        self.assertIn('MaxCameraDistanceCentimeters = 5000.0f', self.pawn_h)
         self.assertIn('CameraBoom->bUsePawnControlRotation = true;', self.pawn_cpp)
         self.assertIn('CameraBoom->bDoCollisionTest = false;', self.pawn_cpp)
 
@@ -73,21 +78,51 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         self.assertIn('CommandAdjustAttitudeDegrees(DeltaAttitude)', self.controller)
         self.assertIn('Owner->SetActorRotation(PresentationAttitude', self.adapter_source)
 
-    def test_probe_orientation_skin_makes_forward_up_and_level_readable(self) -> None:
-        for component in ('ForwardSensor', 'DorsalMarker', 'PortShoulder', 'StarboardShoulder'):
+    def test_prime_gen1_blockout_has_required_visible_systems(self) -> None:
+        components = (
+            'ProbeMesh',
+            'CoreHousing',
+            'ReactorHousing',
+            'MainEngine',
+            'ForwardSensor',
+            'PortRadiator',
+            'StarboardRadiator',
+            'PortManeuverPod',
+            'StarboardManeuverPod',
+            'PortShoulder',
+            'StarboardShoulder',
+            'DorsalMarker',
+        )
+        for component in components:
             self.assertIn(component, self.pawn_h)
-            self.assertIn(f'TEXT("{component}")', self.pawn_cpp)
-        self.assertIn('ForwardSensor->SetRelativeLocation(FVector(86.0, 0.0, 4.0))', self.pawn_cpp)
-        self.assertIn('DorsalMarker->SetRelativeLocation(FVector(-8.0, 0.0, 45.0))', self.pawn_cpp)
-        self.assertIn('PortShoulder->SetRelativeLocation(FVector(-12.0, -48.0, -2.0))', self.pawn_cpp)
-        self.assertIn('StarboardShoulder->SetRelativeLocation(FVector(-12.0, 48.0, -2.0))', self.pawn_cpp)
+            self.assertIn(f'{component} = CreateDefaultSubobject', self.pawn_cpp)
 
-    def test_probe_has_collision_envelope_separate_from_decorative_meshes(self) -> None:
+        for label in (
+            'StructuralSpine',
+            'ComputationCoreHousing',
+            'PowerReactorHousing',
+            'MainPropulsionAssembly',
+            'PortThermalRadiator',
+            'StarboardThermalRadiator',
+            'PortManeuveringPod',
+            'StarboardManeuveringPod',
+        ):
+            self.assertIn(f'TEXT("{label}")', self.pawn_cpp)
+
+        self.assertIn('approximately 15 m long', self.pawn_cpp)
+        self.assertIn('ForwardSensor->SetRelativeLocation(FVector(610.0, 0.0, 22.0))', self.pawn_cpp)
+        self.assertIn('MainEngine->SetRelativeLocation(FVector(-640.0, 0.0, 0.0))', self.pawn_cpp)
+        self.assertIn('PortRadiator->SetRelativeLocation(FVector(-40.0, -270.0, 8.0))', self.pawn_cpp)
+        self.assertIn('StarboardRadiator->SetRelativeLocation(FVector(-40.0, 270.0, 8.0))', self.pawn_cpp)
+
+    def test_probe_collision_envelope_tracks_prime_blockout_scale(self) -> None:
         self.assertIn('USphereComponent', self.pawn_h)
         self.assertIn('ProbeCollisionEnvelope', self.pawn_h)
         self.assertIn('TEXT("ProbeCollisionEnvelope")', self.pawn_cpp)
-        self.assertIn('SetSphereRadius(75.0f)', self.pawn_cpp)
-        self.assertIn('ProbeMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision)', self.pawn_cpp)
+        self.assertIn('SetSphereRadius(800.0f)', self.pawn_cpp)
+        self.assertIn('collision_envelope_radius_m{8.0}', self.sim_types)
+        self.assertIn('Component->SetCollisionEnabled(ECollisionEnabled::NoCollision)', self.pawn_cpp)
+        self.assertNotIn('SetSimulatePhysics(true)', self.pawn_cpp)
 
     def test_r_key_rights_probe_toward_camera_in_clunky_authoritative_steps(self) -> None:
         self.assertIn('EKeys::R', self.pawn_cpp)

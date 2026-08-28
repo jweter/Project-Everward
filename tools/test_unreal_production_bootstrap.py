@@ -22,24 +22,31 @@ class OneProbeProductionBootstrapTests(unittest.TestCase):
         game_mode = (SOURCE / "EverwardGameMode.cpp").read_text(encoding="utf-8")
         self.assertIn("DefaultPawnClass = AEverwardProbePawn::StaticClass();", game_mode)
 
-    def test_probe_presentation_owns_exactly_one_adapter_and_one_root_mesh(self) -> None:
+    def test_probe_presentation_owns_exactly_one_adapter_and_one_root_boundary(self) -> None:
         pawn = (SOURCE / "EverwardProbePawn.cpp").read_text(encoding="utf-8")
         adapter_constructions = re.findall(
             r"CreateDefaultSubobject<UProbeSimulationAdapter>", pawn
         )
         self.assertEqual(adapter_constructions, ["CreateDefaultSubobject<UProbeSimulationAdapter>"])
 
-        # The architectural invariant is one authoritative adapter and one root
-        # presentation mesh. Additional static-mesh children are valid visual
-        # scaffolding (orientation cues today, production probe parts later) as
-        # long as they attach under the root rather than becoming parallel probe
-        # bodies or simulation authorities.
+        # Slice 5 intentionally replaces the single root mesh with a neutral
+        # scene root plus modular visual components. The architectural invariant
+        # is still one probe presentation tree and one authoritative adapter.
         self.assertEqual(
-            pawn.count('CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProbePresentation"))'),
+            pawn.count('CreateDefaultSubobject<USceneComponent>(TEXT("ProbeRoot"))'),
             1,
         )
-        self.assertEqual(pawn.count("SetRootComponent(ProbeMesh);"), 1)
-        self.assertIn("Component->SetupAttachment(ProbeMesh);", pawn)
+        self.assertEqual(pawn.count("SetRootComponent(ProbeRoot);"), 1)
+        self.assertIn("Component->SetupAttachment(ProbeRoot);", pawn)
+        self.assertNotIn("SetRootComponent(ProbeMesh);", pawn)
+
+        # Multiple visible system meshes are expected now; none may become an
+        # independent simulation authority or physics-simulating body.
+        self.assertGreaterEqual(
+            pawn.count("CreateDefaultSubobject<UStaticMeshComponent>"),
+            10,
+        )
+        self.assertNotIn("SetSimulatePhysics(true)", pawn)
 
     def test_presentation_does_not_bypass_the_adapter_boundary(self) -> None:
         for filename in (
