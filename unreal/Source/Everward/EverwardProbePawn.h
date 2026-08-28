@@ -24,6 +24,7 @@ class EVERWARD_API AEverwardProbePawn : public APawn
 public:
     AEverwardProbePawn();
 
+    virtual void BeginPlay() override;
     virtual void Tick(float DeltaSeconds) override;
     virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
@@ -34,6 +35,7 @@ public:
     void AdjustCameraZoom(float DeltaCentimeters);
 
 private:
+    void ApplyPrimeFunctionalMaterials();
     void BeginOrCancelCameraAlignedRighting();
     void AdvanceCameraAlignedRighting(float DeltaSeconds);
 
