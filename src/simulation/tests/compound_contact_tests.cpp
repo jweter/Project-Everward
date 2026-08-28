@@ -9,6 +9,7 @@ using everward::simulation::EulerAttitudeDegrees;
 using everward::simulation::ProbeCompoundCollisionEnvelope;
 using everward::simulation::StaticSphereBody;
 using everward::simulation::Vector3d;
+using everward::simulation::resolve_compound_contact;
 using everward::simulation::rotate_local_contact_offset;
 using everward::simulation::sweep_compound_probe_against_body;
 
@@ -34,6 +35,18 @@ int main() {
         assert(hit.sample_index == 0);
         assert(nearly_equal(hit.probe_root_at_contact.x, 11.65, 1e-5));
         assert(hit.normal.x < -0.999);
+
+        const auto resolution = resolve_compound_contact(
+            hit,
+            {},
+            envelope.samples[hit.sample_index],
+            body,
+            {30.0, 4.0, 0.0});
+        assert(nearly_equal(resolution.resolved_probe_root.x, 11.649999, 2e-5));
+        assert(nearly_equal(resolution.surface_point.x, 18.0, 1e-5));
+        assert(resolution.normal_speed_mps > 29.9);
+        assert(std::fabs(resolution.resolved_velocity.x) < 1e-6);
+        assert(nearly_equal(resolution.resolved_velocity.y, 4.0));
     }
 
     // A lateral approach should contact the corresponding wing sample. This is
@@ -50,6 +63,15 @@ int main() {
         assert(hit.sample_index == 3);
         assert(hit.probe_root_at_contact.y < 0.0);
         assert(hit.probe_root_at_contact.y > -7.1);
+
+        const auto resolution = resolve_compound_contact(
+            hit,
+            {},
+            envelope.samples[hit.sample_index],
+            body,
+            {3.0, -12.0, 0.0});
+        assert(nearly_equal(resolution.resolved_velocity.x, 3.0));
+        assert(std::fabs(resolution.resolved_velocity.y) < 1e-6);
     }
 
     // Attitude must rotate local-space collision samples with the probe. A 90
