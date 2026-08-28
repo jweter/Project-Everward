@@ -39,11 +39,12 @@ struct ProbeStateSnapshot {
     EulerAttitudeDegrees attitude_degrees{};
     double mass_kg{2500.0};
 
-    // Temporary Generation-1 physical collision envelope. This is deliberately
-    // independent from decorative presentation geometry. The Prime Probe A
-    // blockout will replace this scalar sphere with a body-corresponding
-    // compound envelope while preserving the same contact telemetry contract.
-    double collision_envelope_radius_m{0.75};
+    // Conservative Prime Generation-1 blockout collision envelope. The first
+    // recognizable ~15 m body is represented by an 8 m bounding sphere so
+    // contact occurs near the visible fore/aft/radiator extents rather than at
+    // the obsolete 0.75 m engineering-shell placeholder. A later compound
+    // envelope can refine this without changing the contact telemetry contract.
+    double collision_envelope_radius_m{8.0};
     bool has_contact_history{false};
     std::string last_contact_body_id{};
     Vector3d last_contact_point_m{};
