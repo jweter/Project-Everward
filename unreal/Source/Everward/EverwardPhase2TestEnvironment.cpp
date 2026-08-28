@@ -5,6 +5,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
 
 AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
@@ -78,5 +80,48 @@ AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
             Marker->SetStaticMesh(CubeMesh.Object);
         }
         ReferenceMarkers.Add(Marker);
+    }
+}
+
+void AEverwardPhase2TestEnvironment::BeginPlay()
+{
+    Super::BeginPlay();
+    ApplyEnvironmentMaterialScaffold();
+}
+
+void AEverwardPhase2TestEnvironment::ApplyEnvironmentMaterialScaffold()
+{
+    // This is not the future planetary-surface system. It gives the current
+    // authoritative physical target a restrained rock/regolith read while the
+    // spherical planetary-body foundation is built later. The treatment is
+    // intentionally reusable and presentation-only.
+    auto ApplyMaterial = [this](
+        UStaticMeshComponent* Component,
+        const FLinearColor& BaseColor,
+        float Metallic,
+        float Roughness)
+    {
+        if (Component == nullptr) return;
+        UMaterialInterface* BaseMaterial = Component->GetMaterial(0);
+        if (BaseMaterial == nullptr) return;
+
+        UMaterialInstanceDynamic* DynamicMaterial =
+            UMaterialInstanceDynamic::Create(BaseMaterial, this);
+        if (DynamicMaterial == nullptr) return;
+
+        DynamicMaterial->SetVectorParameterValue(TEXT("Color"), BaseColor);
+        DynamicMaterial->SetVectorParameterValue(TEXT("BaseColor"), BaseColor);
+        DynamicMaterial->SetScalarParameterValue(TEXT("Metallic"), Metallic);
+        DynamicMaterial->SetScalarParameterValue(TEXT("Roughness"), Roughness);
+        Component->SetMaterial(0, DynamicMaterial);
+    };
+
+    const FLinearColor RegolithRock(0.20f, 0.18f, 0.16f, 1.0f);
+    const FLinearColor NavigationMarker(0.075f, 0.095f, 0.11f, 1.0f);
+
+    ApplyMaterial(ScanTargetMesh, RegolithRock, 0.04f, 0.88f);
+    for (UStaticMeshComponent* Marker : ReferenceMarkers)
+    {
+        ApplyMaterial(Marker, NavigationMarker, 0.18f, 0.62f);
     }
 }
