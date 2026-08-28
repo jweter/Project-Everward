@@ -18,6 +18,13 @@ struct CompoundContactCandidate {
     Vector3d normal{};
 };
 
+struct CompoundContactResolution {
+    Vector3d resolved_probe_root{};
+    Vector3d surface_point{};
+    Vector3d resolved_velocity{};
+    double normal_speed_mps{0.0};
+};
+
 [[nodiscard]] inline Vector3d contact_add(Vector3d a, Vector3d b) noexcept {
     return {a.x + b.x, a.y + b.y, a.z + b.z};
 }
@@ -146,6 +153,37 @@ struct CompoundContactCandidate {
     }
 
     return earliest;
+}
+
+[[nodiscard]] inline CompoundContactResolution resolve_compound_contact(
+    const CompoundContactCandidate& candidate,
+    EulerAttitudeDegrees attitude,
+    const ProbeCollisionSphereSample& sample,
+    const StaticSphereBody& body,
+    Vector3d incoming_velocity) noexcept {
+    CompoundContactResolution resolution;
+    const double normal_component = contact_dot(incoming_velocity, candidate.normal);
+    resolution.normal_speed_mps = std::max(0.0, -normal_component);
+    resolution.resolved_velocity = incoming_velocity;
+    if (normal_component < 0.0) {
+        resolution.resolved_velocity = contact_subtract(
+            incoming_velocity,
+            contact_scale(candidate.normal, normal_component));
+    }
+
+    // Place the contacted sample just outside the body, then derive the probe
+    // root by subtracting that sample's rotated local offset. This is the key
+    // difference from the old center-sphere resolver: the root no longer has to
+    // sit one giant radius away from everything around the spacecraft.
+    const Vector3d resolved_sample_center = contact_add(
+        body.center_m,
+        contact_scale(candidate.normal, body.radius_m + sample.radius_m + 1e-6));
+    const Vector3d rotated_offset = rotate_local_contact_offset(sample.local_center_m, attitude);
+    resolution.resolved_probe_root = contact_subtract(resolved_sample_center, rotated_offset);
+    resolution.surface_point = contact_add(
+        body.center_m,
+        contact_scale(candidate.normal, body.radius_m));
+    return resolution;
 }
 
 } // namespace everward::simulation
