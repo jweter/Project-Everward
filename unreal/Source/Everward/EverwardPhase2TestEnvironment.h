@@ -20,6 +20,7 @@ class EVERWARD_API AEverwardPhase2TestEnvironment : public AActor
 
 public:
     AEverwardPhase2TestEnvironment();
+    virtual void BeginPlay() override;
 
     static constexpr const TCHAR* BootstrapScanTargetId = TEXT("phase2-test-target-001");
     static constexpr double BootstrapBodyCenterXMeters = 50.0;
@@ -28,6 +29,8 @@ public:
     static constexpr double BootstrapBodyRadiusMeters = 2.0;
 
 private:
+    void ApplyEnvironmentMaterialScaffold();
+
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
     TObjectPtr<USceneComponent> SceneRoot;
 

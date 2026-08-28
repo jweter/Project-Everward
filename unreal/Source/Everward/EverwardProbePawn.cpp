@@ -8,6 +8,8 @@
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputCoreTypes.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "ProbeSimulationAdapter.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -170,6 +172,67 @@ AEverwardProbePawn::AEverwardProbePawn()
     ProbeCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ProbeCamera"));
     ProbeCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
     ProbeCamera->bUsePawnControlRotation = false;
+}
+
+void AEverwardProbePawn::BeginPlay()
+{
+    Super::BeginPlay();
+    ApplyPrimeFunctionalMaterials();
+}
+
+void AEverwardProbePawn::ApplyPrimeFunctionalMaterials()
+{
+    // This is intentionally a first functional skin rather than final art.
+    // Each system family receives a restrained physically motivated value/color
+    // treatment so the blockout reads as a machine with identifiable hardware.
+    // Production materials can replace these instances without changing the
+    // simulation, collision, component layout, or gameplay contracts.
+    auto ApplyMaterialFamily = [this](
+        UStaticMeshComponent* Component,
+        const FLinearColor& BaseColor,
+        float Metallic,
+        float Roughness)
+    {
+        if (Component == nullptr) return;
+        UMaterialInterface* BaseMaterial = Component->GetMaterial(0);
+        if (BaseMaterial == nullptr) return;
+
+        UMaterialInstanceDynamic* DynamicMaterial =
+            UMaterialInstanceDynamic::Create(BaseMaterial, this);
+        if (DynamicMaterial == nullptr) return;
+
+        // Engine basic-shape materials expose Color in current UE builds. The
+        // additional conventional parameter names make this pass compatible
+        // with the later Everward master materials without branching code.
+        DynamicMaterial->SetVectorParameterValue(TEXT("Color"), BaseColor);
+        DynamicMaterial->SetVectorParameterValue(TEXT("BaseColor"), BaseColor);
+        DynamicMaterial->SetScalarParameterValue(TEXT("Metallic"), Metallic);
+        DynamicMaterial->SetScalarParameterValue(TEXT("Roughness"), Roughness);
+        Component->SetMaterial(0, DynamicMaterial);
+    };
+
+    const FLinearColor StructuralAlloy(0.34f, 0.37f, 0.40f, 1.0f);
+    const FLinearColor ProtectedCore(0.09f, 0.11f, 0.13f, 1.0f);
+    const FLinearColor ReactorMetal(0.23f, 0.25f, 0.27f, 1.0f);
+    const FLinearColor EngineRefractory(0.18f, 0.105f, 0.065f, 1.0f);
+    const FLinearColor OpticalSurface(0.025f, 0.055f, 0.075f, 1.0f);
+    const FLinearColor RadiatorSurface(0.055f, 0.065f, 0.075f, 1.0f);
+    const FLinearColor ManeuverHardware(0.28f, 0.30f, 0.32f, 1.0f);
+    const FLinearColor SensorMast(0.16f, 0.19f, 0.21f, 1.0f);
+    const FLinearColor JointHardware(0.12f, 0.13f, 0.14f, 1.0f);
+
+    ApplyMaterialFamily(ProbeMesh, StructuralAlloy, 0.82f, 0.42f);
+    ApplyMaterialFamily(CoreHousing, ProtectedCore, 0.30f, 0.50f);
+    ApplyMaterialFamily(ReactorHousing, ReactorMetal, 0.78f, 0.38f);
+    ApplyMaterialFamily(MainEngine, EngineRefractory, 0.72f, 0.48f);
+    ApplyMaterialFamily(ForwardSensor, OpticalSurface, 0.08f, 0.12f);
+    ApplyMaterialFamily(PortRadiator, RadiatorSurface, 0.34f, 0.72f);
+    ApplyMaterialFamily(StarboardRadiator, RadiatorSurface, 0.34f, 0.72f);
+    ApplyMaterialFamily(PortManeuverPod, ManeuverHardware, 0.76f, 0.44f);
+    ApplyMaterialFamily(StarboardManeuverPod, ManeuverHardware, 0.76f, 0.44f);
+    ApplyMaterialFamily(DorsalMarker, SensorMast, 0.52f, 0.36f);
+    ApplyMaterialFamily(PortShoulder, JointHardware, 0.84f, 0.46f);
+    ApplyMaterialFamily(StarboardShoulder, JointHardware, 0.84f, 0.46f);
 }
 
 void AEverwardProbePawn::Tick(float DeltaSeconds)
