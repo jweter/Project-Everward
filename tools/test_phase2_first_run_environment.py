@@ -58,8 +58,8 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         self.assertIn('BindAxis(TEXT("EverwardLookPitch")', self.controller)
         self.assertIn('BindAxis(TEXT("EverwardCameraZoom")', self.controller)
         self.assertIn('void AdjustCameraZoom(float DeltaCentimeters);', self.pawn_h)
-        self.assertIn('CameraBoom->TargetArmLength = 2600.0f;', self.pawn_cpp)
-        self.assertIn('MinCameraDistanceCentimeters = 1400.0f', self.pawn_h)
+        self.assertIn('CameraBoom->TargetArmLength = 2200.0f;', self.pawn_cpp)
+        self.assertIn('MinCameraDistanceCentimeters = 1200.0f', self.pawn_h)
         self.assertIn('MaxCameraDistanceCentimeters = 5000.0f', self.pawn_h)
         self.assertIn('CameraBoom->bUsePawnControlRotation = true;', self.pawn_cpp)
         self.assertIn('CameraBoom->bDoCollisionTest = false;', self.pawn_cpp)
@@ -79,7 +79,7 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         self.assertIn('Owner->SetActorRotation(PresentationAttitude', self.adapter_source)
 
     def test_prime_gen1_blockout_has_required_visible_systems(self) -> None:
-        components = (
+        direct_components = (
             'ProbeMesh',
             'CoreHousing',
             'ReactorHousing',
@@ -89,31 +89,47 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
             'StarboardRadiator',
             'PortManeuverPod',
             'StarboardManeuverPod',
-            'PortShoulder',
-            'StarboardShoulder',
             'DorsalMarker',
         )
-        for component in components:
+        for component in direct_components:
             self.assertIn(component, self.pawn_h)
             self.assertIn(f'{component} = CreateDefaultSubobject', self.pawn_cpp)
 
+        for component in (
+            'PortShoulder', 'PortUpperArm', 'PortForearm', 'PortToolHead',
+            'StarboardShoulder', 'StarboardUpperArm', 'StarboardForearm', 'StarboardToolHead',
+        ):
+            self.assertIn(component, self.pawn_h)
+
         for label in (
-            'StructuralSpine',
-            'ComputationCoreHousing',
-            'PowerReactorHousing',
+            'PrimeCentralTube',
+            'ComputationCoreSleeve',
+            'PowerReactorSleeve',
             'MainPropulsionAssembly',
-            'PortThermalRadiator',
-            'StarboardThermalRadiator',
+            'ForwardScienceSensor',
+            'PortThermalWing',
+            'StarboardThermalWing',
             'PortManeuveringPod',
             'StarboardManeuveringPod',
+            'DorsalSensorMast',
         ):
             self.assertIn(f'TEXT("{label}")', self.pawn_cpp)
 
-        self.assertIn('approximately 15 m long', self.pawn_cpp)
-        self.assertIn('ForwardSensor->SetRelativeLocation(FVector(610.0, 0.0, 22.0))', self.pawn_cpp)
-        self.assertIn('MainEngine->SetRelativeLocation(FVector(-640.0, 0.0, 0.0))', self.pawn_cpp)
-        self.assertIn('PortRadiator->SetRelativeLocation(FVector(-40.0, -270.0, 8.0))', self.pawn_cpp)
-        self.assertIn('StarboardRadiator->SetRelativeLocation(FVector(-40.0, 270.0, 8.0))', self.pawn_cpp)
+        for generic_arm_label in (
+            'TEXT("%sShoulder")',
+            'TEXT("%sUpperArm")',
+            'TEXT("%sForearm")',
+            'TEXT("%sMiningToolHead")',
+        ):
+            self.assertIn(generic_arm_label, self.pawn_cpp)
+        self.assertIn('ConfigureArm(true);', self.pawn_cpp)
+        self.assertIn('ConfigureArm(false);', self.pawn_cpp)
+        self.assertIn('UpdateManipulatorVisuals();', self.pawn_cpp)
+
+        self.assertIn('ForwardSensor->SetRelativeLocation(FVector(620.0, 0.0, 0.0))', self.pawn_cpp)
+        self.assertIn('MainEngine->SetRelativeLocation(FVector(-620.0, 0.0, 0.0))', self.pawn_cpp)
+        self.assertIn('PortRadiator->SetRelativeLocation(FVector(-30.0, -195.0, 0.0))', self.pawn_cpp)
+        self.assertIn('StarboardRadiator->SetRelativeLocation(FVector(-30.0, 195.0, 0.0))', self.pawn_cpp)
 
     def test_probe_collision_envelope_tracks_prime_blockout_scale(self) -> None:
         self.assertIn('USphereComponent', self.pawn_h)
