@@ -29,6 +29,33 @@ FString CapabilityState(const FEverwardProbeCapability& Capability)
     }
     return TEXT("READY");
 }
+
+FString ManipulatorArmLine(const FString& Label, const FEverwardManipulatorArmState& Arm)
+{
+    FString StateText;
+    if (Arm.bIsDeploying)
+    {
+        StateText = FString::Printf(TEXT("DEPLOYING %.0f%%"), Arm.DeploymentFraction * 100.0);
+    }
+    else if (Arm.bIsStowing)
+    {
+        StateText = FString::Printf(TEXT("STOWING %.0f%%"), Arm.DeploymentFraction * 100.0);
+    }
+    else if (Arm.bIsDeployed)
+    {
+        StateText = TEXT("DEPLOYED");
+    }
+    else
+    {
+        StateText = TEXT("STOWED");
+    }
+
+    return FString::Printf(
+        TEXT("%s ARM  %s%s"),
+        *Label,
+        *StateText,
+        Arm.bToolAttached ? TEXT("  //  TOOL") : TEXT(""));
+}
 }
 
 void AEverwardHUD::DrawHUD()
@@ -49,6 +76,7 @@ void AEverwardHUD::DrawHUD()
     const UProbeSimulationAdapter* Adapter = Probe->GetSimulationAdapter();
     const FEverwardProbeTelemetry Telemetry = Adapter->GetProbeTelemetry();
     const TArray<FEverwardProbeCapability> Capabilities = Adapter->GetInstalledCapabilities();
+    const TArray<FEverwardManipulatorArmState> ManipulatorArms = Adapter->GetManipulatorArmStates();
     const FEverwardSoftwarePolicyStatus PolicyStatus = Adapter->GetSoftwarePolicyStatus();
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
     const FEverwardAutomationNotice AutomationNotice = Adapter->GetLastAutomationNotice();
@@ -94,7 +122,7 @@ void AEverwardHUD::DrawHUD()
     const FLinearColor MutedColor(0.55f, 0.65f, 0.70f, 1.0f);
     const FLinearColor AlertColor(1.0f, 0.36f, 0.18f, 1.0f);
 
-    const float TelemetryHeight = 178.0f;
+    const float TelemetryHeight = 178.0f + LineHeight * 2.0f;
     const float TelemetryY = Canvas->ClipY - Margin - TelemetryHeight;
     DrawRect(PanelColor, Margin, TelemetryY, PanelWidth, TelemetryHeight);
     DrawText(
@@ -118,6 +146,19 @@ void AEverwardHUD::DrawHUD()
     DrawText(
         FString::Printf(TEXT("SIM %.1f s"), Telemetry.SimulationTimeSeconds),
         MutedColor, Margin + 14.0f, TelemetryY + 38.0f + LineHeight * 5.0f, nullptr, 0.9f, false);
+    for (int32 ArmIndex = 0; ArmIndex < ManipulatorArms.Num(); ++ArmIndex)
+    {
+        const FEverwardManipulatorArmState& Arm = ManipulatorArms[ArmIndex];
+        const FString Label = Arm.ArmId == EEverwardManipulatorArmId::Port ? TEXT("PORT") : TEXT("STBD");
+        DrawText(
+            ManipulatorArmLine(Label, Arm),
+            Arm.bIsDeployed || Arm.bIsDeploying || Arm.bIsStowing ? TextColor : MutedColor,
+            Margin + 14.0f,
+            TelemetryY + 38.0f + LineHeight * (6.0f + ArmIndex),
+            nullptr,
+            0.86f,
+            false);
+    }
 
     float AlertY = Margin;
     if (Telemetry.bIsEnergyDepleted || Telemetry.bIsOverheated)

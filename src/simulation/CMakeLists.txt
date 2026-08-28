@@ -38,4 +38,8 @@ if(BUILD_TESTING)
     add_executable(everward_impact_damage_tests tests/impact_damage_tests.cpp)
     target_link_libraries(everward_impact_damage_tests PRIVATE everward_simulation)
     add_test(NAME everward_impact_damage_tests COMMAND everward_impact_damage_tests)
+
+    add_executable(everward_manipulator_tests tests/manipulator_tests.cpp)
+    target_link_libraries(everward_manipulator_tests PRIVATE everward_simulation)
+    add_test(NAME everward_manipulator_tests COMMAND everward_manipulator_tests)
 endif()

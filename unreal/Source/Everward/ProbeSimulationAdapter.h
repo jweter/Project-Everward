@@ -7,6 +7,7 @@
 namespace everward::simulation
 {
 class DamageAwareProbeRuntime;
+class ManipulatorRig;
 }
 
 UENUM(BlueprintType)
@@ -16,6 +17,21 @@ enum class EEverwardPowerSubsystem : uint8
     Propulsion UMETA(DisplayName="Propulsion"),
     Computation UMETA(DisplayName="Computation"),
     Thermal UMETA(DisplayName="Thermal")
+};
+
+UENUM(BlueprintType)
+enum class EEverwardManipulatorArmId : uint8
+{
+    Port UMETA(DisplayName="Port"),
+    Starboard UMETA(DisplayName="Starboard")
+};
+
+UENUM(BlueprintType)
+enum class EEverwardManipulatorJoint : uint8
+{
+    Shoulder UMETA(DisplayName="Shoulder"),
+    Elbow UMETA(DisplayName="Elbow"),
+    Wrist UMETA(DisplayName="Wrist")
 };
 
 USTRUCT(BlueprintType)
@@ -267,6 +283,43 @@ struct EVERWARD_API FEverwardProbeCapability
     FString StatusReason;
 };
 
+// Slice 6 foundation: authoritative Port/Starboard manipulator arm state.
+// This mirrors src/simulation/include/everward/simulation/manipulator.hpp's
+// ManipulatorArmState field-for-field so the HUD/Blueprint layer never has to
+// re-derive mechanical truth that already exists engine-independently.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardManipulatorArmState
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    EEverwardManipulatorArmId ArmId = EEverwardManipulatorArmId::Port;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    bool bIsDeployed = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    bool bIsDeploying = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    bool bIsStowing = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    double DeploymentFraction = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    double ShoulderDegrees = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    double ElbowDegrees = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    double WristDegrees = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    bool bToolAttached = false;
+};
+
 UCLASS(ClassGroup=(Everward), meta=(BlueprintSpawnableComponent))
 class EVERWARD_API UProbeSimulationAdapter : public UActorComponent
 {
@@ -293,6 +346,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category="Everward|Policy")
     FEverwardSoftwarePolicyStatus GetSoftwarePolicyStatus() const;
+
+    UFUNCTION(BlueprintPure, Category="Everward|Manipulator")
+    TArray<FEverwardManipulatorArmState> GetManipulatorArmStates() const;
 
     UFUNCTION(BlueprintPure, Category="Everward|Command")
     FEverwardProbeCommandResult GetLastCommandResult() const;
@@ -327,6 +383,22 @@ public:
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandClearSoftwarePolicy();
 
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandDeployManipulatorArm(EEverwardManipulatorArmId ArmId);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandStowManipulatorArm(EEverwardManipulatorArmId ArmId);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandSetManipulatorJointTargetDegrees(
+        EEverwardManipulatorArmId ArmId, EEverwardManipulatorJoint Joint, double TargetDegrees);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandAttachManipulatorTool(EEverwardManipulatorArmId ArmId);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandDetachManipulatorTool(EEverwardManipulatorArmId ArmId);
+
     UFUNCTION(BlueprintCallable, Category="Everward|Simulation")
     void SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond);
 
@@ -347,4 +419,5 @@ private:
     FEverwardAutomationNotice LastAutomationNotice;
     FEverwardScanLifecycleNotice LastScanLifecycleNotice;
     everward::simulation::DamageAwareProbeRuntime* Core = nullptr;
+    everward::simulation::ManipulatorRig* Manipulators = nullptr;
 };

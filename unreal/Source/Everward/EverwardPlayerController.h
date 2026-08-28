@@ -5,6 +5,7 @@
 #include "EverwardPlayerController.generated.h"
 
 class UProbeSimulationAdapter;
+enum class EEverwardManipulatorArmId : uint8;
 
 UCLASS()
 class EVERWARD_API AEverwardPlayerController : public APlayerController
@@ -40,6 +41,13 @@ private:
     void RollProbeLeft();
     void RollProbeRight();
 
+    // Slice 6 foundation input: deploy/stow toggle per arm and a single tool
+    // attach/detach toggle. Joint articulation input remains a follow-up
+    // sub-slice (see PHASE2_VERTICAL_SLICE_PLAN.md Slice 6 status).
+    void TogglePortManipulatorArm();
+    void ToggleStarboardManipulatorArm();
+    void ToggleManipulatorTool();
+
     void LookYaw(float Value);
     void LookPitch(float Value);
     void ZoomCamera(float Value);
@@ -50,6 +58,7 @@ private:
     void AdjustSelectedSystemPower(double DeltaWatts);
     void AdjustLocalVelocityMetersPerSecond(const FVector& DeltaLocalVelocity);
     void AdjustAttitudeDegrees(const FRotator& DeltaAttitude);
+    void ToggleManipulatorArmDeployment(EEverwardManipulatorArmId ArmId);
 
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double Phase2ScanDurationSeconds = 10.0;
