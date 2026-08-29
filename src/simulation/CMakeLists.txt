@@ -35,6 +35,10 @@ if(BUILD_TESTING)
     target_link_libraries(everward_contact_physics_tests PRIVATE everward_simulation)
     add_test(NAME everward_contact_physics_tests COMMAND everward_contact_physics_tests)
 
+    add_executable(everward_compound_contact_tests tests/compound_contact_tests.cpp)
+    target_link_libraries(everward_compound_contact_tests PRIVATE everward_simulation)
+    add_test(NAME everward_compound_contact_tests COMMAND everward_compound_contact_tests)
+
     add_executable(everward_impact_damage_tests tests/impact_damage_tests.cpp)
     target_link_libraries(everward_impact_damage_tests PRIVATE everward_simulation)
     add_test(NAME everward_impact_damage_tests COMMAND everward_impact_damage_tests)
