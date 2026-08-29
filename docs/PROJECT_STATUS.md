@@ -186,7 +186,7 @@ A third sub-slice, landed alongside the Prime A embodiment pass (#127) rather th
 
 **Status: implemented, Product Reality pending.** See `PHASE2_SIMPLE_PRIME_A_EMBODIMENT_PASS.md` items 4–7.
 
-All three Slice 6 sub-slices (foundation mechanics, joint-articulation input/HUD, visible geometry) are now implemented. Slice 6 itself remains open only pending the local Unreal Product Reality pass across all three test scripts above.
+All three Slice 6 sub-slices (foundation mechanics, joint-articulation input/HUD, visible geometry) are now implemented, and Product Reality evidence is outstanding for all three. Slice 6 also has one stated requirement still unimplemented, independent of that evidence: `PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 6 player-visible result list includes "collision does not allow impossible penetration through the probe body," but every arm mesh is built through `ConfigureMesh`, which sets `ECollisionEnabled::NoCollision` — there is no arm/body or arm/environment collision yet, and none of the three test scripts above check for it. Slice 6 is not complete until that collision requirement is implemented in addition to the local Unreal Product Reality pass.
 
 ### Canonical damaged awakening and Self Repair direction
 
@@ -268,7 +268,7 @@ Priority order:
 
 1. complete the accumulated local Phase-2 Product Reality pass above;
 2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
-3. **Slice 6 — articulated manipulator arms**: mechanics, joint-articulation HUD, and visible geometry are all now implemented; the only remaining Slice 6 work is recording the local Product Reality pass above across its three test scripts;
+3. **Slice 6 — articulated manipulator arms**: mechanics, joint-articulation HUD, and visible geometry are all now implemented, but arm/body/environment collision (a stated Slice 6 requirement) is not — every arm mesh currently has `ECollisionEnabled::NoCollision` — so Slice 6 needs that collision work in addition to recording the local Product Reality pass above across its three test scripts;
 4. then move into object selection and physical interaction;
 5. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 
