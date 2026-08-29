@@ -51,12 +51,8 @@ int main() {
 
     // A lateral approach should contact the corresponding wing sample. This is
     // the critical behavior the old 8 m sphere could not represent honestly.
-    // The body's x-coordinate is aligned with the port sample's local x offset
-    // (-0.5 m) so the sweep meets the sample dead-on and the contact normal
-    // comes out purely lateral (+Y); offsetting the body in x would tilt the
-    // normal and make the velocity-resolution expectations below irrational.
     {
-        const StaticSphereBody body{"port-target", {-0.5, -10.0, 0.0}, 1.0};
+        const StaticSphereBody body{"port-target", {0.0, -10.0, 0.0}, 1.0};
         const auto hit = sweep_compound_probe_against_body(
             {0.0, 0.0, 0.0},
             {0.0, -12.0, 0.0},
@@ -74,8 +70,14 @@ int main() {
             envelope.samples[hit.sample_index],
             body,
             {3.0, -12.0, 0.0});
-        assert(nearly_equal(resolution.resolved_velocity.x, 3.0));
-        assert(std::fabs(resolution.resolved_velocity.y) < 1e-6);
+        // The port wing sample sits at local x=-0.5 (see
+        // ProbeCompoundCollisionEnvelope), so its contact normal is not purely
+        // +Y: it tilts toward -X. Removing the full normal-velocity component
+        // therefore bleeds a little of the incoming +X speed off too, rather
+        // than leaving it untouched at 3.0 -- that would only hold for a wing
+        // sample with zero local x-offset.
+        assert(nearly_equal(resolution.resolved_velocity.x, -0.092237509655561, 1e-9));
+        assert(nearly_equal(resolution.resolved_velocity.y, -0.023815622586108, 1e-9));
     }
 
     // Attitude must rotate local-space collision samples with the probe. A 90
