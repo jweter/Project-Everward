@@ -67,7 +67,13 @@ class Phase2ManipulatorArmSurfaceTests(unittest.TestCase):
             self.assertIn(method, self.adapter_h)
 
         self.assertIn("everward/simulation/manipulator.hpp", self.adapter_cpp)
-        self.assertIn("new everward::simulation::ManipulatorRig()", self.adapter_cpp)
+        self.assertIn("new everward::simulation::ManipulatorRig(", self.adapter_cpp)
+        # The rig is constructed with the hull self-collision guard, not
+        # default-constructed: this is what makes "collision does not allow
+        # impossible penetration through the probe body" (Slice 6) hold for
+        # the real adapter, not only for a bare ManipulatorRig in a test.
+        self.assertIn("everward/simulation/manipulator_hull_contact.hpp", self.adapter_cpp)
+        self.assertIn("make_hull_self_collision_guard()", self.adapter_cpp)
         self.assertIn("delete Manipulators", self.adapter_cpp)
         self.assertIn("Manipulators->advance(FixedStepSeconds)", self.adapter_cpp)
         self.assertIn("Manipulators->begin_deploy(", self.adapter_cpp)
