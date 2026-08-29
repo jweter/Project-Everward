@@ -5,6 +5,7 @@
 #include "everward/simulation/software_policy.hpp"
 #include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/manipulator.hpp"
+#include "everward/simulation/manipulator_hull_contact.hpp"
 
 #include <exception>
 #include <string>
@@ -139,7 +140,13 @@ void UProbeSimulationAdapter::BeginPlay()
     Super::BeginPlay();
     Core = new everward::simulation::DamageAwareProbeRuntime(
         everward::simulation::DamageAwareProbeRuntime::make_canonical_ev0001());
-    Manipulators = new everward::simulation::ManipulatorRig();
+    // Guarded against the same hull envelope software_policy.hpp already
+    // sweeps external contact against, so a commanded joint pose that would
+    // visually drive an arm through the probe's own body is never reachable
+    // in the first place (Slice 6's "collision does not allow impossible
+    // penetration through the probe body" requirement).
+    Manipulators = new everward::simulation::ManipulatorRig(
+        everward::simulation::make_hull_self_collision_guard());
 
     // Register the same sphere rendered by the temporary Phase-2 environment.
     // The runtime, not Unreal collision response, decides whether EV-0001 can

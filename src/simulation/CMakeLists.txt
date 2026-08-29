@@ -46,4 +46,8 @@ if(BUILD_TESTING)
     add_executable(everward_manipulator_tests tests/manipulator_tests.cpp)
     target_link_libraries(everward_manipulator_tests PRIVATE everward_simulation)
     add_test(NAME everward_manipulator_tests COMMAND everward_manipulator_tests)
+
+    add_executable(everward_manipulator_hull_contact_tests tests/manipulator_hull_contact_tests.cpp)
+    target_link_libraries(everward_manipulator_hull_contact_tests PRIVATE everward_simulation)
+    add_test(NAME everward_manipulator_hull_contact_tests COMMAND everward_manipulator_hull_contact_tests)
 endif()

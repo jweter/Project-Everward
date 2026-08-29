@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <functional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -90,6 +91,19 @@ public:
     // into staged Self Repair without replacing the underlying model.
     static constexpr double kDeployStowDurationS = 2.0;
     static constexpr double kJointSlewDegreesPerSecond = 45.0;
+
+    // Returns true if the given fully-deployed pose is safe to occupy.
+    // Injected rather than computed here so this module stays standalone
+    // (see the header comment above): manipulator_hull_contact.hpp supplies
+    // the real hull-aware implementation, wired in where the rig is actually
+    // constructed. A default-constructed rig has no guard and behaves
+    // exactly as before this pose-safety check existed.
+    using SelfCollisionGuard =
+        std::function<bool(ManipulatorArmId, double /*deployment_fraction*/, ManipulatorArmAngles)>;
+
+    ManipulatorRig() = default;
+    explicit ManipulatorRig(SelfCollisionGuard self_collision_guard)
+        : self_collision_guard_(std::move(self_collision_guard)) {}
 
     [[nodiscard]] static constexpr ManipulatorJointRangeDegrees shoulder_range() noexcept {
         return {-90.0, 90.0};
@@ -258,12 +272,27 @@ private:
             return;
         }
         const double max_step = kJointSlewDegreesPerSecond * seconds;
-        state.angles.shoulder_degrees =
+        ManipulatorArmAngles candidate = state.angles;
+        candidate.shoulder_degrees =
             slew_toward(state.angles.shoulder_degrees, state.commanded_angles.shoulder_degrees, max_step);
-        state.angles.elbow_degrees =
+        candidate.elbow_degrees =
             slew_toward(state.angles.elbow_degrees, state.commanded_angles.elbow_degrees, max_step);
-        state.angles.wrist_degrees =
+        candidate.wrist_degrees =
             slew_toward(state.angles.wrist_degrees, state.commanded_angles.wrist_degrees, max_step);
+
+        // Only guard the steady-state "fully deployed, following an operator
+        // command" regime that command_joint_target_degrees itself requires.
+        // Deploy/stow's own fold motion (see the fraction block above) is
+        // left unguarded: it already ends at the same zero-angle pose every
+        // time, and guarding it too would risk deadlocking deploy/stow
+        // against this coarse hull approximation instead of only refusing
+        // genuinely new operator-commanded penetration.
+        const bool steady_state = state.is_deployed && !state.is_stowing && !state.is_deploying;
+        if (steady_state && self_collision_guard_ &&
+            !self_collision_guard_(id, state.deployment_fraction, candidate)) {
+            return;
+        }
+        state.angles = candidate;
     }
 
     [[nodiscard]] ManipulatorArmState& state_ref(ManipulatorArmId id) noexcept {
@@ -276,6 +305,7 @@ private:
     ManipulatorArmState port_{};
     ManipulatorArmState starboard_{};
     std::vector<ManipulatorEvent> events_{};
+    SelfCollisionGuard self_collision_guard_{};
 };
 
 } // namespace everward::simulation
