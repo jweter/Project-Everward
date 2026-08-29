@@ -140,13 +140,27 @@ void UProbeSimulationAdapter::BeginPlay()
     Super::BeginPlay();
     Core = new everward::simulation::DamageAwareProbeRuntime(
         everward::simulation::DamageAwareProbeRuntime::make_canonical_ev0001());
-    // Guarded against the same hull envelope software_policy.hpp already
-    // sweeps external contact against, so a commanded joint pose that would
-    // visually drive an arm through the probe's own body is never reachable
-    // in the first place (Slice 6's "collision does not allow impossible
-    // penetration through the probe body" requirement).
+    // Guarded against both the probe's own hull envelope (so a commanded
+    // joint pose can never visually drive an arm through the probe's own
+    // body) and every registered external body (so an arm cannot sweep into
+    // an asteroid/scan target either) -- Slice 6's "collision does not allow
+    // impossible penetration" requirement, extended from self-collision to
+    // arm/environment collision per PROJECT_STATUS.md. The environment check
+    // reads Core's live position/attitude/registered bodies on every call
+    // rather than a snapshot taken here, so it stays correct as EV-0001
+    // moves and as bodies are registered/cleared.
+    everward::simulation::DamageAwareProbeRuntime* CoreForGuard = Core;
     Manipulators = new everward::simulation::ManipulatorRig(
-        everward::simulation::make_hull_self_collision_guard());
+        everward::simulation::make_combined_collision_guard(
+            everward::simulation::make_hull_self_collision_guard(),
+            everward::simulation::make_environment_collision_guard(
+                [CoreForGuard]() {
+                    const auto& Snapshot = CoreForGuard->snapshot();
+                    return everward::simulation::ProbeWorldPose{Snapshot.position_m, Snapshot.attitude_degrees};
+                },
+                [CoreForGuard]() -> const std::vector<everward::simulation::StaticSphereBody>& {
+                    return CoreForGuard->static_bodies();
+                })));
 
     // Register the same sphere rendered by the temporary Phase-2 environment.
     // The runtime, not Unreal collision response, decides whether EV-0001 can

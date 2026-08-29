@@ -7,6 +7,9 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <functional>
+#include <utility>
+#include <vector>
 
 namespace everward::simulation {
 
@@ -192,6 +195,85 @@ struct ManipulatorArmContactSamples {
 [[nodiscard]] inline ManipulatorRig::SelfCollisionGuard make_hull_self_collision_guard() {
     return [](ManipulatorArmId id, double deployment_fraction, ManipulatorArmAngles angles) {
         return !manipulator_pose_intersects_hull(id, deployment_fraction, angles, ProbeCompoundCollisionEnvelope{});
+    };
+}
+
+// Slice 6 follow-up, part two (PHASE2_VERTICAL_SLICE_PLAN.md /
+// PROJECT_STATUS.md "Manipulator arm/body self-collision"): the guard above
+// only ever stops an arm from passing through the probe's own hull. Arm sweeping
+// into a registered *external* body (an asteroid, the physical scan/contact
+// target, etc.) was left as a stated but unimplemented Slice 6 requirement.
+//
+// This reuses the same arm samples and the same rotate_local_contact_offset
+// convention software_policy.hpp's probe-vs-body contact already uses to place
+// the probe's own hull samples in world space -- no second world-placement
+// convention is invented. It is a static overlap test against each registered
+// body's current geometry, not the swept/velocity-resolved contact response
+// software_policy.hpp performs for the probe hull itself: that keeps this
+// guard parallel-safe (PHASE2_VERTICAL_SLICE_PLAN.md's parallel-safe lane)
+// rather than depending on the correctness of the still-Product-Reality-pending
+// swept contact *response*.
+struct ProbeWorldPose {
+    Vector3d position_m{};
+    EulerAttitudeDegrees attitude_degrees{};
+};
+
+[[nodiscard]] inline bool manipulator_pose_intersects_environment(
+    ManipulatorArmId id,
+    double deployment_fraction,
+    ManipulatorArmAngles angles,
+    ProbeWorldPose probe_pose,
+    const std::vector<StaticSphereBody>& bodies) noexcept {
+    const ManipulatorArmContactSamples local_samples =
+        manipulator_arm_contact_samples(id, deployment_fraction, angles);
+    const std::array<const ManipulatorArmSample*, 2> arm_samples{{&local_samples.elbow, &local_samples.wrist}};
+
+    for (const ManipulatorArmSample* arm_sample : arm_samples) {
+        const Vector3d world_center = contact_add(
+            probe_pose.position_m,
+            rotate_local_contact_offset(arm_sample->center_m, probe_pose.attitude_degrees));
+        for (const StaticSphereBody& body : bodies) {
+            const Vector3d delta = contact_subtract(world_center, body.center_m);
+            const double combined_radius = arm_sample->radius_m + body.radius_m;
+            if (contact_dot(delta, delta) < combined_radius * combined_radius) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// `probe_pose` and `registered_bodies` are queried fresh on every guard call
+// (rather than captured once) so the guard always reasons about the probe's
+// live position/attitude and the live registered-body set instead of a stale
+// snapshot taken when the rig was constructed.
+[[nodiscard]] inline ManipulatorRig::SelfCollisionGuard make_environment_collision_guard(
+    std::function<ProbeWorldPose()> probe_pose,
+    std::function<const std::vector<StaticSphereBody>&()> registered_bodies) {
+    return [probe_pose = std::move(probe_pose), registered_bodies = std::move(registered_bodies)](
+               ManipulatorArmId id, double deployment_fraction, ManipulatorArmAngles angles) {
+        return !manipulator_pose_intersects_environment(
+            id, deployment_fraction, angles, probe_pose(), registered_bodies());
+    };
+}
+
+// Composition-root helper: ManipulatorRig accepts exactly one
+// SelfCollisionGuard, so a rig that must reject both self-intersecting and
+// environment-intersecting poses needs the two checks folded into one
+// callback. Either guard may be empty (default-constructed std::function),
+// matching ManipulatorRig's own "no guard installed" default behavior.
+[[nodiscard]] inline ManipulatorRig::SelfCollisionGuard make_combined_collision_guard(
+    ManipulatorRig::SelfCollisionGuard hull_guard,
+    ManipulatorRig::SelfCollisionGuard environment_guard) {
+    return [hull_guard = std::move(hull_guard), environment_guard = std::move(environment_guard)](
+               ManipulatorArmId id, double deployment_fraction, ManipulatorArmAngles angles) {
+        if (hull_guard && !hull_guard(id, deployment_fraction, angles)) {
+            return false;
+        }
+        if (environment_guard && !environment_guard(id, deployment_fraction, angles)) {
+            return false;
+        }
+        return true;
     };
 }
 
