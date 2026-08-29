@@ -16,9 +16,9 @@ Canonical first-run evidence remains:
 
 The repository has advanced substantially beyond that first-run build through the explicit parallel-safe lane. Those later mechanics are **implemented but do not count as locally accepted Product Reality until the exact Unreal test passes.**
 
-Current `main`: `c45625e984108357a2262e5c42b98099406e8f18`, after the evolving-sensorium-audio foundation (#122) and the Prime Generation-1 body blockout (#123, Slice 5). This continuation record had not yet been refreshed for those two merges; this pass folds them in alongside the manipulator arm foundation below.
+Current `main`: `fb0e69f152bc606c3ba54cc61e1cc17cc2f24c89`, after the compound contact-envelope solver wiring (#131). The evolving-sensorium-audio foundation (#122) and the Prime Generation-1 body blockout (#123, Slice 5) are folded in below alongside the manipulator arm work.
 
-Note: between the manipulator joint articulation update (#124/follow-up) and this pass, PRs #125–#130 also merged (Prime functional material pass, visible tube-body/arm geometry replacing the blockout, a Prime-axis/contact-shape fix, and the compound contact-envelope foundation/solver math this pass wires in below). This record has not been separately narrated for #125–#128; that documentation debt remains outstanding.
+The documentation debt previously flagged here for #125–#128 (Prime functional material pass, the Prime A tube-body/visible-arm-geometry replacement, and the fore-aft cylinder axis fix) is resolved by this pass: see the updated Slice 5 and Slice 6 sections below, and the expanded Product Reality sequence, which now also exercises `PHASE2_SIMPLE_PRIME_A_EMBODIMENT_PASS.md`.
 
 ## Verified local foundation
 
@@ -142,7 +142,13 @@ The contact record now feeds a deterministic damage foundation:
 
 The tiny engineering-shell placeholder is replaced with a modular ~15 m Prime Generation-1 blockout: structural spine, computation/core and power/reactor housings, main propulsion, forward sensor hardware, paired radiators and maneuvering pods, a dorsal marker, and paired manipulator shoulder mounts. The authoritative collision envelope and Unreal mirror both moved to an 8 m bounding sphere, and camera orbit/zoom was rescaled for the larger body.
 
-**Status: implemented, Product Reality pending.** See `PHASE2_PRIME_GEN1_BODY_BLOCKOUT_TEST.md`.
+Three follow-on presentation passes then iterated this blockout into the current body:
+
+- **#125** added a functional material/skin pass distinguishing structural alloy, protected core, reactor, propulsion, optics, radiators, maneuvering hardware, sensor mast, and manipulator-joint materials, plus a reusable rock/regolith treatment for the physical scan/contact target;
+- **#127** replaced the original disconnected primitive scatter with a single coherent Prime A tube-body silhouette (central tube, two radiator wings, rear propulsion, forward sensor head) and added the visible shoulder/upper-arm/elbow/forearm/wrist/tool-head geometry for both manipulator arms, described under Slice 6 below;
+- **#128** fixed a fore-aft axis mistake (UE's `BasicShapes/Cylinder` is long on local Z, so the original yaw rotation left the tube upright; corrected to a 90° pitch) across the central tube, core/reactor sleeves, rear engine, forward sensor, and tool heads.
+
+**Status: implemented, Product Reality pending.** See `PHASE2_SIMPLE_PRIME_A_EMBODIMENT_PASS.md` in addition to the original `PHASE2_PRIME_GEN1_BODY_BLOCKOUT_TEST.md`.
 
 ### Evolving machine sensorium and audio progression
 
@@ -150,7 +156,7 @@ The tiny engineering-shell placeholder is replaced with a modular ~15 m Prime Ge
 
 **Status: foundation architecture; not yet wired to Unreal audio presentation.**
 
-### Manipulator arm foundation and joint articulation (Slice 6, in progress)
+### Manipulator arm mechanics, HUD, and visible geometry (Slice 6)
 
 The first sub-slice of **Slice 6 — articulated manipulator arms** lands on the two shoulder mounts Slice 5 already exposes:
 
@@ -170,7 +176,17 @@ A second sub-slice adds the joint articulation input and dedicated manipulator H
 - `N` cycles the arm joint input targets, `4`/`5`/`6` select Shoulder/Elbow/Wrist, `,`/`.` nudge the selected joint's commanded target;
 - no engine-independent simulation behavior changed; clamping and slew-rate limiting remain entirely inside `manipulator.hpp`.
 
-**Status: implemented, Product Reality pending.** Visible arm geometry/animation is the remaining Slice 6 sub-slice; see `PHASE2_MANIPULATOR_JOINT_ARTICULATION_TEST.md` for the explicit remaining scope and the local test script.
+**Status: implemented, Product Reality pending.** See `PHASE2_MANIPULATOR_JOINT_ARTICULATION_TEST.md` for the local test script.
+
+A third sub-slice, landed alongside the Prime A embodiment pass (#127) rather than as a dedicated manipulator PR, adds the visible geometry those mechanics were missing:
+
+- a `shoulder pivot -> upper arm -> elbow pivot -> forearm -> wrist pivot -> tool head` mesh hierarchy for both arms, attached at the shoulder mounts Slice 5 exposes;
+- `AEverwardProbePawn::UpdateManipulatorVisuals()` drives that hierarchy every tick purely from `UProbeSimulationAdapter::GetManipulatorArmStates()` (deployment fraction and current, not commanded, joint angles) — no visual component authors manipulator mechanics;
+- deploy/stow reads as a fold/unfold of the shoulder pivot rather than an instant show/hide, and the tool head visibly changes scale on attach/detach.
+
+**Status: implemented, Product Reality pending.** See `PHASE2_SIMPLE_PRIME_A_EMBODIMENT_PASS.md` items 4–7.
+
+All three Slice 6 sub-slices (foundation mechanics, joint-articulation input/HUD, visible geometry) are now implemented. Slice 6 itself remains open only pending the local Unreal Product Reality pass across all three test scripts above.
 
 ### Canonical damaged awakening and Self Repair direction
 
@@ -216,10 +232,10 @@ Everward continues to preserve:
 - capability-driven Unreal HUD/control shell and `UProbeSimulationAdapter` boundary;
 - deterministic physical-body/contact records;
 - component-specific impact/damage foundation;
-- modular Prime Generation-1 probe body blockout with a rescaled collision envelope;
+- Prime A tube-body silhouette with functional materials and a rescaled collision envelope (Slice 5);
 - adjacent-generation evolution foundation;
 - evolving machine sensorium/audio progression foundation;
-- manipulator arm deploy/stow/joint/tool foundation plus joint articulation input and a dedicated manipulator HUD page (Slice 6, in progress);
+- manipulator arm deploy/stow/joint/tool foundation, joint articulation input and a dedicated manipulator HUD page, and visible shoulder/arm/tool-head geometry (Slice 6; implemented, Product Reality pending);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - explicit versioned save architecture rather than blind Unreal object serialization.
 
@@ -227,20 +243,22 @@ Everward continues to preserve:
 
 Use the exact passed build and validate the accumulated Phase-2 chain in order:
 
-1. yaw, pitch, and roll both directions; confirm visible probe orientation changes correctly;
-2. put EV-0001 into an awkward attitude, orbit the camera, press `R`, and verify the stepped camera-aligned righting aid is understandable and still simulation-authoritative;
-3. translate after attitude changes and verify motion is probe-relative; confirm Space still performs an absolute full stop;
-4. verify all subsystem rows show live watts, state, and reason text;
-5. start a scan with Sensors at 50 W, reduce below minimum, and verify authoritative abort + visible lock/rejection reason;
-6. restore Sensors and verify scanning returns;
-7. install Basic Survival and verify a deterministic visible automation cause/effect event without fabricated discoveries;
-8. approach the registered physical target at low speed and verify solid contact rather than ghosting through it;
-9. repeat with a glancing approach and verify tangential motion is preserved plausibly;
-10. create a damaging impact and verify impact severity, affected component, integrity change, and resulting subsystem consequences agree;
-11. verify no stale policy action executes after Computation is destroyed and no operational/integrity state contradiction appears;
-12. deploy an arm, open the manipulator page (`M`), and verify each joint's commanded target can be selected (`4`/`5`/`6`) and nudged (`,`/`.`) independently, with the current angle visibly slewing toward the commanded target rather than snapping, and joint commands rejected while the arm is not deployed;
-13. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
-14. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline.
+1. confirm EV-0001 reads as one continuous tube-bodied Prime A probe from front, side, rear, and top, with both radiator wings, rear propulsion, and forward sensor obvious at a glance;
+2. confirm both manipulator arms' shoulder/upper-arm/elbow/forearm/wrist/tool-head geometry is visible under/alongside the body even while stowed, not represented by HUD state alone;
+3. yaw, pitch, and roll both directions; confirm visible probe orientation changes correctly;
+4. put EV-0001 into an awkward attitude, orbit the camera, press `R`, and verify the stepped camera-aligned righting aid is understandable and still simulation-authoritative;
+5. translate after attitude changes and verify motion is probe-relative; confirm Space still performs an absolute full stop;
+6. verify all subsystem rows show live watts, state, and reason text;
+7. start a scan with Sensors at 50 W, reduce below minimum, and verify authoritative abort + visible lock/rejection reason;
+8. restore Sensors and verify scanning returns;
+9. install Basic Survival and verify a deterministic visible automation cause/effect event without fabricated discoveries;
+10. approach the registered physical target at low speed and verify solid contact rather than ghosting through it, and that the narrower five-sample compound envelope reads as shape-matched rather than the previously known oversized-sphere stand-off;
+11. repeat with a glancing approach and verify tangential motion is preserved plausibly;
+12. create a damaging impact and verify impact severity, affected component, integrity change, and resulting subsystem consequences agree;
+13. verify no stale policy action executes after Computation is destroyed and no operational/integrity state contradiction appears;
+14. deploy an arm, open the manipulator page (`M`), and verify each joint's commanded target can be selected (`4`/`5`/`6`) and nudged (`,`/`.`) independently, with the current angle visibly slewing toward the commanded target rather than snapping, the visible upper-arm/forearm geometry moving in sync with that readout rather than only the HUD numbers changing, and joint commands rejected while the arm is not deployed;
+15. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
+16. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline.
 
 A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
 
@@ -250,7 +268,7 @@ Priority order:
 
 1. complete the accumulated local Phase-2 Product Reality pass above;
 2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
-3. continue **Slice 6 — articulated manipulator arms**: visible arm geometry/animation is the remaining sub-slice (joint articulation input and a dedicated manipulator HUD page are now implemented), designed as real future servicing/mining/construction capability rather than decoration;
+3. **Slice 6 — articulated manipulator arms**: mechanics, joint-articulation HUD, and visible geometry are all now implemented; the only remaining Slice 6 work is recording the local Product Reality pass above across its three test scripts;
 4. then move into object selection and physical interaction;
 5. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 

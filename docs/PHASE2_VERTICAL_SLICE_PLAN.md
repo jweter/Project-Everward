@@ -131,7 +131,7 @@ Requirements:
 
 ### Slice 6 — Articulated manipulator arms
 
-**Status:** two sub-slices implemented via the parallel-safe lane: (1) authoritative deploy/stow/tool mechanics, adapter command/telemetry surface, minimal input, compact HUD status — see `PHASE2_MANIPULATOR_ARM_FOUNDATION_TEST.md`; (2) joint articulation input and a dedicated manipulator HUD page over those same authoritative mechanics — see `PHASE2_MANIPULATOR_JOINT_ARTICULATION_TEST.md`. Visible arm geometry/animation remains the next sub-slice; Slice 6 is not complete until it lands and local Unreal evidence is recorded for the whole slice.
+**Status:** all three sub-slices are now implemented via the parallel-safe lane: (1) authoritative deploy/stow/tool mechanics, adapter command/telemetry surface, minimal input, compact HUD status — see `PHASE2_MANIPULATOR_ARM_FOUNDATION_TEST.md`; (2) joint articulation input and a dedicated manipulator HUD page over those same authoritative mechanics — see `PHASE2_MANIPULATOR_JOINT_ARTICULATION_TEST.md`; (3) visible shoulder/upper-arm/elbow/forearm/wrist/tool-head geometry, driven each tick purely from the same authoritative telemetry, landed alongside the Prime A embodiment pass — see `PHASE2_SIMPLE_PRIME_A_EMBODIMENT_PASS.md` items 4–7. Slice 6 is not complete until local Unreal evidence is recorded for the whole slice across all three test scripts.
 
 Add at least two real articulated manipulators to the Prime probe.
 
