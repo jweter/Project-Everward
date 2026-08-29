@@ -100,9 +100,12 @@ int main() {
     }
 
     // Gentle contact records an assessed impact but does not invent damage.
+    // The target sits 1.5 m beyond the forward hull sample (not exactly on
+    // top of it) so the compound-envelope contact normal is well-defined
+    // rather than the degenerate zero-distance case.
     {
         DamageAwareProbeRuntime runtime;
-        runtime.add_static_sphere_body({"gentle", {5.0, 0.0, 0.0}, 2.0});
+        runtime.add_static_sphere_body({"gentle", {6.5, 0.0, 0.0}, 2.0});
         runtime.set_velocity_mps({2.0, 0.0, 0.0});
         runtime.advance_wall_ticks(2 * SimulationClock::TicksPerSecond);
         const auto records = runtime.drain_damage_records();

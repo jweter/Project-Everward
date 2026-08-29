@@ -2,13 +2,18 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-TYPES = ROOT / "src/simulation/include/everward/simulation/types.hpp"
+SIM = ROOT / "src/simulation/include/everward/simulation"
+TYPES = SIM / "types.hpp"
+COMPOUND_CONTACT = SIM / "compound_contact.hpp"
+RUNTIME = SIM / "software_policy.hpp"
 
 
 class Phase2CompoundContactEnvelopeSurfaceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.types = TYPES.read_text(encoding="utf-8")
+        cls.compound_contact = COMPOUND_CONTACT.read_text(encoding="utf-8")
+        cls.runtime = RUNTIME.read_text(encoding="utf-8")
 
     def test_prime_contact_shape_has_five_engine_independent_samples(self) -> None:
         self.assertIn("struct ProbeCollisionSphereSample", self.types)
@@ -26,10 +31,25 @@ class Phase2CompoundContactEnvelopeSurfaceTests(unittest.TestCase):
         ):
             self.assertIn(token, self.types)
 
-    def test_legacy_eight_meter_sphere_is_explicitly_transitional(self) -> None:
-        self.assertIn("Transitional compatibility field", self.types)
+    def test_legacy_eight_meter_sphere_is_now_diagnostic_only(self) -> None:
+        # The compound-envelope solver has landed (see the wiring test below),
+        # so the single 8 m radius is no longer the swept-collision input; it
+        # is retained purely as a coarse diagnostic/telemetry figure.
+        self.assertIn("Legacy single-sphere radius", self.types)
         self.assertIn("collision_envelope_radius_m{8.0}", self.types)
-        self.assertIn("until the compound-envelope solver lands", self.types)
+        self.assertIn("solver no longer", self.types)
+        self.assertIn("consumes this value", self.types)
+
+    def test_compound_envelope_solver_is_wired_into_probe_runtime(self) -> None:
+        # This is the actual migration off the single bounding sphere: the
+        # authoritative swept-contact solver in ProbeRuntime must consume the
+        # five-sample compound envelope (rotated by attitude) rather than the
+        # legacy collision_envelope_radius_m scalar.
+        self.assertIn("sweep_compound_probe_against_body", self.runtime)
+        self.assertIn("resolve_compound_contact", self.runtime)
+        self.assertIn("core_.snapshot().compound_collision_envelope", self.runtime)
+        self.assertIn("state.attitude_degrees", self.runtime)
+        self.assertNotIn("core_.snapshot().collision_envelope_radius_m", self.runtime)
 
 
 if __name__ == "__main__":

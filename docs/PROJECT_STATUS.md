@@ -16,7 +16,9 @@ Canonical first-run evidence remains:
 
 The repository has advanced substantially beyond that first-run build through the explicit parallel-safe lane. Those later mechanics are **implemented but do not count as locally accepted Product Reality until the exact Unreal test passes.**
 
-Current `main`: `87967a01a364240aa1ea5c943edbb3c1ed55fb47`, after the evolving-sensorium-audio foundation (#122) and the Prime Generation-1 body blockout (#123, Slice 5). This continuation record had not yet been refreshed for those two merges; this pass folds them in alongside the manipulator arm foundation below.
+Current `main`: `c45625e984108357a2262e5c42b98099406e8f18`, after the evolving-sensorium-audio foundation (#122) and the Prime Generation-1 body blockout (#123, Slice 5). This continuation record had not yet been refreshed for those two merges; this pass folds them in alongside the manipulator arm foundation below.
+
+Note: between the manipulator joint articulation update (#124/follow-up) and this pass, PRs #125–#130 also merged (Prime functional material pass, visible tube-body/arm geometry replacing the blockout, a Prime-axis/contact-shape fix, and the compound contact-envelope foundation/solver math this pass wires in below). This record has not been separately narrated for #125–#128; that documentation debt remains outstanding.
 
 ## Verified local foundation
 
@@ -84,6 +86,41 @@ Phase-2 contact mechanics are now engine-independent and deterministic:
 - Unreal displays contact but does not own mechanical truth.
 
 **Status: implemented, Product Reality pending.** The local test must prove the probe does not ghost through the target and that contact behavior remains understandable in the actual UE build.
+
+### Compound contact-envelope solver (replaces the single bounding sphere)
+
+The Prime Generation-1 embodiment pass (#127) made the single 8 m bounding
+sphere's mismatch with the long, winged Prime silhouette visible: contact
+could register in space that visibly did not touch the hull. The compound
+contact-envelope foundation and sweep/resolution math landed next (#129,
+#130) as engine-independent geometry, and this pass wires that math into
+`ProbeRuntime`'s actual swept-contact solver in `software_policy.hpp`:
+
+- the probe's five authoritative local-space collision samples
+  (`ProbeCompoundCollisionEnvelope`: nose, central hull, aft, port wing,
+  starboard wing), rotated by the probe's current attitude, are now what the
+  swept solver tests against registered bodies — not one oversized sphere;
+  a nose-first or wing-first approach is now stopped by the corresponding
+  sample instead of an invisible boundary around empty space;
+- the earliest genuine hit across all five samples is resolved through
+  `resolve_compound_contact`, which places the winning sample just outside
+  the struck body and derives the resolved probe-root position from it;
+- the legacy `collision_envelope_radius_m` field remains only as a coarse
+  diagnostic/telemetry number (still read by the existing Unreal HUD
+  telemetry) and is no longer consulted by the solver itself;
+- deterministic/source-contract coverage: updated `contact_physics_tests`
+  and `impact_damage_tests` expectations for the new sample-based contact
+  geometry, plus a new source-contract test proving the compound solver is
+  actually wired into `ProbeRuntime` rather than merely present alongside it.
+
+**Status: implemented, Product Reality pending.** No Unreal-side files
+changed in this pass; the existing 8 m Unreal collision mirror and HUD
+telemetry are unchanged, so this is authoritative-simulation-only work
+behind the existing adapter boundary. The next local Unreal Product Reality
+pass should specifically re-check item 8/9 in the sequence below (approach
+the registered physical target nose-first and from the side) to confirm the
+narrower, shape-matched contact reads as correct rather than the previously
+known oversized-sphere stand-off.
 
 ### Impact severity and component integrity
 

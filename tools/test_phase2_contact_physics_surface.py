@@ -11,6 +11,7 @@ class Phase2ContactPhysicsSurfaceTests(unittest.TestCase):
         self.types = (SIM / "types.hpp").read_text(encoding="utf-8")
         self.core = (SIM / "core.hpp").read_text(encoding="utf-8")
         self.runtime = (SIM / "software_policy.hpp").read_text(encoding="utf-8")
+        self.compound_contact = (SIM / "compound_contact.hpp").read_text(encoding="utf-8")
         self.adapter_h = (SOURCE / "ProbeSimulationAdapter.h").read_text(encoding="utf-8")
         self.adapter_cpp = (SOURCE / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
         self.pawn_h = (SOURCE / "EverwardProbePawn.h").read_text(encoding="utf-8")
@@ -31,10 +32,15 @@ class Phase2ContactPhysicsSurfaceTests(unittest.TestCase):
         self.assertIn("core_.resolve_contact(", self.runtime)
 
     def test_swept_solver_blocks_and_preserves_tangent_motion(self) -> None:
-        self.assertIn("combined_radius", self.runtime)
-        self.assertIn("discriminant", self.runtime)
-        self.assertIn("candidate.fraction < earliest.fraction", self.runtime)
-        self.assertIn("resolved_velocity = subtract(incoming_velocity", self.runtime)
+        # The swept sphere-vs-sphere math (combined radius, quadratic
+        # discriminant) now lives in compound_contact.hpp, swept once per
+        # local-space sample; ProbeRuntime in software_policy.hpp keeps only
+        # the per-body earliest-hit selection and the resulting velocity
+        # resolution over that shared math.
+        self.assertIn("combined_radius", self.compound_contact)
+        self.assertIn("discriminant", self.compound_contact)
+        self.assertIn("candidate.sample_hit.fraction < earliest.sample_hit.fraction", self.runtime)
+        self.assertIn("resolve_compound_contact(", self.runtime)
         self.assertIn("normal_speed", self.runtime)
 
     def test_unreal_body_matches_authoritative_registered_body(self) -> None:

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "everward/simulation/compound_contact.hpp"
 #include "everward/simulation/core.hpp"
 
 #include <algorithm>
@@ -196,88 +197,52 @@ public:
     }
 
 private:
+    // The probe is represented by the authoritative compound envelope
+    // (ProbeCompoundCollisionEnvelope): several local-space sphere samples
+    // rather than one oversized bounding sphere. A candidate therefore
+    // carries the contacted body alongside the winning sample's geometry.
     struct ContactCandidate {
         const StaticSphereBody* body{nullptr};
-        double fraction{1.0};
-        Vector3d probe_center_at_contact{};
-        Vector3d normal{};
+        CompoundContactCandidate sample_hit{};
     };
 
     [[nodiscard]] static bool finite_vector(Vector3d value) noexcept {
         return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
     }
 
-    [[nodiscard]] static Vector3d add(Vector3d a, Vector3d b) noexcept {
-        return {a.x + b.x, a.y + b.y, a.z + b.z};
-    }
-
-    [[nodiscard]] static Vector3d subtract(Vector3d a, Vector3d b) noexcept {
-        return {a.x - b.x, a.y - b.y, a.z - b.z};
-    }
-
-    [[nodiscard]] static Vector3d scale(Vector3d value, double scalar) noexcept {
-        return {value.x * scalar, value.y * scalar, value.z * scalar};
-    }
-
     [[nodiscard]] static double dot(Vector3d a, Vector3d b) noexcept {
         return a.x * b.x + a.y * b.y + a.z * b.z;
     }
 
-    [[nodiscard]] static double length(Vector3d value) noexcept {
-        return std::sqrt(dot(value, value));
-    }
-
-    [[nodiscard]] static Vector3d normalized_or_x(Vector3d value) noexcept {
-        const double magnitude = length(value);
-        if (magnitude <= 1e-12) {
-            return {1.0, 0.0, 0.0};
-        }
-        return scale(value, 1.0 / magnitude);
-    }
-
+    // Sweeps every local-space sample in the authoritative compound envelope
+    // (rotated by the probe's current attitude) against one body and keeps
+    // the earliest genuine hit. This is the direct replacement for the
+    // retired single-sphere sweep: a long probe with wing samples can now be
+    // touched by its nose or a wing tip instead of an oversized center
+    // sphere reporting contact in visibly empty space around the hull.
     [[nodiscard]] bool sweep_probe_against_body(
         Vector3d start,
         Vector3d end,
+        EulerAttitudeDegrees attitude,
         const StaticSphereBody& body,
         ContactCandidate& candidate) const noexcept {
-        const Vector3d delta = subtract(end, start);
-        const Vector3d from_center = subtract(start, body.center_m);
-        const double combined_radius = body.radius_m + core_.snapshot().collision_envelope_radius_m;
-        const double a = dot(delta, delta);
-        const double c = dot(from_center, from_center) - combined_radius * combined_radius;
-
-        double fraction = std::numeric_limits<double>::infinity();
-        if (c <= 0.0) {
-            fraction = 0.0;
-        } else if (a > 1e-18) {
-            const double b = 2.0 * dot(from_center, delta);
-            const double discriminant = b * b - 4.0 * a * c;
-            if (discriminant >= 0.0) {
-                const double root = (-b - std::sqrt(discriminant)) / (2.0 * a);
-                if (root >= 0.0 && root <= 1.0) {
-                    fraction = root;
-                }
-            }
-        }
-
-        if (!std::isfinite(fraction)) {
+        const CompoundContactCandidate hit = sweep_compound_probe_against_body(
+            start, end, attitude, core_.snapshot().compound_collision_envelope, body);
+        if (!hit.hit) {
             return false;
         }
 
-        const Vector3d center_at_contact = add(start, scale(delta, fraction));
-        const Vector3d normal = normalized_or_x(subtract(center_at_contact, body.center_m));
-        const double inward_normal_speed = std::max(0.0, -dot(core_.snapshot().velocity_mps, normal));
+        const double inward_normal_speed =
+            std::max(0.0, -dot(core_.snapshot().velocity_mps, hit.normal));
 
         // If we begin touching/overlapping but are already moving away, do not
         // manufacture another contact event or pin the probe to the surface.
-        if (fraction == 0.0 && inward_normal_speed <= 1e-9) {
+        if (hit.fraction == 0.0 && inward_normal_speed <= 1e-9) {
             return false;
         }
 
         candidate.body = &body;
-        candidate.fraction = fraction;
-        candidate.probe_center_at_contact = center_at_contact;
-        candidate.normal = normal;
+        candidate.sample_hit = hit;
         return true;
     }
 
@@ -286,14 +251,17 @@ private:
             return;
         }
 
-        const Vector3d integrated_end = core_.snapshot().position_m;
+        const auto& state = core_.snapshot();
+        const Vector3d integrated_end = state.position_m;
+        const EulerAttitudeDegrees attitude = state.attitude_degrees;
+
         ContactCandidate earliest;
-        earliest.fraction = std::numeric_limits<double>::infinity();
+        earliest.sample_hit.fraction = std::numeric_limits<double>::infinity();
 
         for (const StaticSphereBody& body : static_bodies_) {
             ContactCandidate candidate;
-            if (sweep_probe_against_body(start_position, integrated_end, body, candidate) &&
-                candidate.fraction < earliest.fraction) {
+            if (sweep_probe_against_body(start_position, integrated_end, attitude, body, candidate) &&
+                candidate.sample_hit.fraction < earliest.sample_hit.fraction) {
                 earliest = candidate;
             }
         }
@@ -302,31 +270,20 @@ private:
             return;
         }
 
-        const Vector3d incoming_velocity = core_.snapshot().velocity_mps;
-        const double normal_component = dot(incoming_velocity, earliest.normal);
-        const double normal_speed = std::max(0.0, -normal_component);
-        Vector3d resolved_velocity = incoming_velocity;
-        if (normal_component < 0.0) {
-            resolved_velocity = subtract(incoming_velocity, scale(earliest.normal, normal_component));
-        }
-
-        const double combined_radius =
-            earliest.body->radius_m + core_.snapshot().collision_envelope_radius_m;
-        const Vector3d resolved_center = add(
-            earliest.body->center_m,
-            scale(earliest.normal, combined_radius + 1e-6));
-        const Vector3d surface_point = add(
-            earliest.body->center_m,
-            scale(earliest.normal, earliest.body->radius_m));
+        const Vector3d incoming_velocity = state.velocity_mps;
+        const ProbeCollisionSphereSample& sample =
+            state.compound_collision_envelope.samples[earliest.sample_hit.sample_index];
+        const CompoundContactResolution resolution = resolve_compound_contact(
+            earliest.sample_hit, attitude, sample, *earliest.body, incoming_velocity);
 
         core_.resolve_contact(
             earliest.body->body_id,
-            resolved_center,
-            surface_point,
-            earliest.normal,
+            resolution.resolved_probe_root,
+            resolution.surface_point,
+            earliest.sample_hit.normal,
             incoming_velocity,
-            normal_speed,
-            resolved_velocity);
+            resolution.normal_speed_mps,
+            resolution.resolved_velocity);
     }
 
     [[nodiscard]] bool policy_executor_available() const noexcept {
