@@ -2,6 +2,8 @@
 
 Status: implemented via the parallel-safe lane; local Unreal Engine 5.8 Product Reality verification required.
 
+**Update (post-#127):** the "visible arm geometry" gap this document calls out below was closed by the Prime A embodiment pass (#127), which is out of scope for this document's own test script. See `PHASE2_SIMPLE_PRIME_A_EMBODIMENT_PASS.md` items 4–7 and `docs/PROJECT_STATUS.md`'s Slice 6 section for the current, accurate status — this file otherwise remains an accurate historical record of the joint-articulation input/HUD sub-slice itself.
+
 ## Purpose
 
 Continue **Slice 6 — articulated manipulator arms** past the deploy/stow/tool foundation (`PHASE2_MANIPULATOR_ARM_FOUNDATION_TEST.md`) by adding the joint articulation input and dedicated manipulator HUD page that foundation explicitly deferred.
