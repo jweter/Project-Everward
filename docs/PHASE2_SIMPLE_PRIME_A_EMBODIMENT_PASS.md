@@ -59,3 +59,5 @@ When this branch is built in Unreal 5.8, verify:
 This slice can merge when portable CI is green because it is presentation over existing authoritative state and does not weaken the current collision gate. It remains Product Reality pending until a local Unreal run proves the visual hierarchy works as intended.
 
 The collision-envelope mismatch is **not accepted as final**; it becomes the next physics correction after this embodiment pass.
+
+**Follow-up landed:** the authoritative swept-contact solver now sweeps the five-sample compound envelope (see `PHASE2_PHYSICAL_CONTACT_TEST.md` and `src/simulation/include/everward/simulation/compound_contact.hpp`) instead of the 8 m sphere. This is engine-independent-only so far — the Unreal query collider and telemetry are unchanged — so the "bigger box around the probe" report should be rechecked against the actual UE build as part of the next Product Reality pass rather than assumed fixed.

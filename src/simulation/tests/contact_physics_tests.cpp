@@ -9,6 +9,7 @@
 
 using everward::simulation::DomainEvent;
 using everward::simulation::DomainEventType;
+using everward::simulation::ProbeCompoundCollisionEnvelope;
 using everward::simulation::ProbeRuntime;
 using everward::simulation::SimulationClock;
 using everward::simulation::StaticSphereBody;
@@ -63,7 +64,14 @@ int main() {
         runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
         const auto& state = runtime.snapshot();
 
-        const double expected_center_x = 50.0 - 2.0 - state.collision_envelope_radius_m;
+        // A nose-first approach is stopped by the compound envelope's forward
+        // hull sample, not a single oversized bounding sphere: the resolved
+        // probe root sits one sample-radius plus that sample's forward local
+        // offset away from the body surface, rather than one giant radius.
+        const ProbeCompoundCollisionEnvelope envelope{};
+        const auto& nose_sample = envelope.samples[0];
+        const double expected_center_x =
+            50.0 - 2.0 - nose_sample.radius_m - nose_sample.local_center_m.x;
         assert(nearly_equal(state.position_m.x, expected_center_x, 2e-6));
         assert(nearly_equal(state.position_m.y, 0.0));
         assert(nearly_equal(state.velocity_mps.x, 0.0));

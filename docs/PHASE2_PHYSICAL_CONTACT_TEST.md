@@ -1,6 +1,6 @@
 # Phase 2 — Physical Body / Contact Product Reality Test
 
-Status: **Product Reality passed for the original contact behavior on 2026-08-27.** Prime Generation-1 blockout rescaling introduces an updated 8 m conservative envelope that should be rechecked as part of the Slice-5 body test.
+Status: **Product Reality passed for the original contact behavior on 2026-08-27.** Prime Generation-1 blockout rescaling introduced an updated 8 m conservative envelope; the authoritative solver has since moved to the compound envelope described below, and this remains unverified in the actual UE build until the next local Product Reality pass.
 
 ## Purpose
 
@@ -20,7 +20,7 @@ The original contact slice used a temporary **0.75 m radius** sphere around the 
 
 Slice 5 replaces the tiny presentation with the approximately 15 m Prime Generation-1 body blockout. The authoritative and Unreal-mirrored collision envelope therefore move to a conservative **8 m radius bounding sphere** so contact remains meaningfully tied to the visible spacecraft scale.
 
-The 8 m sphere is still transitional. A later compound collision envelope should follow the actual Prime geometry more closely while preserving this same contact telemetry contract.
+The 8 m sphere is now legacy/diagnostic only. The authoritative swept-contact solver in `ProbeRuntime` (`src/simulation/include/everward/simulation/software_policy.hpp`) sweeps the five-sample `ProbeCompoundCollisionEnvelope` (nose, central hull, aft, port wing, starboard wing; see `compound_contact.hpp`), rotated by the probe's current attitude, against registered bodies. It follows the actual Prime geometry far more closely than the sphere while preserving the same contact telemetry contract (`last_contact_point_m`, `last_contact_surface_normal`, `last_contact_relative_velocity_mps`, `last_contact_normal_speed_mps`). The Unreal-mirrored query sphere and `CollisionEnvelopeRadiusMeters` telemetry remain unchanged and still reflect the coarse 8 m figure only.
 
 ### Bootstrap physical body
 
@@ -70,9 +70,10 @@ Because the Prime body is much larger than the original placeholder, run these c
 3. Hold forward motion and confirm no tunneling.
 4. Move away and confirm clean departure.
 5. Approach diagonally and confirm some tangential slide/deflection remains.
-6. Orbit/zoom the camera and confirm the 8 m envelope does not make interaction obviously detached from the visible body.
+6. Orbit/zoom the camera and confirm the compound envelope's contact point tracks the nose/hull/wing that is actually closest to the target, rather than an oversized sphere detached from the visible body.
 7. Scan the target and confirm scan/contact remain distinct systems.
+8. Approach with a lateral/wing-first offset and confirm contact and tangential slide feel tied to the wing rather than a uniform sphere boundary.
 
 ## Current known limitation
 
-A bounding sphere is deliberately conservative. It can create visible stand-off around narrower lateral/diagonal portions of an elongated spacecraft. If Product Reality makes that stand-off obvious or distracting, the next collision refinement should be a simulation-owned compound envelope rather than shrinking the sphere until the nose/engine can penetrate.
+The Unreal-mirrored query sphere (`ProbeCollisionEnvelope`, still 8 m) and the `CollisionEnvelopeRadiusMeters` telemetry field have not yet been migrated to present the compound envelope's actual shape; only the authoritative engine-independent solver has moved. Until that presentation-side migration lands, the Unreal query collider may still read as a uniform sphere even though the simulation-authoritative contact point/normal now follow the real Prime silhouette.

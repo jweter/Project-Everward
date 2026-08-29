@@ -67,13 +67,16 @@ struct ProbeStateSnapshot {
     EulerAttitudeDegrees attitude_degrees{};
     double mass_kg{2500.0};
 
-    // New authoritative shape description. The contact solver migration will
-    // consume these five local-space samples and retire the legacy sphere below.
+    // Authoritative shape description. ProbeRuntime's swept-contact solver
+    // (see software_policy.hpp) sweeps these five local-space samples,
+    // rotated by attitude_degrees, against physical bodies instead of one
+    // oversized bounding sphere.
     ProbeCompoundCollisionEnvelope compound_collision_envelope{};
 
-    // Transitional compatibility field used by the existing swept-sphere solver.
-    // It remains at 8 m only until the compound-envelope solver lands; do not
-    // treat this as the final physical size of EV-0001.
+    // Legacy single-sphere radius. The swept-contact solver no longer
+    // consumes this value; it is retained only as a coarse diagnostic/
+    // telemetry figure (e.g. the existing Unreal collision-envelope display)
+    // until presentation-side consumers migrate to the compound envelope.
     double collision_envelope_radius_m{8.0};
     bool has_contact_history{false};
     std::string last_contact_body_id{};
