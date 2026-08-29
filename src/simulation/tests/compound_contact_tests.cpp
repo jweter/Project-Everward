@@ -51,8 +51,12 @@ int main() {
 
     // A lateral approach should contact the corresponding wing sample. This is
     // the critical behavior the old 8 m sphere could not represent honestly.
+    // The body's x-coordinate is aligned with the port sample's local x offset
+    // (-0.5 m) so the sweep meets the sample dead-on and the contact normal
+    // comes out purely lateral (+Y); offsetting the body in x would tilt the
+    // normal and make the velocity-resolution expectations below irrational.
     {
-        const StaticSphereBody body{"port-target", {0.0, -10.0, 0.0}, 1.0};
+        const StaticSphereBody body{"port-target", {-0.5, -10.0, 0.0}, 1.0};
         const auto hit = sweep_compound_probe_against_body(
             {0.0, 0.0, 0.0},
             {0.0, -12.0, 0.0},
