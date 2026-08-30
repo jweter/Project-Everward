@@ -5,13 +5,16 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
+#include "EverwardProbePawn.h"
+#include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "ProbeSimulationAdapter.h"
 #include "UObject/ConstructorHelpers.h"
 
 AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
 {
-    PrimaryActorTick.bCanEverTick = false;
+    PrimaryActorTick.bCanEverTick = true;
 
     SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
     SetRootComponent(SceneRoot);
@@ -45,7 +48,7 @@ AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
     ScanTargetLabel->SetWorldSize(105.0f);
     ScanTargetLabel->SetTextRenderColor(FColor(110, 220, 255));
     ScanTargetLabel->SetText(FText::FromString(TEXT(
-        "SCAN-001 // RESOURCE BODY\nSCAN -> APPROACH -> DEPLOY ARM + TOOL -> [G] MINE")));
+        "SCAN-001 // UNSURVEYED RESOURCE BODY\nUSE SENSORS TO IDENTIFY MINEABLE MATERIAL")));
 
     KeyLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Phase2KeyLight"));
     KeyLight->SetupAttachment(SceneRoot);
@@ -82,6 +85,55 @@ void AEverwardPhase2TestEnvironment::BeginPlay()
 {
     Super::BeginPlay();
     ApplyEnvironmentMaterialScaffold();
+    RefreshResourceReadout();
+}
+
+void AEverwardPhase2TestEnvironment::Tick(float DeltaSeconds)
+{
+    Super::Tick(DeltaSeconds);
+    RefreshResourceReadout();
+}
+
+void AEverwardPhase2TestEnvironment::RefreshResourceReadout()
+{
+    if (ScanTargetLabel == nullptr || GetWorld() == nullptr)
+    {
+        return;
+    }
+
+    const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+    const AEverwardProbePawn* Probe = Cast<AEverwardProbePawn>(PlayerPawn);
+    const UProbeSimulationAdapter* Adapter = Probe != nullptr ? Probe->GetSimulationAdapter() : nullptr;
+    if (Adapter == nullptr)
+    {
+        return;
+    }
+
+    const FEverwardMiningStatus Mining = Adapter->GetMiningStatus();
+    if (!Mining.bSurveyed)
+    {
+        ScanTargetLabel->SetTextRenderColor(FColor(110, 220, 255));
+        ScanTargetLabel->SetText(FText::FromString(TEXT(
+            "SCAN-001 // UNSURVEYED RESOURCE BODY\nUSE SENSORS TO IDENTIFY MINEABLE MATERIAL")));
+        return;
+    }
+
+    if (Mining.DepositRemainingKilograms <= 0.0)
+    {
+        ScanTargetLabel->SetTextRenderColor(FColor(150, 165, 175));
+        ScanTargetLabel->SetText(FText::FromString(FString::Printf(
+            TEXT("SCAN-001 // %s\nDEPOSIT EXHAUSTED // %.1f KG RECOVERED"),
+            *Mining.MaterialName,
+            Mining.ExtractedMaterialKilograms)));
+        return;
+    }
+
+    ScanTargetLabel->SetTextRenderColor(FColor(120, 255, 165));
+    ScanTargetLabel->SetText(FText::FromString(FString::Printf(
+        TEXT("SCAN COMPLETE // %s\n%.1f KG REMAINING // APPROACH + ARM/TOOL // [G] MINE %.1f KG"),
+        *Mining.MaterialName,
+        Mining.DepositRemainingKilograms,
+        Mining.ExtractionKilogramsPerCycle)));
 }
 
 void AEverwardPhase2TestEnvironment::ApplyEnvironmentMaterialScaffold()
