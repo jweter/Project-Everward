@@ -156,6 +156,40 @@ Three follow-on presentation passes then iterated this blockout into the current
 
 **Status: foundation architecture; not yet wired to Unreal audio presentation.**
 
+### Physical target selection and range telemetry foundation (Slice 7)
+
+`PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 7 ("object selection and physical
+interaction") minimum interactions begin with "select a nearby physical
+target" and "display range/relative motion" -- until now the only physical
+target the probe could act on at all was `CommandMineBootstrapTarget`'s
+single hardcoded body ID, with no generic selection or range/closing-speed
+concept anywhere in the simulation. `target_selection.hpp` adds that as pure,
+engine-independent read-side math over the same registered
+`StaticSphereBody` list `software_policy.hpp`'s swept contact solver already
+consumes:
+
+- `surface_range_to_body` / `closing_speed_to_body` derive surface-to-surface
+  distance and rate of closure from a point, its velocity, and a body,
+  reusing `compound_contact.hpp`'s `contact_*` vector helpers rather than
+  re-deriving vector math a second time;
+- `find_nearest_selectable_target` picks the nearest registered body within
+  a caller-supplied selection range, or reports no selection rather than
+  guessing when nothing is registered or in range;
+- `select_target_telemetry` validates an explicitly requested body ID
+  against the live registry and reports its current range/closing speed,
+  fail-closed (returns no telemetry) for an empty, unknown, or
+  since-deregistered ID rather than silently keeping a stale selection.
+
+This does not assume the still-Product-Reality-pending contact/manipulator
+collision behavior is correct, does not change any of it, and mutates no
+authoritative state -- it only reads probe position/velocity and the body
+registry, so it qualifies for the parallel-safe lane.
+
+**Status: foundation architecture; not yet wired to `ProbeRuntime`,
+`UProbeSimulationAdapter`, or any Unreal HUD/input.** No player-visible
+result exists yet. Wiring this into runtime telemetry, a selection command,
+and a HUD readout is the next Slice 7 sub-slice.
+
 ### Manipulator arm mechanics, HUD, and visible geometry (Slice 6)
 
 The first sub-slice of **Slice 6 — articulated manipulator arms** lands on the two shoulder mounts Slice 5 already exposes:
@@ -291,6 +325,7 @@ Everward continues to preserve:
 - Prime A tube-body silhouette with functional materials and a rescaled collision envelope (Slice 5);
 - adjacent-generation evolution foundation;
 - evolving machine sensorium/audio progression foundation;
+- physical target selection and range/closing-speed telemetry foundation (Slice 7; not yet wired to the runtime or Unreal);
 - manipulator arm deploy/stow/joint/tool foundation, joint articulation input and a dedicated manipulator HUD page, visible shoulder/arm/tool-head geometry, and arm/body + arm/environment collision guards (Slice 6; implemented, Product Reality pending);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - explicit versioned save architecture rather than blind Unreal object serialization.
