@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -81,6 +82,21 @@ public:
 
     [[nodiscard]] double stored_material_kg() const noexcept {
         return stored_material_kg_;
+    }
+
+    [[nodiscard]] double remaining_deposit_kg(const std::string& body_id) const noexcept {
+        const auto it = deposits_.find(body_id);
+        return it != deposits_.end() ? it->second.deposit.remaining_kg : 0.0;
+    }
+
+    [[nodiscard]] double extraction_kg_per_cycle(const std::string& body_id) const noexcept {
+        const auto it = deposits_.find(body_id);
+        return it != deposits_.end() ? it->second.deposit.extraction_kg_per_cycle : 0.0;
+    }
+
+    [[nodiscard]] std::string material_display_name(const std::string& body_id) const {
+        const auto it = deposits_.find(body_id);
+        return it != deposits_.end() ? it->second.deposit.display_name : std::string{};
     }
 
     [[nodiscard]] std::string survey_summary(const std::string& body_id) const {
@@ -210,9 +226,11 @@ private:
 
     [[nodiscard]] static std::string one_decimal(double value) {
         const long long scaled = static_cast<long long>(std::llround(value * 10.0));
-        const long long whole = scaled / 10;
-        const long long fraction = std::llabs(scaled % 10);
-        return std::to_string(whole) + "." + std::to_string(fraction);
+        const bool negative = scaled < 0;
+        const long long magnitude = std::llabs(scaled);
+        const long long whole = magnitude / 10;
+        const long long fraction = magnitude % 10;
+        return std::string(negative ? "-" : "") + std::to_string(whole) + "." + std::to_string(fraction);
     }
 
     std::unordered_map<std::string, DepositState> deposits_{};
