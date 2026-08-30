@@ -15,14 +15,14 @@ Only BLOCKER findings stop dependent development.
 
 ## Unreal recorder
 
-`APlaytestRecorderActor` is spawned automatically by `ABenchmarkGameMode`.
+`APlaytestRecorderActor` is spawned automatically by the production `AEverwardGameMode` in `unreal/Everward.uproject`.
 
 The recorder is deliberately non-blocking. If it cannot start, Unreal logs a warning and gameplay continues.
 
 Each run writes raw evidence beneath:
 
 ```text
-prototypes/rendering-benchmark/unreal/Saved/Playtests/<UTC-session-id>/
+unreal/Saved/Playtests/<UTC-session-id>/
 ├── session.json
 ├── events.jsonl
 ├── telemetry.csv
@@ -48,9 +48,11 @@ The recorder is evidence only. It must never determine simulation truth or gamep
 
 `telemetry.csv` currently samples basic frame and player-pawn motion evidence at 2 Hz. Additional probe state should be added incrementally as systems become real (energy, temperature, storage, scanner state, mining state, arm state, etc.).
 
-## F9 issue marker
+## F12 issue marker
 
-During a playtest, press **F9** when something looks or feels wrong.
+During a playtest, press **F12** when something looks or feels wrong.
+
+Do not use F9 for playtest markers. In Unreal Editor PIE, F9 conflicts with the editor's Wireframe view-mode shortcut; the 2026-08-30 laptop playtest demonstrated this by switching the viewport into wireframe during evidence capture.
 
 The recorder will:
 
@@ -61,6 +63,23 @@ The recorder will:
 
 This lets the tester continue playing instead of stopping to reconstruct the issue immediately.
 
+## Mining control validation
+
+Current Phase-2 mining controls intentionally preserve player choice while adding optional navigation assistance:
+
+```text
+N     cycle selected manipulator arm
+7     attach/detach mining tool on the selected arm
+H     cycle available mining targets
+P     engage/cancel auto-approach to the selected surveyed mining target
+G     attempt extraction
+SPACE stop propulsion and cancel auto-approach
+```
+
+Auto-approach only navigates to an arm-side staging position. It does not articulate the manipulator or extract material. The player retains control of the arm and mining action.
+
+Phase 2 currently exposes one mineable bootstrap target. Target cycling is already modeled as a list-based control so additional scanned resource bodies can join the same workflow without changing the input contract.
+
 ## Raw evidence versus repository artifacts
 
 Do **not** commit complete `Saved/Playtests/` sessions to Git. Raw screenshots, logs, crashes, and telemetry can become large quickly.
@@ -70,7 +89,7 @@ The desktop playtest launcher may collect those files into the user's external p
 When a compact report is useful, run:
 
 ```powershell
-python tools/playtest/summarize_session.py "prototypes/rendering-benchmark/unreal/Saved/Playtests/<session-id>"
+python tools/playtest/summarize_session.py "unreal/Saved/Playtests/<session-id>"
 ```
 
 That creates `playtest_report.md`, which is small enough to attach to an issue or preserve with a targeted observation when appropriate.
