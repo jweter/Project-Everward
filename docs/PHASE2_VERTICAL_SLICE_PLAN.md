@@ -148,6 +148,14 @@ Player-visible result:
 
 ### Slice 7 — Object selection and physical interaction
 
+**Status:** first parallel-safe foundation sub-slice landed:
+`target_selection.hpp` provides engine-independent nearest-target selection
+and range/closing-speed telemetry over the existing registered-body list
+(see `PROJECT_STATUS.md`'s "Physical target selection and range telemetry
+foundation" section). Not yet wired into `ProbeRuntime`, the adapter, or a
+HUD/input surface, so there is no player-visible result yet and this does
+not advance the slice's completion gate by itself.
+
 Turn scanning and manipulators into one loop:
 
 `detect -> select -> approach -> scan -> reach -> grasp -> move -> release`

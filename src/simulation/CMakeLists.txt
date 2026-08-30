@@ -54,4 +54,8 @@ if(BUILD_TESTING)
     add_executable(everward_mining_tests tests/mining_tests.cpp)
     target_link_libraries(everward_mining_tests PRIVATE everward_simulation)
     add_test(NAME everward_mining_tests COMMAND everward_mining_tests)
+
+    add_executable(everward_target_selection_tests tests/target_selection_tests.cpp)
+    target_link_libraries(everward_target_selection_tests PRIVATE everward_simulation)
+    add_test(NAME everward_target_selection_tests COMMAND everward_target_selection_tests)
 endif()
