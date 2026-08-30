@@ -56,6 +56,7 @@ void AEverwardPlayerController::SetupInputComponent()
     InputComponent->BindAxis(TEXT("EverwardLookPitch"), this, &AEverwardPlayerController::LookPitch);
     InputComponent->BindAxis(TEXT("EverwardCameraZoom"), this, &AEverwardPlayerController::ZoomCamera);
 
+    InputComponent->BindKey(EKeys::F1, IE_Pressed, this, &AEverwardPlayerController::ToggleControlsReference);
     InputComponent->BindKey(EKeys::Tab, IE_Pressed, this, &AEverwardPlayerController::ToggleSystemsPanel);
     InputComponent->BindKey(EKeys::RightBracket, IE_Pressed, this, &AEverwardPlayerController::SelectNextCapability);
     InputComponent->BindKey(EKeys::LeftBracket, IE_Pressed, this, &AEverwardPlayerController::SelectPreviousCapability);
@@ -100,6 +101,14 @@ void AEverwardPlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AEverwardPlayerController::IncreaseForwardVelocity);
     InputComponent->BindKey(EKeys::Down, IE_Pressed, this, &AEverwardPlayerController::DecreaseForwardVelocity);
     InputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &AEverwardPlayerController::StopPropulsion);
+}
+
+void AEverwardPlayerController::ToggleControlsReference()
+{
+    if (AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD()))
+    {
+        EverwardHUD->ToggleControlsReference();
+    }
 }
 
 void AEverwardPlayerController::ToggleSystemsPanel()

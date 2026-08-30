@@ -40,7 +40,7 @@ class Phase2ScanToMiningSurfaceTests(unittest.TestCase):
 
     def test_accepted_mining_routes_mass_through_authoritative_storage(self) -> None:
         # Extracted mass must land in Core's authoritative storage_used_kg,
-        # the same field the systems-panel HUD's STORAGE readout reads
+        # the same field the always-visible HUD's STORAGE readout reads
         # (ProbeSimulationAdapter.cpp: Telemetry.StorageUsedKilograms =
         # Snapshot.storage_used_kg). Accumulating it only in an
         # adapter-local counter would leave that HUD readout at zero even

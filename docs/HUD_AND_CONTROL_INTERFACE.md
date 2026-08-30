@@ -6,6 +6,11 @@ Everward's HUD is the probe's operating interface. It must make the machine unde
 
 > Every controllable installed capability must be discoverable from the HUD, but not every control should be visible simultaneously.
 
+Current Phase-2 legibility rule: live state uses viewport-responsive sizing,
+Unreal's medium font, and a minimum readable text scale. The live HUD teaches
+only the entry points needed in the moment; `F1` opens the complete,
+large-format controls reference grouped by task.
+
 The interface answers three questions quickly:
 
 1. What state am I in?
@@ -137,6 +142,7 @@ Canonical EV-0001 now starts with 50 W allocated to Sensors and 25 W to Computat
 
 Temporary engineering-shell controls:
 
+- `F1`: open/close the large controls reference;
 - `Tab`: open/close systems;
 - `[` / `]`: select installed system;
 - `Page Up` / `Page Down`: adjust selected subsystem power;

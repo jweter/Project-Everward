@@ -89,7 +89,7 @@ class Phase2HudSourceContractTests(unittest.TestCase):
     def test_moving_probe_gets_persistent_local_flight_readout(self) -> None:
         self.assertIn("SpeedMetersPerSecond > 0.01", self.hud)
         self.assertIn("InverseTransformVectorNoScale", self.hud)
-        self.assertIn("FLIGHT  %.2f m/s   [SPACE] BRAKE", self.hud)
+        self.assertIn("FLIGHT  %.2f m/s   [SPACE] FULL STOP", self.hud)
         self.assertIn("FWD %+0.2f   RIGHT %+0.2f   UP %+0.2f m/s", self.hud)
         flight_pos = self.hud.index("FLIGHT  %.2f m/s")
         compact_return_pos = self.hud.index("if (!bSystemsExpanded)")

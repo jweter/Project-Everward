@@ -82,7 +82,7 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandMineBootstrapTarget(
 
     if (Result.accepted)
     {
-        // storage_used_kg is the authoritative field the systems-panel HUD's
+        // storage_used_kg is the authoritative field the always-visible HUD's
         // STORAGE readout reads (see ProbeSimulationAdapter.cpp's telemetry
         // conversion); it must move here or mining never appears in that
         // readout even though this mining status widget shows it moving.

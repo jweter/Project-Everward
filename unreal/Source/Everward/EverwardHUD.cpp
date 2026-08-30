@@ -2,12 +2,63 @@
 
 #include "CanvasItem.h"
 #include "Engine/Canvas.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EverwardProbePawn.h"
 #include "ProbeSimulationAdapter.h"
 
 namespace
 {
+constexpr float HudReferenceWidth = 1920.0f;
+constexpr float HudReferenceHeight = 1080.0f;
+constexpr float MinimumHudTextScale = 1.05f;
+
+struct FControlReferenceLine
+{
+    const TCHAR* Key;
+    const TCHAR* Action;
+};
+
+float ResolveHudScale(const UCanvas* Canvas)
+{
+    if (Canvas == nullptr)
+    {
+        return 1.0f;
+    }
+
+    const float WidthScale = Canvas->ClipX / HudReferenceWidth;
+    const float HeightScale = Canvas->ClipY / HudReferenceHeight;
+    return FMath::Clamp(FMath::Min(WidthScale, HeightScale), 0.80f, 1.75f);
+}
+
+float ReadableTextScale(float HudScale, float RelativeScale = 1.0f)
+{
+    // The previous HUD combined the engine small font with scales as low as
+    // 0.56, producing approximately 8-11 px text in the 2048x1200 Product
+    // Reality capture. The medium font plus this floor keeps every live label
+    // human-readable while still allowing stronger heading hierarchy.
+    return FMath::Max(MinimumHudTextScale, HudScale * RelativeScale * 1.15f);
+}
+
+FString CompactStatusReason(const FString& StatusReason)
+{
+    int32 SeparatorIndex = INDEX_NONE;
+    if (StatusReason.FindChar(TEXT('/'), SeparatorIndex))
+    {
+        return StatusReason.Left(SeparatorIndex).TrimStartAndEnd();
+    }
+    return StatusReason;
+}
+
+FString TruncatedPanelLine(const FString& Text, int32 MaximumCharacters = 54)
+{
+    if (Text.Len() <= MaximumCharacters)
+    {
+        return Text;
+    }
+    return Text.Left(FMath::Max(0, MaximumCharacters - 3)) + TEXT("...");
+}
+
 FString PercentString(double Value, double Capacity)
 {
     if (Capacity <= 0.0)
@@ -88,11 +139,128 @@ FString ManipulatorJointLine(int32 JointIndex, const FEverwardManipulatorArmStat
 }
 }
 
+void AEverwardHUD::DrawControlsReference()
+{
+    if (Canvas == nullptr)
+    {
+        return;
+    }
+
+    const float HudScale = ResolveHudScale(Canvas);
+    const auto S = [HudScale](float Value) { return Value * HudScale; };
+    UFont* const HudFont = GEngine != nullptr ? GEngine->GetMediumFont() : nullptr;
+
+    const FLinearColor BackdropColor(0.003f, 0.008f, 0.012f, 0.94f);
+    const FLinearColor PanelColor(0.015f, 0.035f, 0.045f, 0.96f);
+    const FLinearColor ColumnColor(0.025f, 0.060f, 0.075f, 0.90f);
+    const FLinearColor TextColor(0.90f, 0.96f, 0.98f, 1.0f);
+    const FLinearColor MutedColor(0.64f, 0.75f, 0.80f, 1.0f);
+    const FLinearColor KeyColor(0.34f, 0.90f, 1.0f, 1.0f);
+
+    DrawRect(BackdropColor, 0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY);
+
+    const float OuterMargin = S(34.0f);
+    const float PanelX = OuterMargin;
+    const float PanelY = OuterMargin;
+    const float PanelWidth = Canvas->ClipX - OuterMargin * 2.0f;
+    const float PanelHeight = Canvas->ClipY - OuterMargin * 2.0f;
+    DrawRect(PanelColor, PanelX, PanelY, PanelWidth, PanelHeight);
+
+    DrawText(TEXT("CONTROLS // PRIME GENERATION 1"), TextColor,
+        PanelX + S(28.0f), PanelY + S(20.0f), HudFont, ReadableTextScale(HudScale, 1.28f), false);
+    DrawText(TEXT("Operate the probe by task. Immediate state stays on the live HUD; this page teaches every current binding."),
+        MutedColor, PanelX + S(28.0f), PanelY + S(55.0f), HudFont, ReadableTextScale(HudScale, 0.90f), false);
+
+    const FControlReferenceLine FlightControls[] = {
+        {TEXT("W / S"), TEXT("FORWARD / REVERSE VELOCITY")},
+        {TEXT("A / D"), TEXT("LEFT / RIGHT VELOCITY")},
+        {TEXT("Q / E"), TEXT("DOWN / UP VELOCITY")},
+        {TEXT("I / K"), TEXT("PITCH UP / DOWN")},
+        {TEXT("J / L"), TEXT("YAW LEFT / RIGHT")},
+        {TEXT("U / O"), TEXT("ROLL LEFT / RIGHT")},
+        {TEXT("SPACE"), TEXT("FULL STOP")},
+        {TEXT("R"), TEXT("CAMERA-ALIGNED RIGHTING")},
+        {TEXT("MOUSE"), TEXT("ORBIT CAMERA // WHEEL ZOOM")},
+    };
+    const FControlReferenceLine SystemControls[] = {
+        {TEXT("TAB"), TEXT("OPEN / CLOSE SYSTEMS")},
+        {TEXT("[ / ]"), TEXT("SELECT INSTALLED SYSTEM")},
+        {TEXT("PGUP / PGDN"), TEXT("ADJUST SYSTEM POWER")},
+        {TEXT("ENTER"), TEXT("PRIMARY SYSTEM ACTION")},
+        {TEXT("BACKSPACE"), TEXT("CANCEL / CLEAR ACTION")},
+        {TEXT("SENSORS"), TEXT("ENTER STARTS SCAN")},
+        {TEXT("COMPUTE"), TEXT("ENTER INSTALLS POLICY")},
+        {TEXT("F1"), TEXT("OPEN / CLOSE THIS REFERENCE")},
+    };
+    const FControlReferenceLine ManipulatorControls[] = {
+        {TEXT("M"), TEXT("OPEN / CLOSE MANIPULATOR")},
+        {TEXT("1"), TEXT("DEPLOY / STOW PORT ARM")},
+        {TEXT("2"), TEXT("DEPLOY / STOW STARBOARD ARM")},
+        {TEXT("3"), TEXT("ATTACH / DETACH TOOL")},
+        {TEXT("N"), TEXT("SELECT ARM")},
+        {TEXT("4"), TEXT("SELECT SHOULDER")},
+        {TEXT("5"), TEXT("SELECT ELBOW")},
+        {TEXT("6"), TEXT("SELECT WRIST / TOOL")},
+        {TEXT(", / ."), TEXT("ADJUST JOINT TARGET")},
+        {TEXT("G"), TEXT("MINE SURVEYED TARGET")},
+    };
+
+    const float ColumnGap = S(18.0f);
+    const float ColumnY = PanelY + S(92.0f);
+    const float ColumnWidth = (PanelWidth - S(56.0f) - ColumnGap * 2.0f) / 3.0f;
+    const float ColumnHeight = PanelHeight - S(148.0f);
+    const float FirstColumnX = PanelX + S(28.0f);
+
+    const auto DrawControlColumn = [this, HudScale, HudFont, S, ColumnColor, TextColor, MutedColor, KeyColor,
+                                    ColumnY, ColumnWidth, ColumnHeight](
+        float ColumnX,
+        const TCHAR* Heading,
+        const FControlReferenceLine* Lines,
+        int32 LineCount)
+    {
+        DrawRect(ColumnColor, ColumnX, ColumnY, ColumnWidth, ColumnHeight);
+        DrawText(Heading, TextColor, ColumnX + S(20.0f), ColumnY + S(16.0f),
+            HudFont, ReadableTextScale(HudScale, 1.10f), false);
+
+        const float RowHeight = FMath::Min(S(47.0f), (ColumnHeight - S(70.0f)) / FMath::Max(LineCount, 1));
+        float RowY = ColumnY + S(62.0f);
+        for (int32 Index = 0; Index < LineCount; ++Index)
+        {
+            DrawText(Lines[Index].Key, KeyColor, ColumnX + S(20.0f), RowY,
+                HudFont, ReadableTextScale(HudScale, 0.95f), false);
+            DrawText(Lines[Index].Action, Index % 2 == 0 ? TextColor : MutedColor,
+                ColumnX + S(132.0f), RowY, HudFont, ReadableTextScale(HudScale, 0.88f), false);
+            RowY += RowHeight;
+        }
+    };
+
+    DrawControlColumn(FirstColumnX, TEXT("FLIGHT + CAMERA"), FlightControls, UE_ARRAY_COUNT(FlightControls));
+    DrawControlColumn(FirstColumnX + ColumnWidth + ColumnGap, TEXT("SYSTEMS"),
+        SystemControls, UE_ARRAY_COUNT(SystemControls));
+    DrawControlColumn(FirstColumnX + (ColumnWidth + ColumnGap) * 2.0f, TEXT("MANIPULATOR + MINING"),
+        ManipulatorControls, UE_ARRAY_COUNT(ManipulatorControls));
+
+    DrawText(TEXT("[F1] RETURN TO LIVE HUD"), KeyColor,
+        PanelX + S(28.0f), PanelY + PanelHeight - S(42.0f),
+        HudFont, ReadableTextScale(HudScale, 1.05f), false);
+}
+
 void AEverwardHUD::DrawHUD()
 {
     Super::DrawHUD();
 
-    if (Canvas == nullptr || PlayerOwner == nullptr)
+    if (Canvas == nullptr)
+    {
+        return;
+    }
+
+    if (bControlsReferenceVisible)
+    {
+        DrawControlsReference();
+        return;
+    }
+
+    if (PlayerOwner == nullptr)
     {
         return;
     }
@@ -144,38 +312,47 @@ void AEverwardHUD::DrawHUD()
         LastObservedScanTargetId.Reset();
     }
 
-    const float Margin = 24.0f;
-    const float LineHeight = 22.0f;
-    const float PanelWidth = 350.0f;
-    const FLinearColor PanelColor(0.015f, 0.025f, 0.035f, 0.78f);
-    const FLinearColor TextColor(0.86f, 0.92f, 0.95f, 1.0f);
-    const FLinearColor MutedColor(0.55f, 0.65f, 0.70f, 1.0f);
+    const float HudScale = ResolveHudScale(Canvas);
+    const auto S = [HudScale](float Value) { return Value * HudScale; };
+    UFont* const HudFont = GEngine != nullptr ? GEngine->GetMediumFont() : nullptr;
+    const float Margin = S(24.0f);
+    const float LineHeight = S(32.0f);
+    const float PanelWidth = S(500.0f);
+    const FLinearColor PanelColor(0.015f, 0.025f, 0.035f, 0.88f);
+    const FLinearColor TextColor(0.90f, 0.96f, 0.98f, 1.0f);
+    const FLinearColor MutedColor(0.64f, 0.75f, 0.80f, 1.0f);
     const FLinearColor AlertColor(1.0f, 0.36f, 0.18f, 1.0f);
 
-    const float TelemetryHeight = 178.0f + LineHeight * 2.0f;
+    const float TelemetryHeight = S(62.0f) + LineHeight * 8.0f;
     const float TelemetryY = Canvas->ClipY - Margin - TelemetryHeight;
     DrawRect(PanelColor, Margin, TelemetryY, PanelWidth, TelemetryHeight);
     DrawText(
         FString::Printf(TEXT("%s  //  GEN %d"), *Telemetry.ProbeId, Telemetry.Generation),
-        TextColor, Margin + 14.0f, TelemetryY + 10.0f, nullptr, 1.0f, false);
+        TextColor, Margin + S(16.0f), TelemetryY + S(12.0f), HudFont, ReadableTextScale(HudScale, 1.08f), false);
     DrawText(
         FString::Printf(TEXT("ENERGY  %s"), *PercentString(Telemetry.StoredEnergyJoules, Telemetry.EnergyCapacityJoules)),
-        TextColor, Margin + 14.0f, TelemetryY + 38.0f, nullptr, 1.0f, false);
+        TextColor, Margin + S(16.0f), TelemetryY + S(48.0f), HudFont, ReadableTextScale(HudScale), false);
     DrawText(
         FString::Printf(TEXT("POWER   %.0f / %.0f W"), Telemetry.TotalPowerAllocatedWatts, Telemetry.PowerCapacityWatts),
-        TextColor, Margin + 14.0f, TelemetryY + 38.0f + LineHeight, nullptr, 1.0f, false);
+        TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight, HudFont, ReadableTextScale(HudScale), false);
     DrawText(
         FString::Printf(TEXT("THERMAL %.1f K"), Telemetry.TemperatureKelvin),
-        TextColor, Margin + 14.0f, TelemetryY + 38.0f + LineHeight * 2.0f, nullptr, 1.0f, false);
+        TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 2.0f, HudFont, ReadableTextScale(HudScale), false);
     DrawText(
-        FString::Printf(TEXT("STORAGE %s"), *PercentString(Telemetry.StorageUsedKilograms, Telemetry.StorageCapacityKilograms)),
-        TextColor, Margin + 14.0f, TelemetryY + 38.0f + LineHeight * 3.0f, nullptr, 1.0f, false);
+        FString::Printf(TEXT("STORAGE %.1f / %.1f KG  (%s)"),
+            Telemetry.StorageUsedKilograms,
+            Telemetry.StorageCapacityKilograms,
+            *PercentString(Telemetry.StorageUsedKilograms, Telemetry.StorageCapacityKilograms)),
+        TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 3.0f,
+        HudFont, ReadableTextScale(HudScale), false);
     DrawText(
         FString::Printf(TEXT("VELOCITY %.2f m/s"), Telemetry.VelocityMetersPerSecond.Size()),
-        TextColor, Margin + 14.0f, TelemetryY + 38.0f + LineHeight * 4.0f, nullptr, 1.0f, false);
+        TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 4.0f,
+        HudFont, ReadableTextScale(HudScale), false);
     DrawText(
         FString::Printf(TEXT("SIM %.1f s"), Telemetry.SimulationTimeSeconds),
-        MutedColor, Margin + 14.0f, TelemetryY + 38.0f + LineHeight * 5.0f, nullptr, 0.9f, false);
+        MutedColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 5.0f,
+        HudFont, ReadableTextScale(HudScale, 0.92f), false);
     for (int32 ArmIndex = 0; ArmIndex < ManipulatorArms.Num(); ++ArmIndex)
     {
         const FEverwardManipulatorArmState& Arm = ManipulatorArms[ArmIndex];
@@ -183,10 +360,10 @@ void AEverwardHUD::DrawHUD()
         DrawText(
             ManipulatorArmLine(Label, Arm),
             Arm.bIsDeployed || Arm.bIsDeploying || Arm.bIsStowing ? TextColor : MutedColor,
-            Margin + 14.0f,
-            TelemetryY + 38.0f + LineHeight * (6.0f + ArmIndex),
-            nullptr,
-            0.86f,
+            Margin + S(16.0f),
+            TelemetryY + S(48.0f) + LineHeight * (6.0f + ArmIndex),
+            HudFont,
+            ReadableTextScale(HudScale, 0.94f),
             false);
     }
 
@@ -198,13 +375,19 @@ void AEverwardHUD::DrawHUD()
         SelectedManipulatorArmIndex = FMath::Clamp(SelectedManipulatorArmIndex, 0, ManipulatorArms.Num() - 1);
         SelectedManipulatorJointIndex = FMath::Clamp(SelectedManipulatorJointIndex, 0, 2);
 
-        const float PanelHeight = 34.0f + LineHeight * (2.0f * ManipulatorArms.Num() + 4.0f);
-        const float PanelY = TelemetryY - 12.0f - PanelHeight;
+        int32 ManipulatorRows = 0;
+        for (const FEverwardManipulatorArmState& Arm : ManipulatorArms)
+        {
+            ManipulatorRows += Arm.bIsDeployed ? 4 : 2;
+        }
+        constexpr int32 ManipulatorFooterRows = 5;
+        const float PanelHeight = S(54.0f) + LineHeight * (ManipulatorRows + ManipulatorFooterRows);
+        const float PanelY = TelemetryY - S(12.0f) - PanelHeight;
         DrawRect(PanelColor, Margin, PanelY, PanelWidth, PanelHeight);
         DrawText(TEXT("MANIPULATOR CONTROL   [M CLOSE]"), TextColor,
-            Margin + 14.0f, PanelY + 10.0f, nullptr, 0.90f, false);
+            Margin + S(16.0f), PanelY + S(12.0f), HudFont, ReadableTextScale(HudScale, 1.04f), false);
 
-        float ArmY = PanelY + 34.0f;
+        float ArmY = PanelY + S(50.0f);
         for (int32 ArmIndex = 0; ArmIndex < ManipulatorArms.Num(); ++ArmIndex)
         {
             const FEverwardManipulatorArmState& Arm = ManipulatorArms[ArmIndex];
@@ -213,13 +396,13 @@ void AEverwardHUD::DrawHUD()
             DrawText(
                 FString::Printf(TEXT("%s%s"), bArmSelected ? TEXT("> ") : TEXT("  "), *ManipulatorArmLine(Label, Arm)),
                 bArmSelected ? TextColor : MutedColor,
-                Margin + 14.0f, ArmY, nullptr, 0.82f, false);
+                Margin + S(16.0f), ArmY, HudFont, ReadableTextScale(HudScale, 0.96f), false);
             ArmY += LineHeight;
 
             if (!Arm.bIsDeployed)
             {
                 DrawText(TEXT("    DEPLOY ARM TO COMMAND JOINTS"), MutedColor,
-                    Margin + 14.0f, ArmY, nullptr, 0.7f, false);
+                    Margin + S(16.0f), ArmY, HudFont, ReadableTextScale(HudScale, 0.90f), false);
                 ArmY += LineHeight;
                 continue;
             }
@@ -230,13 +413,22 @@ void AEverwardHUD::DrawHUD()
                 DrawText(
                     FString::Printf(TEXT("  %s%s"), bJointSelected ? TEXT("> ") : TEXT("  "), *ManipulatorJointLine(JointIndex, Arm)),
                     bJointSelected ? TextColor : MutedColor,
-                    Margin + 14.0f, ArmY, nullptr, 0.7f, false);
+                    Margin + S(16.0f), ArmY, HudFont, ReadableTextScale(HudScale, 0.90f), false);
                 ArmY += LineHeight;
             }
         }
 
-        DrawText(TEXT("[1/2] DEPLOY   [3] TOOL   [N] ARM   [4/5/6] JOINT   [,][.] TARGET"), MutedColor,
-            Margin + 14.0f, PanelY + PanelHeight - LineHeight, nullptr, 0.56f, false);
+        const float FooterY = PanelY + PanelHeight - LineHeight * ManipulatorFooterRows;
+        DrawText(TEXT("[1] PORT ARM // DEPLOY / STOW"), TextColor,
+            Margin + S(16.0f), FooterY, HudFont, ReadableTextScale(HudScale, 0.90f), false);
+        DrawText(TEXT("[2] STARBOARD ARM // DEPLOY / STOW"), TextColor,
+            Margin + S(16.0f), FooterY + LineHeight, HudFont, ReadableTextScale(HudScale, 0.86f), false);
+        DrawText(TEXT("[3] TOOL // ATTACH / DETACH   [N] SELECT ARM"), MutedColor,
+            Margin + S(16.0f), FooterY + LineHeight * 2.0f, HudFont, ReadableTextScale(HudScale, 0.86f), false);
+        DrawText(TEXT("[4/5/6] SELECT JOINT   [,] / [.] ADJUST TARGET"), MutedColor,
+            Margin + S(16.0f), FooterY + LineHeight * 3.0f, HudFont, ReadableTextScale(HudScale, 0.86f), false);
+        DrawText(TEXT("[G] MINE SURVEYED TARGET   [F1] ALL CONTROLS"), MutedColor,
+            Margin + S(16.0f), FooterY + LineHeight * 4.0f, HudFont, ReadableTextScale(HudScale, 0.86f), false);
     }
 
     float AlertY = Margin;
@@ -255,8 +447,8 @@ void AEverwardHUD::DrawHUD()
             }
             AlertText += TEXT("THERMAL LOCKOUT");
         }
-        DrawText(AlertText, AlertColor, Margin, AlertY, nullptr, 1.25f, false);
-        AlertY += 28.0f;
+        DrawText(AlertText, AlertColor, Margin, AlertY, HudFont, ReadableTextScale(HudScale, 1.25f), false);
+        AlertY += S(36.0f);
     }
 
     // Contact and damage are authoritative simulation telemetry, not Unreal
@@ -286,10 +478,10 @@ void AEverwardHUD::DrawHUD()
             bDamagingImpact ? AlertColor : TextColor,
             Margin,
             AlertY,
-            nullptr,
-            0.95f,
+            HudFont,
+            ReadableTextScale(HudScale, 1.0f),
             false);
-        AlertY += 22.0f;
+        AlertY += LineHeight;
 
         if (Telemetry.bHasImpactHistory)
         {
@@ -302,10 +494,10 @@ void AEverwardHUD::DrawHUD()
                 bDamagingImpact ? AlertColor : MutedColor,
                 Margin,
                 AlertY,
-                nullptr,
-                0.78f,
+                HudFont,
+                ReadableTextScale(HudScale, 0.92f),
                 false);
-            AlertY += 20.0f;
+            AlertY += LineHeight;
         }
 
         DrawText(
@@ -320,27 +512,35 @@ void AEverwardHUD::DrawHUD()
             MutedColor,
             Margin,
             AlertY,
-            nullptr,
-            0.72f,
+            HudFont,
+            ReadableTextScale(HudScale, 0.90f),
             false);
-        AlertY += 24.0f;
+        AlertY += LineHeight;
     }
 
     if (LastCommand.Sequence > 0 && !LastCommand.bAccepted && WorldNow <= CommandBannerExpiresAtWorldSeconds)
     {
         DrawText(
             FString::Printf(TEXT("COMMAND REJECTED // %s"), *LastCommand.Detail),
-            AlertColor, Margin, AlertY, nullptr, 0.92f, false);
-        AlertY += 24.0f;
+            AlertColor, Margin, AlertY, HudFont, ReadableTextScale(HudScale, 1.0f), false);
+        AlertY += LineHeight;
     }
 
-    if (AutomationNotice.Sequence > 0 && WorldNow <= AutomationBannerExpiresAtWorldSeconds)
+    const bool bRejectedCommandAlreadyVisible =
+        LastCommand.Sequence > 0 &&
+        !LastCommand.bAccepted &&
+        AutomationNotice.bRejected &&
+        LastCommand.Detail.Equals(AutomationNotice.Detail) &&
+        WorldNow <= CommandBannerExpiresAtWorldSeconds;
+    if (AutomationNotice.Sequence > 0 &&
+        WorldNow <= AutomationBannerExpiresAtWorldSeconds &&
+        !bRejectedCommandAlreadyVisible)
     {
         DrawText(
             AutomationNotice.Detail,
             AutomationNotice.bRejected ? AlertColor : TextColor,
-            Margin, AlertY, nullptr, 0.88f, false);
-        AlertY += 24.0f;
+            Margin, AlertY, HudFont, ReadableTextScale(HudScale, 0.98f), false);
+        AlertY += LineHeight;
     }
 
     if (Telemetry.bIsScanning)
@@ -350,13 +550,13 @@ void AEverwardHUD::DrawHUD()
                 TEXT("SCAN  %s  //  %.1f s REMAINING"),
                 *Telemetry.ActiveScanTargetId,
                 Telemetry.ScanRemainingSeconds),
-            TextColor, Margin, AlertY, nullptr, 0.95f, false);
+            TextColor, Margin, AlertY, HudFont, ReadableTextScale(HudScale, 1.0f), false);
     }
     else if (bHasScanDiscovery)
     {
         DrawText(
             FString::Printf(TEXT("SCAN COMPLETE  //  %s  //  DISCOVERY STORED"), *LastScanTargetId),
-            TextColor, Margin, AlertY, nullptr, 0.95f, false);
+            TextColor, Margin, AlertY, HudFont, ReadableTextScale(HudScale, 1.0f), false);
     }
 
     const double SpeedMetersPerSecond = Telemetry.VelocityMetersPerSecond.Size();
@@ -364,26 +564,36 @@ void AEverwardHUD::DrawHUD()
     {
         const FVector LocalVelocity = Probe->GetActorTransform().InverseTransformVectorNoScale(
             Telemetry.VelocityMetersPerSecond);
-        const float FlightWidth = 430.0f;
-        const float FlightHeight = 72.0f;
+        const float FlightWidth = S(560.0f);
+        const float FlightHeight = S(96.0f);
         const float FlightX = (Canvas->ClipX - FlightWidth) * 0.5f;
         const float FlightY = Margin;
         DrawRect(PanelColor, FlightX, FlightY, FlightWidth, FlightHeight);
         DrawText(
-            FString::Printf(TEXT("FLIGHT  %.2f m/s   [SPACE] BRAKE"), SpeedMetersPerSecond),
-            TextColor, FlightX + 14.0f, FlightY + 10.0f, nullptr, 0.95f, false);
+            FString::Printf(TEXT("FLIGHT  %.2f m/s   [SPACE] FULL STOP"), SpeedMetersPerSecond),
+            TextColor, FlightX + S(16.0f), FlightY + S(12.0f),
+            HudFont, ReadableTextScale(HudScale, 1.04f), false);
         DrawText(
             FString::Printf(
                 TEXT("FWD %+0.2f   RIGHT %+0.2f   UP %+0.2f m/s"),
                 LocalVelocity.X,
                 LocalVelocity.Y,
                 LocalVelocity.Z),
-            MutedColor, FlightX + 14.0f, FlightY + 38.0f, nullptr, 0.82f, false);
+            MutedColor, FlightX + S(16.0f), FlightY + S(52.0f),
+            HudFont, ReadableTextScale(HudScale, 0.92f), false);
     }
 
+    const float HelpWidth = S(650.0f);
+    const float HelpHeight = S(44.0f);
+    const float HelpX = (Canvas->ClipX - HelpWidth) * 0.5f;
+    const float HelpY = Canvas->ClipY - Margin - HelpHeight;
+    DrawRect(PanelColor, HelpX, HelpY, HelpWidth, HelpHeight);
+    DrawText(TEXT("[F1] CONTROLS   [TAB] SYSTEMS   [M] MANIPULATOR"), TextColor,
+        HelpX + S(18.0f), HelpY + S(10.0f), HudFont, ReadableTextScale(HudScale, 0.92f), false);
+
     const float SystemPanelX = Canvas->ClipX - Margin - PanelWidth;
-    const float CompactHeaderHeight = 42.0f;
-    const float CompactRowHeight = 36.0f;
+    const float CompactHeaderHeight = S(54.0f);
+    const float CompactRowHeight = S(64.0f);
     const float CompactHeight = CompactHeaderHeight + CompactRowHeight * FMath::Max(Capabilities.Num(), 1);
     const float CompactY = Canvas->ClipY - Margin - CompactHeight;
 
@@ -392,12 +602,14 @@ void AEverwardHUD::DrawHUD()
         DrawRect(PanelColor, SystemPanelX, CompactY, PanelWidth, CompactHeight);
         DrawText(
             FString::Printf(TEXT("SYSTEMS  %d INSTALLED   [TAB DETAILS]"), Capabilities.Num()),
-            TextColor, SystemPanelX + 14.0f, CompactY + 10.0f, nullptr, 0.90f, false);
+            TextColor, SystemPanelX + S(16.0f), CompactY + S(12.0f),
+            HudFont, ReadableTextScale(HudScale, 1.02f), false);
 
         if (Capabilities.IsEmpty())
         {
             DrawText(TEXT("NO INSTALLED CAPABILITIES"), MutedColor,
-                SystemPanelX + 14.0f, CompactY + CompactHeaderHeight, nullptr, 0.78f, false);
+                SystemPanelX + S(16.0f), CompactY + CompactHeaderHeight,
+                HudFont, ReadableTextScale(HudScale, 0.92f), false);
         }
         else
         {
@@ -412,33 +624,37 @@ void AEverwardHUD::DrawHUD()
                         Capability.IntegrityFraction * 100.0,
                         *CapabilityState(Capability)),
                     bHealthy ? TextColor : AlertColor,
-                    SystemPanelX + 14.0f, CompactRowY, nullptr, 0.76f, false);
+                    SystemPanelX + S(16.0f), CompactRowY,
+                    HudFont, ReadableTextScale(HudScale, 0.94f), false);
                 DrawText(
-                    Capability.StatusReason,
+                    CompactStatusReason(Capability.StatusReason),
                     bHealthy ? MutedColor : AlertColor,
-                    SystemPanelX + 22.0f, CompactRowY + 17.0f, nullptr, 0.63f, false);
+                    SystemPanelX + S(24.0f), CompactRowY + S(30.0f),
+                    HudFont, ReadableTextScale(HudScale, 0.88f), false);
                 CompactRowY += CompactRowHeight;
             }
         }
         return;
     }
 
-    const float ExpandedHeight = 500.0f;
+    const float ExpandedHeight = S(720.0f);
     const float ExpandedY = Canvas->ClipY - Margin - ExpandedHeight;
     DrawRect(PanelColor, SystemPanelX, ExpandedY, PanelWidth, ExpandedHeight);
     DrawText(TEXT("SYSTEMS / CONTROL   [TAB CLOSE]"), TextColor,
-        SystemPanelX + 14.0f, ExpandedY + 12.0f, nullptr, 0.95f, false);
+        SystemPanelX + S(16.0f), ExpandedY + S(14.0f),
+        HudFont, ReadableTextScale(HudScale, 1.06f), false);
 
     if (Capabilities.IsEmpty())
     {
         DrawText(TEXT("NO INSTALLED CAPABILITIES"), MutedColor,
-            SystemPanelX + 14.0f, ExpandedY + 48.0f, nullptr, 0.9f, false);
+            SystemPanelX + S(16.0f), ExpandedY + S(58.0f),
+            HudFont, ReadableTextScale(HudScale, 0.94f), false);
         return;
     }
 
     SelectedCapabilityIndex = FMath::Clamp(SelectedCapabilityIndex, 0, Capabilities.Num() - 1);
 
-    float Y = ExpandedY + 44.0f;
+    float Y = ExpandedY + S(56.0f);
     for (int32 Index = 0; Index < Capabilities.Num(); ++Index)
     {
         const FEverwardProbeCapability& Capability = Capabilities[Index];
@@ -450,119 +666,150 @@ void AEverwardHUD::DrawHUD()
                 Capability.IntegrityFraction * 100.0,
                 *CapabilityState(Capability)),
             Index == SelectedCapabilityIndex ? TextColor : MutedColor,
-            SystemPanelX + 14.0f, Y, nullptr, 0.9f, false);
-        Y += 24.0f;
+            SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.96f), false);
+        Y += LineHeight;
     }
 
     const FEverwardProbeCapability& Selected = Capabilities[SelectedCapabilityIndex];
-    Y += 8.0f;
-    DrawText(Selected.Description, TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.82f, false);
-    Y += 26.0f;
+    Y += S(10.0f);
+    DrawText(TruncatedPanelLine(Selected.Description, 50), TextColor,
+        SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.92f), false);
+    Y += LineHeight;
     DrawText(
-        FString::Printf(TEXT("POWER %.0f W   //   INTEGRITY %.0f%%   [PGUP/PGDN ADJUST]"),
-            Selected.AllocatedPowerWatts,
-            Selected.IntegrityFraction * 100.0),
-        MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.82f, false);
-    Y += 22.0f;
+        FString::Printf(TEXT("POWER %.0f W   [PGUP/PGDN ADJUST]"), Selected.AllocatedPowerWatts),
+        TextColor, SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.92f), false);
+    Y += LineHeight;
     DrawText(
         Selected.MinimumOperatingPowerWatts > 0.0
-            ? FString::Printf(TEXT("STATUS %s   //   MIN %.0f W"),
-                *Selected.StatusReason, Selected.MinimumOperatingPowerWatts)
-            : FString::Printf(TEXT("STATUS %s"), *Selected.StatusReason),
+            ? FString::Printf(TEXT("INTEGRITY %.0f%%   //   MINIMUM %.0f W"),
+                Selected.IntegrityFraction * 100.0, Selected.MinimumOperatingPowerWatts)
+            : FString::Printf(TEXT("INTEGRITY %.0f%%"), Selected.IntegrityFraction * 100.0),
         Selected.bOperational && Selected.bAvailable ? MutedColor : AlertColor,
-        SystemPanelX + 14.0f, Y, nullptr, 0.74f, false);
-    Y += 22.0f;
+        SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.90f), false);
+    Y += LineHeight;
     DrawText(
-        FString::Printf(TEXT("MANUAL CONTROL  %s   //   AUTOMATION API  %s"),
+        FString::Printf(TEXT("STATUS %s"), *TruncatedPanelLine(Selected.StatusReason, 48)),
+        Selected.bOperational && Selected.bAvailable ? MutedColor : AlertColor,
+        SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.88f), false);
+    Y += LineHeight;
+    DrawText(
+        FString::Printf(TEXT("MANUAL CONTROL %s   //   AUTOMATION API %s"),
             Selected.bSupportsManualControl ? TEXT("YES") : TEXT("N/A"),
             Selected.bSupportsAutomation ? TEXT("YES") : TEXT("N/A")),
-        MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.82f, false);
-    Y += 28.0f;
+        MutedColor, SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.88f), false);
+    Y += LineHeight + S(6.0f);
 
     if (Selected.CapabilityId == FName(TEXT("sensors")))
     {
         DrawText(TEXT("[ENTER] START SCAN   [BACKSPACE] CANCEL"), TextColor,
-            SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
-        Y += 22.0f;
+            SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.92f), false);
+        Y += LineHeight;
         DrawText(
             Telemetry.bIsScanning
                 ? FString::Printf(TEXT("ACTIVE: %s  %.1f s"), *Telemetry.ActiveScanTargetId, Telemetry.ScanRemainingSeconds)
                 : TEXT("ACTIVE: NONE"),
-            MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
-        Y += 24.0f;
+            MutedColor, SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.90f), false);
+        Y += LineHeight;
 
         if (bHasScanDiscovery)
         {
-            DrawText(TEXT("LAST DISCOVERY"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.82f, false);
-            Y += 20.0f;
-            DrawText(LastScanTargetId, MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.76f, false);
-            Y += 19.0f;
-            DrawText(LastScanObjectClass, TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.74f, false);
-            Y += 19.0f;
-            DrawText(LastScanComposition, MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.70f, false);
-            Y += 19.0f;
+            DrawText(TEXT("LAST DISCOVERY"), TextColor, SystemPanelX + S(16.0f), Y,
+                HudFont, ReadableTextScale(HudScale, 0.94f), false);
+            Y += LineHeight;
+            DrawText(LastScanTargetId, MutedColor, SystemPanelX + S(16.0f), Y,
+                HudFont, ReadableTextScale(HudScale, 0.88f), false);
+            Y += LineHeight;
+            DrawText(LastScanObjectClass, TextColor, SystemPanelX + S(16.0f), Y,
+                HudFont, ReadableTextScale(HudScale, 0.88f), false);
+            Y += LineHeight;
+            DrawText(LastScanComposition, MutedColor, SystemPanelX + S(16.0f), Y,
+                HudFont, ReadableTextScale(HudScale, 0.86f), false);
+            Y += LineHeight;
             DrawText(
                 FString::Printf(TEXT("CONFIDENCE %.0f%%  //  ACQUIRED T+%.1fs"),
                     LastScanConfidence * 100.0, LastScanCompletedAtSeconds),
-                MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.70f, false);
-            Y += 24.0f;
+                MutedColor, SystemPanelX + S(16.0f), Y,
+                HudFont, ReadableTextScale(HudScale, 0.86f), false);
+            Y += LineHeight;
         }
     }
     else if (Selected.CapabilityId == FName(TEXT("propulsion")))
     {
-        DrawText(TEXT("[W/S] X  [A/D] Y  [Q/E] Z  [SPACE] GLOBAL BRAKE"), TextColor,
-            SystemPanelX + 14.0f, Y, nullptr, 0.72f, false);
-        Y += 22.0f;
+        DrawText(TEXT("[W/S] FORWARD / REVERSE   [A/D] LEFT / RIGHT"), TextColor,
+            SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.88f), false);
+        Y += LineHeight;
+        DrawText(TEXT("[Q/E] DOWN / UP   [SPACE] FULL STOP"), TextColor,
+            SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.88f), false);
+        Y += LineHeight;
+        DrawText(TEXT("[I/K] PITCH   [J/L] YAW   [U/O] ROLL   [R] RIGHT"), MutedColor,
+            SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.86f), false);
+        Y += LineHeight;
         DrawText(
             FString::Printf(TEXT("WORLD VECTOR [%.2f, %.2f, %.2f] m/s"),
                 Telemetry.VelocityMetersPerSecond.X,
                 Telemetry.VelocityMetersPerSecond.Y,
                 Telemetry.VelocityMetersPerSecond.Z),
-            MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
-        Y += 24.0f;
+            MutedColor, SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.88f), false);
+        Y += LineHeight;
     }
     else if (Selected.CapabilityId == FName(TEXT("computation")))
     {
-        DrawText(TEXT("[ENTER] INSTALL BASIC SURVIVAL   [BACKSPACE] CLEAR"), TextColor,
-            SystemPanelX + 14.0f, Y, nullptr, 0.76f, false);
-        Y += 22.0f;
+        DrawText(TEXT("[ENTER] INSTALL BASIC SURVIVAL"), TextColor,
+            SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.90f), false);
+        Y += LineHeight;
+        DrawText(TEXT("[BACKSPACE] CLEAR POLICY"), TextColor,
+            SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.90f), false);
+        Y += LineHeight;
         DrawText(
             PolicyStatus.bInstalled
                 ? FString::Printf(TEXT("POLICY: %s  //  %d RULES"), *PolicyStatus.PolicyId, PolicyStatus.RuleCount)
                 : TEXT("POLICY: NONE"),
-            MutedColor, SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
-        Y += 22.0f;
+            MutedColor, SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.88f), false);
+        Y += LineHeight;
         DrawText(
             PolicyStatus.bExecutorAvailable
                 ? TEXT("EXECUTOR: RUNNING")
                 : FString::Printf(TEXT("EXECUTOR: NEED >= %.0f W COMPUTE"), PolicyStatus.MinimumComputationPowerWatts),
             PolicyStatus.bExecutorAvailable ? TextColor : AlertColor,
-            SystemPanelX + 14.0f, Y, nullptr, 0.8f, false);
-        Y += 22.0f;
+            SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.88f), false);
+        Y += LineHeight;
         if (AutomationNotice.Sequence > 0)
         {
-            DrawText(TEXT("LAST AUTOMATION"), TextColor, SystemPanelX + 14.0f, Y, nullptr, 0.72f, false);
-            Y += 18.0f;
+            DrawText(TEXT("LAST AUTOMATION"), TextColor, SystemPanelX + S(16.0f), Y,
+                HudFont, ReadableTextScale(HudScale, 0.90f), false);
+            Y += LineHeight;
             DrawText(
-                AutomationNotice.Detail,
+                TruncatedPanelLine(AutomationNotice.Detail, 48),
                 AutomationNotice.bRejected ? AlertColor : MutedColor,
-                SystemPanelX + 14.0f, Y, nullptr, 0.62f, false);
-            Y += 22.0f;
+                SystemPanelX + S(16.0f), Y, HudFont, ReadableTextScale(HudScale, 0.86f), false);
+            Y += LineHeight;
         }
     }
 
     if (LastCommand.Sequence > 0)
     {
         DrawText(
-            FString::Printf(TEXT("CMD %s: %s"),
+            TruncatedPanelLine(FString::Printf(TEXT("CMD %s: %s"),
                 LastCommand.bAccepted ? TEXT("OK") : TEXT("REJECTED"),
-                *LastCommand.Detail),
+                *LastCommand.Detail), 50),
             LastCommand.bAccepted ? TextColor : AlertColor,
-            SystemPanelX + 14.0f, ExpandedY + ExpandedHeight - 52.0f, nullptr, 0.75f, false);
+            SystemPanelX + S(16.0f), ExpandedY + ExpandedHeight - S(72.0f),
+            HudFont, ReadableTextScale(HudScale, 0.88f), false);
     }
 
-    DrawText(TEXT("[ / ] SELECT SYSTEM   //   MOUSE LOOK   WHEEL ZOOM"), MutedColor,
-        SystemPanelX + 14.0f, ExpandedY + ExpandedHeight - 26.0f, nullptr, 0.68f, false);
+    DrawText(TEXT("[ / ] SELECT SYSTEM   [F1] ALL CONTROLS"), MutedColor,
+        SystemPanelX + S(16.0f), ExpandedY + ExpandedHeight - S(36.0f),
+        HudFont, ReadableTextScale(HudScale, 0.86f), false);
+}
+
+void AEverwardHUD::ToggleControlsReference()
+{
+    bControlsReferenceVisible = !bControlsReferenceVisible;
+}
+
+bool AEverwardHUD::IsControlsReferenceVisible() const
+{
+    return bControlsReferenceVisible;
 }
 
 void AEverwardHUD::ToggleSystemsPanel()
