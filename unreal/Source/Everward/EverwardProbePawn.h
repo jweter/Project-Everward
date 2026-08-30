@@ -11,6 +11,8 @@ class USceneComponent;
 class USphereComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
+enum class EEverwardManipulatorArmId : uint8;
+enum class EEverwardManipulatorJoint : uint8;
 
 UCLASS()
 class EVERWARD_API AEverwardProbePawn : public APawn
@@ -29,6 +31,13 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Everward|Camera")
     void AdjustCameraZoom(float DeltaCentimeters);
+
+    // Presentation-only selection feedback. Simulation still owns joint
+    // motion; this only makes the arm segment about to move visually obvious.
+    void SetManipulatorSelectionHighlight(
+        bool bEnabled,
+        EEverwardManipulatorArmId ArmId,
+        EEverwardManipulatorJoint Joint);
 
 private:
     void ApplyPrimeFunctionalMaterials();
@@ -74,43 +83,31 @@ private:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<USceneComponent> PortShoulderPivot;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UStaticMeshComponent> PortShoulder;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UStaticMeshComponent> PortUpperArm;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<USceneComponent> PortElbowPivot;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UStaticMeshComponent> PortForearm;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<USceneComponent> PortWristPivot;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UStaticMeshComponent> PortToolHead;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<USceneComponent> StarboardShoulderPivot;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UStaticMeshComponent> StarboardShoulder;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UStaticMeshComponent> StarboardUpperArm;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<USceneComponent> StarboardElbowPivot;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UStaticMeshComponent> StarboardForearm;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<USceneComponent> StarboardWristPivot;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UStaticMeshComponent> StarboardToolHead;
 
@@ -125,16 +122,12 @@ private:
 
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="500.0"))
     float MinCameraDistanceCentimeters = 1200.0f;
-
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="500.0"))
     float MaxCameraDistanceCentimeters = 5000.0f;
-
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="1.0"))
     float RightingDegreesPerSecond = 36.0f;
-
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.02", ClampMax="0.5"))
     float RightingCommandIntervalSeconds = 0.10f;
-
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.05"))
     float RightingCompletionToleranceDegrees = 0.5f;
 

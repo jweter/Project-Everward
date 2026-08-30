@@ -333,6 +333,35 @@ struct EVERWARD_API FEverwardManipulatorArmState
     bool bToolAttached = false;
 };
 
+// First scan-to-mining read model. This reports the bootstrap deposit without
+// moving mining mechanics into Unreal; `MiningSystem` remains engine-independent.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardMiningStatus
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    FString TargetId;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    FString MaterialName;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    bool bSurveyed = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    double DepositRemainingKilograms = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    double ExtractedMaterialKilograms = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    double ExtractionKilogramsPerCycle = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    double ToolWorkingReachMeters = 0.0;
+};
+
 UCLASS(ClassGroup=(Everward), meta=(BlueprintSpawnableComponent))
 class EVERWARD_API UProbeSimulationAdapter : public UActorComponent
 {
@@ -363,6 +392,9 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Manipulator")
     TArray<FEverwardManipulatorArmState> GetManipulatorArmStates() const;
 
+    UFUNCTION(BlueprintPure, Category="Everward|Mining")
+    FEverwardMiningStatus GetMiningStatus() const;
+
     UFUNCTION(BlueprintPure, Category="Everward|Command")
     FEverwardProbeCommandResult GetLastCommandResult() const;
 
@@ -386,6 +418,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandCancelScan();
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandMineBootstrapTarget();
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandAllocatePower(EEverwardPowerSubsystem Subsystem, double Watts);
@@ -431,6 +466,10 @@ private:
     FEverwardProbeCommandResult LastCommandResult;
     FEverwardAutomationNotice LastAutomationNotice;
     FEverwardScanLifecycleNotice LastScanLifecycleNotice;
+    FString LastStartedScanTargetId;
+    bool bBootstrapResourceSurveyed = false;
+    double BootstrapDepositRemainingKilograms = 250.0;
+    double BootstrapExtractedMaterialKilograms = 0.0;
     everward::simulation::DamageAwareProbeRuntime* Core = nullptr;
     everward::simulation::ManipulatorRig* Manipulators = nullptr;
 };

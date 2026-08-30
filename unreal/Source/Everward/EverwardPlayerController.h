@@ -15,6 +15,7 @@ class EVERWARD_API AEverwardPlayerController : public APlayerController
 protected:
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
+    virtual void Tick(float DeltaSeconds) override;
 
 private:
     void ToggleSystemsPanel();
@@ -41,16 +42,10 @@ private:
     void RollProbeLeft();
     void RollProbeRight();
 
-    // Slice 6 foundation input: deploy/stow toggle per arm and a single tool
-    // attach/detach toggle.
     void TogglePortManipulatorArm();
     void ToggleStarboardManipulatorArm();
     void ToggleManipulatorTool();
 
-    // Slice 6 joint-articulation follow-up: a dedicated manipulator HUD page
-    // plus explicit arm/joint selection, since two arms can each be
-    // mid-pose independently and PageUp/PageDown are already the systems
-    // panel's power-adjustment keys.
     void ToggleManipulatorPanel();
     void CycleManipulatorArmSelection();
     void SelectManipulatorJointShoulder();
@@ -74,22 +69,16 @@ private:
 
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double Phase2ScanDurationSeconds = 10.0;
-
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="1.0"))
     double PowerAdjustmentWatts = 25.0;
-
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double VelocityAdjustmentMetersPerSecond = 1.0;
-
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double AttitudeAdjustmentDegrees = 5.0;
-
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double ManipulatorJointAdjustmentDegrees = 5.0;
-
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="0.01"))
     float MouseLookSensitivity = 0.75f;
-
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="1.0"))
     float CameraZoomStepCentimeters = 120.0f;
 };

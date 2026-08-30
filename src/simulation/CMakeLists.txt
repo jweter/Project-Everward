@@ -50,4 +50,8 @@ if(BUILD_TESTING)
     add_executable(everward_manipulator_hull_contact_tests tests/manipulator_hull_contact_tests.cpp)
     target_link_libraries(everward_manipulator_hull_contact_tests PRIVATE everward_simulation)
     add_test(NAME everward_manipulator_hull_contact_tests COMMAND everward_manipulator_hull_contact_tests)
+
+    add_executable(everward_mining_tests tests/mining_tests.cpp)
+    target_link_libraries(everward_mining_tests PRIVATE everward_simulation)
+    add_test(NAME everward_mining_tests COMMAND everward_mining_tests)
 endif()
