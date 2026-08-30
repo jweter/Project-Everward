@@ -2,6 +2,7 @@
 
 #include "everward/simulation/manipulator.hpp"
 #include "everward/simulation/manipulator_hull_contact.hpp"
+#include "everward/simulation/manipulator_tool_contact.hpp"
 #include "everward/simulation/types.hpp"
 
 #include <algorithm>
@@ -157,15 +158,18 @@ public:
             }
             found_ready_arm = true;
 
-            const ManipulatorArmContactSamples local_samples =
-                manipulator_arm_contact_samples(arm_id, arm.deployment_fraction, arm.angles);
-            const Vector3d wrist_world = contact_add(
+            // Mining contact is defined by the visible tool tip, not the wrist
+            // pivot behind it. This keeps authoritative reach feedback aligned
+            // with what the player actually sees touching the target in Unreal.
+            const ManipulatorArmSample local_tool_tip =
+                manipulator_tool_tip_contact_sample(arm_id, arm.deployment_fraction, arm.angles);
+            const Vector3d tool_tip_world = contact_add(
                 probe_pose.position_m,
-                rotate_local_contact_offset(local_samples.wrist.center_m, probe_pose.attitude_degrees));
-            const Vector3d delta = contact_subtract(wrist_world, state.deposit.body.center_m);
+                rotate_local_contact_offset(local_tool_tip.center_m, probe_pose.attitude_degrees));
+            const Vector3d delta = contact_subtract(tool_tip_world, state.deposit.body.center_m);
             const double center_distance = std::sqrt(contact_dot(delta, delta));
             const double surface_gap = center_distance -
-                (state.deposit.body.radius_m + local_samples.wrist.radius_m);
+                (state.deposit.body.radius_m + local_tool_tip.radius_m);
 
             if (surface_gap < best_gap) {
                 best_gap = surface_gap;
@@ -181,7 +185,7 @@ public:
         result.arm = best_arm;
         result.tool_surface_gap_m = best_gap;
         if (best_gap > kGeneration1ToolWorkingReachM) {
-            result.detail = "mining tool is not in reach; surface gap " +
+            result.detail = "mining tool is not in reach; tool-tip surface gap " +
                 one_decimal(best_gap) + " m (need <= " + one_decimal(kGeneration1ToolWorkingReachM) + " m)";
             return result;
         }
