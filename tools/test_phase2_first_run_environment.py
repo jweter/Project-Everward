@@ -30,7 +30,8 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         self.assertIn('BootstrapBodyRadiusMeters = 2.0', self.environment_h)
         self.assertIn('CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BootstrapScanTarget"))', self.environment_cpp)
         self.assertIn('BootstrapBodyCenterXMeters * 100.0', self.environment_cpp)
-        self.assertIn('PHASE-2 PHYSICAL BODY // SCAN-001', self.environment_cpp)
+        self.assertIn('SCAN-001 // UNSURVEYED RESOURCE BODY', self.environment_cpp)
+        self.assertIn('SCAN COMPLETE // %s', self.environment_cpp)
         self.assertIn('SetCollisionEnabled(ECollisionEnabled::QueryOnly)', self.environment_cpp)
         self.assertIn('UPointLightComponent', self.environment_cpp)
 
