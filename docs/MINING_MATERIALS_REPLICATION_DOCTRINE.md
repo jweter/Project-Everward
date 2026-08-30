@@ -203,9 +203,9 @@ repair what exists
 
 This progression should be visible in mechanics and not exist only as lore.
 
-## 9. Generation-1 origin seed: the secret "Fix-It" program
+## 9. Generation-1 origin seed: the secret `Fix_It` program
 
-Accepted origin direction: Generation 1 begins as a failed or underperforming probe project that was nevertheless launched. An intern secretly added a small "Fix-It" program before launch.
+Accepted origin direction: Generation 1 begins as a failed or underperforming probe project that was nevertheless launched. An intern secretly added a small internal program named `Fix_It` before launch.
 
 That program is the seed of the later self-repair/evolution behavior.
 
@@ -222,7 +222,7 @@ fix itself
 -> create a machine lineage
 ```
 
-The exact authored backstory can be refined later, but the causal relationship between the humble Fix-It seed and the enormous later evolutionary arc should be preserved.
+The exact authored backstory can be refined later, but the causal relationship between the humble `Fix_It` seed and the enormous later evolutionary arc should be preserved.
 
 ## 10. Replication changes the scale of play
 
