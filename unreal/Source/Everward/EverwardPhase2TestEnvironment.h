@@ -9,10 +9,8 @@ class USceneComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 
-// Temporary Phase-2 integration environment. The visible scan target is now
-// also the first reproducible physical body. Shared meter-space constants keep
-// Unreal presentation geometry aligned with the engine-independent contact
-// body registered by UProbeSimulationAdapter.
+// Temporary Phase-2 integration environment. The visible target is both the
+// first reproducible physical body and the first scan-to-mining resource body.
 UCLASS()
 class EVERWARD_API AEverwardPhase2TestEnvironment : public AActor
 {
@@ -21,6 +19,7 @@ class EVERWARD_API AEverwardPhase2TestEnvironment : public AActor
 public:
     AEverwardPhase2TestEnvironment();
     virtual void BeginPlay() override;
+    virtual void Tick(float DeltaSeconds) override;
 
     static constexpr const TCHAR* BootstrapScanTargetId = TEXT("phase2-test-target-001");
     static constexpr double BootstrapBodyCenterXMeters = 50.0;
@@ -30,19 +29,16 @@ public:
 
 private:
     void ApplyEnvironmentMaterialScaffold();
+    void RefreshResourceReadout();
 
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
     TObjectPtr<USceneComponent> SceneRoot;
-
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
     TObjectPtr<UStaticMeshComponent> ScanTargetMesh;
-
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
     TObjectPtr<UTextRenderComponent> ScanTargetLabel;
-
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
     TObjectPtr<UPointLightComponent> KeyLight;
-
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
     TArray<TObjectPtr<UStaticMeshComponent>> ReferenceMarkers;
 };
