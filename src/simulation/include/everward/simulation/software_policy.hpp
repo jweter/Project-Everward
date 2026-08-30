@@ -159,6 +159,7 @@ public:
     void set_passive_cooling_w_per_k(double watts_per_k) { core_.set_passive_cooling_w_per_k(watts_per_k); }
     void set_max_operating_temperature_k(double kelvin) { core_.set_max_operating_temperature_k(kelvin); }
     [[nodiscard]] double total_power_allocated_w() const noexcept { return core_.total_power_allocated_w(); }
+    void add_stored_material_kg(double kilograms) { core_.add_stored_material_kg(kilograms); }
 
     void install_policy(SoftwarePolicy policy) {
         validate_policy(policy);

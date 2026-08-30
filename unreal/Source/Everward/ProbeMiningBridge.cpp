@@ -77,11 +77,16 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandMineBootstrapTarget(
         TargetId,
         *Manipulators,
         everward::simulation::ProbeWorldPose{Snapshot.position_m, Snapshot.attitude_degrees},
-        Snapshot.storage_used_kg + BootstrapExtractedMaterialKilograms,
+        Snapshot.storage_used_kg,
         Snapshot.storage_capacity_kg);
 
     if (Result.accepted)
     {
+        // storage_used_kg is the authoritative field the systems-panel HUD's
+        // STORAGE readout reads (see ProbeSimulationAdapter.cpp's telemetry
+        // conversion); it must move here or mining never appears in that
+        // readout even though this mining status widget shows it moving.
+        Core->add_stored_material_kg(Result.extracted_kg);
         BootstrapExtractedMaterialKilograms += Result.extracted_kg;
         BootstrapDepositRemainingKilograms = Result.remaining_deposit_kg;
     }

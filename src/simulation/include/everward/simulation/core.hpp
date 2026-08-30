@@ -245,6 +245,26 @@ public:
         });
     }
 
+    // Mining and any future sample-collection mechanics must route extracted
+    // mass through this authoritative mutator rather than accumulating it in
+    // an adapter/engine-side counter: storage_used_kg is read directly by the
+    // Unreal systems-panel HUD (see ProbeSimulationAdapter.cpp's telemetry
+    // conversion), so simulation-owned state is the only place that can move
+    // it without creating a truth split between what the HUD reports and
+    // what was actually mined.
+    void add_stored_material_kg(double kilograms) {
+        if (!std::isfinite(kilograms) || kilograms < 0.0) {
+            throw std::invalid_argument("stored material delta must be finite and non-negative");
+        }
+        const double updated_kg = probe_.storage_used_kg + kilograms;
+        if (updated_kg > probe_.storage_capacity_kg + 1e-6) {
+            throw std::runtime_error("stored material would exceed storage capacity");
+        }
+        probe_.storage_used_kg = updated_kg;
+        events_.push_back({clock_.tick(), DomainEventType::MaterialStored,
+                            "stored material increased by " + std::to_string(kilograms) + " kg"});
+    }
+
     [[nodiscard]] double total_power_allocated_w() const noexcept {
         return probe_.power_allocated_sensors_w + probe_.power_allocated_propulsion_w +
                probe_.power_allocated_computation_w + probe_.power_allocated_thermal_w;

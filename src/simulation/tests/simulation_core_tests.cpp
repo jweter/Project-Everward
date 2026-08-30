@@ -15,6 +15,7 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <limits>
 
 using everward::simulation::SimulationClock;
 using everward::simulation::SimulationCore;
@@ -1133,6 +1134,59 @@ int main() {
         stacked_core.advance_wall_ticks(SimulationClock::TicksPerSecond);
         assert(!stacked_core.snapshot().is_energy_depleted);
         assert(stacked_core.snapshot().can_scan);
+    }
+
+    // add_stored_material_kg: the sole authoritative mutation boundary for
+    // mined/collected material. This must be the same field the Unreal HUD's
+    // STORAGE readout reads (ProbeSimulationAdapter.cpp's
+    // Telemetry.StorageUsedKilograms = Snapshot.storage_used_kg), so any
+    // mining bridge that instead accumulates extracted mass only in its own
+    // adapter-side counter leaves that readout permanently at zero.
+    {
+        SimulationCore storage_core;
+        assert(nearly_equal(storage_core.snapshot().storage_used_kg, 0.0));
+
+        storage_core.add_stored_material_kg(5.0);
+        assert(nearly_equal(storage_core.snapshot().storage_used_kg, 5.0));
+
+        storage_core.add_stored_material_kg(2.5);
+        assert(nearly_equal(storage_core.snapshot().storage_used_kg, 7.5));
+
+        auto storage_events = storage_core.drain_events();
+        assert(!storage_events.empty());
+        assert(storage_events.back().type == everward::simulation::DomainEventType::MaterialStored);
+
+        bool negative_threw = false;
+        try {
+            storage_core.add_stored_material_kg(-1.0);
+        } catch (const std::invalid_argument&) {
+            negative_threw = true;
+        }
+        assert(negative_threw);
+        assert(nearly_equal(storage_core.snapshot().storage_used_kg, 7.5));
+
+        bool non_finite_threw = false;
+        try {
+            storage_core.add_stored_material_kg(std::numeric_limits<double>::infinity());
+        } catch (const std::invalid_argument&) {
+            non_finite_threw = true;
+        }
+        assert(non_finite_threw);
+
+        bool over_capacity_threw = false;
+        try {
+            storage_core.add_stored_material_kg(storage_core.snapshot().storage_capacity_kg);
+        } catch (const std::runtime_error&) {
+            over_capacity_threw = true;
+        }
+        assert(over_capacity_threw);
+        assert(nearly_equal(storage_core.snapshot().storage_used_kg, 7.5));
+
+        // Filling exactly to capacity is accepted, not just anything below it.
+        SimulationCore full_core;
+        full_core.add_stored_material_kg(full_core.snapshot().storage_capacity_kg);
+        assert(nearly_equal(
+            full_core.snapshot().storage_used_kg, full_core.snapshot().storage_capacity_kg));
     }
 
     std::cout << "Everward simulation core tests passed\n";
