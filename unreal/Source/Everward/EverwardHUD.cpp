@@ -235,8 +235,8 @@ void AEverwardHUD::DrawHUD()
             }
         }
 
-        DrawText(TEXT("[N] ARM   [4/5/6] SHOULDER/ELBOW/WRIST   [,][.] TARGET"), MutedColor,
-            Margin + 14.0f, PanelY + PanelHeight - LineHeight, nullptr, 0.62f, false);
+        DrawText(TEXT("[1/2] DEPLOY   [3] TOOL   [N] ARM   [4/5/6] JOINT   [,][.] TARGET"), MutedColor,
+            Margin + 14.0f, PanelY + PanelHeight - LineHeight, nullptr, 0.56f, false);
     }
 
     float AlertY = Margin;
