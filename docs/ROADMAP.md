@@ -86,13 +86,56 @@ The Unreal layer presents authoritative simulation state and submits commands; i
 
 Add survey, spectroscopy, resource determination, travel between local objects, orbital context, and environmental conditions.
 
+Scanning must become operationally useful: it should tell the player what a target is, what material is present, whether the current machine can extract it, and what that material could contribute to repair, replacement, fabrication, construction, or replication. The scanner is part of the industrial survival loop, not a detached progress bar.
+
 **Gate:** scanning is enjoyable and creates understanding rather than functioning as a progress bar.
 
 ## Phase 4 — Industrial Bootstrap
 
-Add mining, power production, refining, storage, fabrication, construction, and physically grounded self-repair.
+Add mining, power production, refining, storage, fabrication, construction, physically grounded self-repair, component replacement, salvage, and recycling.
+
+The intended economic chain is explicit:
+
+```text
+scan
+-> identify useful material
+-> reach / mine / gather physically
+-> place material into real storage
+-> process / fabricate
+-> repair or replace systems
+-> construct infrastructure and successor probes
+```
+
+Resource gathering must therefore have an eventual strategic purpose: replication and expansion of the machine lineage. Manipulator arms and mining tools are not animation-only systems; they are how the embodied probe turns knowledge into matter and matter into continued existence.
 
 Self-sustaining specifically means recoverable: solar (or other in-system) power generation, resource harvesting, and fabrication together must be able to repair damage and restock depleted consumables without requiring a fresh start or outside rescue. No failure state this loop can address should be permanent — see Pillar 3 (Unlimited Progression) and the Serenity/Explorer "generous recovery" difficulty framing in Pillar 6; harder difficulties may make the loop slower or costlier, never impossible, short of a deliberate design decision to the contrary.
+
+### Canonical Generation-1 origin: `Fix_It`
+
+Generation 1 is intentionally a poorly built, underperforming probe. Its continued existence is not evidence that the original engineering project secretly succeeded.
+
+The canonical origin is that the lead engineer failed to complete the work to the level required, yet the probe was launched anyway and effectively forgotten. An intern had quietly created an internal program named **`Fix_It`** and left it with an extraordinarily vague, all-encompassing directive: make the probe work.
+
+The probe did not initially work in any robust sense. `Fix_It` did.
+
+After launch, `Fix_It` began working process by process, using whatever functioning computation, power, sensors, manipulators, materials, and fabrication paths remained available. It diagnosed failures, restored minimal capability, reassessed, and continued. The machine that eventually awakens as the player is alive because this hidden process spent an extended period making itself and its host machine functional enough to survive.
+
+The player should later be able to discover logs, notes, comments, or other artifacts from the intern that reveal this origin. The revelation should explain both why such a badly engineered probe is still operating and why its self-maintenance behavior is unusually broad.
+
+`Fix_It` is not a magical omnipotent upgrader. It is the historical seed of a mechanically grounded progression:
+
+```text
+REPAIR
+restore damaged existing capability
+
+-> REPLACEMENT
+fabricate and install a component when repair is no longer the best answer
+
+-> EVOLUTION
+design something physically better, add capabilities, build successors, and continue the lineage
+```
+
+That **Repair -> Replacement -> Evolution** arc is a core Everward system and origin story, not optional lore. Its detailed doctrine is preserved in [`MINING_MATERIALS_REPLICATION_DOCTRINE.md`](MINING_MATERIALS_REPLICATION_DOCTRINE.md).
 
 ### Canonical Self Repair capability
 
@@ -113,19 +156,31 @@ Its intended behavior is:
 
 The player should be able to inspect why a repair is recommended, its material/energy/time cost, and what capability it will restore. The player ultimately controls their own body and may later override the recommended order.
 
-The full canonical design is defined in [`STARTER_AWAKENING_AND_SELF_REPAIR.md`](STARTER_AWAKENING_AND_SELF_REPAIR.md).
+The full canonical damaged-awakening design is defined in [`STARTER_AWAKENING_AND_SELF_REPAIR.md`](STARTER_AWAKENING_AND_SELF_REPAIR.md). The wider scan/mining/material/replacement/evolution doctrine is defined in [`MINING_MATERIALS_REPLICATION_DOCTRINE.md`](MINING_MATERIALS_REPLICATION_DOCTRINE.md).
 
-**Gate:** one probe can recover itself and create a self-sustaining industrial foothold.
+### Replacement and recycling are required extensions of repair
+
+Repair is only the first engineering answer. If a component is too damaged, obsolete, inefficient, or limiting, the player must eventually be able to fabricate a replacement and physically integrate it into the probe.
+
+Removed or obsolete hardware should not simply disappear. Components, scrap, failed parts, and eventually defunct probes should be salvageable and recyclable into useful feedstock where physically plausible. Everward should trend toward closed material cycles rather than disposable machines.
+
+**Gate:** one probe can recover itself and create a self-sustaining industrial foothold with the foundations for repair, replacement, recycling, and future replication.
 
 ## Phase 5 — Research and Engineering
 
 Research emerges from phenomena, experiments, operating experience, scanning, and material discovery. Build the first successor-design interface.
+
+Research and engineering extend the original `Fix_It` behavior from reactive survival into intentional design. The machine should increasingly be able to ask not merely "how do I restore this?" but "what should replace this, and what could I become next?"
 
 **Gate:** player can design something physically better than the current body.
 
 ## Phase 6 — First Replication
 
 Manufacture the first successor. Choose inherited code and knowledge, instructions, architecture changes, and either consciousness transfer or independent-child instantiation.
+
+The first replication is the payoff for the earlier physical loop: scan -> mine -> gather -> store -> process -> fabricate -> repair/replace -> design -> construct. It must be built from resources and industrial capability the player actually established, not granted as an abstract unlock.
+
+Successors may begin specializing into roles such as scanner/survey, miner/extractor, gatherer/material handling, hauler, processor, fabricator, computational specialist, or hybrids. These are physical outcomes, not rigid classes.
 
 **Gate:** replication feels consequential: “I made another intelligence.”
 
@@ -145,7 +200,7 @@ Messages become physical delayed information. Children operate from local knowle
 
 Target: 30–60 minutes.
 
-The canonical opening is now the **damaged awakening and self-repair loop**:
+The canonical opening is now the **damaged awakening and self-repair loop**, with `Fix_It` as the hidden historical reason the machine has survived long enough for the player to awaken:
 
 ```text
 wake stranded on a moon/planet
@@ -163,7 +218,9 @@ wake stranded on a moon/planet
 
 The repair order is not a fixed quest script. The authoritative Self Repair planner should protect survival, prefer important offline capabilities over polishing one working system, then reassess after each repair until the whole required machine is restored.
 
-After departure, the vertical slice expands into survey, mining, refining, manufacturing, research, successor design, replication, interstellar departure/arrival, and a discovery worth investigating.
+The opening should seed the mystery of `Fix_It` through recoverable logs, internal comments, diagnostics, or intern notes. Early evidence need not explain everything immediately, but it should eventually establish that the neglected probe survived because an unauthorized internal program kept recursively solving the instruction to make it work.
+
+After departure, the vertical slice expands into survey, mining, refining, manufacturing, research, component replacement, recycling, successor design, replication, interstellar departure/arrival, and a discovery worth investigating.
 
 This opening teaches the game through the player's own body: repairing Sensors teaches observation, repairing manipulators increases physical reach, restoring processing makes gathered material useful, restoring power/thermal capability enables heavier work, and restoring attitude/propulsion finally makes flight possible.
 
@@ -171,11 +228,13 @@ The starter zone must always contain a valid recovery chain. Constraint is desir
 
 Visual quality should already communicate the intended cinematic scientific-realism identity; the vertical slice is not a temporary low-fidelity 2D interpretation of the final game.
 
-**Gate:** the player can awaken damaged, rebuild their own body, earn first departure, and continue into the broader Everward loop; ready for external playtesting.
+**Gate:** the player can awaken damaged, rebuild their own body, discover the beginning of the `Fix_It` mystery, earn first departure, and continue into the broader Everward loop; ready for external playtesting.
 
 ## Phase 10 — Autonomous Children
 
 Children receive goals, priorities, constraints, code, behavior parameters, local state, knowledge, and communications. They must survive without constant micromanagement.
+
+As the fleet grows, physical logistics must grow with it. Worker probes may initially return material to a parent probe, then later to shared depots, processors, fabrication nodes, and construction infrastructure. There is no magical global inventory.
 
 **Gate:** twenty autonomous probes are interesting rather than annoying.
 
@@ -189,7 +248,11 @@ Implement deterministic region generation, stellar populations, planetary divers
 
 Deepen successor engineering across propulsion, sensors, computation, industry, defense, energy, thermal management, structure, and self-repair. Resolve through playtesting whether modification limits use one major change, points, engineering budget, or a hybrid.
 
+The original `Fix_It` lineage should remain conceptually visible even at extreme advancement: what began as a crude recovery process becomes increasingly sophisticated diagnosis, replacement planning, redesign, fabrication, predictive maintenance, successor engineering, and autonomous adaptation.
+
 Self Repair should itself evolve across generations through better diagnostics, repair speed, energy/material efficiency, substitution, simultaneous repairs, predictive maintenance, specialized tools, redundant hardware, repair drones/swarms, and advanced fabrication. Later probes should become dramatically more resilient without turning damage into meaningless instant regeneration.
+
+Replacement must also evolve: later generations should be able to replace obsolete systems with physically better architectures rather than treating the original chassis specification as sacred. Removed systems remain candidates for reuse, salvage, or recycling.
 
 **Gate:** generation 20 is dramatically more capable than generation 1 while still presenting engineering tradeoffs.
 
@@ -204,6 +267,8 @@ Difficulty may change repair cost, time, scarcity, automation quality, reserve m
 ## Phase 14 — Machine Society
 
 Add divergent descendants, inherited software, lineage identity, behavior/cultural drift, cooperation, independence, disputes, and specialization.
+
+Machine society should preserve physical material history. Failed, obsolete, or abandoned machines can remain as salvage, historical artifacts, infrastructure, or recyclable mass rather than vanishing as despawned units.
 
 ## Phase 15 — Extreme Astronomy
 
@@ -231,7 +296,7 @@ Observation precedes understanding.
 
 ## Phase 18 — Conflict
 
-Develop combat from existing physics, sensor, propulsion, manufacturing, communication, automation, damage, and repair systems so it feels native to Everward rather than bolted on.
+Develop combat from existing physics, sensor, propulsion, manufacturing, communication, automation, damage, repair, replacement, salvage, and recycling systems so it feels native to Everward rather than bolted on.
 
 ## Phase 19 — Infinite Progression Framework
 
@@ -247,23 +312,23 @@ On Abyss, late-game threats may scale far enough to challenge ancient, highly de
 
 ## Phase 21 — Alpha
 
-Required identity is complete: embodiment, scanning, resources, industry, self-repair, replication, generations, interstellar expansion, descendants, communication latency, research, environments, difficulty, progression, saves, and substantial procedural space.
+Required identity is complete: embodiment, scanning, resources, industry, self-repair, replacement, recycling, replication, generations, interstellar expansion, descendants, communication latency, research, environments, difficulty, progression, saves, and substantial procedural space.
 
 No missing feature should still be required to prove the fundamental game.
 
 ## Phase 22 — Visual Production
 
-Aggressively improve Unreal-based stars, planets, atmospheres, rings, particles, structures, probes, lighting, shaders, transitions, camera, HUD, repair/reconstruction feedback, and photo mode.
+Aggressively improve Unreal-based stars, planets, atmospheres, rings, particles, structures, probes, lighting, shaders, transitions, camera, HUD, repair/reconstruction/replacement feedback, and photo mode.
 
 Target the “wallpaper screenshot” standard.
 
 ## Phase 23 — Audio Production
 
-Develop environmental sonification, machinery, communications, sensors, repair/fabrication sounds, adaptive music, danger transitions, and discovery transitions.
+Develop environmental sonification, machinery, communications, sensors, repair/fabrication/replacement sounds, adaptive music, danger transitions, and discovery transitions.
 
 ## Phase 24 — UX and Accessibility
 
-Scale interfaces from one probe to a vast lineage. Address readable telemetry, color accessibility, UI scaling, remapping, HUD customization, repair priority explanations, automation, descendant search, alerts, and navigation.
+Scale interfaces from one probe to a vast lineage. Address readable telemetry, color accessibility, UI scaling, remapping, HUD customization, repair priority explanations, replacement tradeoffs, automation, descendant search, alerts, and navigation.
 
 ## Phase 25 — Optimization
 
@@ -273,13 +338,13 @@ Optimize inactive-region simulation, event aggregation, distant agents, determin
 
 ## Phase 26 — Beta
 
-Focus on balancing, defects, performance, onboarding, save migration, content distribution, procedural quality, recovery-path validation, and difficulty validation. Avoid major new systems.
+Focus on balancing, defects, performance, onboarding, save migration, content distribution, procedural quality, recovery-path validation, replacement/recycling validation, and difficulty validation. Avoid major new systems.
 
 ## Phase 27 — Steam Demo
 
-Polish the canonical opening: damaged awakening, initial survival power, physically reachable mining, staged Self Repair, capability-by-capability recovery, full departure readiness, first lift-off, scanning, broader mining/industrial bootstrap, first successor, and first departure toward the next major destination.
+Polish the canonical opening: damaged awakening, initial survival power, physically reachable mining, staged Self Repair, capability-by-capability recovery, `Fix_It` mystery seeding, full departure readiness, first lift-off, scanning, broader mining/industrial bootstrap, first meaningful component replacement, first successor, and first departure toward the next major destination.
 
-The demo must communicate the actual fantasy: **you wake as a damaged machine, rebuild yourself, then use that restored body to begin an interstellar lineage.** It must not merely showcase technology.
+The demo must communicate the actual fantasy: **you wake as a damaged machine, discover that a forgotten `Fix_It` process kept you alive, rebuild and then surpass your original design, and use that restored/evolving body to begin an interstellar lineage.** It must not merely showcase technology.
 
 ## Phase 28 — Release Decision
 
@@ -313,4 +378,4 @@ Do not initially build:
 
 The first question is now even more concrete:
 
-> Is waking as one damaged machine, rebuilding yourself into full capability, and bootstrapping the first self-sustaining interstellar lineage actually fun?
+> Is waking as one badly built but improbably surviving machine, discovering why `Fix_It` kept it alive, rebuilding and replacing its failing systems, and bootstrapping the first self-sustaining evolving interstellar lineage actually fun?
