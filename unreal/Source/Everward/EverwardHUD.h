@@ -61,7 +61,10 @@ private:
     bool bSystemsExpanded = false;
     int32 SelectedCapabilityIndex = 0;
 
-    bool bManipulatorPanelExpanded = false;
+    // Control discoverability: Phase-2 builds start with the manipulator page
+    // visible so a player can immediately see that arm control exists and
+    // learn the M/N/4/5/6/,/. control surface without prior knowledge.
+    bool bManipulatorPanelExpanded = true;
     int32 SelectedManipulatorArmIndex = 0;
     int32 SelectedManipulatorJointIndex = 0;
 
