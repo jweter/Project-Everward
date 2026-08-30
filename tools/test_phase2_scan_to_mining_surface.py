@@ -38,6 +38,28 @@ class Phase2ScanToMiningSurfaceTests(unittest.TestCase):
         self.assertIn("*Manipulators", self.bridge)
         self.assertIn("Snapshot.storage_capacity_kg", self.bridge)
 
+    def test_accepted_mining_routes_mass_through_authoritative_storage(self) -> None:
+        # Extracted mass must land in Core's authoritative storage_used_kg,
+        # the same field the systems-panel HUD's STORAGE readout reads
+        # (ProbeSimulationAdapter.cpp: Telemetry.StorageUsedKilograms =
+        # Snapshot.storage_used_kg). Accumulating it only in an
+        # adapter-local counter would leave that HUD readout at zero even
+        # while this mining status widget reports material recovered.
+        self.assertIn("Core->add_stored_material_kg(Result.extracted_kg)", self.bridge)
+        accepted_branch = self.bridge.split("if (Result.accepted)", 1)[1]
+        self.assertIn(
+            "Core->add_stored_material_kg(Result.extracted_kg)",
+            accepted_branch.split("}", 1)[0],
+        )
+        # existing_storage_kg passed into mine_once must be the authoritative
+        # field alone: once mined mass is routed into storage_used_kg above,
+        # also adding the adapter-local BootstrapExtractedMaterialKilograms
+        # counter on top of it would double-count already-stored material.
+        self.assertIn("Snapshot.storage_used_kg,", self.bridge)
+        self.assertNotIn(
+            "Snapshot.storage_used_kg + BootstrapExtractedMaterialKilograms", self.bridge
+        )
+
     def test_mining_control_is_discoverable_and_global_in_current_slice(self) -> None:
         self.assertIn("WasInputKeyJustPressed(EKeys::G)", self.controller_tick)
         self.assertIn("CommandMineBootstrapTarget", self.controller_tick)

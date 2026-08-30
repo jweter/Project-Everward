@@ -1,5 +1,6 @@
 #include "everward/simulation/manipulator_hull_contact.hpp"
 
+#undef NDEBUG
 #include <cassert>
 #include <cstdio>
 #include <vector>

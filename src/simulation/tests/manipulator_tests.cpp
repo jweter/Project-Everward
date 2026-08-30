@@ -1,5 +1,6 @@
 #include "everward/simulation/manipulator.hpp"
 
+#undef NDEBUG
 #include <cassert>
 #include <cmath>
 #include <cstdio>

@@ -60,6 +60,8 @@ Expected rejection messages include:
 
 When all requirements are met, pressing **G** extracts one Generation-1 mining cycle (currently 5 kg, capped by remaining deposit and free storage). The resource-body readout must decrease its remaining mass and the high-visibility notice must report the recovered mass.
 
+Also open the systems panel and confirm the **STORAGE** row's used-mass percentage increases by the same extracted mass. Before this fix, mining only ever updated the bootstrap mining-status widget, so the general STORAGE row stayed at 0% regardless of how much was mined — mined mass now goes through the same authoritative `storage_used_kg` field both readouts share.
+
 ## Safety/physics expectations
 
 - Mining must not work remotely from arbitrary distance.
@@ -76,6 +78,7 @@ Capture screenshots showing:
 3. elbow selection highlight;
 4. wrist/tool selection highlight at the resource surface;
 5. successful mining notice with reduced deposit mass;
-6. at least one rejected out-of-reach mining attempt.
+6. at least one rejected out-of-reach mining attempt;
+7. the systems panel's STORAGE row percentage increased after mining, matching the extracted mass.
 
 If these pass in the local Unreal build, this is the first direct **scanner -> manipulator -> resource acquisition** gameplay chain in Everward.

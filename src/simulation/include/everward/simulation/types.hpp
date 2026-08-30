@@ -150,7 +150,8 @@ enum class DomainEventType {
     AttitudeChanged,
     ManeuverStarted,
     ManeuverCompleted,
-    Contact
+    Contact,
+    MaterialStored
 };
 
 struct DomainEvent {

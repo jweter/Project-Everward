@@ -396,6 +396,7 @@ public:
     [[nodiscard]] double total_power_allocated_w() const noexcept {
         return runtime_.total_power_allocated_w();
     }
+    void add_stored_material_kg(double kilograms) { runtime_.add_stored_material_kg(kilograms); }
 
     void install_policy(SoftwarePolicy policy) { runtime_.install_policy(std::move(policy)); }
     void clear_policy() { runtime_.clear_policy(); }

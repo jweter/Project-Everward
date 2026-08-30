@@ -200,6 +200,24 @@ All three Slice 6 sub-slices (foundation mechanics, joint-articulation input/HUD
 
 **Status: implemented, Product Reality pending** for both the self-collision and environment-collision behavior (confirming a commanded fold-in, and a commanded pose that would sweep an arm into the registered physical scan target, both visibly stop rather than clip, in the actual UE build). No Unreal Editor/UBT build of `ProbeSimulationAdapter.cpp` was available in this sandbox to compile-verify the adapter wiring itself; the change there follows the exact accessor patterns (`Core->snapshot()`, aggregate-initializing `ProbeWorldPose`/`StaticSphereBody`) already used and compiling elsewhere in that file, and the source-contract test above passed, but the next local Unreal Product Reality pass should specifically confirm the project still compiles under UBT before relying on this further.
 
+### Mining routes extracted mass through authoritative storage
+
+The scan-to-mining loop's `CommandMineBootstrapTarget` bridge previously
+accumulated extracted material only in an adapter-local counter
+(`BootstrapExtractedMaterialKilograms`) and never wrote it into `ProbeRuntime`'s
+authoritative `storage_used_kg`, even though the systems-panel HUD's STORAGE
+row reads exactly that field. The general cargo readout therefore stayed at
+0% regardless of how much had actually been mined, while the separate mining
+status widget correctly showed the recovered mass — a truth split between two
+HUD elements that should agree. `SimulationCore`/`ProbeRuntime`/
+`DamageAwareProbeRuntime` now expose `add_stored_material_kg`, the sole
+mutation boundary for collected material, and the bridge routes every
+accepted mining cycle through it instead.
+
+**Status: implemented, Product Reality pending.** No behavior other than
+where extracted mass is recorded changed; `docs/PHASE2_SCAN_TO_MINING_TEST.md`
+now also checks the systems-panel STORAGE percentage after mining.
+
 ### Canonical damaged awakening and Self Repair direction
 
 The canonical opening is now durable project direction:

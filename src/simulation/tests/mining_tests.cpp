@@ -1,5 +1,6 @@
 #include "everward/simulation/mining.hpp"
 
+#undef NDEBUG
 #include <cassert>
 #include <cmath>
 #include <string>
