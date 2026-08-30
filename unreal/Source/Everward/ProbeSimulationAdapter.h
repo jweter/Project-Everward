@@ -8,6 +8,7 @@ namespace everward::simulation
 {
 class DamageAwareProbeRuntime;
 class ManipulatorRig;
+class MiningSystem;
 }
 
 UENUM(BlueprintType)
@@ -283,10 +284,6 @@ struct EVERWARD_API FEverwardProbeCapability
     FString StatusReason;
 };
 
-// Slice 6 foundation: authoritative Port/Starboard manipulator arm state.
-// This mirrors src/simulation/include/everward/simulation/manipulator.hpp's
-// ManipulatorArmState field-for-field so the HUD/Blueprint layer never has to
-// re-derive mechanical truth that already exists engine-independently.
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardManipulatorArmState
 {
@@ -316,10 +313,6 @@ struct EVERWARD_API FEverwardManipulatorArmState
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
     double WristDegrees = 0.0;
 
-    // Commanded joint targets, distinct from the current (slewing) angles
-    // above. Joint articulation input reads these back rather than the
-    // in-motion angle so repeated nudges accumulate against the last
-    // commanded target instead of the transient current pose.
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
     double CommandedShoulderDegrees = 0.0;
 
@@ -331,6 +324,33 @@ struct EVERWARD_API FEverwardManipulatorArmState
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
     bool bToolAttached = false;
+};
+
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardMiningStatus
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    FString TargetId;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    FString MaterialName;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    bool bSurveyed = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    double DepositRemainingKilograms = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    double ExtractedMaterialKilograms = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    double ExtractionKilogramsPerCycle = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining")
+    double ToolWorkingReachMeters = 0.0;
 };
 
 UCLASS(ClassGroup=(Everward), meta=(BlueprintSpawnableComponent))
@@ -363,6 +383,9 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Manipulator")
     TArray<FEverwardManipulatorArmState> GetManipulatorArmStates() const;
 
+    UFUNCTION(BlueprintPure, Category="Everward|Mining")
+    FEverwardMiningStatus GetMiningStatus() const;
+
     UFUNCTION(BlueprintPure, Category="Everward|Command")
     FEverwardProbeCommandResult GetLastCommandResult() const;
 
@@ -386,6 +409,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandCancelScan();
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandMineBootstrapTarget();
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandAllocatePower(EEverwardPowerSubsystem Subsystem, double Watts);
@@ -431,6 +457,8 @@ private:
     FEverwardProbeCommandResult LastCommandResult;
     FEverwardAutomationNotice LastAutomationNotice;
     FEverwardScanLifecycleNotice LastScanLifecycleNotice;
+    FString LastStartedScanTargetId;
     everward::simulation::DamageAwareProbeRuntime* Core = nullptr;
     everward::simulation::ManipulatorRig* Manipulators = nullptr;
+    everward::simulation::MiningSystem* Mining = nullptr;
 };
