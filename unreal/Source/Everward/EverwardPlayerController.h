@@ -46,6 +46,7 @@ private:
     void TogglePortManipulatorArm();
     void ToggleStarboardManipulatorArm();
     void ToggleManipulatorTool();
+    void ToggleSelectedManipulatorTool();
 
     void ToggleManipulatorPanel();
     void CycleManipulatorArmSelection();
@@ -54,6 +55,10 @@ private:
     void SelectManipulatorJointWrist();
     void IncreaseManipulatorJointTarget();
     void DecreaseManipulatorJointTarget();
+
+    void CycleMiningTarget();
+    void ToggleAutoApproachMiningTarget();
+    void AdvanceAutoApproachMiningTarget(float DeltaSeconds);
 
     void LookYaw(float Value);
     void LookPitch(float Value);
@@ -68,6 +73,9 @@ private:
     void ToggleManipulatorArmDeployment(EEverwardManipulatorArmId ArmId);
     void AdjustSelectedManipulatorJointTargetDegrees(double DeltaDegrees);
 
+    int32 SelectedMiningTargetIndex = 0;
+    bool bAutoApproachMiningTarget = false;
+
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double Phase2ScanDurationSeconds = 10.0;
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="1.0"))
@@ -78,6 +86,12 @@ private:
     double AttitudeAdjustmentDegrees = 5.0;
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double ManipulatorJointAdjustmentDegrees = 5.0;
+    UPROPERTY(EditAnywhere, Category="Everward|Mining", meta=(ClampMin="0.1"))
+    double AutoApproachSpeedMetersPerSecond = 2.0;
+    UPROPERTY(EditAnywhere, Category="Everward|Mining", meta=(ClampMin="0.1"))
+    double AutoApproachSideStandoffMeters = 6.5;
+    UPROPERTY(EditAnywhere, Category="Everward|Mining", meta=(ClampMin="0.01"))
+    double AutoApproachStopToleranceMeters = 0.25;
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="0.01"))
     float MouseLookSensitivity = 0.75f;
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="1.0"))
