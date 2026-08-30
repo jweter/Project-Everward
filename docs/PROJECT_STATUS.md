@@ -16,7 +16,7 @@ Canonical first-run evidence remains:
 
 The repository has advanced substantially beyond that first-run build through the explicit parallel-safe lane. Those later mechanics are **implemented but do not count as locally accepted Product Reality until the exact Unreal test passes.**
 
-Current `main`: `fb0e69f152bc606c3ba54cc61e1cc17cc2f24c89`, after the compound contact-envelope solver wiring (#131). The evolving-sensorium-audio foundation (#122) and the Prime Generation-1 body blockout (#123, Slice 5) are folded in below alongside the manipulator arm work.
+Current `main`: `828580bc86a3c4b4e8bcae9d794151a283ea079c`, after mined material was routed through authoritative `storage_used_kg` (#140). The evolving-sensorium-audio foundation (#122) and the Prime Generation-1 body blockout (#123, Slice 5) are folded in below alongside the manipulator arm work.
 
 The documentation debt previously flagged here for #125–#128 (Prime functional material pass, the Prime A tube-body/visible-arm-geometry replacement, and the fore-aft cylinder axis fix) is resolved by this pass: see the updated Slice 5 and Slice 6 sections below, and the expanded Product Reality sequence, which now also exercises `PHASE2_SIMPLE_PRIME_A_EMBODIMENT_PASS.md`.
 
@@ -205,8 +205,8 @@ All three Slice 6 sub-slices (foundation mechanics, joint-articulation input/HUD
 The scan-to-mining loop's `CommandMineBootstrapTarget` bridge previously
 accumulated extracted material only in an adapter-local counter
 (`BootstrapExtractedMaterialKilograms`) and never wrote it into `ProbeRuntime`'s
-authoritative `storage_used_kg`, even though the systems-panel HUD's STORAGE
-row reads exactly that field. The general cargo readout therefore stayed at
+authoritative `storage_used_kg`, even though the always-visible telemetry
+HUD's STORAGE row reads exactly that field. The general cargo readout therefore stayed at
 0% regardless of how much had actually been mined, while the separate mining
 status widget correctly showed the recovered mass — a truth split between two
 HUD elements that should agree. `SimulationCore`/`ProbeRuntime`/
@@ -216,7 +216,33 @@ accepted mining cycle through it instead.
 
 **Status: implemented, Product Reality pending.** No behavior other than
 where extracted mass is recorded changed; `docs/PHASE2_SCAN_TO_MINING_TEST.md`
-now also checks the systems-panel STORAGE percentage after mining.
+now also checks the always-visible STORAGE mass and percentage after mining.
+
+### Human-readable HUD and dedicated controls reference
+
+The user-provided 2026-08-30 current-build captures confirm the prior HUD is a
+Product Reality blocker: it exposes the correct categories, but most live
+telemetry, system explanations, and manipulator bindings are too small to read
+at normal laptop distance. This pass responds at the presentation layer:
+
+- viewport-responsive layout sizing and Unreal's medium HUD font with a
+  minimum readable text scale;
+- wider, more opaque live panels with larger row spacing and shortened compact
+  status explanations;
+- exact authoritative storage mass/capacity/percentage in the always-visible
+  telemetry panel;
+- a short persistent entry bar for `F1` Controls, `Tab` Systems, and `M`
+  Manipulator rather than one miniature all-bindings line;
+- a dedicated `F1` controls reference grouped by Flight + Camera, Systems, and
+  Manipulator + Mining, following the successful control-learning structure
+  observed in *Delta-V: Rings of Saturn* without copying its visual styling;
+- a materially larger/higher world-space resource instruction label;
+- suppression of identical simultaneous command/automation rejection text.
+
+**Status: implemented, Product Reality pending.** See
+`PHASE2_HUD_LEGIBILITY_AND_CONTROLS_TEST.md`. Static source-contract coverage
+protects the intended surface, but only the next local Unreal capture can
+prove font rendering, clipping, overlap, and normal-distance readability.
 
 ### Canonical damaged awakening and Self Repair direction
 
@@ -272,6 +298,11 @@ Everward continues to preserve:
 ## Exact next local UE 5.8 Product Reality pass
 
 Use the exact passed build and validate the accumulated Phase-2 chain in order:
+
+Before the accumulated mechanics sequence, run
+`PHASE2_HUD_LEGIBILITY_AND_CONTROLS_TEST.md`. If ordinary telemetry or the F1
+reference is still unreadable, clipped, or overlapping, stop and repair the
+HUD before attempting later mining/contact acceptance.
 
 1. confirm EV-0001 reads as one continuous tube-bodied Prime A probe from front, side, rear, and top, with both radiator wings, rear propulsion, and forward sensor obvious at a glance;
 2. confirm both manipulator arms' shoulder/upper-arm/elbow/forearm/wrist/tool-head geometry is visible under/alongside the body even while stowed, not represented by HUD state alone;

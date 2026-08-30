@@ -27,6 +27,12 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|HUD")
     int32 GetSelectedCapabilityIndex() const;
 
+    UFUNCTION(BlueprintCallable, Category="Everward|HUD")
+    void ToggleControlsReference();
+
+    UFUNCTION(BlueprintPure, Category="Everward|HUD")
+    bool IsControlsReferenceVisible() const;
+
     // Dedicated manipulator HUD page: joint articulation input needs an
     // explicit selected-arm/selected-joint read model the same way the
     // systems panel has a selected capability, since two arms can be
@@ -58,8 +64,15 @@ public:
     int32 GetSelectedManipulatorJointIndex() const;
 
 private:
+    void DrawControlsReference();
+
     bool bSystemsExpanded = false;
     int32 SelectedCapabilityIndex = 0;
+
+    // The live HUD stays focused on immediate state. F1 opens a dedicated,
+    // large-format control reference so learning the probe never depends on
+    // deciphering a dense strip of tiny key bindings during flight.
+    bool bControlsReferenceVisible = false;
 
     // Control discoverability: Phase-2 builds start with the manipulator page
     // visible so a player can immediately see that arm control exists and

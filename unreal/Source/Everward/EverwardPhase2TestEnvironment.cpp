@@ -42,10 +42,13 @@ AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
     ScanTargetLabel->SetRelativeLocation(FVector(
         BootstrapBodyCenterXMeters * 100.0,
         BootstrapBodyCenterYMeters * 100.0,
-        BootstrapBodyCenterZMeters * 100.0 + 500.0));
+        BootstrapBodyCenterZMeters * 100.0 + 700.0));
     ScanTargetLabel->SetRelativeRotation(FRotator(0.0, 180.0, 0.0));
     ScanTargetLabel->SetHorizontalAlignment(EHTA_Center);
-    ScanTargetLabel->SetWorldSize(105.0f);
+    // The former 105 cm label produced small, low-contrast instructions in
+    // the current laptop Product Reality capture. Keep target knowledge
+    // spatially anchored, but size it for ordinary reading distance.
+    ScanTargetLabel->SetWorldSize(170.0f);
     ScanTargetLabel->SetTextRenderColor(FColor(110, 220, 255));
     ScanTargetLabel->SetText(FText::FromString(TEXT(
         "SCAN-001 // UNSURVEYED RESOURCE BODY\nUSE SENSORS TO IDENTIFY MINEABLE MATERIAL")));

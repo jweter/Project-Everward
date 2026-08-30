@@ -18,6 +18,7 @@ protected:
     virtual void Tick(float DeltaSeconds) override;
 
 private:
+    void ToggleControlsReference();
     void ToggleSystemsPanel();
     void SelectNextCapability();
     void SelectPreviousCapability();

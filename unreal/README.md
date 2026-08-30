@@ -51,6 +51,9 @@ Camera movement never authors probe position or other simulation state.
 `AEverwardHUD` is the first production HUD/control shell. It intentionally avoids a permanently expanded cockpit interface:
 
 - compact always-visible telemetry shows probe identity/generation, energy, total power allocation/capacity, thermal state, storage, velocity, and simulation time;
+- telemetry and panels scale with the viewport, use a medium font with a
+  readable minimum size, and expose exact storage mass/capacity/percentage;
+- `F1` opens a dedicated large-format controls reference grouped by task;
 - active scanning is promoted while it is running;
 - critical energy/thermal lockouts promote themselves into visible alerts;
 - the systems/control area remains collapsed by default;
@@ -103,6 +106,7 @@ The HUD displays the installed policy and whether its executor is running or wai
 
 ## Temporary Phase-2 engineering controls
 
+- `F1`: open/close the complete controls reference;
 - `Tab`: open/close systems panel;
 - `[` / `]`: select capability;
 - `Page Up` / `Page Down`: increase/decrease selected subsystem power;

@@ -25,7 +25,11 @@ class Phase2SubsystemConsequenceSurfaceTests(unittest.TestCase):
         self.assertIn("MinimumOperatingPowerWatts", self.adapter_h)
         self.assertIn("StatusReason", self.adapter_h)
         self.assertIn("Capability.StatusReason", self.hud)
-        self.assertIn("STATUS %s   //   MIN %.0f W", self.hud)
+        # The readable-HUD pass separates these formerly packed values into
+        # two rows so the status reason and minimum-power requirement remain
+        # legible at normal viewing distance.
+        self.assertIn("STATUS %s", self.hud)
+        self.assertIn("MINIMUM %.0f W", self.hud)
         self.assertIn("ENERGY DEPLETED", self.adapter_cpp)
         self.assertIn("THERMAL LOCKOUT", self.adapter_cpp)
         self.assertIn("HARDWARE FAILURE", self.adapter_cpp)
