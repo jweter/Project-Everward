@@ -168,7 +168,7 @@ void AEverwardPlayerController::AdvanceAutoApproachMiningTarget(float DeltaSecon
 
     const FVector ProbePositionMeters = Probe->GetActorLocation() * 0.01;
     const FVector DeltaMeters = StagingPointMeters - ProbePositionMeters;
-    const double DistanceMeters = DeltaMeters.Length();
+    const double DistanceMeters = DeltaMeters.Size();
 
     if (DistanceMeters <= AutoApproachStopToleranceMeters)
     {
