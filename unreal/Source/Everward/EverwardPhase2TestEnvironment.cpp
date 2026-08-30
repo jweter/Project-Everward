@@ -16,10 +16,8 @@ AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
     SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
     SetRootComponent(SceneRoot);
 
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(
-        TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(
-        TEXT("/Engine/BasicShapes/Cube.Cube"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 
     ScanTargetMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BootstrapScanTarget"));
     ScanTargetMesh->SetupAttachment(SceneRoot);
@@ -27,12 +25,8 @@ AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
         BootstrapBodyCenterXMeters * 100.0,
         BootstrapBodyCenterYMeters * 100.0,
         BootstrapBodyCenterZMeters * 100.0));
-    // Engine BasicShapes/Sphere has a 50 cm radius, so scale 4.0 presents the
-    // same 2.0 m radius registered in the authoritative simulation runtime.
     const double BootstrapSphereScale = BootstrapBodyRadiusMeters * 100.0 / 50.0;
     ScanTargetMesh->SetRelativeScale3D(FVector(BootstrapSphereScale));
-    // Unreal collision is presentation/query support only. The actual blocking
-    // result comes from the engine-independent swept-sphere contact solver.
     ScanTargetMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     ScanTargetMesh->SetCollisionResponseToAllChannels(ECR_Block);
     if (SphereMesh.Succeeded())
@@ -48,9 +42,10 @@ AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
         BootstrapBodyCenterZMeters * 100.0 + 500.0));
     ScanTargetLabel->SetRelativeRotation(FRotator(0.0, 180.0, 0.0));
     ScanTargetLabel->SetHorizontalAlignment(EHTA_Center);
-    ScanTargetLabel->SetWorldSize(120.0f);
+    ScanTargetLabel->SetWorldSize(105.0f);
     ScanTargetLabel->SetTextRenderColor(FColor(110, 220, 255));
-    ScanTargetLabel->SetText(FText::FromString(TEXT("PHASE-2 PHYSICAL BODY // SCAN-001")));
+    ScanTargetLabel->SetText(FText::FromString(TEXT(
+        "SCAN-001 // RESOURCE BODY\nSCAN -> APPROACH -> DEPLOY ARM + TOOL -> [G] MINE")));
 
     KeyLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Phase2KeyLight"));
     KeyLight->SetupAttachment(SceneRoot);
@@ -91,10 +86,6 @@ void AEverwardPhase2TestEnvironment::BeginPlay()
 
 void AEverwardPhase2TestEnvironment::ApplyEnvironmentMaterialScaffold()
 {
-    // This is not the future planetary-surface system. It gives the current
-    // authoritative physical target a restrained rock/regolith read while the
-    // spherical planetary-body foundation is built later. The treatment is
-    // intentionally reusable and presentation-only.
     auto ApplyMaterial = [this](
         UStaticMeshComponent* Component,
         const FLinearColor& BaseColor,
@@ -105,8 +96,7 @@ void AEverwardPhase2TestEnvironment::ApplyEnvironmentMaterialScaffold()
         UMaterialInterface* BaseMaterial = Component->GetMaterial(0);
         if (BaseMaterial == nullptr) return;
 
-        UMaterialInstanceDynamic* DynamicMaterial =
-            UMaterialInstanceDynamic::Create(BaseMaterial, this);
+        UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
         if (DynamicMaterial == nullptr) return;
 
         DynamicMaterial->SetVectorParameterValue(TEXT("Color"), BaseColor);
