@@ -50,9 +50,23 @@ Everward should support both analytical play and awe. A player may spend one ses
 
 The universe must remain scientifically legible, mechanically consequential, visually compelling, and large enough that discovery never feels exhausted.
 
+## Future platform direction
+
+Everward remains **PC-first**. The complete embodied experience belongs on PC: direct probe control, manipulators, mining, cinematic Unreal rendering, local physical interaction, detailed astronomy, machinery, and full-fidelity presentation.
+
+The long-term architecture should nevertheless preserve the possibility of a future phone/tablet command client connected to the **same campaign and authoritative simulation**, not a disconnected mobile spin-off or a compromised PC port.
+
+As gameplay grows from Direct -> Task -> Operational -> Doctrine control, mobile interaction becomes increasingly natural for telemetry, `Fix_It` recommendations, repairs, fabrication queues, worker groups, storage/refining/recycling, stockpile targets, lineage management, delayed communications, research, maps, alerts, and doctrine editing.
+
+The governing principle is:
+
+> **One Everward campaign. One authoritative history. Multiple interfaces appropriate to different devices.**
+
+The detailed long-term direction is recorded in [`FUTURE_PLATFORM_VISION.md`](FUTURE_PLATFORM_VISION.md). This is a future architecture/product possibility and does not add mobile development to the current playable-build scope.
+
 ## First proof
 
-The first playable build does not need aliens, warfare, diplomacy, megastructures, multiplayer, or infinite late-game systems. It needs to prove one fantasy:
+The first playable build does not need aliens, warfare, diplomacy, megastructures, multiplayer, mobile support, or infinite late-game systems. It needs to prove one fantasy:
 
 > Begin as one autonomous machine, bootstrap an industrial foothold, create a successor, and take the first step toward an interstellar lineage.
 
@@ -69,3 +83,15 @@ If that is not compelling, later content will not rescue the project.
 ## Project motto
 
 **Everward — there is always farther.**
+
+## Provisional brand language
+
+**Always expanding and evolving.**
+
+Possible stylized form:
+
+**Always expanding. Always evolving.**
+
+This line captures both the game fantasy and the project philosophy: the probe, its descendants, its industry, its software, its hardware, and its civilization continually expand outward while evolving into something new.
+
+This wording is provisional creative/brand language only and should not be treated as legally cleared trademark language until an appropriate commercial clearance review is performed.
