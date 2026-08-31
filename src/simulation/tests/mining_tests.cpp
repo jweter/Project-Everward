@@ -18,18 +18,20 @@ ManipulatorRig ready_rig_with_port_tool() {
     return rig;
 }
 
-ResourceDeposit deposit_near_port_wrist(const ManipulatorRig& rig, double gap_m = 0.20) {
+ResourceDeposit deposit_near_port_tool_tip(const ManipulatorRig& rig, double gap_m = 0.20) {
     const ManipulatorArmState& arm = rig.arm(ManipulatorArmId::Port);
-    const ManipulatorArmContactSamples samples =
-        manipulator_arm_contact_samples(ManipulatorArmId::Port, arm.deployment_fraction, arm.angles);
+    const ManipulatorArmSample tip = manipulator_tool_tip_contact_sample(
+        ManipulatorArmId::Port,
+        arm.deployment_fraction,
+        arm.angles);
 
     ResourceDeposit deposit;
     deposit.body.body_id = "test-rock";
     deposit.body.radius_m = 0.50;
     deposit.body.center_m = {
-        samples.wrist.center_m.x + deposit.body.radius_m + samples.wrist.radius_m + gap_m,
-        samples.wrist.center_m.y,
-        samples.wrist.center_m.z,
+        tip.center_m.x + deposit.body.radius_m + tip.radius_m + gap_m,
+        tip.center_m.y,
+        tip.center_m.z,
     };
     deposit.material_id = "iron_regolith";
     deposit.display_name = "Iron-bearing regolith";
@@ -44,7 +46,7 @@ int main() {
     {
         ManipulatorRig rig = ready_rig_with_port_tool();
         MiningSystem mining;
-        mining.add_deposit(deposit_near_port_wrist(rig));
+        mining.add_deposit(deposit_near_port_tool_tip(rig));
 
         const MiningAttemptResult before_scan = mining.mine_once(
             "test-rock", rig, ProbeWorldPose{}, 0.0, 500.0);
@@ -61,7 +63,7 @@ int main() {
         assert(std::fabs(first.extracted_kg - 5.0) < 1e-9);
         assert(std::fabs(first.stored_material_kg - 5.0) < 1e-9);
         assert(std::fabs(first.remaining_deposit_kg - 15.0) < 1e-9);
-        assert(first.tool_surface_gap_m <= MiningSystem::kGeneration1ToolWorkingReachM);
+        assert(std::fabs(first.tool_surface_gap_m - 0.20) < 1e-6);
     }
 
     {
@@ -87,19 +89,20 @@ int main() {
     {
         ManipulatorRig rig = ready_rig_with_port_tool();
         MiningSystem mining;
-        mining.add_deposit(deposit_near_port_wrist(rig, 3.0));
+        mining.add_deposit(deposit_near_port_tool_tip(rig, 3.0));
         mining.mark_surveyed("test-rock");
 
         const MiningAttemptResult result = mining.mine_once(
             "test-rock", rig, ProbeWorldPose{}, 0.0, 500.0);
         assert(!result.accepted);
         assert(result.detail.find("not in reach") != std::string::npos);
+        assert(result.detail.find("tool-tip surface gap") != std::string::npos);
     }
 
     {
         ManipulatorRig rig = ready_rig_with_port_tool();
         MiningSystem mining;
-        mining.add_deposit(deposit_near_port_wrist(rig));
+        mining.add_deposit(deposit_near_port_tool_tip(rig));
         mining.mark_surveyed("test-rock");
 
         const MiningAttemptResult result = mining.mine_once(

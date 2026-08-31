@@ -6,6 +6,7 @@
 #include "EverwardPlayerController.h"
 #include "EverwardProbePawn.h"
 #include "GameFramework/PlayerStart.h"
+#include "PlaytestRecorderActor.h"
 
 AEverwardGameMode::AEverwardGameMode()
 {
@@ -41,6 +42,17 @@ void AEverwardGameMode::InitGame(
         FVector::ZeroVector,
         FRotator::ZeroRotator,
         SpawnParameters);
+
+    // Playtest evidence is deliberately non-blocking. If recorder creation
+    // ever fails, the actual game still launches and remains testable.
+    if (World->SpawnActor<APlaytestRecorderActor>(
+            APlaytestRecorderActor::StaticClass(),
+            FVector::ZeroVector,
+            FRotator::ZeroRotator,
+            SpawnParameters) == nullptr)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Everward playtest recorder unavailable; continuing without structured capture"));
+    }
 }
 
 AActor* AEverwardGameMode::ChoosePlayerStart_Implementation(AController* Player)

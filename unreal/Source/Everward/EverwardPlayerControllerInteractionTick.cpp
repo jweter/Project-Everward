@@ -32,6 +32,31 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
         Probe->SetManipulatorSelectionHighlight(bHighlightEnabled, ArmId, Joint);
     }
 
+    // Mining control surface:
+    //   N = selected arm (existing HUD control)
+    //   7 = attach/detach tool on that selected arm
+    //   H = cycle available mining targets
+    //   P = auto-approach the selected surveyed target to an arm-side staging point
+    //   G = attempt extraction
+    if (WasInputKeyJustPressed(EKeys::Seven))
+    {
+        ToggleSelectedManipulatorTool();
+    }
+    if (WasInputKeyJustPressed(EKeys::H))
+    {
+        CycleMiningTarget();
+    }
+    if (WasInputKeyJustPressed(EKeys::P))
+    {
+        ToggleAutoApproachMiningTarget();
+    }
+    if (WasInputKeyJustPressed(EKeys::SpaceBar))
+    {
+        bAutoApproachMiningTarget = false;
+    }
+
+    AdvanceAutoApproachMiningTarget(DeltaSeconds);
+
     // First mining interaction. G is intentionally global during this early
     // physical-work slice: the player should be able to position the probe,
     // articulate the arm, and attempt extraction without navigating away from
