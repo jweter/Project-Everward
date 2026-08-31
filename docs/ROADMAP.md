@@ -164,6 +164,12 @@ Repair is only the first engineering answer. If a component is too damaged, obso
 
 Removed or obsolete hardware should not simply disappear. Components, scrap, failed parts, and eventually defunct probes should be salvageable and recyclable into useful feedstock where physically plausible. Everward should trend toward closed material cycles rather than disposable machines.
 
+### No arbitrary infrastructure ceiling
+
+Industrial bootstrap is the beginning of an effectively unbounded machine ecology, not a fixed-base-building minigame. Storage bins, depots, refineries, fabricators, recycling centers, worker machines, and later probe descendants must not be constrained by a canonical player-facing unit cap. Expansion is limited by matter, energy, fabrication, logistics, maintenance, space, time, communication, and simulation cost.
+
+The detailed scaling and control doctrine is canonical in [`UNBOUNDED_MACHINE_CONTROL_AND_INDUSTRY.md`](UNBOUNDED_MACHINE_CONTROL_AND_INDUSTRY.md).
+
 **Gate:** one probe can recover itself and create a self-sustaining industrial foothold with the foundations for repair, replacement, recycling, and future replication.
 
 ## Phase 5 — Research and Engineering
@@ -236,7 +242,26 @@ Children receive goals, priorities, constraints, code, behavior parameters, loca
 
 As the fleet grows, physical logistics must grow with it. Worker probes may initially return material to a parent probe, then later to shared depots, processors, fabrication nodes, and construction infrastructure. There is no magical global inventory.
 
-**Gate:** twenty autonomous probes are interesting rather than annoying.
+### Canonical scalable-control progression
+
+The player must retain meaningful authority without being forced to pilot every machine individually. Control therefore scales through four layers:
+
+1. **Direct control** — operate the current probe and its tools physically.
+2. **Task control** — assign concrete work to individual worker machines.
+3. **Operational control** — organize groups, routes, operating areas, stockpile targets, maintenance thresholds, and production priorities.
+4. **Doctrine control** — define policies and intent for industrial networks and descendants operating at civilization scale.
+
+The player must be able to drill down to an individual machine when information and communication permit, but high-scale gameplay should focus increasingly on intent rather than individual movement commands.
+
+`Fix_It` expands with this scale. It should inspect worker and infrastructure telemetry, rank bottlenecks, recommend repairs/replacements/new capacity, identify obsolete designs, and explain alternatives. The player remains final authority.
+
+Communication latency remains binding: a distant lineage follows the latest instructions it has actually received and acts on local knowledge. Immediate real-time control over an interstellar civilization is neither promised nor desirable.
+
+Player-facing scale should have no arbitrary machine ceiling. Technical feasibility is achieved through deterministic simulation level of detail: local relevant machines receive detailed physical simulation, distant active operations use reduced-frequency/event simulation, and remote industrial systems or ancient branches may use deterministic aggregate/coarse simulation while preserving identity, material accounting, history, and consequential events.
+
+The full canonical doctrine is defined in [`UNBOUNDED_MACHINE_CONTROL_AND_INDUSTRY.md`](UNBOUNDED_MACHINE_CONTROL_AND_INDUSTRY.md).
+
+**Gate:** twenty autonomous probes are interesting rather than annoying, and the control architecture demonstrably has a path from tens of machines to vastly larger networks without introducing a hard gameplay cap.
 
 ## Phase 11 — Procedural Expansion
 
@@ -304,6 +329,8 @@ Engineer intentionally for extremely large capability values, diminishing return
 
 Test absurd cases such as engine levels 1, 1,000, and 1,000,000.
 
+This phase must also stress-test unbounded machine/infrastructure scaling. Large worker populations, storage networks, recycling systems, industrial groups, and descendant lineages must degrade simulation fidelity gracefully rather than encounter an arbitrary gameplay ceiling.
+
 ## Phase 20 — Endgame Without an Ending
 
 Support player-created long-term objectives: distant exploration, impossible structures, enormous catalogs, extreme survivability, unusual civilizations, lineage perfection, and cosmological investigation.
@@ -330,11 +357,15 @@ Develop environmental sonification, machinery, communications, sensors, repair/f
 
 Scale interfaces from one probe to a vast lineage. Address readable telemetry, color accessibility, UI scaling, remapping, HUD customization, repair priority explanations, replacement tradeoffs, automation, descendant search, alerts, and navigation.
 
+Civilization-scale UX must support hierarchy navigation, search/filtering, task groups, doctrine editing, stockpile and throughput views, bottleneck visualization, maintenance/recycling queues, alert aggregation, and drill-down from system-level problems to individual machines when information is available.
+
 ## Phase 25 — Optimization
 
 Focus on the true scaling problem: simulation scale × persistence × time acceleration.
 
 Optimize inactive-region simulation, event aggregation, distant agents, deterministic generation, save size, rendering LOD, pooling, parallelism, and data-oriented structures where appropriate.
+
+Simulation LOD is a required architectural mechanism for the no-arbitrary-cap doctrine. The engine may reduce update fidelity with distance/relevance, but it should preserve meaningful entity identity, material state, history, and consequential outcomes.
 
 ## Phase 26 — Beta
 
