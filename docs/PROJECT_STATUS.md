@@ -160,35 +160,45 @@ Three follow-on presentation passes then iterated this blockout into the current
 
 `PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 7 ("object selection and physical
 interaction") minimum interactions begin with "select a nearby physical
-target" and "display range/relative motion" -- until now the only physical
-target the probe could act on at all was `CommandMineBootstrapTarget`'s
-single hardcoded body ID, with no generic selection or range/closing-speed
-concept anywhere in the simulation. `target_selection.hpp` adds that as pure,
-engine-independent read-side math over the same registered
-`StaticSphereBody` list `software_policy.hpp`'s swept contact solver already
-consumes:
+target" and "display range/relative motion" -- until the previous pass the
+only physical target the probe could act on at all was
+`CommandMineBootstrapTarget`'s single hardcoded body ID, with no generic
+selection or range/closing-speed concept anywhere in the simulation.
+`target_selection.hpp` added that as pure, engine-independent read-side math
+over the same registered `StaticSphereBody` list
+`software_policy.hpp`'s swept contact solver already consumes
+(`surface_range_to_body`, `closing_speed_to_body`,
+`find_nearest_selectable_target`, `select_target_telemetry`, the last two
+fail-closed for no match rather than guessing or keeping a stale selection).
 
-- `surface_range_to_body` / `closing_speed_to_body` derive surface-to-surface
-  distance and rate of closure from a point, its velocity, and a body,
-  reusing `compound_contact.hpp`'s `contact_*` vector helpers rather than
-  re-deriving vector math a second time;
-- `find_nearest_selectable_target` picks the nearest registered body within
-  a caller-supplied selection range, or reports no selection rather than
-  guessing when nothing is registered or in range;
-- `select_target_telemetry` validates an explicitly requested body ID
-  against the live registry and reports its current range/closing speed,
-  fail-closed (returns no telemetry) for an empty, unknown, or
-  since-deregistered ID rather than silently keeping a stale selection.
+This pass wires that math into runtime state, the adapter, and a minimal
+HUD/input surface:
 
-This does not assume the still-Product-Reality-pending contact/manipulator
-collision behavior is correct, does not change any of it, and mutates no
-authoritative state -- it only reads probe position/velocity and the body
-registry, so it qualifies for the parallel-safe lane.
+- `ProbeRuntime` now owns authoritative selection state alongside
+  `static_bodies_`: `select_nearest_target`, `select_target`,
+  `clear_target_selection`, and `selected_target_status()` (recomputed live
+  on every call, so a since-deregistered selection reports unselected
+  without a separate mutating call); `DamageAwareProbeRuntime` forwards all
+  four rather than duplicating the registry or math;
+- `UProbeSimulationAdapter` exposes `GetSelectedTargetStatus()` and
+  `CommandSelectNearestTarget` / `CommandSelectTarget` /
+  `CommandClearTargetSelection` (new `ProbeTargetSelectionBridge.cpp`,
+  mirroring the existing `ProbeMiningBridge.cpp` split);
+- `T` selects the nearest registered body within a configurable range
+  (default 500 m); the always-visible telemetry panel gained a `TARGET` row
+  reporting the selected id, surface range, and closing speed, or a muted
+  "no selection" prompt; the `F1` controls reference documents the binding.
 
-**Status: foundation architecture; not yet wired to `ProbeRuntime`,
-`UProbeSimulationAdapter`, or any Unreal HUD/input.** No player-visible
-result exists yet. Wiring this into runtime telemetry, a selection command,
-and a HUD readout is the next Slice 7 sub-slice.
+This still does not assume the still-Product-Reality-pending
+contact/manipulator collision behavior is correct and changes none of it --
+selection only reads probe position/velocity and the existing body
+registry and mutates no other authoritative state, so it remains within the
+parallel-safe lane.
+
+**Status: implemented, Product Reality pending.** See
+`PHASE2_TARGET_SELECTION_TEST.md`. No visual selection indicator, target
+cycling, or approach/reach/grasp mechanics exist yet -- those remain later
+Slice 7 sub-slices.
 
 ### Manipulator arm mechanics, HUD, and visible geometry (Slice 6)
 
@@ -325,7 +335,7 @@ Everward continues to preserve:
 - Prime A tube-body silhouette with functional materials and a rescaled collision envelope (Slice 5);
 - adjacent-generation evolution foundation;
 - evolving machine sensorium/audio progression foundation;
-- physical target selection and range/closing-speed telemetry foundation (Slice 7; not yet wired to the runtime or Unreal);
+- physical target selection and range/closing-speed telemetry, wired into `ProbeRuntime`/`DamageAwareProbeRuntime`, the adapter, and a minimal HUD/input surface (Slice 7 foundation; implemented, Product Reality pending);
 - manipulator arm deploy/stow/joint/tool foundation, joint articulation input and a dedicated manipulator HUD page, visible shoulder/arm/tool-head geometry, and arm/body + arm/environment collision guards (Slice 6; implemented, Product Reality pending);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - explicit versioned save architecture rather than blind Unreal object serialization.
@@ -354,8 +364,9 @@ HUD before attempting later mining/contact acceptance.
 13. verify no stale policy action executes after Computation is destroyed and no operational/integrity state contradiction appears;
 14. deploy an arm, open the manipulator page (`M`), and verify each joint's commanded target can be selected (`4`/`5`/`6`) and nudged (`,`/`.`) independently, with the current angle visibly slewing toward the commanded target rather than snapping, the visible upper-arm/forearm geometry moving in sync with that readout rather than only the HUD numbers changing, and joint commands rejected while the arm is not deployed;
 15. deploy an arm, fold the shoulder toward its limit and confirm the arm visibly stops short of passing through the probe's own hull rather than clipping through it; then approach the registered physical scan target with an arm deployed and command a joint pose that would sweep the arm into it, and confirm that motion also stops short instead of clipping into the target;
-16. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
-17. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline.
+16. press `T` within 500 m of the registered physical target and verify the telemetry panel's `TARGET` row shows its id, surface range, and closing speed that track live as you approach/retreat, then press `T` again out of range and verify a clear rejection rather than a stale reading (`PHASE2_TARGET_SELECTION_TEST.md`);
+17. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
+18. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline.
 
 A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
 

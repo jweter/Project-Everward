@@ -407,6 +407,15 @@ public:
         return runtime_.active_policy();
     }
 
+    void select_nearest_target(double max_selection_range_m) {
+        runtime_.select_nearest_target(max_selection_range_m);
+    }
+    void select_target(const std::string& body_id) { runtime_.select_target(body_id); }
+    void clear_target_selection() noexcept { runtime_.clear_target_selection(); }
+    [[nodiscard]] TargetSelectionStatus selected_target_status() const noexcept {
+        return runtime_.selected_target_status();
+    }
+
 private:
     ProbeRuntime runtime_{};
     ImpactDamageModel damage_{};

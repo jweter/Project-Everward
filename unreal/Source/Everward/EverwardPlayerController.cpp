@@ -96,6 +96,8 @@ void AEverwardPlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::Comma, IE_Pressed, this, &AEverwardPlayerController::DecreaseManipulatorJointTarget);
     InputComponent->BindKey(EKeys::Period, IE_Pressed, this, &AEverwardPlayerController::IncreaseManipulatorJointTarget);
 
+    InputComponent->BindKey(EKeys::T, IE_Pressed, this, &AEverwardPlayerController::SelectNearestPhysicalTarget);
+
     // Retain the original engineering-shell aliases while the final input
     // model remains intentionally unsettled.
     InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AEverwardPlayerController::IncreaseForwardVelocity);
@@ -377,6 +379,17 @@ void AEverwardPlayerController::ZoomCamera(float Value)
     {
         Probe->AdjustCameraZoom(-Value * CameraZoomStepCentimeters);
     }
+}
+
+void AEverwardPlayerController::SelectNearestPhysicalTarget()
+{
+    UProbeSimulationAdapter* Adapter = GetProbeAdapter();
+    if (Adapter == nullptr)
+    {
+        return;
+    }
+
+    (void)Adapter->CommandSelectNearestTarget(TargetSelectionRangeMeters);
 }
 
 UProbeSimulationAdapter* AEverwardPlayerController::GetProbeAdapter() const

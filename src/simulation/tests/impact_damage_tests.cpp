@@ -161,6 +161,25 @@ int main() {
         assert(runtime.snapshot().can_thrust);
     }
 
+    // DamageAwareProbeRuntime forwards Slice 7 target selection to the
+    // wrapped ProbeRuntime rather than duplicating the registry/telemetry.
+    {
+        DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+        runtime.add_static_sphere_body({"survey-target", {30.0, 0.0, 0.0}, 4.0});
+
+        runtime.select_nearest_target(1000.0);
+        assert(runtime.selected_target_status().has_selection);
+        assert(runtime.selected_target_status().body_id == "survey-target");
+
+        runtime.clear_target_selection();
+        assert(!runtime.selected_target_status().has_selection);
+
+        runtime.select_target("survey-target");
+        assert(runtime.selected_target_status().has_selection);
+        runtime.select_target("nonexistent");
+        assert(!runtime.selected_target_status().has_selection);
+    }
+
     std::cout << "Impact severity and component damage foundation tests passed\n";
     return 0;
 }

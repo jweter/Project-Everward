@@ -60,6 +60,8 @@ private:
     void ToggleAutoApproachMiningTarget();
     void AdvanceAutoApproachMiningTarget(float DeltaSeconds);
 
+    void SelectNearestPhysicalTarget();
+
     void LookYaw(float Value);
     void LookPitch(float Value);
     void ZoomCamera(float Value);
@@ -92,6 +94,8 @@ private:
     double AutoApproachSideStandoffMeters = 6.5;
     UPROPERTY(EditAnywhere, Category="Everward|Mining", meta=(ClampMin="0.01"))
     double AutoApproachStopToleranceMeters = 0.25;
+    UPROPERTY(EditAnywhere, Category="Everward|Target", meta=(ClampMin="1.0"))
+    double TargetSelectionRangeMeters = 500.0;
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="0.01"))
     float MouseLookSensitivity = 0.75f;
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="1.0"))

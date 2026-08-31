@@ -333,6 +333,29 @@ struct EVERWARD_API FEverwardManipulatorArmState
     bool bToolAttached = false;
 };
 
+// Slice 7 foundation: authoritative selected-target range/closing-speed
+// telemetry over the registered StaticSphereBody list. Mirrors
+// target_selection.hpp's TargetRangeTelemetry, plus bHasSelection so "no
+// target selected" and "selected target since deregistered" are both
+// representable without a sentinel/empty-string convention leaking here.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardTargetSelectionStatus
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target")
+    bool bHasSelection = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target")
+    FString TargetId;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target")
+    double SurfaceRangeMeters = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target")
+    double ClosingSpeedMetersPerSecond = 0.0;
+};
+
 // First scan-to-mining read model. This reports the bootstrap deposit without
 // moving mining mechanics into Unreal; `MiningSystem` remains engine-independent.
 USTRUCT(BlueprintType)
@@ -395,6 +418,9 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Mining")
     FEverwardMiningStatus GetMiningStatus() const;
 
+    UFUNCTION(BlueprintPure, Category="Everward|Target")
+    FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;
+
     UFUNCTION(BlueprintPure, Category="Everward|Command")
     FEverwardProbeCommandResult GetLastCommandResult() const;
 
@@ -421,6 +447,15 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandMineBootstrapTarget();
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandSelectNearestTarget(double MaxSelectionRangeMeters);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandSelectTarget(const FString& TargetId);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandClearTargetSelection();
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandAllocatePower(EEverwardPowerSubsystem Subsystem, double Watts);

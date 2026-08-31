@@ -202,6 +202,7 @@ void AEverwardHUD::DrawControlsReference()
         {TEXT("5"), TEXT("SELECT ELBOW")},
         {TEXT("6"), TEXT("SELECT WRIST / TOOL")},
         {TEXT(", / ."), TEXT("ADJUST JOINT TARGET")},
+        {TEXT("T"), TEXT("SELECT NEAREST PHYSICAL TARGET")},
         {TEXT("G"), TEXT("MINE SURVEYED TARGET")},
     };
 
@@ -275,6 +276,7 @@ void AEverwardHUD::DrawHUD()
     const FEverwardProbeTelemetry Telemetry = Adapter->GetProbeTelemetry();
     const TArray<FEverwardProbeCapability> Capabilities = Adapter->GetInstalledCapabilities();
     const TArray<FEverwardManipulatorArmState> ManipulatorArms = Adapter->GetManipulatorArmStates();
+    const FEverwardTargetSelectionStatus TargetSelection = Adapter->GetSelectedTargetStatus();
     const FEverwardSoftwarePolicyStatus PolicyStatus = Adapter->GetSoftwarePolicyStatus();
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
     const FEverwardAutomationNotice AutomationNotice = Adapter->GetLastAutomationNotice();
@@ -323,7 +325,7 @@ void AEverwardHUD::DrawHUD()
     const FLinearColor MutedColor(0.64f, 0.75f, 0.80f, 1.0f);
     const FLinearColor AlertColor(1.0f, 0.36f, 0.18f, 1.0f);
 
-    const float TelemetryHeight = S(62.0f) + LineHeight * 8.0f;
+    const float TelemetryHeight = S(62.0f) + LineHeight * 9.0f;
     const float TelemetryY = Canvas->ClipY - Margin - TelemetryHeight;
     DrawRect(PanelColor, Margin, TelemetryY, PanelWidth, TelemetryHeight);
     DrawText(
@@ -349,9 +351,21 @@ void AEverwardHUD::DrawHUD()
         FString::Printf(TEXT("VELOCITY %.2f m/s"), Telemetry.VelocityMetersPerSecond.Size()),
         TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 4.0f,
         HudFont, ReadableTextScale(HudScale), false);
+    // Slice 7 foundation: authoritative range/closing speed for whatever the
+    // player has selected with T, over the same registered-body list the
+    // swept contact solver already consumes. No selection reads as a plain
+    // muted prompt rather than fabricated zeros.
+    DrawText(
+        TargetSelection.bHasSelection
+            ? FString::Printf(TEXT("TARGET  %s // %.1f M // CLOSING %.2f M/S"),
+                *TargetSelection.TargetId, TargetSelection.SurfaceRangeMeters, TargetSelection.ClosingSpeedMetersPerSecond)
+            : FString(TEXT("TARGET  NONE SELECTED // [T] SELECT NEAREST")),
+        TargetSelection.bHasSelection ? TextColor : MutedColor,
+        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 5.0f,
+        HudFont, ReadableTextScale(HudScale), false);
     DrawText(
         FString::Printf(TEXT("SIM %.1f s"), Telemetry.SimulationTimeSeconds),
-        MutedColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 5.0f,
+        MutedColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 6.0f,
         HudFont, ReadableTextScale(HudScale, 0.92f), false);
     for (int32 ArmIndex = 0; ArmIndex < ManipulatorArms.Num(); ++ArmIndex)
     {
@@ -361,7 +375,7 @@ void AEverwardHUD::DrawHUD()
             ManipulatorArmLine(Label, Arm),
             Arm.bIsDeployed || Arm.bIsDeploying || Arm.bIsStowing ? TextColor : MutedColor,
             Margin + S(16.0f),
-            TelemetryY + S(48.0f) + LineHeight * (6.0f + ArmIndex),
+            TelemetryY + S(48.0f) + LineHeight * (7.0f + ArmIndex),
             HudFont,
             ReadableTextScale(HudScale, 0.94f),
             false);
