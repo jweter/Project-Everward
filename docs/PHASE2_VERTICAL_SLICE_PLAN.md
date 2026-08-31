@@ -148,13 +148,18 @@ Player-visible result:
 
 ### Slice 7 — Object selection and physical interaction
 
-**Status:** first parallel-safe foundation sub-slice landed:
-`target_selection.hpp` provides engine-independent nearest-target selection
-and range/closing-speed telemetry over the existing registered-body list
-(see `PROJECT_STATUS.md`'s "Physical target selection and range telemetry
-foundation" section). Not yet wired into `ProbeRuntime`, the adapter, or a
-HUD/input surface, so there is no player-visible result yet and this does
-not advance the slice's completion gate by itself.
+**Status:** two parallel-safe foundation sub-slices landed. First,
+`target_selection.hpp` provided engine-independent nearest-target selection
+and range/closing-speed telemetry over the existing registered-body list.
+Second, that math is now wired into `ProbeRuntime`/`DamageAwareProbeRuntime`
+authoritative selection state, the `UProbeSimulationAdapter` command/
+telemetry surface, and a minimal `T`-to-select-nearest input with a HUD
+`TARGET` row (see `PROJECT_STATUS.md`'s "Physical target selection and
+range telemetry foundation" section and `PHASE2_TARGET_SELECTION_TEST.md`).
+There is now a player-visible result, but it remains Product Reality
+pending and does not advance the slice's completion gate by itself: no
+visual selection indicator, target cycling, or approach/reach/grasp
+mechanics exist yet.
 
 Turn scanning and manipulators into one loop:
 

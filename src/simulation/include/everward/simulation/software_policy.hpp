@@ -2,6 +2,7 @@
 
 #include "everward/simulation/compound_contact.hpp"
 #include "everward/simulation/core.hpp"
+#include "everward/simulation/target_selection.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -47,6 +48,19 @@ struct SoftwarePolicyStatus {
     std::string policy_id;
     std::size_t rule_count{0};
     double minimum_computation_power_w{0.0};
+};
+
+// Slice 7 (PHASE2_VERTICAL_SLICE_PLAN.md) runtime/telemetry wiring over
+// target_selection.hpp's engine-independent math. has_selection is false for
+// no selection, an empty/unknown requested id, or a selection whose body has
+// since been deregistered -- selected_target_status() never reports a stale
+// id as still selected, matching this codebase's other fail-closed
+// registered-body lookups (see manipulator_hull_contact.hpp).
+struct TargetSelectionStatus {
+    bool has_selection{false};
+    std::string body_id;
+    double surface_range_m{0.0};
+    double closing_speed_mps{0.0};
 };
 
 // Authoritative One-Probe runtime wrapper. SimulationCore owns the probe's
@@ -195,6 +209,44 @@ public:
 
     [[nodiscard]] const SoftwarePolicy* active_policy() const noexcept {
         return has_policy_ ? &active_policy_ : nullptr;
+    }
+
+    // Selects the nearest registered body within max_selection_range_m, or
+    // clears the selection when none is registered or in range. Mirrors
+    // find_nearest_selectable_target's own no-guessing contract.
+    void select_nearest_target(double max_selection_range_m) {
+        const auto nearest = find_nearest_selectable_target(
+            core_.snapshot().position_m, static_bodies_, max_selection_range_m);
+        selected_target_id_ = nearest.has_value() ? nearest->body_id : std::string{};
+    }
+
+    // Explicitly selects a target by id. An empty or currently-unregistered
+    // id clears the selection rather than keeping a stale one (fail-closed,
+    // same contract as select_target_telemetry).
+    void select_target(const std::string& body_id) {
+        const auto telemetry = select_target_telemetry(
+            body_id, static_bodies_, core_.snapshot().position_m, core_.snapshot().velocity_mps);
+        selected_target_id_ = telemetry.has_value() ? telemetry->body_id : std::string{};
+    }
+
+    void clear_target_selection() noexcept { selected_target_id_.clear(); }
+
+    // Recomputed from the live registry/pose on every call rather than
+    // cached, so range/closing speed always reflect the current tick and a
+    // since-deregistered selection reports has_selection=false without
+    // requiring a mutating call to notice.
+    [[nodiscard]] TargetSelectionStatus selected_target_status() const noexcept {
+        const auto& state = core_.snapshot();
+        const auto telemetry = select_target_telemetry(
+            selected_target_id_, static_bodies_, state.position_m, state.velocity_mps);
+        TargetSelectionStatus status;
+        if (telemetry.has_value()) {
+            status.has_selection = true;
+            status.body_id = telemetry->body_id;
+            status.surface_range_m = telemetry->surface_range_m;
+            status.closing_speed_mps = telemetry->closing_speed_mps;
+        }
+        return status;
     }
 
 private:
@@ -446,6 +498,7 @@ private:
     bool has_policy_{false};
     SoftwarePolicy active_policy_{};
     std::vector<DomainEvent> policy_events_{};
+    std::string selected_target_id_{};
 };
 
 } // namespace everward::simulation

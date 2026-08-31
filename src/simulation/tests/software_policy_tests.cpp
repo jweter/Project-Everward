@@ -2,6 +2,7 @@
 
 #undef NDEBUG
 #include <cassert>
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -16,6 +17,12 @@ using everward::simulation::ProbeRuntime;
 using everward::simulation::SimulationClock;
 using everward::simulation::SoftwarePolicy;
 using everward::simulation::SoftwarePolicyRule;
+using everward::simulation::StaticSphereBody;
+using everward::simulation::TargetSelectionStatus;
+
+static bool nearly_equal_local(double a, double b, double eps = 1e-6) {
+    return std::fabs(a - b) <= eps;
+}
 
 static bool has_event(const std::vector<DomainEvent>& events, DomainEventType type) {
     for (const auto& event : events) {
@@ -183,6 +190,86 @@ int main() {
         assert(runtime.active_policy() == nullptr);
         const auto events = runtime.drain_events();
         assert(has_event(events, DomainEventType::PolicyChanged));
+    }
+
+    // Slice 7 runtime/telemetry wiring: no registered bodies means no
+    // selection, matching find_nearest_selectable_target's no-guessing
+    // contract rather than reporting a fabricated target.
+    {
+        ProbeRuntime runtime;
+        runtime.select_nearest_target(1000.0);
+        const TargetSelectionStatus status = runtime.selected_target_status();
+        assert(!status.has_selection);
+        assert(status.body_id.empty());
+    }
+
+    // Nearest-target selection picks the closer of two in-range bodies, and
+    // reports live surface range/closing speed for it.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(StaticSphereBody{"far-rock", {100.0, 0.0, 0.0}, 5.0});
+        runtime.add_static_sphere_body(StaticSphereBody{"near-rock", {20.0, 0.0, 0.0}, 5.0});
+        runtime.select_nearest_target(1000.0);
+
+        const TargetSelectionStatus status = runtime.selected_target_status();
+        assert(status.has_selection);
+        assert(status.body_id == "near-rock");
+        assert(nearly_equal_local(status.surface_range_m, 15.0));
+        assert(nearly_equal_local(status.closing_speed_mps, 0.0));
+    }
+
+    // A max selection range excludes bodies beyond it rather than selecting
+    // the nearest body regardless of distance.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(StaticSphereBody{"distant", {500.0, 0.0, 0.0}, 5.0});
+        runtime.select_nearest_target(50.0);
+        assert(!runtime.selected_target_status().has_selection);
+    }
+
+    // Closing speed is positive while approaching a stationary body head-on.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(StaticSphereBody{"ahead", {100.0, 0.0, 0.0}, 5.0});
+        runtime.set_velocity_mps({10.0, 0.0, 0.0});
+        runtime.select_target("ahead");
+
+        const TargetSelectionStatus status = runtime.selected_target_status();
+        assert(status.has_selection);
+        assert(nearly_equal_local(status.closing_speed_mps, 10.0));
+    }
+
+    // Explicit selection of an unknown or empty id fails closed: no stale
+    // selection is kept.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(StaticSphereBody{"known", {10.0, 0.0, 0.0}, 2.0});
+        runtime.select_target("known");
+        assert(runtime.selected_target_status().has_selection);
+
+        runtime.select_target("unregistered-id");
+        assert(!runtime.selected_target_status().has_selection);
+
+        runtime.select_target("known");
+        assert(runtime.selected_target_status().has_selection);
+        runtime.select_target("");
+        assert(!runtime.selected_target_status().has_selection);
+    }
+
+    // A selection survives until explicitly cleared, and a deregistered
+    // selection reports unselected without needing clear_target_selection().
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(StaticSphereBody{"body-a", {10.0, 0.0, 0.0}, 2.0});
+        runtime.select_target("body-a");
+        assert(runtime.selected_target_status().has_selection);
+
+        runtime.clear_target_selection();
+        assert(!runtime.selected_target_status().has_selection);
+
+        runtime.select_target("body-a");
+        runtime.clear_static_bodies();
+        assert(!runtime.selected_target_status().has_selection);
     }
 
     std::cout << "Generation-1 software policy tests passed\n";
