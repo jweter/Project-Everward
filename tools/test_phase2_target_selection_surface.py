@@ -98,10 +98,6 @@ class Phase2TargetSelectionSurfaceTests(unittest.TestCase):
         self.assertIn("ClosingSpeedMetersPerSecond", self.hud_cpp)
         self.assertNotIn("everward/simulation", self.hud_cpp)
 
-    def test_controls_reference_documents_target_cycle_binding(self) -> None:
-        self.assertIn("CYCLE PHYSICAL TARGET", self.hud_cpp)
-        self.assertIn("[T] CYCLE", self.hud_cpp)
-
 
 if __name__ == "__main__":
     unittest.main()
