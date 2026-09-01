@@ -1,6 +1,7 @@
 #include "ProbeSimulationAdapter.h"
 
 #include "everward/simulation/impact_damage.hpp"
+#include "everward/simulation/target_cycle_runtime.hpp"
 
 #include <string>
 
@@ -35,6 +36,24 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSelectNearestTarget(
 
     return RecordCommandResult(CommandId, true,
         FString::Printf(TEXT("target selected: %s (%.1f m, closing %.2f m/s)"),
+            UTF8_TO_TCHAR(Selection.body_id.c_str()), Selection.surface_range_m, Selection.closing_speed_mps));
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandCycleTarget(double MaxSelectionRangeMeters)
+{
+    const FName CommandId(TEXT("cycle_target"));
+    if (Core == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+
+    const everward::simulation::TargetSelectionStatus Selection =
+        everward::simulation::cycle_next_target_selection(*Core, MaxSelectionRangeMeters);
+    if (!Selection.has_selection)
+    {
+        return RecordCommandResult(CommandId, false,
+            FString::Printf(TEXT("no physical target within %.0f m"), MaxSelectionRangeMeters));
+    }
+
+    return RecordCommandResult(CommandId, true,
+        FString::Printf(TEXT("target cycled: %s (%.1f m, closing %.2f m/s)"),
             UTF8_TO_TCHAR(Selection.body_id.c_str()), Selection.surface_range_m, Selection.closing_speed_mps));
 }
 
