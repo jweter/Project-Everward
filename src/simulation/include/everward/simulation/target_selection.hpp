@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <vector>
@@ -25,50 +26,34 @@ struct TargetRangeTelemetry {
     double closing_speed_mps{0.0};
 };
 
-[[nodiscard]] inline double surface_range_to_body(
-    Vector3d point_m,
-    const StaticSphereBody& body) noexcept {
+[[nodiscard]] inline double surface_range_to_body(Vector3d point_m, const StaticSphereBody& body) noexcept {
     const Vector3d offset = contact_subtract(point_m, body.center_m);
     const double center_distance = std::sqrt(contact_dot(offset, offset));
     return std::max(0.0, center_distance - body.radius_m);
 }
 
-[[nodiscard]] inline double closing_speed_to_body(
-    Vector3d point_m,
-    Vector3d point_velocity_mps,
-    const StaticSphereBody& body) noexcept {
+[[nodiscard]] inline double closing_speed_to_body(Vector3d point_m, Vector3d point_velocity_mps, const StaticSphereBody& body) noexcept {
     const Vector3d to_body = contact_subtract(body.center_m, point_m);
     const double distance = std::sqrt(contact_dot(to_body, to_body));
-    if (distance <= 1e-9) {
-        return 0.0;
-    }
+    if (distance <= 1e-9) return 0.0;
     const Vector3d unit_to_body = contact_scale(to_body, 1.0 / distance);
     return contact_dot(point_velocity_mps, unit_to_body);
 }
 
-[[nodiscard]] inline std::optional<TargetRangeTelemetry> find_nearest_selectable_target(
-    Vector3d probe_position_m,
-    const std::vector<StaticSphereBody>& bodies,
-    double max_selection_range_m) noexcept {
+[[nodiscard]] inline std::optional<TargetRangeTelemetry> find_nearest_selectable_target(Vector3d probe_position_m, const std::vector<StaticSphereBody>& bodies, double max_selection_range_m) noexcept {
     std::optional<TargetRangeTelemetry> nearest;
     for (const StaticSphereBody& body : bodies) {
         const double range = surface_range_to_body(probe_position_m, body);
-        if (range > max_selection_range_m) {
-            continue;
-        }
-        if (!nearest.has_value() || range < nearest->surface_range_m) {
-            nearest = TargetRangeTelemetry{body.body_id, range, 0.0};
-        }
+        if (range > max_selection_range_m) continue;
+        if (!nearest.has_value() || range < nearest->surface_range_m) nearest = TargetRangeTelemetry{body.body_id, range, 0.0};
     }
     return nearest;
 }
 
-// Returns the next selectable target in deterministic nearest-to-farthest order.
-// Only bodies within max_selection_range_m participate. Equal-range ties retain
-// registration order. If current_body_id is empty, unknown, or no longer in
-// range, cycling starts at the nearest eligible target. Cycling wraps after the
-// farthest target. No eligible target returns std::nullopt rather than retaining
-// a stale selection.
+// Deterministic target cycling for Slice 7. Eligible bodies are ordered nearest
+// to farthest; equal-range ties retain registration order. Unknown/stale current
+// selections restart at the nearest eligible target, and the farthest wraps to
+// the nearest. No eligible target returns nullopt instead of preserving stale state.
 [[nodiscard]] inline std::optional<TargetRangeTelemetry> find_next_selectable_target(
     Vector3d probe_position_m,
     Vector3d probe_velocity_mps,
@@ -79,47 +64,23 @@ struct TargetRangeTelemetry {
         std::size_t registration_index{0};
         TargetRangeTelemetry telemetry;
     };
-
     std::vector<RankedTarget> ranked;
     ranked.reserve(bodies.size());
     for (std::size_t index = 0; index < bodies.size(); ++index) {
         const StaticSphereBody& body = bodies[index];
         const double range = surface_range_to_body(probe_position_m, body);
-        if (range > max_selection_range_m) {
-            continue;
-        }
-        ranked.push_back(RankedTarget{
-            index,
-            TargetRangeTelemetry{
-                body.body_id,
-                range,
-                closing_speed_to_body(probe_position_m, probe_velocity_mps, body)}});
+        if (range > max_selection_range_m) continue;
+        ranked.push_back({index, {body.body_id, range, closing_speed_to_body(probe_position_m, probe_velocity_mps, body)}});
     }
-
-    if (ranked.empty()) {
-        return std::nullopt;
-    }
-
-    std::stable_sort(
-        ranked.begin(),
-        ranked.end(),
-        [](const RankedTarget& left, const RankedTarget& right) {
-            if (left.telemetry.surface_range_m == right.telemetry.surface_range_m) {
-                return left.registration_index < right.registration_index;
-            }
-            return left.telemetry.surface_range_m < right.telemetry.surface_range_m;
-        });
-
-    const auto current = std::find_if(
-        ranked.begin(),
-        ranked.end(),
-        [&current_body_id](const RankedTarget& target) {
-            return target.telemetry.body_id == current_body_id;
-        });
-    if (current == ranked.end()) {
-        return ranked.front().telemetry;
-    }
-
+    if (ranked.empty()) return std::nullopt;
+    std::stable_sort(ranked.begin(), ranked.end(), [](const RankedTarget& left, const RankedTarget& right) {
+        if (left.telemetry.surface_range_m == right.telemetry.surface_range_m) return left.registration_index < right.registration_index;
+        return left.telemetry.surface_range_m < right.telemetry.surface_range_m;
+    });
+    const auto current = std::find_if(ranked.begin(), ranked.end(), [&current_body_id](const RankedTarget& target) {
+        return target.telemetry.body_id == current_body_id;
+    });
+    if (current == ranked.end()) return ranked.front().telemetry;
     const auto next = std::next(current);
     return (next == ranked.end() ? ranked.front() : next)->telemetry;
 }
@@ -129,24 +90,13 @@ struct TargetRangeTelemetry {
     const std::vector<StaticSphereBody>& bodies,
     Vector3d probe_position_m,
     Vector3d probe_velocity_mps) noexcept {
-    if (requested_body_id.empty()) {
-        return std::nullopt;
-    }
-    const auto found = std::find_if(
-        bodies.begin(),
-        bodies.end(),
-        [&requested_body_id](const StaticSphereBody& body) {
-            return body.body_id == requested_body_id;
-        });
-    if (found == bodies.end()) {
-        return std::nullopt;
-    }
-
+    if (requested_body_id.empty()) return std::nullopt;
+    const auto found = std::find_if(bodies.begin(), bodies.end(), [&requested_body_id](const StaticSphereBody& body) { return body.body_id == requested_body_id; });
+    if (found == bodies.end()) return std::nullopt;
     TargetRangeTelemetry telemetry;
     telemetry.body_id = found->body_id;
     telemetry.surface_range_m = surface_range_to_body(probe_position_m, *found);
-    telemetry.closing_speed_mps =
-        closing_speed_to_body(probe_position_m, probe_velocity_mps, *found);
+    telemetry.closing_speed_mps = closing_speed_to_body(probe_position_m, probe_velocity_mps, *found);
     return telemetry;
 }
 
