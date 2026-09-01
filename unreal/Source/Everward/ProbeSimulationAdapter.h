@@ -283,10 +283,6 @@ struct EVERWARD_API FEverwardProbeCapability
     FString StatusReason;
 };
 
-// Slice 6 foundation: authoritative Port/Starboard manipulator arm state.
-// This mirrors src/simulation/include/everward/simulation/manipulator.hpp's
-// ManipulatorArmState field-for-field so the HUD/Blueprint layer never has to
-// re-derive mechanical truth that already exists engine-independently.
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardManipulatorArmState
 {
@@ -316,10 +312,6 @@ struct EVERWARD_API FEverwardManipulatorArmState
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
     double WristDegrees = 0.0;
 
-    // Commanded joint targets, distinct from the current (slewing) angles
-    // above. Joint articulation input reads these back rather than the
-    // in-motion angle so repeated nudges accumulate against the last
-    // commanded target instead of the transient current pose.
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
     double CommandedShoulderDegrees = 0.0;
 
@@ -333,11 +325,6 @@ struct EVERWARD_API FEverwardManipulatorArmState
     bool bToolAttached = false;
 };
 
-// Slice 7 foundation: authoritative selected-target range/closing-speed
-// telemetry over the registered StaticSphereBody list. Mirrors
-// target_selection.hpp's TargetRangeTelemetry, plus bHasSelection so "no
-// target selected" and "selected target since deregistered" are both
-// representable without a sentinel/empty-string convention leaking here.
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardTargetSelectionStatus
 {
@@ -356,8 +343,6 @@ struct EVERWARD_API FEverwardTargetSelectionStatus
     double ClosingSpeedMetersPerSecond = 0.0;
 };
 
-// First scan-to-mining read model. This reports the bootstrap deposit without
-// moving mining mechanics into Unreal; `MiningSystem` remains engine-independent.
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardMiningStatus
 {
@@ -450,6 +435,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandSelectNearestTarget(double MaxSelectionRangeMeters);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandCycleTarget(double MaxSelectionRangeMeters);
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandSelectTarget(const FString& TargetId);
