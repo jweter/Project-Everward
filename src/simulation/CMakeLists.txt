@@ -58,4 +58,8 @@ if(BUILD_TESTING)
     add_executable(everward_target_selection_tests tests/target_selection_tests.cpp)
     target_link_libraries(everward_target_selection_tests PRIVATE everward_simulation)
     add_test(NAME everward_target_selection_tests COMMAND everward_target_selection_tests)
+
+    add_executable(everward_target_cycle_tests tests/target_cycle_tests.cpp)
+    target_link_libraries(everward_target_cycle_tests PRIVATE everward_simulation)
+    add_test(NAME everward_target_cycle_tests COMMAND everward_target_cycle_tests)
 endif()
