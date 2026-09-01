@@ -221,6 +221,9 @@ void AEverwardPlayerController::DecreaseVerticalVelocity()
 
 void AEverwardPlayerController::StopPropulsion()
 {
+    // Spacebar is the probe's global emergency brake. It must not depend on which
+    // contextual systems page happens to be selected; scan/computation inspection
+    // can never make the player lose access to stop authority.
     UProbeSimulationAdapter* Adapter = GetProbeAdapter();
     if (Adapter == nullptr)
     {
@@ -278,6 +281,9 @@ void AEverwardPlayerController::ToggleManipulatorTool()
         return;
     }
 
+    // Attach/detach targets whichever arm is deployed; Port takes priority
+    // when both are deployed. This single-key toggle is a Slice 6 foundation
+    // control, not a final per-arm tool interface.
     for (const FEverwardManipulatorArmState& ArmState : Adapter->GetManipulatorArmStates())
     {
         if (!ArmState.bIsDeployed)
@@ -449,7 +455,8 @@ void AEverwardPlayerController::AdjustSelectedSystemPower(double DeltaWatts)
     (void)Adapter->CommandAllocatePower(Subsystem, RequestedWatts);
 }
 
-void AEverwardPlayerController::AdjustLocalVelocityMetersPerSecond(const FVector& DeltaLocalVelocity)
+void AEverwardPlayerController::AdjustLocalVelocityMetersPerSecond(
+    const FVector& DeltaLocalVelocity)
 {
     const AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD());
     UProbeSimulationAdapter* Adapter = GetProbeAdapter();
@@ -498,6 +505,9 @@ void AEverwardPlayerController::ToggleManipulatorArmDeployment(EEverwardManipula
             continue;
         }
 
+        // A single key toggles direction rather than requiring separate
+        // deploy/stow keys per arm. Mid-transition presses reverse cleanly
+        // (ManipulatorRig::begin_deploy/begin_stow both support this).
         if (ArmState.bIsDeployed || ArmState.bIsDeploying)
         {
             (void)Adapter->CommandStowManipulatorArm(ArmId);
@@ -536,6 +546,9 @@ void AEverwardPlayerController::AdjustSelectedManipulatorJointTargetDegrees(doub
             continue;
         }
 
+        // Nudge from the last commanded target rather than the current
+        // (still-slewing) angle, so repeated presses accumulate toward the
+        // intended pose instead of chasing a moving current value.
         double CommandedDegrees = 0.0;
         switch (Joint)
         {
@@ -544,6 +557,9 @@ void AEverwardPlayerController::AdjustSelectedManipulatorJointTargetDegrees(doub
             case EEverwardManipulatorJoint::Wrist: CommandedDegrees = ArmState.CommandedWristDegrees; break;
         }
 
+        // Rejected (e.g. arm not fully deployed) surfaces through the
+        // existing COMMAND REJECTED banner; joint clamping to the physical
+        // range happens authoritatively in ManipulatorRig, not here.
         (void)Adapter->CommandSetManipulatorJointTargetDegrees(ArmId, Joint, CommandedDegrees + DeltaDegrees);
         return;
     }
