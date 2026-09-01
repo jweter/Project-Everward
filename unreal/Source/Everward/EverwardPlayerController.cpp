@@ -389,7 +389,7 @@ void AEverwardPlayerController::SelectNearestPhysicalTarget()
         return;
     }
 
-    (void)Adapter->CommandSelectNearestTarget(TargetSelectionRangeMeters);
+    (void)Adapter->CommandCycleTarget(TargetSelectionRangeMeters);
 }
 
 UProbeSimulationAdapter* AEverwardPlayerController::GetProbeAdapter() const

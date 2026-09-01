@@ -452,6 +452,9 @@ public:
     FEverwardProbeCommandResult CommandSelectNearestTarget(double MaxSelectionRangeMeters);
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandCycleTarget(double MaxSelectionRangeMeters);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandSelectTarget(const FString& TargetId);
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")

@@ -62,4 +62,8 @@ if(BUILD_TESTING)
     add_executable(everward_target_cycle_tests tests/target_cycle_tests.cpp)
     target_link_libraries(everward_target_cycle_tests PRIVATE everward_simulation)
     add_test(NAME everward_target_cycle_tests COMMAND everward_target_cycle_tests)
+
+    add_executable(everward_target_cycle_runtime_tests tests/target_cycle_runtime_tests.cpp)
+    target_link_libraries(everward_target_cycle_runtime_tests PRIVATE everward_simulation)
+    add_test(NAME everward_target_cycle_runtime_tests COMMAND everward_target_cycle_runtime_tests)
 endif()
