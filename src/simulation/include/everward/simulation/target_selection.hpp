@@ -82,7 +82,8 @@ struct TargetRangeTelemetry {
     });
     if (current == ranked.end()) return ranked.front().telemetry;
     const auto next = std::next(current);
-    return (next == ranked.end() ? ranked.front() : next)->telemetry;
+    if (next == ranked.end()) return ranked.front().telemetry;
+    return next->telemetry;
 }
 
 [[nodiscard]] inline std::optional<TargetRangeTelemetry> select_target_telemetry(
