@@ -17,15 +17,7 @@ namespace everward::simulation {
 // target" and "display range/relative motion". This module implements both
 // as pure, engine-independent read-side math over the same registered
 // StaticSphereBody list and probe pose software_policy.hpp's swept contact
-// solver already consumes -- no authoritative state is mutated here, and no
-// behavior currently awaiting Product Reality (contact resolution,
-// manipulator/hull collision) is assumed correct or depended upon, so this
-// qualifies for the parallel-safe lane. Wiring this into ProbeRuntime's
-// tick/telemetry and an Unreal HUD/selection input is deliberately left to
-// a follow-up slice, mirroring how compound_contact.hpp's geometry landed
-// before software_policy.hpp's solver wiring. Vector math is intentionally
-// not re-derived here: contact_subtract/contact_scale/contact_dot already
-// exist in compound_contact.hpp.
+// solver already consumes -- no authoritative state is mutated here.
 
 struct TargetRangeTelemetry {
     std::string body_id;
@@ -33,9 +25,6 @@ struct TargetRangeTelemetry {
     double closing_speed_mps{0.0};
 };
 
-// Surface-to-surface distance from a point to a sphere, clamped to zero
-// once the point is at or inside the surface rather than reporting a
-// negative range.
 [[nodiscard]] inline double surface_range_to_body(
     Vector3d point_m,
     const StaticSphereBody& body) noexcept {
@@ -44,10 +33,6 @@ struct TargetRangeTelemetry {
     return std::max(0.0, center_distance - body.radius_m);
 }
 
-// Positive when `point_m`, moving with `point_velocity_mps`, is closing on
-// a stationary body's center; negative when opening. A point sitting
-// exactly on the body's center has no defined direction of approach and
-// reports zero rather than fabricating one.
 [[nodiscard]] inline double closing_speed_to_body(
     Vector3d point_m,
     Vector3d point_velocity_mps,
@@ -61,13 +46,6 @@ struct TargetRangeTelemetry {
     return contact_dot(point_velocity_mps, unit_to_body);
 }
 
-// Finds the nearest registered body within `max_selection_range_m` of
-// `probe_position_m`. Ties break toward whichever body appears earliest in
-// `bodies` (stable, deterministic). Returns std::nullopt when no body is
-// registered or none is within range rather than guessing a selection.
-// The returned telemetry's closing_speed_mps is always 0.0 -- callers that
-// need closing speed for a specific selection should use
-// select_target_telemetry, which has a probe velocity to compute it from.
 [[nodiscard]] inline std::optional<TargetRangeTelemetry> find_nearest_selectable_target(
     Vector3d probe_position_m,
     const std::vector<StaticSphereBody>& bodies,
@@ -85,13 +63,67 @@ struct TargetRangeTelemetry {
     return nearest;
 }
 
-// Validates an explicitly requested selection against the live registry and
-// reports its current range/closing-speed telemetry. Returns std::nullopt
-// when `requested_body_id` is empty or does not match any currently
-// registered body -- a destroyed or never-registered target is rejected
-// rather than silently treated as still selected, matching this codebase's
-// fail-closed handling of registered-body lookups elsewhere (see
-// manipulator_hull_contact.hpp).
+// Returns the next selectable target in deterministic nearest-to-farthest order.
+// Only bodies within max_selection_range_m participate. Equal-range ties retain
+// registration order. If current_body_id is empty, unknown, or no longer in
+// range, cycling starts at the nearest eligible target. Cycling wraps after the
+// farthest target. No eligible target returns std::nullopt rather than retaining
+// a stale selection.
+[[nodiscard]] inline std::optional<TargetRangeTelemetry> find_next_selectable_target(
+    Vector3d probe_position_m,
+    Vector3d probe_velocity_mps,
+    const std::vector<StaticSphereBody>& bodies,
+    double max_selection_range_m,
+    const std::string& current_body_id) noexcept {
+    struct RankedTarget {
+        std::size_t registration_index{0};
+        TargetRangeTelemetry telemetry;
+    };
+
+    std::vector<RankedTarget> ranked;
+    ranked.reserve(bodies.size());
+    for (std::size_t index = 0; index < bodies.size(); ++index) {
+        const StaticSphereBody& body = bodies[index];
+        const double range = surface_range_to_body(probe_position_m, body);
+        if (range > max_selection_range_m) {
+            continue;
+        }
+        ranked.push_back(RankedTarget{
+            index,
+            TargetRangeTelemetry{
+                body.body_id,
+                range,
+                closing_speed_to_body(probe_position_m, probe_velocity_mps, body)}});
+    }
+
+    if (ranked.empty()) {
+        return std::nullopt;
+    }
+
+    std::stable_sort(
+        ranked.begin(),
+        ranked.end(),
+        [](const RankedTarget& left, const RankedTarget& right) {
+            if (left.telemetry.surface_range_m == right.telemetry.surface_range_m) {
+                return left.registration_index < right.registration_index;
+            }
+            return left.telemetry.surface_range_m < right.telemetry.surface_range_m;
+        });
+
+    const auto current = std::find_if(
+        ranked.begin(),
+        ranked.end(),
+        [&current_body_id](const RankedTarget& target) {
+            return target.telemetry.body_id == current_body_id;
+        });
+    if (current == ranked.end()) {
+        return ranked.front().telemetry;
+    }
+
+    const auto next = std::next(current);
+    return (next == ranked.end() ? ranked.front() : next)->telemetry;
+}
+
 [[nodiscard]] inline std::optional<TargetRangeTelemetry> select_target_telemetry(
     const std::string& requested_body_id,
     const std::vector<StaticSphereBody>& bodies,
