@@ -8,6 +8,7 @@
 #include "everward/simulation/manipulator_hull_contact.hpp"
 #include "everward/simulation/manipulator_reach.hpp"
 #include "everward/simulation/manipulator_grasp.hpp"
+#include "everward/simulation/manipulator_move.hpp"
 
 #include <exception>
 #include <string>
@@ -206,6 +207,28 @@ void UProbeSimulationAdapter::TickComponent(
         if (Manipulators != nullptr)
         {
             Manipulators->advance(FixedStepSeconds);
+
+            // Slice 7 "move": every other registered-body reader (contact,
+            // target selection, reach) already reads a body's center_m
+            // straight from Core, so writing the grasping arm's authoritative
+            // wrist world position back into that same field each tick is
+            // what makes a held body actually follow the arm instead of
+            // sitting at its original registered position. Reuses
+            // manipulator_move.hpp's grasped_target_position exactly as its
+            // own tests exercise it; a nullopt result (arm holds nothing)
+            // leaves that body's position untouched.
+            const everward::simulation::ProbeWorldPose ProbePose{
+                Core->snapshot().position_m, Core->snapshot().attitude_degrees};
+            for (const auto SimulationArmId :
+                {everward::simulation::ManipulatorArmId::Port, everward::simulation::ManipulatorArmId::Starboard})
+            {
+                const auto Moved = everward::simulation::grasped_target_position(
+                    SimulationArmId, Manipulators->arm(SimulationArmId), ProbePose);
+                if (Moved.has_value())
+                {
+                    Core->update_static_sphere_body_position(Moved->body_id, Moved->world_position_m);
+                }
+            }
         }
         FixedStepAccumulatorSeconds -= FixedStepSeconds;
     }

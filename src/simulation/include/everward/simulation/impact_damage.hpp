@@ -330,6 +330,9 @@ public:
     [[nodiscard]] const std::vector<StaticSphereBody>& static_bodies() const noexcept {
         return runtime_.static_bodies();
     }
+    void update_static_sphere_body_position(const std::string& body_id, Vector3d new_center_m) {
+        runtime_.update_static_sphere_body_position(body_id, new_center_m);
+    }
 
     void set_velocity_mps(Vector3d velocity) { runtime_.set_velocity_mps(velocity); }
 

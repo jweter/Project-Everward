@@ -3,6 +3,7 @@
 #include "everward/simulation/manipulator_grasp.hpp"
 
 #undef NDEBUG
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -95,6 +96,72 @@ void test_release_clears_the_move_result() {
     assert(!result.has_value());
 }
 
+void test_update_static_sphere_body_position_moves_the_registered_body() {
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+    runtime.add_static_sphere_body({"rock", {10.0, 0.0, 0.0}, 0.5});
+
+    runtime.update_static_sphere_body_position("rock", {20.0, -5.0, 3.0});
+
+    const auto& bodies = runtime.static_bodies();
+    const auto found = std::find_if(bodies.begin(), bodies.end(), [](const StaticSphereBody& body) {
+        return body.body_id == "rock";
+    });
+    assert(found != bodies.end());
+    assert(nearly_equal(found->center_m, Vector3d{20.0, -5.0, 3.0}));
+    // Only center_m changes; identity/radius are untouched.
+    assert(found->radius_m == 0.5);
+}
+
+void test_update_static_sphere_body_position_on_unregistered_id_is_a_no_op() {
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+    runtime.add_static_sphere_body({"rock", {10.0, 0.0, 0.0}, 0.5});
+
+    // Body was cleared/never registered under this id -- must not throw or
+    // fabricate a new registration.
+    runtime.update_static_sphere_body_position("stale-id", {999.0, 999.0, 999.0});
+
+    assert(runtime.static_bodies().size() == 1);
+    assert(nearly_equal(runtime.static_bodies().front().center_m, Vector3d{10.0, 0.0, 0.0}));
+}
+
+void test_grasped_body_wired_into_authoritative_position_updates_downstream_telemetry() {
+    // Exercises the exact sequence ProbeSimulationAdapter::TickComponent
+    // performs each fixed step: compute grasped_target_position for the
+    // holding arm, then feed it into update_static_sphere_body_position.
+    // Proves target-selection telemetry -- a reader that never changed for
+    // this slice -- automatically reflects the carried body's new position
+    // once center_m itself moves, with no second position path introduced.
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+    ManipulatorRig rig = deployed_rig(ManipulatorArmId::Port);
+
+    const ManipulatorArmContactSamples samples = manipulator_arm_contact_samples(ManipulatorArmId::Port, 1.0, {});
+    const Vector3d world_wrist = contact_add(runtime.snapshot().position_m, samples.wrist.center_m);
+    runtime.add_static_sphere_body({"rock", world_wrist, 0.05});
+    runtime.select_target("rock");
+    assert(attempt_grasp_selected_target(rig, runtime, ManipulatorArmId::Port));
+
+    // Simulate one adapter TickComponent step's worth of probe translation
+    // without exercising contact resolution, matching
+    // test_grasped_target_follows_probe_translation's direct-pose approach.
+    const ProbeWorldPose moved_pose{Vector3d{100.0, -25.0, 5.0}, {}};
+    const auto moved = grasped_target_position(ManipulatorArmId::Port, rig.arm(ManipulatorArmId::Port), moved_pose);
+    assert(moved.has_value());
+    runtime.update_static_sphere_body_position(moved->body_id, moved->world_position_m);
+
+    const auto selection = runtime.selected_target_status();
+    assert(selection.has_selection);
+    assert(selection.body_id == "rock");
+    // The body's registered position now equals the wrist's current world
+    // position, not its original pre-grasp registration point.
+    const auto& bodies = runtime.static_bodies();
+    const auto found = std::find_if(bodies.begin(), bodies.end(), [](const StaticSphereBody& body) {
+        return body.body_id == "rock";
+    });
+    assert(found != bodies.end());
+    assert(nearly_equal(found->center_m, moved->world_position_m));
+    assert(!nearly_equal(found->center_m, world_wrist));
+}
+
 void test_runtime_overload_matches_free_function() {
     DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
 
@@ -128,6 +195,9 @@ int main() {
     test_grasped_target_follows_probe_translation();
     test_move_query_is_scoped_to_the_holding_arm();
     test_release_clears_the_move_result();
+    test_update_static_sphere_body_position_moves_the_registered_body();
+    test_update_static_sphere_body_position_on_unregistered_id_is_a_no_op();
+    test_grasped_body_wired_into_authoritative_position_updates_downstream_telemetry();
     test_runtime_overload_matches_free_function();
 
     std::puts("manipulator_move_tests: all tests passed");
