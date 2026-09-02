@@ -331,6 +331,16 @@ struct EVERWARD_API FEverwardManipulatorArmState
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
     bool bToolAttached = false;
+
+    // Slice 7 "grasp or dock with a simple object". Mirrors
+    // ManipulatorArmState::grasped_target_body_id: bTargetGrasped is false
+    // and GraspedTargetId is empty whenever the arm is not currently
+    // holding anything.
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    bool bTargetGrasped = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    FString GraspedTargetId;
 };
 
 // Slice 7 foundation: authoritative selected-target range/closing-speed
@@ -513,6 +523,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandDetachManipulatorTool(EEverwardManipulatorArmId ArmId);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandGraspSelectedTarget(EEverwardManipulatorArmId ArmId);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandReleaseGraspedTarget(EEverwardManipulatorArmId ArmId);
 
     UFUNCTION(BlueprintCallable, Category="Everward|Simulation")
     void SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond);

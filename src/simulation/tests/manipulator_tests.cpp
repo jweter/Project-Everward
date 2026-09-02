@@ -173,6 +173,80 @@ void test_stowing_with_tool_attached_is_rejected() {
     assert(rig.arm(ManipulatorArmId::Port).is_stowing);
 }
 
+void test_grasp_requires_deployed_and_nonempty_target() {
+    ManipulatorRig rig;
+    assert(throws_runtime_error([&] { rig.begin_grasp(ManipulatorArmId::Port, "rock"); }));
+
+    rig.begin_deploy(ManipulatorArmId::Port);
+    rig.advance(ManipulatorRig::kDeployStowDurationS);
+    (void)rig.drain_events();
+
+    assert(throws_runtime_error([&] { rig.begin_grasp(ManipulatorArmId::Port, ""); }));
+    assert(rig.arm(ManipulatorArmId::Port).grasped_target_body_id.empty());
+
+    rig.begin_grasp(ManipulatorArmId::Port, "rock");
+    assert(rig.arm(ManipulatorArmId::Port).grasped_target_body_id == "rock");
+    {
+        const auto events = rig.drain_events();
+        assert(events.size() == 1);
+        assert(events[0].type == ManipulatorEventType::TargetGrasped);
+    }
+}
+
+void test_grasp_already_holding_target_throws() {
+    ManipulatorRig rig;
+    rig.begin_deploy(ManipulatorArmId::Port);
+    rig.advance(ManipulatorRig::kDeployStowDurationS);
+    rig.begin_grasp(ManipulatorArmId::Port, "rock");
+
+    assert(throws_runtime_error([&] { rig.begin_grasp(ManipulatorArmId::Port, "other-rock"); }));
+    assert(rig.arm(ManipulatorArmId::Port).grasped_target_body_id == "rock");
+}
+
+void test_release_grasp_requires_holding_and_clears_state() {
+    ManipulatorRig rig;
+    assert(throws_runtime_error([&] { rig.release_grasp(ManipulatorArmId::Port); }));
+
+    rig.begin_deploy(ManipulatorArmId::Port);
+    rig.advance(ManipulatorRig::kDeployStowDurationS);
+    rig.begin_grasp(ManipulatorArmId::Port, "rock");
+    (void)rig.drain_events();
+
+    rig.release_grasp(ManipulatorArmId::Port);
+    assert(rig.arm(ManipulatorArmId::Port).grasped_target_body_id.empty());
+    {
+        const auto events = rig.drain_events();
+        assert(events.size() == 1);
+        assert(events[0].type == ManipulatorEventType::TargetReleased);
+    }
+
+    assert(throws_runtime_error([&] { rig.release_grasp(ManipulatorArmId::Port); }));
+}
+
+void test_stowing_with_grasped_target_is_rejected() {
+    ManipulatorRig rig;
+    rig.begin_deploy(ManipulatorArmId::Port);
+    rig.advance(ManipulatorRig::kDeployStowDurationS);
+    rig.begin_grasp(ManipulatorArmId::Port, "rock");
+
+    assert(throws_runtime_error([&] { rig.begin_stow(ManipulatorArmId::Port); }));
+
+    rig.release_grasp(ManipulatorArmId::Port);
+    rig.begin_stow(ManipulatorArmId::Port);
+    assert(rig.arm(ManipulatorArmId::Port).is_stowing);
+}
+
+void test_grasp_is_per_arm_independent() {
+    ManipulatorRig rig;
+    rig.begin_deploy(ManipulatorArmId::Port);
+    rig.begin_deploy(ManipulatorArmId::Starboard);
+    rig.advance(ManipulatorRig::kDeployStowDurationS);
+
+    rig.begin_grasp(ManipulatorArmId::Port, "rock");
+    assert(rig.arm(ManipulatorArmId::Port).grasped_target_body_id == "rock");
+    assert(rig.arm(ManipulatorArmId::Starboard).grasped_target_body_id.empty());
+}
+
 void test_stow_retracts_joints_and_completes_exactly_once() {
     ManipulatorRig rig;
     rig.begin_deploy(ManipulatorArmId::Port);
@@ -258,6 +332,11 @@ int main() {
     test_joint_target_out_of_range_is_clamped_not_rejected();
     test_tool_attach_requires_deployed_and_is_idempotent_guarded();
     test_stowing_with_tool_attached_is_rejected();
+    test_grasp_requires_deployed_and_nonempty_target();
+    test_grasp_already_holding_target_throws();
+    test_release_grasp_requires_holding_and_clears_state();
+    test_stowing_with_grasped_target_is_rejected();
+    test_grasp_is_per_arm_independent();
     test_stow_retracts_joints_and_completes_exactly_once();
     test_begin_stow_already_stowed_throws();
     test_reversing_mid_transition_converges_to_new_direction();

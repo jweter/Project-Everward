@@ -187,6 +187,23 @@ Product Reality pending, and does not advance the slice's completion gate
 by itself: approach-as-motion, grasp, dock, move, and release still do not
 exist.
 
+A sixth parallel-safe sub-slice then implemented the "grasp or dock with a
+simple object" minimum interaction: `manipulator_grasp.hpp`'s
+`attempt_grasp_selected_target()` gates a new `ManipulatorRig::begin_grasp()`/
+`release_grasp()` pair by the exact same `manipulator_reach_status()`
+`in_reach` result the REACH row already reports — no second proximity
+formula. `UProbeSimulationAdapter::CommandGraspSelectedTarget()`/
+`CommandReleaseGraspedTarget()` expose it, the manipulator page's per-arm
+status line now reports `HOLDING <id>` while grasping, stowing a still-
+grasping arm is rejected the same way stowing with a tool attached already
+is, and `F` toggles grasp/release on whichever arm the manipulator page has
+selected (see `PROJECT_STATUS.md`'s "Manipulator grasp" section and
+`PHASE2_MANIPULATOR_GRASP_TEST.md`). This is implemented, Product Reality
+pending, and does not advance the slice's completion gate by itself: no
+`move` mechanics exist yet, so a grasped object does not follow the probe or
+arm, and `release`-with-consequence beyond simply letting go still does not
+exist.
+
 Turn scanning and manipulators into one loop:
 
 `detect -> select -> approach -> scan -> reach -> grasp -> move -> release`

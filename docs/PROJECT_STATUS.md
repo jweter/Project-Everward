@@ -345,6 +345,34 @@ those files. See `PHASE2_MANIPULATOR_REACH_TELEMETRY_TEST.md`. This does not
 advance Slice 7's completion gate by itself: approach-as-motion, grasp,
 dock, move, and release still do not exist.
 
+### Manipulator grasp — "grasp or dock with a simple object" (Slice 7)
+
+The first Slice 7 interaction past read-only telemetry: `manipulator_grasp.hpp`'s
+`attempt_grasp_selected_target()` reuses `manipulator_reach_status()`'s
+existing `in_reach` result as the sole proximity gate — a grasp attempt
+succeeds exactly when the manipulator page's REACH row would read "IN
+REACH", never a second notion of "close enough". `ManipulatorRig` gains
+`begin_grasp()`/`release_grasp()`, mirroring `attach_tool()`/`detach_tool()`'s
+shape: deployed-only, one held object at a time, and stowing a still-
+grasping arm is rejected the same way stowing with a tool attached already
+is. `UProbeSimulationAdapter::CommandGraspSelectedTarget()`/
+`CommandReleaseGraspedTarget()` expose the two commands; the manipulator
+page's existing per-arm status line (both there and on the always-visible
+telemetry panel) now appends `// HOLDING <target id>` while grasping; `F`
+toggles grasp/release on whichever arm the manipulator page currently has
+selected.
+
+**Status: implemented, Product Reality pending.** No `move` mechanics exist
+yet — a grasped object does not follow the probe or arm — and this does not
+advance Slice 7's completion gate by itself. See
+`PHASE2_MANIPULATOR_GRASP_TEST.md`. No Unreal Editor/UBT build was available
+in this sandbox to compile-verify the `ProbeSimulationAdapter.h`/`.cpp`,
+`EverwardHUD.cpp`, or `EverwardPlayerController.h`/`.cpp` changes; they
+follow the exact accessor/command, HUD-row, and key-binding patterns already
+compiling elsewhere in those files. The next local Unreal Product Reality
+pass should specifically confirm the project still compiles under UBT
+before relying on this further, and should exercise step 21 below.
+
 ### Mining routes extracted mass through authoritative storage
 
 The scan-to-mining loop's `CommandMineBootstrapTarget` bridge previously
@@ -439,6 +467,7 @@ Everward continues to preserve:
 - physical target selection, nearest→farthest cycling, range/closing-speed telemetry, and a mesh-retint visual selection indicator, wired into `ProbeRuntime`/`DamageAwareProbeRuntime`, the adapter, and a minimal HUD/input/presentation surface (Slice 7 foundation; implemented, Product Reality pending);
 - manipulator arm deploy/stow/joint/tool foundation, joint articulation input and a dedicated manipulator HUD page, visible shoulder/arm/tool-head geometry, and arm/body + arm/environment collision guards (Slice 6; implemented, Product Reality pending);
 - manipulator reach telemetry connecting target selection to the arms: whether the currently selected arm's wrist is within a fixed reach envelope of the selected target's surface, reported on the existing manipulator HUD page (Slice 7 "align a manipulator"; implemented, Product Reality pending);
+- manipulator grasp: an arm within reach of the selected target can grasp/release it (`F`), gated by the exact same reach result and rejecting stow while still holding something (Slice 7 "grasp or dock with a simple object"; implemented, Product Reality pending; no `move` mechanics yet);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - explicit versioned save architecture rather than blind Unreal object serialization.
 
@@ -470,7 +499,8 @@ HUD before attempting later mining/contact acceptance.
 17. with the target still selected, press `T` again and confirm the current build's single registered physical body keeps the same target selected (cycling wraps to itself); note that multi-target nearest→farthest wraparound cannot be visually verified until Slice 8 adds more registered bodies (`PHASE2_TARGET_CYCLING_TEST.md`);
 18. with a target still selected, open the manipulator page (`M`) and confirm a `REACH` row appears for the currently selected arm, reading "ARM NOT DEPLOYED" while stowed and switching to a live "IN REACH" / "OUT OF REACH // remaining distance" reading once deployed that tracks smoothly as the probe approaches/retreats and updates correctly after `N` switches the selected arm (`PHASE2_MANIPULATOR_REACH_TELEMETRY_TEST.md`);
 19. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
-20. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline.
+20. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline;
+21. with the arm out of reach of the selected target, press `F` and confirm the grasp is rejected; approach until the REACH row reads "IN REACH", press `F`, and confirm the arm's status line (both the manipulator page and the always-visible telemetry panel) now reads `// HOLDING <target id>`; attempt to stow that arm and confirm it is rejected; press `F` again to release, confirm `HOLDING` disappears, and confirm the arm now stows normally (`PHASE2_MANIPULATOR_GRASP_TEST.md`).
 
 A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
 
@@ -481,7 +511,7 @@ Priority order:
 1. complete the accumulated local Phase-2 Product Reality pass above;
 2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
 3. **Slice 6 — articulated manipulator arms**: mechanics, joint-articulation HUD, visible geometry, and arm/body + arm/environment collision are all now implemented (every arm mesh still has `ECollisionEnabled::NoCollision`, but a self- or environment-intersecting pose is unreachable in the authoritative `ManipulatorRig` regardless) — Slice 6 is not complete until the local Product Reality pass above is recorded across its three test scripts plus the new collision behavior (step 15);
-4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, a visual selection indicator on the target's own mesh, and manipulator reach telemetry ("align a manipulator" — whether the selected arm's wrist is within reach of the selected target) are implemented (Product Reality pending, step 16/17/18 above); no approach-as-motion, grasp, dock, move, or release mechanics exist yet — those are the next Slice 7 sub-slices;
+4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, a visual selection indicator on the target's own mesh, manipulator reach telemetry ("align a manipulator"), and manipulator grasp/release ("grasp or dock with a simple object") are implemented (Product Reality pending, step 16/17/18/21 below); no approach-as-motion, move, or release-with-consequence mechanics exist yet — those are the next Slice 7 sub-slices;
 5. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 
 While local Product Reality is unavailable, only work that satisfies the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md` may merge. Do not build new mechanics that assume unverified contact/damage behavior is correct.
