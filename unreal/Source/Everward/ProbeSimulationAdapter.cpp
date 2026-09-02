@@ -180,6 +180,29 @@ void UProbeSimulationAdapter::BeginPlay()
         AEverwardPhase2TestEnvironment::BootstrapBodyRadiusMeters,
     });
 
+    // Slice 8 (partial): register the environment's two additional reference
+    // targets the same way, so target cycling (#149/#150) has more than one
+    // eligible registered body to actually cycle through -- see
+    // AEverwardPhase2TestEnvironment.h's ReferenceTarget1/2 constants.
+    Core->add_static_sphere_body({
+        std::string(TCHAR_TO_UTF8(AEverwardPhase2TestEnvironment::ReferenceTarget1Id)),
+        {
+            AEverwardPhase2TestEnvironment::ReferenceTarget1CenterXMeters,
+            AEverwardPhase2TestEnvironment::ReferenceTarget1CenterYMeters,
+            AEverwardPhase2TestEnvironment::ReferenceTarget1CenterZMeters,
+        },
+        AEverwardPhase2TestEnvironment::ReferenceTarget1RadiusMeters,
+    });
+    Core->add_static_sphere_body({
+        std::string(TCHAR_TO_UTF8(AEverwardPhase2TestEnvironment::ReferenceTarget2Id)),
+        {
+            AEverwardPhase2TestEnvironment::ReferenceTarget2CenterXMeters,
+            AEverwardPhase2TestEnvironment::ReferenceTarget2CenterYMeters,
+            AEverwardPhase2TestEnvironment::ReferenceTarget2CenterZMeters,
+        },
+        AEverwardPhase2TestEnvironment::ReferenceTarget2RadiusMeters,
+    });
+
     SyncOwnerTransformFromSimulation();
 }
 
