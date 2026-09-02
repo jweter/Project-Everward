@@ -38,7 +38,9 @@ enum class ManipulatorEventType {
     ArmStowStarted,
     ArmStowCompleted,
     ToolAttached,
-    ToolDetached
+    ToolDetached,
+    TargetGrasped,
+    TargetReleased
 };
 
 struct ManipulatorEvent {
@@ -76,6 +78,15 @@ struct ManipulatorArmState {
     ManipulatorArmAngles commanded_angles{};
 
     bool tool_attached{false};
+
+    // Slice 7 "grasp or dock with a simple object" minimum interaction.
+    // Empty means not grasping; the gating decision of whether a grasp
+    // attempt is close enough to succeed lives outside this module (see
+    // manipulator_grasp.hpp), the same separation manipulator_reach.hpp
+    // already established for reach telemetry. This module only enforces
+    // the mechanical invariants a real gripper would: deployed-only, one
+    // object at a time, and never stowing away with something still held.
+    std::string grasped_target_body_id;
 };
 
 // Deterministic, engine-independent constrained-joint manipulator rig for
@@ -149,6 +160,9 @@ public:
         if (state.tool_attached) {
             throw std::runtime_error("detach tool before stowing manipulator arm");
         }
+        if (!state.grasped_target_body_id.empty()) {
+            throw std::runtime_error("release grasped target before stowing manipulator arm");
+        }
         if (state.deployment_fraction <= 0.0 && !state.is_deploying) {
             throw std::runtime_error("manipulator arm already stowed");
         }
@@ -211,6 +225,42 @@ public:
         }
         state.tool_attached = false;
         events_.push_back({id, ManipulatorEventType::ToolDetached, "tool detached"});
+    }
+
+    // Records that the arm now holds target_body_id. This is the mechanical
+    // half only: whether the arm is actually close enough to grasp is a
+    // proximity decision the caller must already have made (see
+    // manipulator_grasp.hpp's attempt_grasp_selected_target, which is the
+    // only intended caller in practice). Requires a fully deployed, not
+    // mid-stow arm -- the same steady-state regime command_joint_target_degrees
+    // and attach_tool already require -- and throws if the arm is already
+    // grasping something or target_body_id is empty.
+    void begin_grasp(ManipulatorArmId id, const std::string& target_body_id) {
+        if (target_body_id.empty()) {
+            throw std::invalid_argument("grasped target body id must not be empty");
+        }
+        ManipulatorArmState& state = state_ref(id);
+        if (!state.is_deployed || state.is_stowing) {
+            throw std::runtime_error("manipulator arm must be fully deployed to grasp a target");
+        }
+        if (!state.grasped_target_body_id.empty()) {
+            throw std::runtime_error("manipulator arm already grasping a target");
+        }
+        state.grasped_target_body_id = target_body_id;
+        events_.push_back({id, ManipulatorEventType::TargetGrasped, "target grasped: " + target_body_id});
+    }
+
+    // Releasing is always allowed while grasping regardless of current
+    // reach/range -- an operator letting go does not require re-proving
+    // proximity, matching detach_tool's unconditional release.
+    void release_grasp(ManipulatorArmId id) {
+        ManipulatorArmState& state = state_ref(id);
+        if (state.grasped_target_body_id.empty()) {
+            throw std::runtime_error("no target grasped");
+        }
+        const std::string released = state.grasped_target_body_id;
+        state.grasped_target_body_id.clear();
+        events_.push_back({id, ManipulatorEventType::TargetReleased, "target released: " + released});
     }
 
     // Deterministic fixed-step-friendly integration. Safe to call with the

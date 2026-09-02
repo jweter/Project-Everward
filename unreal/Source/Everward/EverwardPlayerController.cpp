@@ -98,6 +98,11 @@ void AEverwardPlayerController::SetupInputComponent()
 
     InputComponent->BindKey(EKeys::T, IE_Pressed, this, &AEverwardPlayerController::SelectNearestPhysicalTarget);
 
+    // Slice 7 "grasp or dock with a simple object": acts on whichever arm
+    // the manipulator HUD page currently has selected (N), mirroring how
+    // that page's REACH row already reports for the same arm.
+    InputComponent->BindKey(EKeys::F, IE_Pressed, this, &AEverwardPlayerController::ToggleManipulatorGrasp);
+
     // Retain the original engineering-shell aliases while the final input
     // model remains intentionally unsettled.
     InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AEverwardPlayerController::IncreaseForwardVelocity);
@@ -390,6 +395,41 @@ void AEverwardPlayerController::SelectNearestPhysicalTarget()
     }
 
     (void)Adapter->CommandCycleTarget(TargetSelectionRangeMeters);
+}
+
+void AEverwardPlayerController::ToggleManipulatorGrasp()
+{
+    UProbeSimulationAdapter* Adapter = GetProbeAdapter();
+    if (Adapter == nullptr)
+    {
+        return;
+    }
+
+    // Acts on whichever arm the manipulator HUD page currently has selected
+    // (defaulting to Port if the page has never been opened), the same arm
+    // GetManipulatorReachStatus() already reports the REACH row for -- so
+    // this key always targets the arm the player is actually looking at.
+    const AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD());
+    const EEverwardManipulatorArmId ArmId = EverwardHUD != nullptr && EverwardHUD->GetSelectedManipulatorArmIndex() == 1
+        ? EEverwardManipulatorArmId::Starboard
+        : EEverwardManipulatorArmId::Port;
+
+    for (const FEverwardManipulatorArmState& ArmState : Adapter->GetManipulatorArmStates())
+    {
+        if (ArmState.ArmId != ArmId)
+        {
+            continue;
+        }
+        if (ArmState.bTargetGrasped)
+        {
+            (void)Adapter->CommandReleaseGraspedTarget(ArmId);
+        }
+        else
+        {
+            (void)Adapter->CommandGraspSelectedTarget(ArmId);
+        }
+        return;
+    }
 }
 
 UProbeSimulationAdapter* AEverwardPlayerController::GetProbeAdapter() const

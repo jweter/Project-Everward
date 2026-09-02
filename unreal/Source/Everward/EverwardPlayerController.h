@@ -61,6 +61,7 @@ private:
     void AdvanceAutoApproachMiningTarget(float DeltaSeconds);
 
     void SelectNearestPhysicalTarget();
+    void ToggleManipulatorGrasp();
 
     void LookYaw(float Value);
     void LookPitch(float Value);

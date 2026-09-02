@@ -101,11 +101,18 @@ FString ManipulatorArmLine(const FString& Label, const FEverwardManipulatorArmSt
         StateText = TEXT("STOWED");
     }
 
+    FString GraspSuffix;
+    if (Arm.bTargetGrasped)
+    {
+        GraspSuffix = FString::Printf(TEXT("  //  HOLDING %s"), *Arm.GraspedTargetId);
+    }
+
     return FString::Printf(
-        TEXT("%s ARM  %s%s"),
+        TEXT("%s ARM  %s%s%s"),
         *Label,
         *StateText,
-        Arm.bToolAttached ? TEXT("  //  TOOL") : TEXT(""));
+        Arm.bToolAttached ? TEXT("  //  TOOL") : TEXT(""),
+        *GraspSuffix);
 }
 
 const TCHAR* ManipulatorJointIndexName(int32 JointIndex)
@@ -220,6 +227,7 @@ void AEverwardHUD::DrawControlsReference()
         {TEXT("6"), TEXT("SELECT WRIST / TOOL")},
         {TEXT(", / ."), TEXT("ADJUST JOINT TARGET")},
         {TEXT("T"), TEXT("SELECT NEAREST PHYSICAL TARGET")},
+        {TEXT("F"), TEXT("GRASP / RELEASE SELECTED TARGET")},
         {TEXT("G"), TEXT("MINE SURVEYED TARGET")},
     };
 
@@ -424,7 +432,7 @@ void AEverwardHUD::DrawHUD()
         {
             ManipulatorRows += 1;
         }
-        constexpr int32 ManipulatorFooterRows = 5;
+        constexpr int32 ManipulatorFooterRows = 6;
         const float PanelHeight = S(54.0f) + LineHeight * (ManipulatorRows + ManipulatorFooterRows);
         const float PanelY = TelemetryY - S(12.0f) - PanelHeight;
         DrawRect(PanelColor, Margin, PanelY, PanelWidth, PanelHeight);
@@ -480,8 +488,10 @@ void AEverwardHUD::DrawHUD()
             Margin + S(16.0f), FooterY + LineHeight * 2.0f, HudFont, ReadableTextScale(HudScale, 0.86f), false);
         DrawText(TEXT("[4/5/6] SELECT JOINT   [,] / [.] ADJUST TARGET"), MutedColor,
             Margin + S(16.0f), FooterY + LineHeight * 3.0f, HudFont, ReadableTextScale(HudScale, 0.86f), false);
-        DrawText(TEXT("[G] MINE SURVEYED TARGET   [F1] ALL CONTROLS"), MutedColor,
+        DrawText(TEXT("[F] GRASP / RELEASE TARGET"), MutedColor,
             Margin + S(16.0f), FooterY + LineHeight * 4.0f, HudFont, ReadableTextScale(HudScale, 0.86f), false);
+        DrawText(TEXT("[G] MINE SURVEYED TARGET   [F1] ALL CONTROLS"), MutedColor,
+            Margin + S(16.0f), FooterY + LineHeight * 5.0f, HudFont, ReadableTextScale(HudScale, 0.86f), false);
     }
 
     float AlertY = Margin;

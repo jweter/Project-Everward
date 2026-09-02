@@ -7,6 +7,7 @@
 #include "everward/simulation/manipulator.hpp"
 #include "everward/simulation/manipulator_hull_contact.hpp"
 #include "everward/simulation/manipulator_reach.hpp"
+#include "everward/simulation/manipulator_grasp.hpp"
 
 #include <exception>
 #include <string>
@@ -115,6 +116,8 @@ FEverwardManipulatorArmState ToUnrealManipulatorArmState(
     Out.CommandedElbowDegrees = State.commanded_angles.elbow_degrees;
     Out.CommandedWristDegrees = State.commanded_angles.wrist_degrees;
     Out.bToolAttached = State.tool_attached;
+    Out.bTargetGrasped = !State.grasped_target_body_id.empty();
+    Out.GraspedTargetId = UTF8_TO_TCHAR(State.grasped_target_body_id.c_str());
     return Out;
 }
 
@@ -675,6 +678,40 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandDetachManipulatorToo
         Manipulators->detach_tool(ToSimulationManipulatorArmId(ArmId));
         return RecordCommandResult(CommandId, true,
             FString::Printf(TEXT("%s arm tool detached"), ManipulatorArmName(ArmId)));
+    }
+    catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandGraspSelectedTarget(EEverwardManipulatorArmId ArmId)
+{
+    // Slice 7 "grasp or dock with a simple object": gated by the exact same
+    // reach envelope the manipulator HUD page's REACH row already reports
+    // (see attempt_grasp_selected_target), so this never succeeds while that
+    // row would read OUT OF REACH and never fails while it would read IN
+    // REACH. A false return is an ordinary "not yet" outcome, not an error.
+    const FName CommandId(TEXT("grasp_selected_target"));
+    if (Core == nullptr || Manipulators == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    try
+    {
+        const auto SimulationArmId = ToSimulationManipulatorArmId(ArmId);
+        const bool bGrasped = everward::simulation::attempt_grasp_selected_target(*Manipulators, *Core, SimulationArmId);
+        return RecordCommandResult(CommandId, bGrasped,
+            bGrasped
+                ? FString::Printf(TEXT("%s arm grasped selected target"), ManipulatorArmName(ArmId))
+                : FString::Printf(TEXT("%s arm not in reach of selected target"), ManipulatorArmName(ArmId)));
+    }
+    catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandReleaseGraspedTarget(EEverwardManipulatorArmId ArmId)
+{
+    const FName CommandId(TEXT("release_grasped_target"));
+    if (Manipulators == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    try
+    {
+        Manipulators->release_grasp(ToSimulationManipulatorArmId(ArmId));
+        return RecordCommandResult(CommandId, true,
+            FString::Printf(TEXT("%s arm released grasped target"), ManipulatorArmName(ArmId)));
     }
     catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
 }

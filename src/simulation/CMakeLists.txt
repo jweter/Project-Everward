@@ -70,4 +70,8 @@ if(BUILD_TESTING)
     add_executable(everward_manipulator_reach_tests tests/manipulator_reach_tests.cpp)
     target_link_libraries(everward_manipulator_reach_tests PRIVATE everward_simulation)
     add_test(NAME everward_manipulator_reach_tests COMMAND everward_manipulator_reach_tests)
+
+    add_executable(everward_manipulator_grasp_tests tests/manipulator_grasp_tests.cpp)
+    target_link_libraries(everward_manipulator_grasp_tests PRIVATE everward_simulation)
+    add_test(NAME everward_manipulator_grasp_tests COMMAND everward_manipulator_grasp_tests)
 endif()
