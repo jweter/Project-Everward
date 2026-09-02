@@ -6,6 +6,7 @@
 #include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/manipulator.hpp"
 #include "everward/simulation/manipulator_hull_contact.hpp"
+#include "everward/simulation/manipulator_reach.hpp"
 
 #include <exception>
 #include <string>
@@ -463,6 +464,27 @@ TArray<FEverwardManipulatorArmState> UProbeSimulationAdapter::GetManipulatorArmS
         EEverwardManipulatorArmId::Port, Manipulators->arm(everward::simulation::ManipulatorArmId::Port)));
     Result.Add(ToUnrealManipulatorArmState(
         EEverwardManipulatorArmId::Starboard, Manipulators->arm(everward::simulation::ManipulatorArmId::Starboard)));
+    return Result;
+}
+
+FEverwardManipulatorReachStatus UProbeSimulationAdapter::GetManipulatorReachStatus(EEverwardManipulatorArmId ArmId) const
+{
+    // Slice 7 "align a manipulator" minimum interaction: read-only, always
+    // recomputed live from Core's authoritative pose/target-selection state
+    // and Manipulators' authoritative arm state, never cached, following the
+    // same pattern GetSelectedTargetStatus() and GetManipulatorArmStates()
+    // already use.
+    FEverwardManipulatorReachStatus Result;
+    if (Core == nullptr || Manipulators == nullptr) return Result;
+
+    const auto SimulationArmId = ToSimulationManipulatorArmId(ArmId);
+    const auto Reach = everward::simulation::manipulator_reach_status(*Core, SimulationArmId, Manipulators->arm(SimulationArmId));
+    if (!Reach.has_value()) return Result;
+
+    Result.bHasResult = true;
+    Result.bInReach = Reach->in_reach;
+    Result.WristRangeToSurfaceMeters = Reach->wrist_range_to_surface_m;
+    Result.RemainingDistanceMeters = Reach->remaining_distance_m;
     return Result;
 }
 

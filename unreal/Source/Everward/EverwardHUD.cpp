@@ -137,6 +137,23 @@ FString ManipulatorJointLine(int32 JointIndex, const FEverwardManipulatorArmStat
         Current,
         Commanded);
 }
+
+// Slice 7 "align a manipulator" minimum interaction: a plain read-only view
+// over UProbeSimulationAdapter::GetManipulatorReachStatus() for whichever arm
+// the manipulator page currently has selected. bHasResult is false whenever
+// the authoritative accessor fails closed (arm not fully deployed, or no
+// longer has a valid pose to report) -- that reads as a muted explanation
+// rather than a fabricated distance.
+FString ManipulatorReachLine(const FEverwardManipulatorReachStatus& Reach)
+{
+    if (!Reach.bHasResult)
+    {
+        return TEXT("REACH    ARM NOT DEPLOYED / NO VALID POSE");
+    }
+    return Reach.bInReach
+        ? FString::Printf(TEXT("REACH    IN REACH // %.2f M TO SURFACE"), Reach.WristRangeToSurfaceMeters)
+        : FString::Printf(TEXT("REACH    OUT OF REACH // %.2f M REMAINING"), Reach.RemainingDistanceMeters);
+}
 }
 
 void AEverwardHUD::DrawControlsReference()
@@ -389,10 +406,23 @@ void AEverwardHUD::DrawHUD()
         SelectedManipulatorArmIndex = FMath::Clamp(SelectedManipulatorArmIndex, 0, ManipulatorArms.Num() - 1);
         SelectedManipulatorJointIndex = FMath::Clamp(SelectedManipulatorJointIndex, 0, 2);
 
+        // Slice 7 "align a manipulator" minimum interaction: a single reach
+        // row for whichever arm the manipulator page has selected, shown
+        // only once a physical target is actually selected -- with no
+        // selection there is nothing authoritative to report range against.
+        const bool bShowReachRow = TargetSelection.bHasSelection;
+        const FEverwardManipulatorReachStatus ReachStatus = bShowReachRow
+            ? Adapter->GetManipulatorReachStatus(ManipulatorArms[SelectedManipulatorArmIndex].ArmId)
+            : FEverwardManipulatorReachStatus();
+
         int32 ManipulatorRows = 0;
         for (const FEverwardManipulatorArmState& Arm : ManipulatorArms)
         {
             ManipulatorRows += Arm.bIsDeployed ? 4 : 2;
+        }
+        if (bShowReachRow)
+        {
+            ManipulatorRows += 1;
         }
         constexpr int32 ManipulatorFooterRows = 5;
         const float PanelHeight = S(54.0f) + LineHeight * (ManipulatorRows + ManipulatorFooterRows);
@@ -430,6 +460,15 @@ void AEverwardHUD::DrawHUD()
                     Margin + S(16.0f), ArmY, HudFont, ReadableTextScale(HudScale, 0.90f), false);
                 ArmY += LineHeight;
             }
+        }
+
+        if (bShowReachRow)
+        {
+            DrawText(
+                ManipulatorReachLine(ReachStatus),
+                ReachStatus.bHasResult && ReachStatus.bInReach ? TextColor : MutedColor,
+                Margin + S(16.0f), ArmY, HudFont, ReadableTextScale(HudScale, 0.90f), false);
+            ArmY += LineHeight;
         }
 
         const float FooterY = PanelY + PanelHeight - LineHeight * ManipulatorFooterRows;

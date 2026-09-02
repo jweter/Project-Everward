@@ -172,6 +172,21 @@ also has only one registered physical body, so cycling's multi-target
 wraparound cannot be visually verified locally until Slice 8 adds more
 targets.
 
+A fifth parallel-safe sub-slice then implemented the first half of "align a
+manipulator": `manipulator_reach.hpp` reports, as read-only telemetry, live
+recomputed on every call, whether a deployed arm's wrist is within a fixed
+2.0 m reach envelope of the selected target's surface, reusing the same
+wrist forward-kinematics and local-to-world convention the arm/environment
+collision guard already established and the same registered-body list the
+target-selection telemetry already reads — no new grasp/attach/dock state
+or physics. The existing manipulator HUD page (`M`) gains a `REACH` row for
+this over the already-authoritative arm and target-selection state (see
+`PROJECT_STATUS.md`'s "Manipulator reach telemetry" section and
+`PHASE2_MANIPULATOR_REACH_TELEMETRY_TEST.md`). This too is implemented,
+Product Reality pending, and does not advance the slice's completion gate
+by itself: approach-as-motion, grasp, dock, move, and release still do not
+exist.
+
 Turn scanning and manipulators into one loop:
 
 `detect -> select -> approach -> scan -> reach -> grasp -> move -> release`
