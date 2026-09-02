@@ -204,6 +204,19 @@ pending, and does not advance the slice's completion gate by itself: no
 arm, and `release`-with-consequence beyond simply letting go still does not
 exist.
 
+A seventh parallel-safe sub-slice then laid the pure math foundation for
+"move" itself, following the same incremental pattern `target_selection.hpp`
+and `manipulator_reach.hpp` already used: `manipulator_move.hpp`'s
+`grasped_target_position()` reports, read-only, where a currently grasped
+target should be positioned — the grasping arm's wrist world position,
+reusing `manipulator_reach_status()`'s exact forward-kinematics and
+local-to-world convention rather than inventing a second one. It does not
+yet update the registered `StaticSphereBody`'s own authoritative position,
+and nothing in the adapter, HUD, or any Unreal-side actor consumes it yet
+(see `PROJECT_STATUS.md`'s "Manipulator move" section). Wiring that,
+including moving the Unreal-side scan-target actor to visually follow the
+wrist each tick, remains the next Slice 7 sub-slice.
+
 Turn scanning and manipulators into one loop:
 
 `detect -> select -> approach -> scan -> reach -> grasp -> move -> release`
