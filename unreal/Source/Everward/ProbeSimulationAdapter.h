@@ -356,6 +356,32 @@ struct EVERWARD_API FEverwardTargetSelectionStatus
     double ClosingSpeedMetersPerSecond = 0.0;
 };
 
+// Slice 7 "align a manipulator" minimum interaction (PHASE2_VERTICAL_SLICE_PLAN.md):
+// read-only telemetry over the same authoritative wrist forward-kinematics and
+// registered-body geometry the arm/environment collision guard and target
+// selection already use. bHasResult is false (and every other field is a
+// meaningless default) whenever there is no selected target, the selected
+// target has since been deregistered, or the queried arm is not fully
+// deployed -- this never fabricates a reading. No grasp/attach/dock state is
+// introduced by this struct or its accessor.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardManipulatorReachStatus
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    bool bHasResult = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    bool bInReach = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    double WristRangeToSurfaceMeters = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator")
+    double RemainingDistanceMeters = 0.0;
+};
+
 // First scan-to-mining read model. This reports the bootstrap deposit without
 // moving mining mechanics into Unreal; `MiningSystem` remains engine-independent.
 USTRUCT(BlueprintType)
@@ -414,6 +440,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category="Everward|Manipulator")
     TArray<FEverwardManipulatorArmState> GetManipulatorArmStates() const;
+
+    UFUNCTION(BlueprintPure, Category="Everward|Manipulator")
+    FEverwardManipulatorReachStatus GetManipulatorReachStatus(EEverwardManipulatorArmId ArmId) const;
 
     UFUNCTION(BlueprintPure, Category="Everward|Mining")
     FEverwardMiningStatus GetMiningStatus() const;
