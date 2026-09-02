@@ -4,10 +4,12 @@
 #include "GameFramework/Actor.h"
 #include "EverwardPhase2TestEnvironment.generated.h"
 
+class UMaterialInstanceDynamic;
 class UPointLightComponent;
 class USceneComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
+class UProbeSimulationAdapter;
 
 // Temporary Phase-2 integration environment. The visible target is both the
 // first reproducible physical body and the first scan-to-mining resource body.
@@ -30,6 +32,12 @@ public:
 private:
     void ApplyEnvironmentMaterialScaffold();
     void RefreshResourceReadout();
+    // Slice 7: purely reversible presentation over the already-authoritative
+    // FEverwardTargetSelectionStatus (parallel-safe lane) -- tints the
+    // registered physical body's own mesh when it is the selected target
+    // instead of inventing a second, Unreal-owned notion of selection.
+    void RefreshTargetSelectionHighlight();
+    const UProbeSimulationAdapter* ResolvePlayerAdapter() const;
 
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
     TObjectPtr<USceneComponent> SceneRoot;
@@ -41,4 +49,7 @@ private:
     TObjectPtr<UPointLightComponent> KeyLight;
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
     TArray<TObjectPtr<UStaticMeshComponent>> ReferenceMarkers;
+    UPROPERTY(Transient)
+    TObjectPtr<UMaterialInstanceDynamic> ScanTargetDynamicMaterial;
+    bool bScanTargetHighlightActive = false;
 };

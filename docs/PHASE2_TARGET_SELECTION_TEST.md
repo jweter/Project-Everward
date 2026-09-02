@@ -102,7 +102,9 @@ reference's "MANIPULATOR + MINING" column documents `T`.
 ## Explicitly not complete in this slice
 
 - No visual selection indicator (e.g. a world-space marker or reticle) on
-  the selected target — only the HUD text row.
+  the selected target — only the HUD text row. (A material-retint indicator
+  on the target's own mesh was added afterward; see
+  `PHASE2_TARGET_VISUAL_INDICATOR_TEST.md`.)
 - No cycling between multiple in-range targets; only nearest-in-range
   selection and explicit-id selection (not yet bound to input) exist.
 - No approach/reach/grasp mechanics — those remain later Slice 7 sub-slices

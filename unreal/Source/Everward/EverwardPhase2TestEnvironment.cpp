@@ -95,18 +95,29 @@ void AEverwardPhase2TestEnvironment::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     RefreshResourceReadout();
+    RefreshTargetSelectionHighlight();
 }
 
-void AEverwardPhase2TestEnvironment::RefreshResourceReadout()
+const UProbeSimulationAdapter* AEverwardPhase2TestEnvironment::ResolvePlayerAdapter() const
 {
-    if (ScanTargetLabel == nullptr || GetWorld() == nullptr)
+    if (GetWorld() == nullptr)
     {
-        return;
+        return nullptr;
     }
 
     const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
     const AEverwardProbePawn* Probe = Cast<AEverwardProbePawn>(PlayerPawn);
-    const UProbeSimulationAdapter* Adapter = Probe != nullptr ? Probe->GetSimulationAdapter() : nullptr;
+    return Probe != nullptr ? Probe->GetSimulationAdapter() : nullptr;
+}
+
+void AEverwardPhase2TestEnvironment::RefreshResourceReadout()
+{
+    if (ScanTargetLabel == nullptr)
+    {
+        return;
+    }
+
+    const UProbeSimulationAdapter* Adapter = ResolvePlayerAdapter();
     if (Adapter == nullptr)
     {
         return;
@@ -145,28 +156,67 @@ void AEverwardPhase2TestEnvironment::ApplyEnvironmentMaterialScaffold()
         UStaticMeshComponent* Component,
         const FLinearColor& BaseColor,
         float Metallic,
-        float Roughness)
+        float Roughness) -> UMaterialInstanceDynamic*
     {
-        if (Component == nullptr) return;
+        if (Component == nullptr) return nullptr;
         UMaterialInterface* BaseMaterial = Component->GetMaterial(0);
-        if (BaseMaterial == nullptr) return;
+        if (BaseMaterial == nullptr) return nullptr;
 
         UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
-        if (DynamicMaterial == nullptr) return;
+        if (DynamicMaterial == nullptr) return nullptr;
 
         DynamicMaterial->SetVectorParameterValue(TEXT("Color"), BaseColor);
         DynamicMaterial->SetVectorParameterValue(TEXT("BaseColor"), BaseColor);
         DynamicMaterial->SetScalarParameterValue(TEXT("Metallic"), Metallic);
         DynamicMaterial->SetScalarParameterValue(TEXT("Roughness"), Roughness);
         Component->SetMaterial(0, DynamicMaterial);
+        return DynamicMaterial;
     };
 
     const FLinearColor RegolithRock(0.20f, 0.18f, 0.16f, 1.0f);
     const FLinearColor NavigationMarker(0.075f, 0.095f, 0.11f, 1.0f);
 
-    ApplyMaterial(ScanTargetMesh, RegolithRock, 0.04f, 0.88f);
+    // Kept for RefreshTargetSelectionHighlight to retint in place rather than
+    // creating a second material instance for the same component.
+    ScanTargetDynamicMaterial = ApplyMaterial(ScanTargetMesh, RegolithRock, 0.04f, 0.88f);
     for (UStaticMeshComponent* Marker : ReferenceMarkers)
     {
         ApplyMaterial(Marker, NavigationMarker, 0.18f, 0.62f);
     }
+}
+
+void AEverwardPhase2TestEnvironment::RefreshTargetSelectionHighlight()
+{
+    if (ScanTargetDynamicMaterial == nullptr)
+    {
+        return;
+    }
+
+    const UProbeSimulationAdapter* Adapter = ResolvePlayerAdapter();
+    if (Adapter == nullptr)
+    {
+        return;
+    }
+
+    const FEverwardTargetSelectionStatus TargetSelection = Adapter->GetSelectedTargetStatus();
+    const bool bIsSelected = TargetSelection.bHasSelection
+        && TargetSelection.TargetId == BootstrapScanTargetId;
+
+    // Adapter->GetSelectedTargetStatus() is already recomputed authoritative
+    // state every call; only touch the material when the selection outcome
+    // actually changes instead of writing identical parameters every tick.
+    if (bIsSelected == bScanTargetHighlightActive)
+    {
+        return;
+    }
+    bScanTargetHighlightActive = bIsSelected;
+
+    const FLinearColor RegolithRock(0.20f, 0.18f, 0.16f, 1.0f);
+    const FLinearColor SelectedHighlight(0.15f, 0.95f, 1.0f, 1.0f);
+    const FLinearColor& TintColor = bIsSelected ? SelectedHighlight : RegolithRock;
+
+    ScanTargetDynamicMaterial->SetVectorParameterValue(TEXT("Color"), TintColor);
+    ScanTargetDynamicMaterial->SetVectorParameterValue(TEXT("BaseColor"), TintColor);
+    ScanTargetDynamicMaterial->SetScalarParameterValue(TEXT("Metallic"), bIsSelected ? 0.35f : 0.04f);
+    ScanTargetDynamicMaterial->SetScalarParameterValue(TEXT("Roughness"), bIsSelected ? 0.30f : 0.88f);
 }

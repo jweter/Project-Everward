@@ -160,13 +160,17 @@ Third, `find_next_selectable_target()` (#149) and authoritative
 `cycle_next_target_selection()` state (#150) turned `T` from a
 select-nearest-only action into a deterministic nearest→farthest cycle
 through every registered body, wrapping back to nearest and restarting at
-nearest on a stale/out-of-range selection (see `PHASE2_TARGET_CYCLING_TEST.md`).
+nearest on a stale/out-of-range selection (see `PHASE2_TARGET_CYCLING_TEST.md`). A fourth parallel-safe sub-slice
+then added a visual selection indicator: the registered physical body's own
+mesh retints when it is the selected target, reading the same authoritative
+`GetSelectedTargetStatus()` the HUD `TARGET` row already renders (see
+`PHASE2_TARGET_VISUAL_INDICATOR_TEST.md`).
 There is now a player-visible result, but it remains Product Reality
-pending and does not advance the slice's completion gate by itself: no
-visual selection indicator, and no approach/reach/grasp mechanics exist
-yet. The current test scene also has only one registered physical body, so
-cycling's multi-target wraparound cannot be visually verified locally
-until Slice 8 adds more targets.
+pending and does not advance the slice's completion gate by itself:
+approach/reach/grasp mechanics do not exist yet. The current test scene
+also has only one registered physical body, so cycling's multi-target
+wraparound cannot be visually verified locally until Slice 8 adds more
+targets.
 
 Turn scanning and manipulators into one loop:
 

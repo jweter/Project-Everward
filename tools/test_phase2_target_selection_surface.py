@@ -17,6 +17,8 @@ class Phase2TargetSelectionSurfaceTests(unittest.TestCase):
         self.controller_h = (SOURCE / "EverwardPlayerController.h").read_text(encoding="utf-8")
         self.controller_cpp = (SOURCE / "EverwardPlayerController.cpp").read_text(encoding="utf-8")
         self.hud_cpp = (SOURCE / "EverwardHUD.cpp").read_text(encoding="utf-8")
+        self.environment_h = (SOURCE / "EverwardPhase2TestEnvironment.h").read_text(encoding="utf-8")
+        self.environment_cpp = (SOURCE / "EverwardPhase2TestEnvironment.cpp").read_text(encoding="utf-8")
         self.cmake = (ROOT / "src/simulation/CMakeLists.txt").read_text(encoding="utf-8")
 
     def test_target_selection_math_is_engine_independent(self) -> None:
@@ -97,6 +99,21 @@ class Phase2TargetSelectionSurfaceTests(unittest.TestCase):
         self.assertIn("SurfaceRangeMeters", self.hud_cpp)
         self.assertIn("ClosingSpeedMetersPerSecond", self.hud_cpp)
         self.assertNotIn("everward/simulation", self.hud_cpp)
+
+    def test_environment_highlights_selected_target_from_authoritative_status(self) -> None:
+        # Parallel-safe visual selection indicator: the registered physical
+        # body's own mesh retints itself by reading the same
+        # FEverwardTargetSelectionStatus the HUD row already renders, rather
+        # than Unreal inventing a second, independently-tracked notion of
+        # "selected". No new simulation state or engine-independent math is
+        # introduced by this presentation-only change.
+        self.assertIn("RefreshTargetSelectionHighlight", self.environment_h)
+        self.assertIn("RefreshTargetSelectionHighlight", self.environment_cpp)
+        self.assertIn("GetSelectedTargetStatus", self.environment_cpp)
+        self.assertIn("TargetSelection.bHasSelection", self.environment_cpp)
+        self.assertIn("TargetSelection.TargetId == BootstrapScanTargetId", self.environment_cpp)
+        self.assertIn("ScanTargetDynamicMaterial", self.environment_cpp)
+        self.assertNotIn("everward/simulation", self.environment_cpp)
 
 
 if __name__ == "__main__":
