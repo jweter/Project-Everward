@@ -373,6 +373,35 @@ compiling elsewhere in those files. The next local Unreal Product Reality
 pass should specifically confirm the project still compiles under UBT
 before relying on this further, and should exercise step 21 below.
 
+### Manipulator move — read-only wrist-follow math foundation (Slice 7)
+
+The same incremental pattern `target_selection.hpp` and
+`manipulator_reach.hpp` already used: a pure, engine-independent math
+foundation lands first, then a later sub-slice wires it into authoritative
+runtime state, the adapter, and the Unreal-side actor. `manipulator_move.hpp`'s
+`grasped_target_position()` reports, read-only, where a currently grasped
+target should be positioned — the grasping arm's wrist world position —
+reusing the exact same forward-kinematics and local-to-world convention
+`manipulator_reach_status()` already establishes rather than inventing a
+second one. It returns `nullopt` whenever the queried arm holds nothing.
+
+This does **not** yet update the registered `StaticSphereBody`'s own
+authoritative `center_m`, and nothing in the adapter, HUD, or Unreal-side
+actor consumes it yet: a grasped body's contact/target-selection/scan
+telemetry and its rendered position both still read the pre-grasp registered
+position. Wiring that — including moving the Unreal-side scan-target actor
+to visually follow the wrist each tick, with the coordinate-frame conversion
+that requires — remains the next Slice 7 sub-slice, deliberately left
+unattempted here rather than shipped unverified.
+
+**Status: implemented (simulation-layer math only), not yet wired anywhere
+player-visible.** New deterministic coverage: `everward_manipulator_move_tests`
+(empty grasp returns `nullopt`, wrist-world-position matches
+`manipulator_arm_contact_samples()` exactly at the probe origin, the result
+translates with the probe, the query stays scoped to the actually-holding
+arm, `release_grasp()` clears the result, and the runtime overload matches
+the free function). No Unreal files changed in this pass.
+
 ### Mining routes extracted mass through authoritative storage
 
 The scan-to-mining loop's `CommandMineBootstrapTarget` bridge previously
@@ -468,6 +497,7 @@ Everward continues to preserve:
 - manipulator arm deploy/stow/joint/tool foundation, joint articulation input and a dedicated manipulator HUD page, visible shoulder/arm/tool-head geometry, and arm/body + arm/environment collision guards (Slice 6; implemented, Product Reality pending);
 - manipulator reach telemetry connecting target selection to the arms: whether the currently selected arm's wrist is within a fixed reach envelope of the selected target's surface, reported on the existing manipulator HUD page (Slice 7 "align a manipulator"; implemented, Product Reality pending);
 - manipulator grasp: an arm within reach of the selected target can grasp/release it (`F`), gated by the exact same reach result and rejecting stow while still holding something (Slice 7 "grasp or dock with a simple object"; implemented, Product Reality pending; no `move` mechanics yet);
+- manipulator move math foundation: read-only wrist-world-position telemetry for a currently grasped target, reusing the same forward-kinematics as reach (Slice 7 "move"; simulation-layer only, not yet wired into authoritative body position, the adapter, or any Unreal-side actor);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - explicit versioned save architecture rather than blind Unreal object serialization.
 
@@ -511,7 +541,7 @@ Priority order:
 1. complete the accumulated local Phase-2 Product Reality pass above;
 2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
 3. **Slice 6 — articulated manipulator arms**: mechanics, joint-articulation HUD, visible geometry, and arm/body + arm/environment collision are all now implemented (every arm mesh still has `ECollisionEnabled::NoCollision`, but a self- or environment-intersecting pose is unreachable in the authoritative `ManipulatorRig` regardless) — Slice 6 is not complete until the local Product Reality pass above is recorded across its three test scripts plus the new collision behavior (step 15);
-4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, a visual selection indicator on the target's own mesh, manipulator reach telemetry ("align a manipulator"), and manipulator grasp/release ("grasp or dock with a simple object") are implemented (Product Reality pending, step 16/17/18/21 below); no approach-as-motion, move, or release-with-consequence mechanics exist yet — those are the next Slice 7 sub-slices;
+4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, a visual selection indicator on the target's own mesh, manipulator reach telemetry ("align a manipulator"), and manipulator grasp/release ("grasp or dock with a simple object") are implemented (Product Reality pending, step 16/17/18/21 below); a read-only wrist-follow math foundation for "move" also now exists but is not yet wired into authoritative body position, the adapter, or any Unreal-side actor; no approach-as-motion, wired move, or release-with-consequence mechanics exist yet — those are the next Slice 7 sub-slices;
 5. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 
 While local Product Reality is unavailable, only work that satisfies the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md` may merge. Do not build new mechanics that assume unverified contact/damage behavior is correct.
