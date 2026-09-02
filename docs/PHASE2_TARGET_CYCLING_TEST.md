@@ -26,16 +26,17 @@ The production path is:
 
 ## Local Unreal Product Reality acceptance
 
-The current Phase-2 scene contains one registered physical resource body, so this build can verify that `T` enters the cycling path and selects that body, that the TARGET telemetry is authoritative, and that no regressions occur in existing selection/mining/contact behavior. A visible multi-target wraparound demonstration requires a scene with multiple registered physical bodies; Slice 8's dedicated zero-g test environment is already planned to provide multiple physical targets at different ranges.
+The Phase-2 scene now registers three physical bodies at different ranges from spawn: the original `SCAN-001` mining/resource body (`phase2-test-target-001`, ~50 m) plus two plain reference targets (`phase2-test-target-002` at ~103 m, `phase2-test-target-003` at ~174 m), each with their own mesh, label, and selection-highlight material. This closes the specific gap this document previously called out: a multi-target nearest-to-farthest wraparound can now actually be demonstrated in this build rather than waiting on Slice 8's separate dedicated zero-g test environment. The two reference targets are not mineable and carry no scan/resource behavior -- they exist solely to give cycling, range telemetry, and the visual selection indicator more than one eligible body.
 
 For this build:
 
 1. Launch the Phase-2 Unreal scene and enter PIE.
-2. Press `T`. Confirm the TARGET row selects the registered physical body and reports plausible surface range and closing speed.
+2. Press `T`. Confirm the TARGET row selects the nearest registered body (`SCAN-001`) and reports plausible surface range and closing speed, and that its mesh visibly retints to the selected highlight color.
 3. Move relative to the target and confirm range/closing-speed telemetry updates rather than remaining cached.
-4. Press `T` repeatedly. With the current single registered target, confirm selection remains deterministic and the command succeeds without creating a parallel Unreal-owned selection.
-5. Confirm scan, mining, manipulator, contact, and full-stop controls still behave as before.
-6. Record any discrepancy as Product Reality evidence; a CI-green result does not by itself mark Slice 7 complete.
+4. Press `T` again and confirm selection advances to the next-nearest reference target (`REF-002`): its mesh retints and `SCAN-001` reverts to its normal look at the same moment.
+5. Press `T` again and confirm selection advances to the farthest reference target (`REF-003`), then press `T` a fourth time and confirm it wraps back around to `SCAN-001` rather than stopping or repeating a target out of order.
+6. Confirm scan, mining, manipulator, contact, and full-stop controls still behave as before, and that only the selected target's mesh is ever highlighted at once.
+7. Record any discrepancy as Product Reality evidence; a CI-green result does not by itself mark Slice 7 complete.
 
 ## Status
 

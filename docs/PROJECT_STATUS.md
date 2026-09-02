@@ -210,10 +210,7 @@ Two further parallel-safe sub-slices then landed on top of this foundation:
   restarts at nearest; no eligible body clears selection fail-closed. The `T`
   key binding now calls the new `UProbeSimulationAdapter::CommandCycleTarget()`
   instead of select-nearest, so `T` cycles through targets rather than only
-  reselecting the closest one. See `PHASE2_TARGET_CYCLING_TEST.md`, which
-  notes the current scene has only one registered physical body, so
-  multi-target wraparound cannot be visually verified locally until Slice 8
-  adds more targets.
+  reselecting the closest one. See `PHASE2_TARGET_CYCLING_TEST.md`.
 
 **Status: implemented, Product Reality pending.** No approach/reach/grasp
 mechanics exist yet -- those remain later Slice 7 sub-slices.
@@ -236,6 +233,52 @@ build was available in this sandbox to compile-verify this change; it
 follows the exact `UMaterialInstanceDynamic` pattern already compiling
 elsewhere in `EverwardPhase2TestEnvironment.cpp`, and the new
 `tools/test_phase2_target_selection_surface.py` case passed, but the next
+local Unreal Product Reality pass should specifically confirm the project
+still compiles under UBT before relying on this further.
+
+### Additional registered reference targets at different ranges (Slice 8, partial)
+
+`PHASE2_TARGET_CYCLING_TEST.md`'s local acceptance section previously
+recorded that the Phase-2 scene's single registered physical body made
+`T`'s nearest→farthest wraparound impossible to actually see, and pointed
+at Slice 8's separate dedicated zero-g test environment as the eventual
+fix. Rather than waiting on that full new scene, this pass pulls forward
+just the specific piece Slice 8 already describes as its own minimum
+environment requirement ("multiple physical targets at different ranges")
+into the existing Phase-2 scene:
+
+- `AEverwardPhase2TestEnvironment` gains two additional registered physical
+  bodies, `phase2-test-target-002` (~103 m) and `phase2-test-target-003`
+  (~174 m), each with its own sphere mesh, label, and dynamic material,
+  constructed the same way as the original `SCAN-001` bootstrap target
+  minus its mining-specific label text -- they are plain reference bodies,
+  not mineable resources;
+- `UProbeSimulationAdapter::BeginPlay()` registers both through the same
+  `Core->add_static_sphere_body()` call the bootstrap target already uses,
+  so contact, target selection, and cycling all see them as ordinary
+  registered bodies without any new simulation-layer code;
+- `RefreshTargetSelectionHighlight()`'s retint-on-change logic and
+  `RefreshScanTargetPosition()`'s fail-closed position-mirroring logic are
+  each generalized into a new `RefreshReferenceTargets()` method applying
+  the exact same two patterns to both additional targets, so selecting,
+  highlighting, or grasping/moving a reference target stays visually
+  consistent with the bootstrap target instead of only working for one
+  hardcoded body id.
+
+No new selection, cycling, highlight, contact, or move mechanic is
+introduced -- the existing ones are simply given more registered bodies to
+operate on, so this stays within the parallel-safe lane.
+
+**Status: implemented, Product Reality pending.** See the updated
+`PHASE2_TARGET_CYCLING_TEST.md` local acceptance section for the exact
+multi-target cycling sequence to run. No Unreal Editor/UBT build was
+available in this sandbox to compile-verify
+`EverwardPhase2TestEnvironment.h`/`.cpp` or `ProbeSimulationAdapter.cpp`;
+the change follows the exact component-construction and
+`add_static_sphere_body()` patterns already compiling elsewhere in those
+files, and `tools/test_phase2_target_selection_surface.py` gained a new
+case proving both targets are actually registered and wired into highlight/
+position mirroring rather than merely present alongside them, but the next
 local Unreal Product Reality pass should specifically confirm the project
 still compiles under UBT before relying on this further.
 
@@ -518,7 +561,7 @@ Everward continues to preserve:
 - Prime A tube-body silhouette with functional materials and a rescaled collision envelope (Slice 5);
 - adjacent-generation evolution foundation;
 - evolving machine sensorium/audio progression foundation;
-- physical target selection, nearest→farthest cycling, range/closing-speed telemetry, and a mesh-retint visual selection indicator, wired into `ProbeRuntime`/`DamageAwareProbeRuntime`, the adapter, and a minimal HUD/input/presentation surface (Slice 7 foundation; implemented, Product Reality pending);
+- physical target selection, nearest→farthest cycling, range/closing-speed telemetry, and a mesh-retint visual selection indicator, wired into `ProbeRuntime`/`DamageAwareProbeRuntime`, the adapter, and a minimal HUD/input/presentation surface, now over three registered physical bodies at different ranges so cycling's wraparound is actually visible (Slice 7 foundation plus Slice 8 partial; implemented, Product Reality pending);
 - manipulator arm deploy/stow/joint/tool foundation, joint articulation input and a dedicated manipulator HUD page, visible shoulder/arm/tool-head geometry, and arm/body + arm/environment collision guards (Slice 6; implemented, Product Reality pending);
 - manipulator reach telemetry connecting target selection to the arms: whether the currently selected arm's wrist is within a fixed reach envelope of the selected target's surface, reported on the existing manipulator HUD page (Slice 7 "align a manipulator"; implemented, Product Reality pending);
 - manipulator grasp: an arm within reach of the selected target can grasp/release it (`F`), gated by the exact same reach result and rejecting stow while still holding something (Slice 7 "grasp or dock with a simple object"; implemented, Product Reality pending; no `move` mechanics yet);
@@ -551,7 +594,7 @@ HUD before attempting later mining/contact acceptance.
 14. deploy an arm, open the manipulator page (`M`), and verify each joint's commanded target can be selected (`4`/`5`/`6`) and nudged (`,`/`.`) independently, with the current angle visibly slewing toward the commanded target rather than snapping, the visible upper-arm/forearm geometry moving in sync with that readout rather than only the HUD numbers changing, and joint commands rejected while the arm is not deployed;
 15. deploy an arm, fold the shoulder toward its limit and confirm the arm visibly stops short of passing through the probe's own hull rather than clipping through it; then approach the registered physical scan target with an arm deployed and command a joint pose that would sweep the arm into it, and confirm that motion also stops short instead of clipping into the target;
 16. press `T` within 500 m of the registered physical target and verify the telemetry panel's `TARGET` row shows its id, surface range, and closing speed that track live as you approach/retreat, and that the target's own mesh visibly retints to its selected highlight color at the same moment (and reverts the moment selection clears), then press `T` again out of range and verify a clear rejection rather than a stale reading or stale highlight (`PHASE2_TARGET_SELECTION_TEST.md`, `PHASE2_TARGET_VISUAL_INDICATOR_TEST.md`);
-17. with the target still selected, press `T` again and confirm the current build's single registered physical body keeps the same target selected (cycling wraps to itself); note that multi-target nearest→farthest wraparound cannot be visually verified until Slice 8 adds more registered bodies (`PHASE2_TARGET_CYCLING_TEST.md`);
+17. with the target still selected, press `T` repeatedly and confirm selection advances nearest→farthest across all three registered bodies (`SCAN-001` -> `REF-002` -> `REF-003`), each retinting on selection and reverting when it loses selection, then wraps back to `SCAN-001` on a fourth press (`PHASE2_TARGET_CYCLING_TEST.md`);
 18. with a target still selected, open the manipulator page (`M`) and confirm a `REACH` row appears for the currently selected arm, reading "ARM NOT DEPLOYED" while stowed and switching to a live "IN REACH" / "OUT OF REACH // remaining distance" reading once deployed that tracks smoothly as the probe approaches/retreats and updates correctly after `N` switches the selected arm (`PHASE2_MANIPULATOR_REACH_TELEMETRY_TEST.md`);
 19. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
 20. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline;

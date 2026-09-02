@@ -115,6 +115,40 @@ class Phase2TargetSelectionSurfaceTests(unittest.TestCase):
         self.assertIn("ScanTargetDynamicMaterial", self.environment_cpp)
         self.assertNotIn("everward/simulation", self.environment_cpp)
 
+    def test_environment_registers_multiple_targets_at_different_ranges(self) -> None:
+        # Slice 8 (partial): PHASE2_TARGET_CYCLING_TEST.md's local acceptance
+        # section previously called out that a single registered physical
+        # body makes multi-target nearest-to-farthest wraparound impossible
+        # to visually verify. Two additional registered reference targets at
+        # different ranges close that specific gap without inventing a new
+        # selection/cycling/highlight mechanic -- the existing ones are
+        # simply given more registered bodies to operate on.
+        for target_id, center_x in (
+            ("phase2-test-target-002", "ReferenceTarget1CenterXMeters = 95.0"),
+            ("phase2-test-target-003", "ReferenceTarget2CenterXMeters = 160.0"),
+        ):
+            self.assertIn(target_id, self.environment_h)
+            self.assertIn(center_x, self.environment_h)
+
+        self.assertIn("ReferenceTargetMeshes", self.environment_cpp)
+        self.assertIn("ReferenceTargetIds", self.environment_cpp)
+
+        # Both additional bodies must actually be registered with the
+        # authoritative runtime, not merely rendered.
+        adapter_cpp = (SOURCE / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
+        self.assertIn("AEverwardPhase2TestEnvironment::ReferenceTarget1Id", adapter_cpp)
+        self.assertIn("AEverwardPhase2TestEnvironment::ReferenceTarget2Id", adapter_cpp)
+        self.assertEqual(adapter_cpp.count("Core->add_static_sphere_body("), 3)
+
+        # Highlight and position mirroring must be generalized to these
+        # targets too, reusing GetSelectedTargetStatus/GetStaticBodyPositionMeters
+        # exactly as the bootstrap target already does, rather than only
+        # working for one hardcoded body id.
+        self.assertIn("RefreshReferenceTargets", self.environment_h)
+        self.assertIn("void AEverwardPhase2TestEnvironment::RefreshReferenceTargets()", self.environment_cpp)
+        self.assertIn("GetStaticBodyPositionMeters(ReferenceTargetIds[Index]", self.environment_cpp)
+        self.assertIn("TargetSelection.TargetId == ReferenceTargetIds[Index]", self.environment_cpp)
+
 
 if __name__ == "__main__":
     unittest.main()
