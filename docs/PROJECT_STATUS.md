@@ -215,9 +215,29 @@ Two further parallel-safe sub-slices then landed on top of this foundation:
   multi-target wraparound cannot be visually verified locally until Slice 8
   adds more targets.
 
-**Status: implemented, Product Reality pending.** No visual selection
-indicator or approach/reach/grasp mechanics exist yet -- those remain later
-Slice 7 sub-slices.
+**Status: implemented, Product Reality pending.** No approach/reach/grasp
+mechanics exist yet -- those remain later Slice 7 sub-slices.
+
+A fourth parallel-safe sub-slice then added the visual selection indicator
+that gap previously called out: `AEverwardPhase2TestEnvironment` gained
+`RefreshTargetSelectionHighlight()`, which reads the same authoritative
+`GetSelectedTargetStatus()` the HUD `TARGET` row already renders and
+retints the registered physical body's existing dynamic material (a bright
+cyan, more metallic highlight in place of its default regolith-rock look)
+whenever that body is the selected target, reverting the moment the
+selection clears or moves elsewhere. No new simulation state, adapter
+method, or input binding was added -- this is a presentation-only retint of
+an already-existing mesh, so it stays in the parallel-safe lane the same
+way the underlying selection telemetry did. See
+`PHASE2_TARGET_VISUAL_INDICATOR_TEST.md`.
+
+**Status: implemented, Product Reality pending.** No Unreal Editor/UBT
+build was available in this sandbox to compile-verify this change; it
+follows the exact `UMaterialInstanceDynamic` pattern already compiling
+elsewhere in `EverwardPhase2TestEnvironment.cpp`, and the new
+`tools/test_phase2_target_selection_surface.py` case passed, but the next
+local Unreal Product Reality pass should specifically confirm the project
+still compiles under UBT before relying on this further.
 
 ### Manipulator arm mechanics, HUD, and visible geometry (Slice 6)
 
@@ -354,7 +374,7 @@ Everward continues to preserve:
 - Prime A tube-body silhouette with functional materials and a rescaled collision envelope (Slice 5);
 - adjacent-generation evolution foundation;
 - evolving machine sensorium/audio progression foundation;
-- physical target selection, nearest→farthest cycling, and range/closing-speed telemetry, wired into `ProbeRuntime`/`DamageAwareProbeRuntime`, the adapter, and a minimal HUD/input surface (Slice 7 foundation; implemented, Product Reality pending);
+- physical target selection, nearest→farthest cycling, range/closing-speed telemetry, and a mesh-retint visual selection indicator, wired into `ProbeRuntime`/`DamageAwareProbeRuntime`, the adapter, and a minimal HUD/input/presentation surface (Slice 7 foundation; implemented, Product Reality pending);
 - manipulator arm deploy/stow/joint/tool foundation, joint articulation input and a dedicated manipulator HUD page, visible shoulder/arm/tool-head geometry, and arm/body + arm/environment collision guards (Slice 6; implemented, Product Reality pending);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - explicit versioned save architecture rather than blind Unreal object serialization.
@@ -383,7 +403,7 @@ HUD before attempting later mining/contact acceptance.
 13. verify no stale policy action executes after Computation is destroyed and no operational/integrity state contradiction appears;
 14. deploy an arm, open the manipulator page (`M`), and verify each joint's commanded target can be selected (`4`/`5`/`6`) and nudged (`,`/`.`) independently, with the current angle visibly slewing toward the commanded target rather than snapping, the visible upper-arm/forearm geometry moving in sync with that readout rather than only the HUD numbers changing, and joint commands rejected while the arm is not deployed;
 15. deploy an arm, fold the shoulder toward its limit and confirm the arm visibly stops short of passing through the probe's own hull rather than clipping through it; then approach the registered physical scan target with an arm deployed and command a joint pose that would sweep the arm into it, and confirm that motion also stops short instead of clipping into the target;
-16. press `T` within 500 m of the registered physical target and verify the telemetry panel's `TARGET` row shows its id, surface range, and closing speed that track live as you approach/retreat, then press `T` again out of range and verify a clear rejection rather than a stale reading (`PHASE2_TARGET_SELECTION_TEST.md`);
+16. press `T` within 500 m of the registered physical target and verify the telemetry panel's `TARGET` row shows its id, surface range, and closing speed that track live as you approach/retreat, and that the target's own mesh visibly retints to its selected highlight color at the same moment (and reverts the moment selection clears), then press `T` again out of range and verify a clear rejection rather than a stale reading or stale highlight (`PHASE2_TARGET_SELECTION_TEST.md`, `PHASE2_TARGET_VISUAL_INDICATOR_TEST.md`);
 17. with the target still selected, press `T` again and confirm the current build's single registered physical body keeps the same target selected (cycling wraps to itself); note that multi-target nearest→farthest wraparound cannot be visually verified until Slice 8 adds more registered bodies (`PHASE2_TARGET_CYCLING_TEST.md`);
 18. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
 19. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline.
@@ -397,7 +417,7 @@ Priority order:
 1. complete the accumulated local Phase-2 Product Reality pass above;
 2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
 3. **Slice 6 — articulated manipulator arms**: mechanics, joint-articulation HUD, visible geometry, and arm/body + arm/environment collision are all now implemented (every arm mesh still has `ECollisionEnabled::NoCollision`, but a self- or environment-intersecting pose is unreachable in the authoritative `ManipulatorRig` regardless) — Slice 6 is not complete until the local Product Reality pass above is recorded across its three test scripts plus the new collision behavior (step 15);
-4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, and nearest→farthest target cycling are implemented (Product Reality pending, step 16/17 above); no visual selection indicator or approach/reach/grasp mechanics exist yet — those are the next Slice 7 sub-slices;
+4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, and a visual selection indicator on the target's own mesh are implemented (Product Reality pending, step 16/17 above); no approach/reach/grasp mechanics exist yet — those are the next Slice 7 sub-slices;
 5. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 
 While local Product Reality is unavailable, only work that satisfies the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md` may merge. Do not build new mechanics that assume unverified contact/damage behavior is correct.
