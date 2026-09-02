@@ -213,9 +213,26 @@ reusing `manipulator_reach_status()`'s exact forward-kinematics and
 local-to-world convention rather than inventing a second one. It does not
 yet update the registered `StaticSphereBody`'s own authoritative position,
 and nothing in the adapter, HUD, or any Unreal-side actor consumes it yet
-(see `PROJECT_STATUS.md`'s "Manipulator move" section). Wiring that,
-including moving the Unreal-side scan-target actor to visually follow the
-wrist each tick, remains the next Slice 7 sub-slice.
+(see `PROJECT_STATUS.md`'s "Manipulator move" section).
+
+An eighth parallel-safe sub-slice then wired that read-only math into
+authoritative state: `ProbeRuntime`/`DamageAwareProbeRuntime` gain
+`update_static_sphere_body_position()`, the single mutation point every
+other registered-body reader (contact, target selection, reach) already
+reads `center_m` from; `UProbeSimulationAdapter::TickComponent()` calls
+`grasped_target_position()` for both arms after `Manipulators->advance()`
+each fixed step and feeds a held body's new wrist position through that
+mutation point; and the test environment's new
+`RefreshScanTargetPosition()` reads the registered body's current position
+back through a new `GetStaticBodyPositionMeters()` accessor every tick and
+mirrors it onto the existing `ScanTargetMesh`/`ScanTargetLabel` components,
+the same way `RefreshTargetSelectionHighlight()` already mirrors selection
+state onto that mesh's material. No second position formula or Unreal-owned
+motion system is introduced anywhere in this chain (see `PROJECT_STATUS.md`'s
+"Manipulator move" section and `PHASE2_MANIPULATOR_MOVE_TEST.md`). This is
+implemented, Product Reality pending, and does not advance the slice's
+completion gate by itself: `release`-with-consequence beyond simply letting
+go where the object currently is still does not exist.
 
 Turn scanning and manipulators into one loop:
 

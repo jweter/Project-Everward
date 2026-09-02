@@ -37,6 +37,13 @@ private:
     // registered physical body's own mesh when it is the selected target
     // instead of inventing a second, Unreal-owned notion of selection.
     void RefreshTargetSelectionHighlight();
+    // Slice 7 "move": the registered physical body's own authoritative
+    // center_m is now the single source of truth for where it currently is
+    // -- TickComponent already writes a grasped body's wrist-following
+    // position there each tick. This mirrors that same position onto the
+    // already-existing mesh/label components each tick rather than
+    // inventing a second, Unreal-owned notion of "where the target is".
+    void RefreshScanTargetPosition();
     const UProbeSimulationAdapter* ResolvePlayerAdapter() const;
 
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")

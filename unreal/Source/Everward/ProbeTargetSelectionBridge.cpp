@@ -21,6 +21,25 @@ FEverwardTargetSelectionStatus UProbeSimulationAdapter::GetSelectedTargetStatus(
     return Status;
 }
 
+bool UProbeSimulationAdapter::GetStaticBodyPositionMeters(const FString& BodyId, FVector& OutPositionMeters) const
+{
+    if (Core == nullptr)
+    {
+        return false;
+    }
+
+    const std::string SimulationBodyId(TCHAR_TO_UTF8(*BodyId));
+    for (const everward::simulation::StaticSphereBody& Body : Core->static_bodies())
+    {
+        if (Body.body_id == SimulationBodyId)
+        {
+            OutPositionMeters = FVector(Body.center_m.x, Body.center_m.y, Body.center_m.z);
+            return true;
+        }
+    }
+    return false;
+}
+
 FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSelectNearestTarget(double MaxSelectionRangeMeters)
 {
     const FName CommandId(TEXT("select_nearest_target"));

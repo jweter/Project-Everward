@@ -137,6 +137,29 @@ public:
         return static_bodies_;
     }
 
+    // Slice 7 "move": authoritative repositioning for a body currently being
+    // carried by a grasping manipulator arm (manipulator_move.hpp's
+    // grasped_target_position). Every other registered-body reader --
+    // contact, target selection, reach -- already reads static_bodies_
+    // directly, so updating center_m here is the single mutation point that
+    // makes a carried body's contact/selection/reach telemetry follow it
+    // without teaching those readers a second notion of "current position".
+    // Fails closed (no-op) when body_id is not currently registered, e.g. it
+    // was cleared mid-grasp, rather than re-registering or fabricating a
+    // body -- matching this codebase's other registered-body lookups.
+    void update_static_sphere_body_position(const std::string& body_id, Vector3d new_center_m) {
+        if (!finite_vector(new_center_m)) {
+            throw std::invalid_argument("physical body center must be finite");
+        }
+        const auto found = std::find_if(
+            static_bodies_.begin(), static_bodies_.end(),
+            [&body_id](const StaticSphereBody& existing) { return existing.body_id == body_id; });
+        if (found == static_bodies_.end()) {
+            return;
+        }
+        found->center_m = new_center_m;
+    }
+
     void set_velocity_mps(Vector3d velocity) { core_.set_velocity_mps(velocity); }
     void adjust_attitude_degrees(EulerAttitudeDegrees delta) {
         core_.adjust_attitude_degrees(delta);

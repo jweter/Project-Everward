@@ -96,6 +96,7 @@ void AEverwardPhase2TestEnvironment::Tick(float DeltaSeconds)
     Super::Tick(DeltaSeconds);
     RefreshResourceReadout();
     RefreshTargetSelectionHighlight();
+    RefreshScanTargetPosition();
 }
 
 const UProbeSimulationAdapter* AEverwardPhase2TestEnvironment::ResolvePlayerAdapter() const
@@ -182,6 +183,39 @@ void AEverwardPhase2TestEnvironment::ApplyEnvironmentMaterialScaffold()
     for (UStaticMeshComponent* Marker : ReferenceMarkers)
     {
         ApplyMaterial(Marker, NavigationMarker, 0.18f, 0.62f);
+    }
+}
+
+void AEverwardPhase2TestEnvironment::RefreshScanTargetPosition()
+{
+    if (ScanTargetMesh == nullptr)
+    {
+        return;
+    }
+
+    const UProbeSimulationAdapter* Adapter = ResolvePlayerAdapter();
+    if (Adapter == nullptr)
+    {
+        return;
+    }
+
+    // Fails closed (leaves the mesh where it already is) if the body was
+    // deregistered -- matches Core->static_bodies()' own fail-closed
+    // contract; never fabricates a position.
+    FVector PositionMeters;
+    if (!Adapter->GetStaticBodyPositionMeters(BootstrapScanTargetId, PositionMeters))
+    {
+        return;
+    }
+
+    const FVector PositionCentimeters = PositionMeters * 100.0;
+    ScanTargetMesh->SetRelativeLocation(PositionCentimeters);
+    if (ScanTargetLabel != nullptr)
+    {
+        // Preserve the label's original fixed offset above the target rather
+        // than recomputing a new one, so it keeps tracking the target the
+        // same way it did while stationary.
+        ScanTargetLabel->SetRelativeLocation(PositionCentimeters + FVector(0.0, 0.0, 700.0));
     }
 }
 

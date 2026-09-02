@@ -460,6 +460,17 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Target")
     FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;
 
+    // Slice 7 "move": the authoritative current world position (meters) of
+    // any registered physical body, not only the currently selected one --
+    // TickComponent already writes a grasped body's authoritative center_m
+    // to follow the holding arm's wrist each tick (manipulator_move.hpp's
+    // grasped_target_position), so presentation code that wants a body's
+    // mesh to visually follow reads it back through here rather than
+    // inventing a second position source. Returns false (OutPositionMeters
+    // untouched) when BodyId is not currently registered.
+    UFUNCTION(BlueprintPure, Category="Everward|Target")
+    bool GetStaticBodyPositionMeters(const FString& BodyId, FVector& OutPositionMeters) const;
+
     UFUNCTION(BlueprintPure, Category="Everward|Command")
     FEverwardProbeCommandResult GetLastCommandResult() const;
 

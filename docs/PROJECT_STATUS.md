@@ -385,22 +385,47 @@ reusing the exact same forward-kinematics and local-to-world convention
 `manipulator_reach_status()` already establishes rather than inventing a
 second one. It returns `nullopt` whenever the queried arm holds nothing.
 
-This does **not** yet update the registered `StaticSphereBody`'s own
-authoritative `center_m`, and nothing in the adapter, HUD, or Unreal-side
-actor consumes it yet: a grasped body's contact/target-selection/scan
-telemetry and its rendered position both still read the pre-grasp registered
-position. Wiring that — including moving the Unreal-side scan-target actor
-to visually follow the wrist each tick, with the coordinate-frame conversion
-that requires — remains the next Slice 7 sub-slice, deliberately left
-unattempted here rather than shipped unverified.
+This did **not** yet update the registered `StaticSphereBody`'s own
+authoritative `center_m` when it first landed; that wiring is the subject of
+the next pass below.
 
-**Status: implemented (simulation-layer math only), not yet wired anywhere
-player-visible.** New deterministic coverage: `everward_manipulator_move_tests`
-(empty grasp returns `nullopt`, wrist-world-position matches
+A follow-on pass wires that read-only math into authoritative state and
+Unreal presentation. `ProbeRuntime`/`DamageAwareProbeRuntime` gain
+`update_static_sphere_body_position()` — the single mutation point for a
+registered body's `center_m`, so every existing reader (contact, target
+selection, reach) automatically reflects a carried body's current position
+without a second position path. `UProbeSimulationAdapter::TickComponent()`
+calls `grasped_target_position()` for both arms after
+`Manipulators->advance()` each fixed step and feeds a non-empty result
+through that mutation point. A new `GetStaticBodyPositionMeters()` accessor
+reads a registered body's current position back out, and
+`AEverwardPhase2TestEnvironment::RefreshScanTargetPosition()` (new, called
+from `Tick()` alongside the existing `RefreshTargetSelectionHighlight()`)
+mirrors it onto the already-existing `ScanTargetMesh`/`ScanTargetLabel`
+components every tick — no new Unreal-owned motion/physics system.
+
+**Status: implemented, Product Reality pending.** New deterministic
+coverage in `everward_manipulator_move_tests`: the original grasp-position
+math tests (empty grasp returns `nullopt`, wrist-world-position matches
 `manipulator_arm_contact_samples()` exactly at the probe origin, the result
 translates with the probe, the query stays scoped to the actually-holding
 arm, `release_grasp()` clears the result, and the runtime overload matches
-the free function). No Unreal files changed in this pass.
+the free function) plus new coverage for
+`update_static_sphere_body_position()`: it moves only the matching
+registered body's `center_m` and leaves everything else about it unchanged,
+an unregistered id is a no-op rather than a fabricated registration, and an
+end-to-end scenario proves `selected_target_status()`/`static_bodies()` both
+report a held body's new wrist-following position once it is written
+through this mutation point. See `PHASE2_MANIPULATOR_MOVE_TEST.md` and
+`tools/test_phase2_manipulator_move_surface.py`. No Unreal Editor/UBT build
+was available in this sandbox to compile-verify the
+`ProbeSimulationAdapter.h`/`.cpp` or `EverwardPhase2TestEnvironment.h`/`.cpp`
+changes; they follow the exact accessor/component-mutation patterns already
+compiling elsewhere in those files (`GetSelectedTargetStatus()`,
+`RefreshTargetSelectionHighlight()`). The next local Unreal Product Reality
+pass should specifically confirm the project still compiles under UBT
+before relying on this further, and should exercise the new step in the
+sequence below.
 
 ### Mining routes extracted mass through authoritative storage
 
@@ -497,7 +522,7 @@ Everward continues to preserve:
 - manipulator arm deploy/stow/joint/tool foundation, joint articulation input and a dedicated manipulator HUD page, visible shoulder/arm/tool-head geometry, and arm/body + arm/environment collision guards (Slice 6; implemented, Product Reality pending);
 - manipulator reach telemetry connecting target selection to the arms: whether the currently selected arm's wrist is within a fixed reach envelope of the selected target's surface, reported on the existing manipulator HUD page (Slice 7 "align a manipulator"; implemented, Product Reality pending);
 - manipulator grasp: an arm within reach of the selected target can grasp/release it (`F`), gated by the exact same reach result and rejecting stow while still holding something (Slice 7 "grasp or dock with a simple object"; implemented, Product Reality pending; no `move` mechanics yet);
-- manipulator move math foundation: read-only wrist-world-position telemetry for a currently grasped target, reusing the same forward-kinematics as reach (Slice 7 "move"; simulation-layer only, not yet wired into authoritative body position, the adapter, or any Unreal-side actor);
+- manipulator move: a currently grasped target's registered position now follows the holding arm's wrist every fixed step through a single authoritative mutation point (`update_static_sphere_body_position()`), with the Unreal-side scan-target mesh/label mirroring that same position each tick (Slice 7 "move"; implemented, Product Reality pending; no `release`-with-consequence beyond leaving the object where it currently is);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - explicit versioned save architecture rather than blind Unreal object serialization.
 
@@ -530,7 +555,8 @@ HUD before attempting later mining/contact acceptance.
 18. with a target still selected, open the manipulator page (`M`) and confirm a `REACH` row appears for the currently selected arm, reading "ARM NOT DEPLOYED" while stowed and switching to a live "IN REACH" / "OUT OF REACH // remaining distance" reading once deployed that tracks smoothly as the probe approaches/retreats and updates correctly after `N` switches the selected arm (`PHASE2_MANIPULATOR_REACH_TELEMETRY_TEST.md`);
 19. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
 20. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline;
-21. with the arm out of reach of the selected target, press `F` and confirm the grasp is rejected; approach until the REACH row reads "IN REACH", press `F`, and confirm the arm's status line (both the manipulator page and the always-visible telemetry panel) now reads `// HOLDING <target id>`; attempt to stow that arm and confirm it is rejected; press `F` again to release, confirm `HOLDING` disappears, and confirm the arm now stows normally (`PHASE2_MANIPULATOR_GRASP_TEST.md`).
+21. with the arm out of reach of the selected target, press `F` and confirm the grasp is rejected; approach until the REACH row reads "IN REACH", press `F`, and confirm the arm's status line (both the manipulator page and the always-visible telemetry panel) now reads `// HOLDING <target id>`; attempt to stow that arm and confirm it is rejected; press `F` again to release, confirm `HOLDING` disappears, and confirm the arm now stows normally (`PHASE2_MANIPULATOR_GRASP_TEST.md`);
+22. while an arm is still holding the target, translate the probe and separately nudge the holding arm's joints (`,`/`.`) and confirm the `SCAN-001` mesh and its label visibly follow both the probe's motion and the arm's articulation rather than staying at their original position, that the `TARGET`/`REACH` rows keep reading correctly against the now-moved body, and that releasing (`F`) leaves the mesh at its current position rather than snapping back (`PHASE2_MANIPULATOR_MOVE_TEST.md`).
 
 A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
 
@@ -541,7 +567,7 @@ Priority order:
 1. complete the accumulated local Phase-2 Product Reality pass above;
 2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
 3. **Slice 6 — articulated manipulator arms**: mechanics, joint-articulation HUD, visible geometry, and arm/body + arm/environment collision are all now implemented (every arm mesh still has `ECollisionEnabled::NoCollision`, but a self- or environment-intersecting pose is unreachable in the authoritative `ManipulatorRig` regardless) — Slice 6 is not complete until the local Product Reality pass above is recorded across its three test scripts plus the new collision behavior (step 15);
-4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, a visual selection indicator on the target's own mesh, manipulator reach telemetry ("align a manipulator"), and manipulator grasp/release ("grasp or dock with a simple object") are implemented (Product Reality pending, step 16/17/18/21 below); a read-only wrist-follow math foundation for "move" also now exists but is not yet wired into authoritative body position, the adapter, or any Unreal-side actor; no approach-as-motion, wired move, or release-with-consequence mechanics exist yet — those are the next Slice 7 sub-slices;
+4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, a visual selection indicator on the target's own mesh, manipulator reach telemetry ("align a manipulator"), manipulator grasp/release ("grasp or dock with a simple object"), and manipulator move (a held target's registered position and its Unreal-side mesh/label now follow the holding arm's wrist) are implemented (Product Reality pending, step 16/17/18/21/22 below); no approach-as-motion or release-with-consequence beyond leaving the object where it currently is exist yet — those are the next Slice 7 sub-slices;
 5. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 
 While local Product Reality is unavailable, only work that satisfies the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md` may merge. Do not build new mechanics that assume unverified contact/damage behavior is correct.
