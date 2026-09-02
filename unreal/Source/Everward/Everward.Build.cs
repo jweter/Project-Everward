@@ -16,6 +16,11 @@ public class Everward : ModuleRules
             "InputCore"
         });
 
+        PrivateDependencyModuleNames.AddRange(new string[]
+        {
+            "Json"
+        });
+
         PublicIncludePaths.Add(Path.GetFullPath(
             Path.Combine(ModuleDirectory, "../../../src/simulation/include")));
     }
