@@ -544,6 +544,19 @@ Specialization has no arbitrary maturity cap. Costs/tradeoffs grow instead of a 
 
 The repository now has the pinned portfolio TruffleHog introduced-change gate with read-only history access, `--no-verification`, suppressed findings, and an ephemeral detection self-test. This is security-only and does not alter simulation/gameplay behavior.
 
+### Deterministic save/load v1 for the canonical probe (#167)
+
+`docs/SAVE_FORMAT.md` established the versioned-save-data direction, but no serialization code existed yet. A first, engine-independent slice now exists in `src/simulation`:
+
+- `json_value.hpp`: a minimal, dependency-free JSON value/parse/serialize type scoped to exactly the shapes the save schema needs, failing clearly on malformed or trailing input;
+- `save_data.hpp`: a `save_version`-tagged `SaveGameV1` schema covering everything that currently exists on the canonical probe — full `ProbeStateSnapshot` (position/velocity/attitude, mass, energy/thermal, storage, power allocation, scan state, subsystem-operational flags), `ComponentIntegritySnapshot`, registered static physical targets, an installed `SoftwarePolicy`, and current target selection;
+- new `SimulationCore::restore_from_snapshot()` and `ImpactDamageModel::restore_from_snapshot()` factories that reconstruct already-validated state (rejecting non-finite values, capacity/allocation contradictions, and `is_scanning`/`active_scan_target_id` disagreement) without replaying gameplay-command side effects, plus a `DamageAwareProbeRuntime::restore_from_snapshot()` composing them; static bodies, policy, and target selection are restored afterward through the same validated mutators live gameplay already uses (`add_static_sphere_body`, `install_policy`, `select_target`) rather than a parallel unvalidated path;
+- `capture_probe_save_data()` / `restore_probe_runtime()` bridge functions and `serialize_save_game()` / `deserialize_save_game()` round-trip the whole schema to/from human-inspectable JSON text.
+
+Deterministic ctest coverage (`everward_save_data_tests`) proves an exact full-state round trip through a mutated canonical probe (movement, attitude, power reallocation, an in-progress scan, damaged component integrity, an installed policy, and a selected target), rejects an unsupported `save_version`, and rejects malformed/incomplete JSON and internally-inconsistent snapshots.
+
+**Status: implemented and ctest-verified for the state that exists today. Not yet done:** no Unreal-side save/load UI, file I/O, or `SaveGame` wiring exists; the top-level schema does not yet cover the many other categories `docs/SAVE_FORMAT.md` anticipates (lineages, infrastructure, civilizations, historical events, ...) because those systems do not exist in the simulation yet; and no migration framework exists beyond rejecting a non-`v1` `save_version`, since only `v1` exists so far. This is parallel-safe deterministic data-model work per `PHASE2_VERTICAL_SLICE_PLAN.md`: it does not touch the collision/contact/damage behavior still awaiting local Product Reality evidence.
+
 ## Current authoritative foundation
 
 Everward continues to preserve:
@@ -567,7 +580,7 @@ Everward continues to preserve:
 - manipulator grasp: an arm within reach of the selected target can grasp/release it (`F`), gated by the exact same reach result and rejecting stow while still holding something (Slice 7 "grasp or dock with a simple object"; implemented, Product Reality pending; no `move` mechanics yet);
 - manipulator move: a currently grasped target's registered position now follows the holding arm's wrist every fixed step through a single authoritative mutation point (`update_static_sphere_body_position()`), with the Unreal-side scan-target mesh/label mirroring that same position each tick (Slice 7 "move"; implemented, Product Reality pending; no `release`-with-consequence beyond leaving the object where it currently is);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
-- explicit versioned save architecture rather than blind Unreal object serialization.
+- deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, and target selection, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified; no Unreal SaveGame/file-I/O wiring or multi-probe/lineage schema yet — see "Deterministic save/load v1" above).
 
 ## Exact next local UE 5.8 Product Reality pass
 
