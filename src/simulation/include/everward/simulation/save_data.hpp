@@ -23,6 +23,7 @@
 #include "everward/simulation/software_policy.hpp"
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -67,6 +68,31 @@ namespace detail {
     out.y = value.require("y").as_double();
     out.z = value.require("z").as_double();
     return out;
+}
+
+// JsonValue numbers are doubles, which cannot represent every std::int64_t
+// exactly above 2^53 (ticks are a microsecond-resolution counter, so a
+// long-running campaign is not a purely theoretical way to reach that
+// range). Tick fields are therefore encoded as decimal strings instead of
+// JSON numbers so serialize -> parse round-trips them exactly regardless of
+// magnitude.
+[[nodiscard]] inline JsonValue int64_to_json(std::int64_t value) {
+    return JsonValue(std::to_string(value));
+}
+
+[[nodiscard]] inline std::int64_t int64_from_json(const JsonValue& value) {
+    const std::string& text = value.as_string();
+    std::size_t consumed = 0;
+    long long parsed = 0;
+    try {
+        parsed = std::stoll(text, &consumed);
+    } catch (const std::exception&) {
+        throw std::runtime_error("save data integer field is not a valid integer: " + text);
+    }
+    if (consumed != text.size()) {
+        throw std::runtime_error("save data integer field is not a valid integer: " + text);
+    }
+    return static_cast<std::int64_t>(parsed);
 }
 
 [[nodiscard]] inline JsonValue attitude_to_json(const EulerAttitudeDegrees& value) {
@@ -210,7 +236,7 @@ namespace detail {
         "last_contact_relative_velocity_mps",
         vector3d_to_json(state.last_contact_relative_velocity_mps));
     object.set("last_contact_normal_speed_mps", JsonValue(state.last_contact_normal_speed_mps));
-    object.set("last_contact_tick", JsonValue(state.last_contact_tick));
+    object.set("last_contact_tick", int64_to_json(state.last_contact_tick));
     object.set("stored_energy_j", JsonValue(state.stored_energy_j));
     object.set("energy_capacity_j", JsonValue(state.energy_capacity_j));
     object.set("energy_generation_w", JsonValue(state.energy_generation_w));
@@ -249,7 +275,11 @@ namespace detail {
 [[nodiscard]] inline ProbeStateSnapshot probe_state_from_json(const JsonValue& value) {
     ProbeStateSnapshot state;
     state.probe_id = value.require("probe_id").as_string();
-    state.generation = static_cast<std::uint32_t>(value.require("generation").as_int64());
+    const std::int64_t generation = value.require("generation").as_int64();
+    if (generation < 0 || generation > static_cast<std::int64_t>(std::numeric_limits<std::uint32_t>::max())) {
+        throw std::runtime_error("generation out of range for a 32-bit generation counter");
+    }
+    state.generation = static_cast<std::uint32_t>(generation);
     state.position_m = vector3d_from_json(value.require("position_m"));
     state.velocity_mps = vector3d_from_json(value.require("velocity_mps"));
     state.attitude_degrees = attitude_from_json(value.require("attitude_degrees"));
@@ -262,7 +292,7 @@ namespace detail {
     state.last_contact_relative_velocity_mps =
         vector3d_from_json(value.require("last_contact_relative_velocity_mps"));
     state.last_contact_normal_speed_mps = value.require("last_contact_normal_speed_mps").as_double();
-    state.last_contact_tick = value.require("last_contact_tick").as_int64();
+    state.last_contact_tick = int64_from_json(value.require("last_contact_tick"));
     state.stored_energy_j = value.require("stored_energy_j").as_double();
     state.energy_capacity_j = value.require("energy_capacity_j").as_double();
     state.energy_generation_w = value.require("energy_generation_w").as_double();
@@ -352,7 +382,7 @@ namespace detail {
 [[nodiscard]] inline JsonValue save_game_to_json(const SaveGameV1& save) {
     JsonValue object = JsonValue::make_object();
     object.set("save_version", JsonValue(static_cast<std::int64_t>(save.save_version)));
-    object.set("simulation_tick", JsonValue(save.simulation_tick));
+    object.set("simulation_tick", detail::int64_to_json(save.simulation_tick));
     JsonValue probes = JsonValue::make_array();
     for (const auto& probe : save.probes) {
         probes.push_back(probe_save_data_to_json(probe));
@@ -370,7 +400,7 @@ namespace detail {
     }
     SaveGameV1 save;
     save.save_version = static_cast<int>(save_version);
-    save.simulation_tick = value.require("simulation_tick").as_int64();
+    save.simulation_tick = detail::int64_from_json(value.require("simulation_tick"));
     for (const auto& probe_value : value.require("probes").as_array()) {
         save.probes.push_back(probe_save_data_from_json(probe_value));
     }

@@ -3,6 +3,7 @@
 #undef NDEBUG
 #include <cassert>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <stdexcept>
 #include <string>
@@ -210,6 +211,50 @@ void test_malformed_json_fails_closed() {
     assert(threw_trailing);
 }
 
+void test_large_tick_values_round_trip_losslessly() {
+    // 2^53 + 1: the first positive integer a double cannot represent
+    // exactly. Ticks are a microsecond-resolution int64 counter, so a
+    // sufficiently long-running campaign can reach this range; the save
+    // format must not silently round it to a neighboring even value.
+    constexpr std::int64_t kLargeTick = 9'007'199'254'740'993LL;
+
+    ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    data.probe.has_contact_history = true;
+    data.probe.last_contact_body_id = "far-future-contact";
+    data.probe.last_contact_point_m = Vector3d{1.0, 2.0, 3.0};
+    data.probe.last_contact_surface_normal = Vector3d{0.0, 0.0, 1.0};
+    data.probe.last_contact_relative_velocity_mps = Vector3d{0.1, 0.0, 0.0};
+    data.probe.last_contact_normal_speed_mps = 0.1;
+    data.probe.last_contact_tick = kLargeTick;
+
+    const std::string json_text = serialize_save_game(SaveGameV1{1, kLargeTick, {data}});
+    const SaveGameV1 parsed = deserialize_save_game(json_text);
+    assert(parsed.simulation_tick == kLargeTick);
+    assert(parsed.probes.at(0).probe.last_contact_tick == kLargeTick);
+
+    const DamageAwareProbeRuntime restored = restore_probe_runtime(parsed.probes.at(0), parsed.simulation_tick);
+    assert(restored.tick() == kLargeTick);
+    assert(restored.snapshot().last_contact_tick == kLargeTick);
+}
+
+void test_generation_out_of_range_fails_closed() {
+    const ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    std::string json_text = serialize_save_game(SaveGameV1{1, 0, {data}});
+
+    const std::string needle = "\"generation\": 1";
+    const std::size_t pos = json_text.find(needle);
+    assert(pos != std::string::npos);
+    json_text.replace(pos, needle.size(), "\"generation\": -1");
+
+    bool threw = false;
+    try {
+        (void)deserialize_save_game(json_text);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
+}
+
 void test_restore_rejects_inconsistent_snapshot() {
     ProbeStateSnapshot bad_mass = DamageAwareProbeRuntime::make_canonical_ev0001().snapshot();
     bad_mass.mass_kg = -1.0;
@@ -250,6 +295,8 @@ int main() {
     test_unsupported_save_version_fails_closed();
     test_missing_required_field_fails_closed();
     test_malformed_json_fails_closed();
+    test_large_tick_values_round_trip_losslessly();
+    test_generation_out_of_range_fails_closed();
     test_restore_rejects_inconsistent_snapshot();
 
     std::puts("save_data_tests: all tests passed");
