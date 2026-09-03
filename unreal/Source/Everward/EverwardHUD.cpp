@@ -215,6 +215,8 @@ void AEverwardHUD::DrawControlsReference()
         {TEXT("SENSORS"), TEXT("ENTER STARTS SCAN")},
         {TEXT("COMPUTE"), TEXT("ENTER INSTALLS POLICY")},
         {TEXT("F1"), TEXT("OPEN / CLOSE THIS REFERENCE")},
+        {TEXT("F5"), TEXT("SAVE PROBE STATE")},
+        {TEXT("F6"), TEXT("LOAD PROBE STATE")},
     };
     const FControlReferenceLine ManipulatorControls[] = {
         {TEXT("M"), TEXT("OPEN / CLOSE MANIPULATOR")},

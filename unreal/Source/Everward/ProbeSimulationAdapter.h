@@ -541,6 +541,18 @@ public:
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandReleaseGraspedTarget(EEverwardManipulatorArmId ArmId);
 
+    // Wires save_data.hpp's already-ctest-verified engine-independent
+    // round trip to an actual player-facing save/load surface: a single
+    // human-inspectable JSON file under Saved/SaveGames/. A rejected
+    // load (missing file, unsupported save_version, malformed/inconsistent
+    // state) leaves Core/Manipulators completely untouched -- see the .cpp
+    // for the fail-closed construction order.
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandSaveGame();
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandLoadGame();
+
     UFUNCTION(BlueprintCallable, Category="Everward|Simulation")
     void SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond);
 
