@@ -78,4 +78,8 @@ if(BUILD_TESTING)
     add_executable(everward_manipulator_move_tests tests/manipulator_move_tests.cpp)
     target_link_libraries(everward_manipulator_move_tests PRIVATE everward_simulation)
     add_test(NAME everward_manipulator_move_tests COMMAND everward_manipulator_move_tests)
+
+    add_executable(everward_save_data_tests tests/save_data_tests.cpp)
+    target_link_libraries(everward_save_data_tests PRIVATE everward_simulation)
+    add_test(NAME everward_save_data_tests COMMAND everward_save_data_tests)
 endif()

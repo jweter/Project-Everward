@@ -24,6 +24,89 @@ public:
         return core;
     }
 
+    // Save/load restoration boundary (see save_data.hpp). Unlike the command
+    // methods below, this does not replay gameplay actions: it reconstructs
+    // authoritative state that was already valid when a save was captured.
+    // It therefore checks internal consistency (finite values, capacities,
+    // scan-state agreement) rather than command-specific gameplay rules, so
+    // a corrupt or hand-edited save fails clearly instead of resuming into
+    // physically impossible state.
+    [[nodiscard]] static SimulationCore restore_from_snapshot(
+            ProbeStateSnapshot snapshot,
+            std::int64_t tick) {
+        if (tick < 0) {
+            throw std::invalid_argument("tick must be non-negative");
+        }
+        require_finite_vector(snapshot.position_m, "position_m");
+        require_finite_vector(snapshot.velocity_mps, "velocity_mps");
+        require_finite_attitude(snapshot.attitude_degrees);
+        if (!std::isfinite(snapshot.mass_kg) || snapshot.mass_kg <= 0.0) {
+            throw std::invalid_argument("mass_kg must be finite and positive");
+        }
+        if (!std::isfinite(snapshot.energy_capacity_j) || snapshot.energy_capacity_j <= 0.0) {
+            throw std::invalid_argument("energy_capacity_j must be finite and positive");
+        }
+        if (!std::isfinite(snapshot.stored_energy_j) ||
+            snapshot.stored_energy_j < 0.0 ||
+            snapshot.stored_energy_j > snapshot.energy_capacity_j + 1e-6) {
+            throw std::invalid_argument("stored_energy_j out of range for energy_capacity_j");
+        }
+        if (!std::isfinite(snapshot.energy_generation_w) || snapshot.energy_generation_w < 0.0) {
+            throw std::invalid_argument("energy_generation_w must be finite and non-negative");
+        }
+        if (!std::isfinite(snapshot.temperature_k) || snapshot.temperature_k <= 0.0) {
+            throw std::invalid_argument("temperature_k must be finite and positive");
+        }
+        if (!std::isfinite(snapshot.ambient_temperature_k) || snapshot.ambient_temperature_k <= 0.0) {
+            throw std::invalid_argument("ambient_temperature_k must be finite and positive");
+        }
+        if (!std::isfinite(snapshot.thermal_capacity_j_per_k) || snapshot.thermal_capacity_j_per_k <= 0.0) {
+            throw std::invalid_argument("thermal_capacity_j_per_k must be finite and positive");
+        }
+        if (!std::isfinite(snapshot.passive_cooling_w_per_k) || snapshot.passive_cooling_w_per_k < 0.0) {
+            throw std::invalid_argument("passive_cooling_w_per_k must be finite and non-negative");
+        }
+        if (!std::isfinite(snapshot.max_operating_temperature_k) ||
+            snapshot.max_operating_temperature_k <= 0.0) {
+            throw std::invalid_argument("max_operating_temperature_k must be finite and positive");
+        }
+        if (!std::isfinite(snapshot.storage_capacity_kg) || snapshot.storage_capacity_kg < 0.0) {
+            throw std::invalid_argument("storage_capacity_kg must be finite and non-negative");
+        }
+        if (!std::isfinite(snapshot.storage_used_kg) ||
+            snapshot.storage_used_kg < 0.0 ||
+            snapshot.storage_used_kg > snapshot.storage_capacity_kg + 1e-6) {
+            throw std::invalid_argument("storage_used_kg out of range for storage_capacity_kg");
+        }
+        if (!std::isfinite(snapshot.power_capacity_w) || snapshot.power_capacity_w < 0.0) {
+            throw std::invalid_argument("power_capacity_w must be finite and non-negative");
+        }
+        const double total_allocated_w =
+            snapshot.power_allocated_sensors_w + snapshot.power_allocated_propulsion_w +
+            snapshot.power_allocated_computation_w + snapshot.power_allocated_thermal_w;
+        if (snapshot.power_allocated_sensors_w < 0.0 || snapshot.power_allocated_propulsion_w < 0.0 ||
+            snapshot.power_allocated_computation_w < 0.0 || snapshot.power_allocated_thermal_w < 0.0 ||
+            total_allocated_w > snapshot.power_capacity_w + 1e-6) {
+            throw std::invalid_argument("power allocation out of range for power_capacity_w");
+        }
+        if (!std::isfinite(snapshot.scan_remaining_s) || snapshot.scan_remaining_s < 0.0) {
+            throw std::invalid_argument("scan_remaining_s must be finite and non-negative");
+        }
+        if (snapshot.is_scanning == snapshot.active_scan_target_id.empty()) {
+            throw std::invalid_argument(
+                "is_scanning must agree with whether active_scan_target_id is set");
+        }
+
+        snapshot.attitude_degrees.yaw = normalize_degrees(snapshot.attitude_degrees.yaw);
+        snapshot.attitude_degrees.pitch = normalize_degrees(snapshot.attitude_degrees.pitch);
+        snapshot.attitude_degrees.roll = normalize_degrees(snapshot.attitude_degrees.roll);
+
+        SimulationCore core;
+        core.clock_ = SimulationClock(tick);
+        core.probe_ = std::move(snapshot);
+        return core;
+    }
+
     [[nodiscard]] const ProbeStateSnapshot& snapshot() const noexcept { return probe_; }
     [[nodiscard]] std::int64_t tick() const noexcept { return clock_.tick(); }
 

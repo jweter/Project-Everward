@@ -116,6 +116,27 @@ public:
     explicit ManipulatorRig(SelfCollisionGuard self_collision_guard)
         : self_collision_guard_(std::move(self_collision_guard)) {}
 
+    // Save/load restoration boundary (see save_data.hpp). Reconstructs
+    // already-valid arm state directly rather than replaying begin_deploy /
+    // command_joint_target_degrees / begin_grasp, whose preconditions exist
+    // to gate live operator commands, not to re-derive a state that was
+    // already reached legitimately before the save was captured. Still
+    // rejects a state no sequence of those commands could have produced
+    // (out-of-range joint angles, deploying and stowing at once, a tool or
+    // grasp held while not steadily deployed, ...) so a hand-edited save
+    // fails closed instead of resuming into an impossible pose.
+    [[nodiscard]] static ManipulatorRig restore_from_snapshot(
+            ManipulatorArmState port_state,
+            ManipulatorArmState starboard_state,
+            SelfCollisionGuard self_collision_guard = SelfCollisionGuard{}) {
+        validate_restored_arm_state(port_state);
+        validate_restored_arm_state(starboard_state);
+        ManipulatorRig rig(std::move(self_collision_guard));
+        rig.port_ = std::move(port_state);
+        rig.starboard_ = std::move(starboard_state);
+        return rig;
+    }
+
     [[nodiscard]] static constexpr ManipulatorJointRangeDegrees shoulder_range() noexcept {
         return {-90.0, 90.0};
     }
@@ -286,6 +307,51 @@ private:
         if (degrees < range.min_degrees) return range.min_degrees;
         if (degrees > range.max_degrees) return range.max_degrees;
         return degrees;
+    }
+
+    static void require_angle_in_range(
+            double degrees,
+            ManipulatorJointRangeDegrees range,
+            const char* joint_name) {
+        if (!std::isfinite(degrees) || degrees < range.min_degrees || degrees > range.max_degrees) {
+            throw std::invalid_argument(std::string("manipulator ") + joint_name + " angle out of range");
+        }
+    }
+
+    static void require_valid_angles(const ManipulatorArmAngles& angles) {
+        require_angle_in_range(angles.shoulder_degrees, shoulder_range(), "shoulder");
+        require_angle_in_range(angles.elbow_degrees, elbow_range(), "elbow");
+        require_angle_in_range(angles.wrist_degrees, wrist_range(), "wrist");
+    }
+
+    // Mirrors the invariants begin_deploy/begin_stow/command_joint_target_degrees/
+    // attach_tool/begin_grasp enforce on every live transition, so a restored
+    // state is exactly one those commands could have produced.
+    static void validate_restored_arm_state(const ManipulatorArmState& state) {
+        if (!std::isfinite(state.deployment_fraction) ||
+            state.deployment_fraction < 0.0 || state.deployment_fraction > 1.0) {
+            throw std::invalid_argument("manipulator deployment_fraction must be within [0, 1]");
+        }
+        if (state.is_deploying && state.is_stowing) {
+            throw std::invalid_argument("manipulator arm cannot be deploying and stowing at once");
+        }
+        if (!state.is_deployed && !state.is_deploying && !state.is_stowing &&
+            state.deployment_fraction != 0.0) {
+            throw std::invalid_argument(
+                "an idle manipulator arm (not deployed/deploying/stowing) must be fully stowed");
+        }
+        if (state.is_deployed && !state.is_deploying && !state.is_stowing &&
+            state.deployment_fraction != 1.0) {
+            throw std::invalid_argument(
+                "a steady-state deployed manipulator arm must be fully deployed");
+        }
+        if ((state.tool_attached || !state.grasped_target_body_id.empty()) &&
+            (!state.is_deployed || state.is_stowing)) {
+            throw std::invalid_argument(
+                "a manipulator arm holding a tool or grasped target must be deployed and not stowing");
+        }
+        require_valid_angles(state.angles);
+        require_valid_angles(state.commanded_angles);
     }
 
     [[nodiscard]] static double slew_toward(double current, double target, double max_step) noexcept {

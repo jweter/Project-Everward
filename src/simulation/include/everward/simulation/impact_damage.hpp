@@ -124,6 +124,36 @@ public:
         integrity_ref(subsystem) = fraction;
     }
 
+    // Save/load restoration boundary (see save_data.hpp). Deliberately
+    // separate from DamageAwareProbeRuntime::set_subsystem_integrity, which
+    // also forces the subsystem's operational flag from the new fraction --
+    // correct for a live damage event, but wrong for restoring a snapshot
+    // whose sensors_operational/propulsion_operational/... flags may already
+    // reflect an independent manual/policy shutoff alongside the same
+    // integrity value.
+    //
+    // has_contact_history/last_contact_tick come from the same restored
+    // ProbeStateSnapshot: the contact they describe already happened before
+    // the save was captured, and its damage is already baked into
+    // `integrity`. Restoring the assessment watermark to match marks that
+    // contact as already assessed, so the first assess_latest_contact() call
+    // after loading does not treat it as new and apply the same damage a
+    // second time.
+    [[nodiscard]] static ImpactDamageModel restore_from_snapshot(
+            const ComponentIntegritySnapshot& integrity,
+            bool has_contact_history,
+            std::int64_t last_contact_tick) {
+        validate_integrity(integrity.sensors);
+        validate_integrity(integrity.propulsion);
+        validate_integrity(integrity.computation);
+        validate_integrity(integrity.thermal);
+        ImpactDamageModel model;
+        model.integrity_ = integrity;
+        model.has_assessed_contact_ = has_contact_history;
+        model.last_assessed_contact_tick_ = last_contact_tick;
+        return model;
+    }
+
     [[nodiscard]] std::optional<ImpactDamageRecord> assess_latest_contact(ProbeRuntime& runtime) {
         const ProbeStateSnapshot& snapshot = runtime.snapshot();
         if (!snapshot.has_contact_history) {
@@ -296,6 +326,23 @@ public:
 
     [[nodiscard]] static DamageAwareProbeRuntime make_canonical_ev0001() {
         return DamageAwareProbeRuntime(ProbeRuntime::make_canonical_ev0001());
+    }
+
+    // Save/load restoration boundary (see save_data.hpp). Composes an
+    // already-restored ProbeRuntime/ImpactDamageModel pair rather than
+    // replaying gameplay commands; static bodies, an installed software
+    // policy, and target selection are restored separately afterward
+    // through their existing validated mutators (add_static_sphere_body,
+    // install_policy, select_target), matching this codebase's other
+    // fail-closed registered-state contracts instead of adding parallel
+    // restoration paths for them.
+    [[nodiscard]] static DamageAwareProbeRuntime restore_from_snapshot(
+            ProbeRuntime runtime,
+            ImpactDamageModel damage) {
+        DamageAwareProbeRuntime out;
+        out.runtime_ = std::move(runtime);
+        out.damage_ = std::move(damage);
+        return out;
     }
 
     [[nodiscard]] const ProbeStateSnapshot& snapshot() const noexcept { return runtime_.snapshot(); }
