@@ -603,7 +603,35 @@ The repository now has the pinned portfolio TruffleHog introduced-change gate wi
 
 Deterministic ctest coverage (`everward_save_data_tests`) proves an exact full-state round trip through a mutated canonical probe (movement, attitude, power reallocation, an in-progress scan, damaged component integrity, an installed policy, a selected target, and a deployed/tooled/grasping manipulator arm), an exact round trip at `int64` magnitudes a `double` cannot represent (tick fields are encoded as decimal strings rather than JSON numbers), that a restored contact is not reassessed on the next tick, and that an unsupported `save_version`, malformed/incomplete JSON, an out-of-range `generation`, internally-inconsistent snapshots, invalid energy/thermal parameters, and an unreachable manipulator pose all fail closed.
 
-**Status: implemented and ctest-verified for the state that exists today. Not yet done:** no Unreal-side save/load UI, file I/O, or `SaveGame` wiring exists; the top-level schema does not yet cover the many other categories `docs/SAVE_FORMAT.md` anticipates (lineages, infrastructure, civilizations, historical events, ...) because those systems do not exist in the simulation yet; and no migration framework exists beyond rejecting a non-`v1` `save_version`, since only `v1` exists so far. This is parallel-safe deterministic data-model work per `PHASE2_VERTICAL_SLICE_PLAN.md`: it does not touch the collision/contact/damage behavior still awaiting local Product Reality evidence.
+**Status: implemented and ctest-verified for the state that exists today. Not yet done:** the top-level schema does not yet cover the many other categories `docs/SAVE_FORMAT.md` anticipates (lineages, infrastructure, civilizations, historical events, ...) because those systems do not exist in the simulation yet; and no migration framework exists beyond rejecting a non-`v1` `save_version`, since only `v1` exists so far. This is parallel-safe deterministic data-model work per `PHASE2_VERTICAL_SLICE_PLAN.md`: it does not touch the collision/contact/damage behavior still awaiting local Product Reality evidence.
+
+### Save/load Unreal UI wiring (issue #167 follow-up)
+
+The previous pass left save/load engine-independent and untestable by an
+actual player. This pass wires it to a real command surface:
+`UProbeSimulationAdapter::CommandSaveGame()`/`CommandLoadGame()` write/read
+a single `Saved/SaveGames/everward_save_v1.json` file through
+`save_data.hpp`'s existing capture/serialize/restore functions (no new
+save-data field or schema change); `F5`/`F6` are the new bindings (`F9` is
+deliberately avoided -- see `PlaytestRecorderActor.cpp`'s existing PIE
+wireframe-shortcut note); both commands report through the existing
+`RecordCommandResult` global-feedback path; the `F1` controls reference
+gained the two new rows. A rejected load (missing file, unsupported
+`save_version`, malformed/inconsistent state) is fail-closed by
+construction order: the new runtime/rig are fully built and validated
+before anything currently live is replaced.
+
+**Status: implemented, Product Reality pending.** No Unreal Editor/UBT
+build was available in this sandbox to compile-verify
+`ProbeSimulationAdapter.h`/`.cpp`, `EverwardPlayerController.h`/`.cpp`, or
+`EverwardHUD.cpp`; the file-I/O follows the exact `FFileHelper`/`FPaths`/
+`IFileManager` pattern already compiling in `PlaytestRecorderActor.cpp`,
+and the command/binding/feedback wiring follows the exact patterns already
+compiling elsewhere in the same files. See `PHASE2_SAVE_LOAD_UI_TEST.md`.
+This closes the Unreal-side half of issue #167's persistence gap named in
+`docs/INDUSTRY_REALITY_CHECK.md`'s P1 "prove save/load inside the first
+vertical slice"; it does not itself advance any vertical-slice completion
+gate.
 
 ## Current authoritative foundation
 
@@ -629,7 +657,7 @@ Everward continues to preserve:
 - manipulator move: a currently grasped target's registered position now follows the holding arm's wrist every fixed step through a single authoritative mutation point (`update_static_sphere_body_position()`), with the Unreal-side scan-target mesh/label mirroring that same position each tick (Slice 7 "move"; implemented, Product Reality pending);
 - manipulator release-with-consequence: releasing (`F`) now fails closed instead of embedding the held body in the probe's own hull, gated by the same five-sphere `ProbeCompoundCollisionEnvelope` the arm/hull and swept-contact guards already use (Slice 7 "release"; implemented, Product Reality pending; releasing near another registered body or any place/hand-off-into-storage mechanic still has no consequence);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
-- deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified; no Unreal SaveGame/file-I/O wiring or multi-probe/lineage schema yet — see "Deterministic save/load v1" above).
+- deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending; no multi-probe/lineage schema or migration framework yet — see "Save/load Unreal UI wiring" above).
 
 ## Exact next local UE 5.8 Product Reality pass
 
@@ -662,7 +690,8 @@ HUD before attempting later mining/contact acceptance.
 20. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline;
 21. with the arm out of reach of the selected target, press `F` and confirm the grasp is rejected; approach until the REACH row reads "IN REACH", press `F`, and confirm the arm's status line (both the manipulator page and the always-visible telemetry panel) now reads `// HOLDING <target id>`; attempt to stow that arm and confirm it is rejected; press `F` again to release, confirm `HOLDING` disappears, and confirm the arm now stows normally (`PHASE2_MANIPULATOR_GRASP_TEST.md`);
 22. while an arm is still holding the target, translate the probe and separately nudge the holding arm's joints (`,`/`.`) and confirm the `SCAN-001` mesh and its label visibly follow both the probe's motion and the arm's articulation rather than staying at their original position, that the `TARGET`/`REACH` rows keep reading correctly against the now-moved body, and that releasing (`F`) leaves the mesh at its current position rather than snapping back (`PHASE2_MANIPULATOR_MOVE_TEST.md`);
-23. immediately after grasping `SCAN-001`, press `F` to release without articulating the arm and confirm it is rejected (`HOLDING` stays, global feedback reports the target would collide with the probe hull); articulate the holding arm's shoulder/elbow outward and away from the hull, release again, and confirm it now succeeds; re-grasp, move back near the hull boundary, and confirm the accept/reject boundary tracks the mesh's visible position rather than flickering or lagging (`PHASE2_MANIPULATOR_RELEASE_TEST.md`).
+23. immediately after grasping `SCAN-001`, press `F` to release without articulating the arm and confirm it is rejected (`HOLDING` stays, global feedback reports the target would collide with the probe hull); articulate the holding arm's shoulder/elbow outward and away from the hull, release again, and confirm it now succeeds; re-grasp, move back near the hull boundary, and confirm the accept/reject boundary tracks the mesh's visible position rather than flickering or lagging (`PHASE2_MANIPULATOR_RELEASE_TEST.md`);
+24. change position/attitude/power allocation and manipulator state away from defaults, press `F5`, then continue playing so state changes further, then press `F6` and confirm the probe visibly snaps back to the saved state with a "probe state loaded" banner; delete/rename the save file and press `F6` again to confirm a clear "no save file found" rejection rather than a crash (`PHASE2_SAVE_LOAD_UI_TEST.md`).
 
 A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
 

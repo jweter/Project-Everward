@@ -103,6 +103,13 @@ void AEverwardPlayerController::SetupInputComponent()
     // that page's REACH row already reports for the same arm.
     InputComponent->BindKey(EKeys::F, IE_Pressed, this, &AEverwardPlayerController::ToggleManipulatorGrasp);
 
+    // Single-slot save/load over the whole canonical probe state
+    // (save_data.hpp's SaveGameV1). F9 is deliberately avoided: it conflicts
+    // with an Unreal Editor wireframe shortcut in PIE (see
+    // PlaytestRecorderActor.cpp's own F12 note for the same reason).
+    InputComponent->BindKey(EKeys::F5, IE_Pressed, this, &AEverwardPlayerController::SaveGame);
+    InputComponent->BindKey(EKeys::F6, IE_Pressed, this, &AEverwardPlayerController::LoadGame);
+
     // Retain the original engineering-shell aliases while the final input
     // model remains intentionally unsettled.
     InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AEverwardPlayerController::IncreaseForwardVelocity);
@@ -429,6 +436,22 @@ void AEverwardPlayerController::ToggleManipulatorGrasp()
             (void)Adapter->CommandGraspSelectedTarget(ArmId);
         }
         return;
+    }
+}
+
+void AEverwardPlayerController::SaveGame()
+{
+    if (UProbeSimulationAdapter* Adapter = GetProbeAdapter())
+    {
+        (void)Adapter->CommandSaveGame();
+    }
+}
+
+void AEverwardPlayerController::LoadGame()
+{
+    if (UProbeSimulationAdapter* Adapter = GetProbeAdapter())
+    {
+        (void)Adapter->CommandLoadGame();
     }
 }
 

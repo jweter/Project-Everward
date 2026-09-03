@@ -63,6 +63,9 @@ private:
     void SelectNearestPhysicalTarget();
     void ToggleManipulatorGrasp();
 
+    void SaveGame();
+    void LoadGame();
+
     void LookYaw(float Value);
     void LookPitch(float Value);
     void ZoomCamera(float Value);

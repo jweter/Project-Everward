@@ -2,6 +2,9 @@
 
 #include "EverwardPhase2TestEnvironment.h"
 #include "GameFramework/Actor.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "everward/simulation/software_policy.hpp"
 #include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/manipulator.hpp"
@@ -10,6 +13,7 @@
 #include "everward/simulation/manipulator_grasp.hpp"
 #include "everward/simulation/manipulator_move.hpp"
 #include "everward/simulation/manipulator_release.hpp"
+#include "everward/simulation/save_data.hpp"
 
 #include <exception>
 #include <string>
@@ -134,6 +138,36 @@ FString IntegrityReason(
         Integrity * 100.0,
         UTF8_TO_TCHAR(everward::simulation::ImpactDamageModel::integrity_band_name(Band)));
 }
+
+// Guarded against both the probe's own hull envelope and every registered
+// external body (see BeginPlay's original comment, preserved here now that
+// both BeginPlay and CommandLoadGame need to build a rig around whichever
+// DamageAwareProbeRuntime is live at the time). The returned guard always
+// reads CoreForGuard's live position/attitude/registered bodies on every
+// call rather than a snapshot taken here.
+everward::simulation::ManipulatorRig::SelfCollisionGuard BuildManipulatorCollisionGuard(
+    everward::simulation::DamageAwareProbeRuntime* CoreForGuard)
+{
+    return everward::simulation::make_combined_collision_guard(
+        everward::simulation::make_hull_self_collision_guard(),
+        everward::simulation::make_environment_collision_guard(
+            [CoreForGuard]() {
+                const auto& Snapshot = CoreForGuard->snapshot();
+                return everward::simulation::ProbeWorldPose{Snapshot.position_m, Snapshot.attitude_degrees};
+            },
+            [CoreForGuard]() -> const std::vector<everward::simulation::StaticSphereBody>& {
+                return CoreForGuard->static_bodies();
+            }));
+}
+
+// Single canonical location for the save file's path, shared by
+// CommandSaveGame/CommandLoadGame. A single fixed slot (not per-save-name)
+// matches this first prototype's single-canonical-probe scope; multiple
+// save slots are later UI work, not a save-format limitation.
+FString SaveGameFilePath()
+{
+    return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SaveGames"), TEXT("everward_save_v1.json"));
+}
 }
 
 UProbeSimulationAdapter::UProbeSimulationAdapter()
@@ -151,22 +185,10 @@ void UProbeSimulationAdapter::BeginPlay()
     // body) and every registered external body (so an arm cannot sweep into
     // an asteroid/scan target either) -- Slice 6's "collision does not allow
     // impossible penetration" requirement, extended from self-collision to
-    // arm/environment collision per PROJECT_STATUS.md. The environment check
-    // reads Core's live position/attitude/registered bodies on every call
-    // rather than a snapshot taken here, so it stays correct as EV-0001
-    // moves and as bodies are registered/cleared.
-    everward::simulation::DamageAwareProbeRuntime* CoreForGuard = Core;
-    Manipulators = new everward::simulation::ManipulatorRig(
-        everward::simulation::make_combined_collision_guard(
-            everward::simulation::make_hull_self_collision_guard(),
-            everward::simulation::make_environment_collision_guard(
-                [CoreForGuard]() {
-                    const auto& Snapshot = CoreForGuard->snapshot();
-                    return everward::simulation::ProbeWorldPose{Snapshot.position_m, Snapshot.attitude_degrees};
-                },
-                [CoreForGuard]() -> const std::vector<everward::simulation::StaticSphereBody>& {
-                    return CoreForGuard->static_bodies();
-                })));
+    // arm/environment collision per PROJECT_STATUS.md. CommandLoadGame
+    // rebuilds an equivalent guard around the freshly restored runtime
+    // through the same BuildManipulatorCollisionGuard helper.
+    Manipulators = new everward::simulation::ManipulatorRig(BuildManipulatorCollisionGuard(Core));
 
     // Register the same sphere rendered by the temporary Phase-2 environment.
     // The runtime, not Unreal collision response, decides whether EV-0001 can
@@ -770,6 +792,84 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandReleaseGraspedTarget
                 : FString::Printf(TEXT("%s arm cannot release: target would collide with probe hull"), ManipulatorArmName(ArmId)));
     }
     catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSaveGame()
+{
+    // Wires save_data.hpp's capture/serialize path (already ctest-verified
+    // as an exact round trip, see everward_save_data_tests) to a single
+    // human-inspectable JSON file. Only the state save_data.hpp's schema
+    // covers today is written -- see ProbeSaveData's own header comment for
+    // what is intentionally not yet represented.
+    const FName CommandId(TEXT("save_game"));
+    if (Core == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    try
+    {
+        everward::simulation::SaveGameV1 Save;
+        Save.simulation_tick = Core->tick();
+        Save.probes.push_back(
+            Manipulators != nullptr
+                ? everward::simulation::capture_probe_save_data(*Core, *Manipulators)
+                : everward::simulation::capture_probe_save_data(*Core));
+
+        const FString Json = UTF8_TO_TCHAR(everward::simulation::serialize_save_game(Save).c_str());
+        const FString FilePath = SaveGameFilePath();
+        IFileManager::Get().MakeDirectory(*FPaths::GetPath(FilePath), true);
+        const bool bWritten =
+            FFileHelper::SaveStringToFile(Json, *FilePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+        return RecordCommandResult(
+            CommandId, bWritten, bWritten ? TEXT("probe state saved") : TEXT("failed to write save file"));
+    }
+    catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
+{
+    // Fail-closed by construction order: the new runtime/rig are fully
+    // built (validating every field save_data.hpp's restore path checks --
+    // unsupported save_version, malformed JSON, out-of-range/inconsistent
+    // state, an unreachable manipulator pose) before anything currently
+    // live is touched. A rejected load therefore leaves Core/Manipulators
+    // completely unchanged rather than partially replaced.
+    const FName CommandId(TEXT("load_game"));
+    if (Core == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+
+    FString Json;
+    if (!FFileHelper::LoadFileToString(Json, *SaveGameFilePath()))
+    {
+        return RecordCommandResult(CommandId, false, TEXT("no save file found"));
+    }
+
+    everward::simulation::DamageAwareProbeRuntime* NewCore = nullptr;
+    everward::simulation::ManipulatorRig* NewManipulators = nullptr;
+    try
+    {
+        const everward::simulation::SaveGameV1 Save =
+            everward::simulation::deserialize_save_game(TCHAR_TO_UTF8(*Json));
+        if (Save.probes.empty())
+        {
+            return RecordCommandResult(CommandId, false, TEXT("save file has no probe state"));
+        }
+        const everward::simulation::ProbeSaveData& Data = Save.probes[0];
+
+        NewCore = new everward::simulation::DamageAwareProbeRuntime(
+            everward::simulation::restore_probe_runtime(Data, Save.simulation_tick));
+        NewManipulators = new everward::simulation::ManipulatorRig(
+            everward::simulation::restore_manipulator_rig(Data, BuildManipulatorCollisionGuard(NewCore)));
+    }
+    catch (const std::exception& Error)
+    {
+        delete NewManipulators;
+        delete NewCore;
+        return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what()));
+    }
+
+    delete Manipulators;
+    delete Core;
+    Core = NewCore;
+    Manipulators = NewManipulators;
+    SyncOwnerTransformFromSimulation();
+    return RecordCommandResult(CommandId, true, TEXT("probe state loaded"));
 }
 
 void UProbeSimulationAdapter::SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond)
