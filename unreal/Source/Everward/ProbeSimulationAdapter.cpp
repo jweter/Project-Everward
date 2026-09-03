@@ -9,6 +9,7 @@
 #include "everward/simulation/manipulator_reach.hpp"
 #include "everward/simulation/manipulator_grasp.hpp"
 #include "everward/simulation/manipulator_move.hpp"
+#include "everward/simulation/manipulator_release.hpp"
 
 #include <exception>
 #include <string>
@@ -751,13 +752,22 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandGraspSelectedTarget(
 
 FEverwardProbeCommandResult UProbeSimulationAdapter::CommandReleaseGraspedTarget(EEverwardManipulatorArmId ArmId)
 {
+    // Slice 7 "release-with-consequence": gated by
+    // attempt_release_grasped_target, which fails closed (no mutation, arm
+    // keeps holding the target) whenever letting go now would leave the
+    // released body overlapping the probe's own hull envelope. A false
+    // return is an ordinary "not yet" outcome (move clear of the hull first),
+    // not an error.
     const FName CommandId(TEXT("release_grasped_target"));
-    if (Manipulators == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    if (Core == nullptr || Manipulators == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
     try
     {
-        Manipulators->release_grasp(ToSimulationManipulatorArmId(ArmId));
-        return RecordCommandResult(CommandId, true,
-            FString::Printf(TEXT("%s arm released grasped target"), ManipulatorArmName(ArmId)));
+        const auto SimulationArmId = ToSimulationManipulatorArmId(ArmId);
+        const bool bReleased = everward::simulation::attempt_release_grasped_target(*Manipulators, *Core, SimulationArmId);
+        return RecordCommandResult(CommandId, bReleased,
+            bReleased
+                ? FString::Printf(TEXT("%s arm released grasped target"), ManipulatorArmName(ArmId))
+                : FString::Printf(TEXT("%s arm cannot release: target would collide with probe hull"), ManipulatorArmName(ArmId)));
     }
     catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
 }

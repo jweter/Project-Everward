@@ -63,7 +63,11 @@ class Phase2ManipulatorGraspSurfaceTests(unittest.TestCase):
 
         self.assertIn("everward/simulation/manipulator_grasp.hpp", self.adapter_cpp)
         self.assertIn("everward::simulation::attempt_grasp_selected_target(*Manipulators, *Core", self.adapter_cpp)
-        self.assertIn("Manipulators->release_grasp(", self.adapter_cpp)
+        # release-with-consequence (PHASE2_MANIPULATOR_RELEASE_TEST.md) moved
+        # the adapter off a direct, unconditional Manipulators->release_grasp
+        # call and onto the same gated-wrapper pattern grasp itself uses.
+        self.assertIn("everward/simulation/manipulator_release.hpp", self.adapter_cpp)
+        self.assertIn("everward::simulation::attempt_release_grasped_target(*Manipulators, *Core", self.adapter_cpp)
         # The proximity/mechanical decision stays in the engine-independent
         # modules; the adapter only forwards the outcome rather than
         # re-deriving it (e.g. reimplementing begin_grasp's own guards).

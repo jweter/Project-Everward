@@ -234,6 +234,30 @@ implemented, Product Reality pending, and does not advance the slice's
 completion gate by itself: `release`-with-consequence beyond simply letting
 go where the object currently is still does not exist.
 
+A ninth parallel-safe sub-slice then closed exactly that named gap:
+`manipulator_release.hpp`'s `attempt_release_grasped_target()` gates
+`ManipulatorRig::release_grasp()` behind a check that the held body's
+current registered position/radius does not overlap the probe's own
+five-sphere `ProbeCompoundCollisionEnvelope` -- the same envelope
+`software_policy.hpp`'s swept contact and
+`manipulator_hull_contact.hpp`'s arm/hull guard already use, so no second
+hull shape or placement convention is invented. `release_grasp` itself stays
+unconditional exactly as documented; the new gate lives in the wrapper layer
+the same way `attempt_grasp_selected_target` already gates `begin_grasp`.
+`UProbeSimulationAdapter::CommandReleaseGraspedTarget()` now routes through
+this gate instead of calling `release_grasp` directly, reporting "target
+would collide with probe hull" through the existing global-feedback path on
+rejection (see `PROJECT_STATUS.md`'s "Manipulator release" section and
+`PHASE2_MANIPULATOR_RELEASE_TEST.md`, which also records an integration
+finding: the current test scene's 2.0 m `SCAN-001` placeholder radius means
+release fails closed at the default just-deployed pose and requires
+deliberate joint articulation to clear the hull). This is implemented,
+Product Reality pending, and closes the last previously-named
+release-with-consequence gap, but does not by itself advance the slice's
+completion gate: releasing near another registered body, "place"/"drop
+toward a target" targeting, hand-off into the mining/storage flow, and
+released-object velocity/momentum still do not exist.
+
 Turn scanning and manipulators into one loop:
 
 `detect -> select -> approach -> scan -> reach -> grasp -> move -> release`
