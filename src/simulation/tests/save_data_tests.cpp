@@ -14,6 +14,8 @@ using everward::simulation::ComponentIntegritySnapshot;
 using everward::simulation::DamageAwareProbeRuntime;
 using everward::simulation::EulerAttitudeDegrees;
 using everward::simulation::JsonValue;
+using everward::simulation::ManipulatorArmId;
+using everward::simulation::ManipulatorRig;
 using everward::simulation::PolicyActionKind;
 using everward::simulation::PolicyConditionKind;
 using everward::simulation::PowerSubsystem;
@@ -27,6 +29,7 @@ using everward::simulation::StaticSphereBody;
 using everward::simulation::Vector3d;
 using everward::simulation::capture_probe_save_data;
 using everward::simulation::deserialize_save_game;
+using everward::simulation::restore_manipulator_rig;
 using everward::simulation::restore_probe_runtime;
 using everward::simulation::serialize_save_game;
 
@@ -255,6 +258,89 @@ void test_generation_out_of_range_fails_closed() {
     assert(threw);
 }
 
+void test_restored_contact_history_is_not_reassessed() {
+    // Reproduces a real damaging contact (well above the 25 kJ light-impact
+    // threshold at the canonical 2500 kg mass) via saved state, rather than
+    // through the live collision solver, since this is a save/load-only
+    // scenario: after loading, the persisted contact must already read as
+    // assessed so it is not charged against integrity a second time.
+    ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    data.probe.has_contact_history = true;
+    data.probe.last_contact_body_id = "asteroid";
+    data.probe.last_contact_point_m = Vector3d{5.0, 0.0, 0.0};
+    data.probe.last_contact_surface_normal = Vector3d{1.0, 0.0, 0.0};
+    data.probe.last_contact_relative_velocity_mps = Vector3d{-10.0, 0.0, 0.0};
+    data.probe.last_contact_normal_speed_mps = 10.0;
+    data.probe.last_contact_tick = 500;
+    data.integrity = ComponentIntegritySnapshot{0.8, 0.8, 0.8, 0.8};
+
+    DamageAwareProbeRuntime restored = restore_probe_runtime(data, 500);
+    assert(nearly_equal(restored.component_integrity().sensors, 0.8));
+    assert(nearly_equal(restored.component_integrity().propulsion, 0.8));
+    assert(nearly_equal(restored.component_integrity().computation, 0.8));
+    assert(nearly_equal(restored.component_integrity().thermal, 0.8));
+
+    restored.advance_wall_ticks(0);
+
+    // If the assessment watermark were not restored, whichever subsystem
+    // the contact normal maps to would have dropped below 0.8 here.
+    assert(nearly_equal(restored.component_integrity().sensors, 0.8));
+    assert(nearly_equal(restored.component_integrity().propulsion, 0.8));
+    assert(nearly_equal(restored.component_integrity().computation, 0.8));
+    assert(nearly_equal(restored.component_integrity().thermal, 0.8));
+    assert(restored.last_impact().has_value() == false);
+}
+
+void test_manipulator_arm_state_round_trips() {
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+
+    ManipulatorRig rig;
+    rig.begin_deploy(ManipulatorArmId::Port);
+    rig.advance(ManipulatorRig::kDeployStowDurationS);
+    rig.command_joint_target_degrees(ManipulatorArmId::Port, everward::simulation::ManipulatorJoint::Elbow, 45.0);
+    rig.advance(1.0);
+    rig.attach_tool(ManipulatorArmId::Port);
+    rig.begin_grasp(ManipulatorArmId::Port, "rock");
+
+    const ProbeSaveData data = capture_probe_save_data(runtime, rig);
+    const std::string json_text = serialize_save_game(SaveGameV1{1, runtime.tick(), {data}});
+    const SaveGameV1 parsed = deserialize_save_game(json_text);
+
+    const ManipulatorRig restored_rig = restore_manipulator_rig(parsed.probes.at(0));
+    const auto& port = restored_rig.arm(ManipulatorArmId::Port);
+    assert(port.is_deployed);
+    assert(!port.is_deploying && !port.is_stowing);
+    assert(nearly_equal(port.deployment_fraction, 1.0));
+    assert(port.tool_attached);
+    assert(port.grasped_target_body_id == "rock");
+    assert(nearly_equal(port.angles.elbow_degrees, rig.arm(ManipulatorArmId::Port).angles.elbow_degrees));
+
+    const auto& starboard = restored_rig.arm(ManipulatorArmId::Starboard);
+    assert(!starboard.is_deployed);
+    assert(nearly_equal(starboard.deployment_fraction, 0.0));
+    assert(!starboard.tool_attached);
+    assert(starboard.grasped_target_body_id.empty());
+}
+
+void test_manipulator_arm_out_of_range_angle_fails_closed() {
+    const ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    std::string json_text = serialize_save_game(SaveGameV1{1, 0, {data}});
+
+    const std::string needle = "\"shoulder_degrees\": 0";
+    const std::size_t pos = json_text.find(needle);
+    assert(pos != std::string::npos);
+    json_text.replace(pos, needle.size(), "\"shoulder_degrees\": 999");
+
+    const SaveGameV1 parsed = deserialize_save_game(json_text);
+    bool threw = false;
+    try {
+        (void)restore_manipulator_rig(parsed.probes.at(0));
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    assert(threw);
+}
+
 void test_restore_rejects_inconsistent_snapshot() {
     ProbeStateSnapshot bad_mass = DamageAwareProbeRuntime::make_canonical_ev0001().snapshot();
     bad_mass.mass_kg = -1.0;
@@ -265,6 +351,46 @@ void test_restore_rejects_inconsistent_snapshot() {
         threw_mass = true;
     }
     assert(threw_mass);
+
+    ProbeStateSnapshot bad_energy_generation = DamageAwareProbeRuntime::make_canonical_ev0001().snapshot();
+    bad_energy_generation.energy_generation_w = -1.0;
+    bool threw_energy_generation = false;
+    try {
+        (void)SimulationCore::restore_from_snapshot(bad_energy_generation, 0);
+    } catch (const std::invalid_argument&) {
+        threw_energy_generation = true;
+    }
+    assert(threw_energy_generation);
+
+    ProbeStateSnapshot bad_thermal_capacity = DamageAwareProbeRuntime::make_canonical_ev0001().snapshot();
+    bad_thermal_capacity.thermal_capacity_j_per_k = 0.0;
+    bool threw_thermal_capacity = false;
+    try {
+        (void)SimulationCore::restore_from_snapshot(bad_thermal_capacity, 0);
+    } catch (const std::invalid_argument&) {
+        threw_thermal_capacity = true;
+    }
+    assert(threw_thermal_capacity);
+
+    ProbeStateSnapshot bad_cooling = DamageAwareProbeRuntime::make_canonical_ev0001().snapshot();
+    bad_cooling.passive_cooling_w_per_k = -1.0;
+    bool threw_cooling = false;
+    try {
+        (void)SimulationCore::restore_from_snapshot(bad_cooling, 0);
+    } catch (const std::invalid_argument&) {
+        threw_cooling = true;
+    }
+    assert(threw_cooling);
+
+    ProbeStateSnapshot bad_max_temperature = DamageAwareProbeRuntime::make_canonical_ev0001().snapshot();
+    bad_max_temperature.max_operating_temperature_k = 0.0;
+    bool threw_max_temperature = false;
+    try {
+        (void)SimulationCore::restore_from_snapshot(bad_max_temperature, 0);
+    } catch (const std::invalid_argument&) {
+        threw_max_temperature = true;
+    }
+    assert(threw_max_temperature);
 
     ProbeStateSnapshot bad_scan = DamageAwareProbeRuntime::make_canonical_ev0001().snapshot();
     bad_scan.is_scanning = true;
@@ -297,6 +423,9 @@ int main() {
     test_malformed_json_fails_closed();
     test_large_tick_values_round_trip_losslessly();
     test_generation_out_of_range_fails_closed();
+    test_restored_contact_history_is_not_reassessed();
+    test_manipulator_arm_state_round_trips();
+    test_manipulator_arm_out_of_range_angle_fails_closed();
     test_restore_rejects_inconsistent_snapshot();
 
     std::puts("save_data_tests: all tests passed");

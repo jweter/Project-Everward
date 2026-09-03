@@ -51,8 +51,24 @@ public:
             snapshot.stored_energy_j > snapshot.energy_capacity_j + 1e-6) {
             throw std::invalid_argument("stored_energy_j out of range for energy_capacity_j");
         }
+        if (!std::isfinite(snapshot.energy_generation_w) || snapshot.energy_generation_w < 0.0) {
+            throw std::invalid_argument("energy_generation_w must be finite and non-negative");
+        }
         if (!std::isfinite(snapshot.temperature_k) || snapshot.temperature_k <= 0.0) {
             throw std::invalid_argument("temperature_k must be finite and positive");
+        }
+        if (!std::isfinite(snapshot.ambient_temperature_k) || snapshot.ambient_temperature_k <= 0.0) {
+            throw std::invalid_argument("ambient_temperature_k must be finite and positive");
+        }
+        if (!std::isfinite(snapshot.thermal_capacity_j_per_k) || snapshot.thermal_capacity_j_per_k <= 0.0) {
+            throw std::invalid_argument("thermal_capacity_j_per_k must be finite and positive");
+        }
+        if (!std::isfinite(snapshot.passive_cooling_w_per_k) || snapshot.passive_cooling_w_per_k < 0.0) {
+            throw std::invalid_argument("passive_cooling_w_per_k must be finite and non-negative");
+        }
+        if (!std::isfinite(snapshot.max_operating_temperature_k) ||
+            snapshot.max_operating_temperature_k <= 0.0) {
+            throw std::invalid_argument("max_operating_temperature_k must be finite and positive");
         }
         if (!std::isfinite(snapshot.storage_capacity_kg) || snapshot.storage_capacity_kg < 0.0) {
             throw std::invalid_argument("storage_capacity_kg must be finite and non-negative");

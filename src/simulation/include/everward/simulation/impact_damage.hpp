@@ -131,14 +131,26 @@ public:
     // whose sensors_operational/propulsion_operational/... flags may already
     // reflect an independent manual/policy shutoff alongside the same
     // integrity value.
+    //
+    // has_contact_history/last_contact_tick come from the same restored
+    // ProbeStateSnapshot: the contact they describe already happened before
+    // the save was captured, and its damage is already baked into
+    // `integrity`. Restoring the assessment watermark to match marks that
+    // contact as already assessed, so the first assess_latest_contact() call
+    // after loading does not treat it as new and apply the same damage a
+    // second time.
     [[nodiscard]] static ImpactDamageModel restore_from_snapshot(
-            const ComponentIntegritySnapshot& integrity) {
+            const ComponentIntegritySnapshot& integrity,
+            bool has_contact_history,
+            std::int64_t last_contact_tick) {
         validate_integrity(integrity.sensors);
         validate_integrity(integrity.propulsion);
         validate_integrity(integrity.computation);
         validate_integrity(integrity.thermal);
         ImpactDamageModel model;
         model.integrity_ = integrity;
+        model.has_assessed_contact_ = has_contact_history;
+        model.last_assessed_contact_tick_ = last_contact_tick;
         return model;
     }
 

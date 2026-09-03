@@ -4,12 +4,13 @@
 // state, per docs/SAVE_FORMAT.md. This is a first-prototype slice: it
 // covers exactly the state that exists today (the single canonical EV-0001
 // probe's physical/energy/thermal/storage/scan state, component integrity,
-// registered physical targets, an installed software policy, and target
-// selection). The many other top-level categories docs/SAVE_FORMAT.md
-// anticipates (lineages, infrastructure, civilizations, ...) do not exist
-// in the simulation yet and are therefore not represented here; adding them
-// is a later, explicit schema version rather than something this slice
-// should invent ahead of the mechanics that would give them meaning.
+// registered physical targets, an installed software policy, target
+// selection, and both manipulator arms' deploy/joint/tool/grasp state). The
+// many other top-level categories docs/SAVE_FORMAT.md anticipates
+// (lineages, infrastructure, civilizations, ...) do not exist in the
+// simulation yet and are therefore not represented here; adding them is a
+// later, explicit schema version rather than something this slice should
+// invent ahead of the mechanics that would give them meaning.
 //
 // Save data is untrusted input once it leaves this process (a player can
 // hand-edit the human-inspectable JSON), so every read path below fails
@@ -20,6 +21,7 @@
 
 #include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/json_value.hpp"
+#include "everward/simulation/manipulator.hpp"
 #include "everward/simulation/software_policy.hpp"
 
 #include <cstdint>
@@ -44,6 +46,13 @@ struct ProbeSaveData {
     std::vector<StaticSphereBody> static_bodies{};
     std::optional<SoftwarePolicy> policy{};
     std::string selected_target_id{};
+    // ManipulatorRig is not composed inside DamageAwareProbeRuntime (see
+    // manipulator.hpp's header comment), so it is captured/restored here as
+    // plain arm state rather than as a whole ManipulatorRig -- the rig's
+    // SelfCollisionGuard is presentation-adjacent wiring the caller supplies
+    // when reconstructing the rig, not persisted state.
+    ManipulatorArmState port_manipulator_arm{};
+    ManipulatorArmState starboard_manipulator_arm{};
 };
 
 struct SaveGameV1 {
@@ -173,6 +182,48 @@ namespace detail {
     body.center_m = vector3d_from_json(value.require("center_m"));
     body.radius_m = value.require("radius_m").as_double();
     return body;
+}
+
+[[nodiscard]] inline JsonValue manipulator_arm_angles_to_json(const ManipulatorArmAngles& angles) {
+    JsonValue object = JsonValue::make_object();
+    object.set("shoulder_degrees", JsonValue(angles.shoulder_degrees));
+    object.set("elbow_degrees", JsonValue(angles.elbow_degrees));
+    object.set("wrist_degrees", JsonValue(angles.wrist_degrees));
+    return object;
+}
+
+[[nodiscard]] inline ManipulatorArmAngles manipulator_arm_angles_from_json(const JsonValue& value) {
+    ManipulatorArmAngles angles;
+    angles.shoulder_degrees = value.require("shoulder_degrees").as_double();
+    angles.elbow_degrees = value.require("elbow_degrees").as_double();
+    angles.wrist_degrees = value.require("wrist_degrees").as_double();
+    return angles;
+}
+
+[[nodiscard]] inline JsonValue manipulator_arm_state_to_json(const ManipulatorArmState& state) {
+    JsonValue object = JsonValue::make_object();
+    object.set("is_deployed", JsonValue(state.is_deployed));
+    object.set("is_deploying", JsonValue(state.is_deploying));
+    object.set("is_stowing", JsonValue(state.is_stowing));
+    object.set("deployment_fraction", JsonValue(state.deployment_fraction));
+    object.set("angles", manipulator_arm_angles_to_json(state.angles));
+    object.set("commanded_angles", manipulator_arm_angles_to_json(state.commanded_angles));
+    object.set("tool_attached", JsonValue(state.tool_attached));
+    object.set("grasped_target_body_id", JsonValue(state.grasped_target_body_id));
+    return object;
+}
+
+[[nodiscard]] inline ManipulatorArmState manipulator_arm_state_from_json(const JsonValue& value) {
+    ManipulatorArmState state;
+    state.is_deployed = value.require("is_deployed").as_bool();
+    state.is_deploying = value.require("is_deploying").as_bool();
+    state.is_stowing = value.require("is_stowing").as_bool();
+    state.deployment_fraction = value.require("deployment_fraction").as_double();
+    state.angles = manipulator_arm_angles_from_json(value.require("angles"));
+    state.commanded_angles = manipulator_arm_angles_from_json(value.require("commanded_angles"));
+    state.tool_attached = value.require("tool_attached").as_bool();
+    state.grasped_target_body_id = value.require("grasped_target_body_id").as_string();
+    return state;
 }
 
 [[nodiscard]] inline JsonValue policy_rule_to_json(const SoftwarePolicyRule& rule) {
@@ -356,6 +407,10 @@ namespace detail {
     object.set("static_bodies", std::move(static_bodies));
     object.set("policy", data.policy.has_value() ? detail::policy_to_json(*data.policy) : JsonValue());
     object.set("selected_target_id", JsonValue(data.selected_target_id));
+    object.set("port_manipulator_arm", detail::manipulator_arm_state_to_json(data.port_manipulator_arm));
+    object.set(
+        "starboard_manipulator_arm",
+        detail::manipulator_arm_state_to_json(data.starboard_manipulator_arm));
     return object;
 }
 
@@ -371,6 +426,10 @@ namespace detail {
         data.policy = detail::policy_from_json(policy_value);
     }
     data.selected_target_id = value.require("selected_target_id").as_string();
+    data.port_manipulator_arm =
+        detail::manipulator_arm_state_from_json(value.require("port_manipulator_arm"));
+    data.starboard_manipulator_arm =
+        detail::manipulator_arm_state_from_json(value.require("starboard_manipulator_arm"));
     return data;
 }
 
@@ -416,13 +475,22 @@ namespace detail {
 }
 
 // Bridges the persisted schema to the live runtime. capture_probe_save_data
-// reads only through DamageAwareProbeRuntime's existing public accessors;
-// restore_probe_runtime writes only through SimulationCore/ImpactDamageModel's
-// dedicated restore_from_snapshot factories plus the same validated mutators
-// (add_static_sphere_body, install_policy, select_target) live gameplay uses,
-// so a restored runtime carries no state that could not have been reached by
-// legitimate play.
-[[nodiscard]] inline ProbeSaveData capture_probe_save_data(const DamageAwareProbeRuntime& runtime) {
+// reads only through DamageAwareProbeRuntime's (and, for the manipulator
+// arms, ManipulatorRig's) existing public accessors; restore_probe_runtime
+// and restore_manipulator_rig write only through SimulationCore/
+// ImpactDamageModel/ManipulatorRig's dedicated restore_from_snapshot
+// factories plus the same validated mutators (add_static_sphere_body,
+// install_policy, select_target) live gameplay uses, so restored state
+// carries nothing that could not have been reached by legitimate play.
+//
+// ManipulatorRig is not composed inside DamageAwareProbeRuntime today (see
+// manipulator.hpp), so it is captured/restored as a separate optional
+// parameter/function rather than folded into the runtime bridge above --
+// matching how a caller (e.g. the Unreal adapter) already holds both
+// objects side by side rather than one owning the other.
+[[nodiscard]] inline ProbeSaveData capture_probe_save_data(
+        const DamageAwareProbeRuntime& runtime,
+        const ManipulatorRig& manipulator_rig = ManipulatorRig{}) {
     ProbeSaveData data;
     data.probe = runtime.snapshot();
     data.integrity = runtime.component_integrity();
@@ -434,6 +502,8 @@ namespace detail {
     if (selection.has_selection) {
         data.selected_target_id = selection.body_id;
     }
+    data.port_manipulator_arm = manipulator_rig.arm(ManipulatorArmId::Port);
+    data.starboard_manipulator_arm = manipulator_rig.arm(ManipulatorArmId::Starboard);
     return data;
 }
 
@@ -441,7 +511,8 @@ namespace detail {
         const ProbeSaveData& data,
         std::int64_t simulation_tick) {
     SimulationCore core = SimulationCore::restore_from_snapshot(data.probe, simulation_tick);
-    ImpactDamageModel damage = ImpactDamageModel::restore_from_snapshot(data.integrity);
+    ImpactDamageModel damage = ImpactDamageModel::restore_from_snapshot(
+        data.integrity, data.probe.has_contact_history, data.probe.last_contact_tick);
     DamageAwareProbeRuntime runtime =
         DamageAwareProbeRuntime::restore_from_snapshot(ProbeRuntime(std::move(core)), std::move(damage));
 
@@ -455,6 +526,18 @@ namespace detail {
         runtime.select_target(data.selected_target_id);
     }
     return runtime;
+}
+
+// self_collision_guard is not persisted (see ProbeSaveData's comment): pass
+// the same guard the caller would otherwise construct the rig with (e.g.
+// manipulator_hull_contact.hpp's hull-aware guard), or omit it for a
+// default-constructed rig with no guard, matching ManipulatorRig's own
+// default-construction behavior.
+[[nodiscard]] inline ManipulatorRig restore_manipulator_rig(
+        const ProbeSaveData& data,
+        ManipulatorRig::SelfCollisionGuard self_collision_guard = ManipulatorRig::SelfCollisionGuard{}) {
+    return ManipulatorRig::restore_from_snapshot(
+        data.port_manipulator_arm, data.starboard_manipulator_arm, std::move(self_collision_guard));
 }
 
 } // namespace everward::simulation
