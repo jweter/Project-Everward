@@ -42,3 +42,6 @@ benchmark-results/local/
 .env
 .env.*
 !.env.example
+
+# Private Product Reality source evidence
+private/product-reality-inbox/
