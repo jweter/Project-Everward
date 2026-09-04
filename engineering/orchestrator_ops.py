@@ -133,6 +133,7 @@ def reconcile_status(output: Path) -> int:
                 "base": item["base"]["ref"],
             }
             for item in pulls
+            if item["head"]["ref"] != "automation/status-reconcile"
         ),
         key=lambda row: row["number"],
     )
