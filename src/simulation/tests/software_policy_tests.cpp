@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+using everward::simulation::ApproachMotionState;
 using everward::simulation::DomainEvent;
 using everward::simulation::DomainEventType;
 using everward::simulation::PolicyActionKind;
@@ -216,6 +217,7 @@ int main() {
         assert(status.body_id == "near-rock");
         assert(nearly_equal_local(status.surface_range_m, 15.0));
         assert(nearly_equal_local(status.closing_speed_mps, 0.0));
+        assert(status.approach_motion == ApproachMotionState::HoldingRange);
     }
 
     // A max selection range excludes bodies beyond it rather than selecting
@@ -237,6 +239,21 @@ int main() {
         const TargetSelectionStatus status = runtime.selected_target_status();
         assert(status.has_selection);
         assert(nearly_equal_local(status.closing_speed_mps, 10.0));
+        assert(status.approach_motion == ApproachMotionState::Closing);
+    }
+
+    // Closing speed is negative, and the motion classification reads
+    // Opening, while receding from a stationary body head-on.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(StaticSphereBody{"behind", {-100.0, 0.0, 0.0}, 5.0});
+        runtime.set_velocity_mps({10.0, 0.0, 0.0});
+        runtime.select_target("behind");
+
+        const TargetSelectionStatus status = runtime.selected_target_status();
+        assert(status.has_selection);
+        assert(status.closing_speed_mps < 0.0);
+        assert(status.approach_motion == ApproachMotionState::Opening);
     }
 
     // Explicit selection of an unknown or empty id fails closed: no stale

@@ -258,6 +258,26 @@ completion gate: releasing near another registered body, "place"/"drop
 toward a target" targeting, hand-off into the mining/storage flow, and
 released-object velocity/momentum still do not exist.
 
+A tenth parallel-safe sub-slice then addressed the "approach" step's own
+gap: every prior sub-slice above named "approach-as-motion" as the one loop
+step still without dedicated player-legible state. Range and closing speed
+were already exposed as raw numbers on the `TARGET` HUD row, but the row's
+label unconditionally read `CLOSING <rate> M/S` even while the reported
+rate was negative (i.e. while actually receding). `target_selection.hpp`'s
+new `classify_approach_motion()` classifies the same `closing_speed_mps`
+`TargetSelectionStatus` already computes into `Closing` / `HoldingRange` /
+`Opening`, and the HUD row's label now follows that classification instead
+of a hardcoded word. This adds no new movement mechanic — the probe still
+only approaches through existing manual translation — and mutates no
+authoritative state beyond the existing `TargetSelectionStatus` it extends
+(see `PROJECT_STATUS.md`'s "Approach-motion labeling" section and the
+updated `PHASE2_TARGET_SELECTION_TEST.md` local acceptance steps 4-6).
+
+**Status: implemented, Product Reality pending.** This does not advance the
+slice's completion gate by itself: it labels the existing approach step
+correctly rather than adding an assisted-approach or auto-braking
+mechanic, and grasp/move/release behavior is unchanged.
+
 Turn scanning and manipulators into one loop:
 
 `detect -> select -> approach -> scan -> reach -> grasp -> move -> release`

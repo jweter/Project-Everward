@@ -25,6 +25,8 @@ class Phase2TargetSelectionSurfaceTests(unittest.TestCase):
         self.assertIn("find_nearest_selectable_target", self.target_selection)
         self.assertIn("find_next_selectable_target", self.target_selection)
         self.assertIn("select_target_telemetry", self.target_selection)
+        self.assertIn("classify_approach_motion", self.target_selection)
+        self.assertIn("enum class ApproachMotionState", self.target_selection)
         self.assertNotIn("#include \"CoreMinimal.h\"", self.target_selection)
         self.assertNotIn("UENUM", self.target_selection)
         self.assertNotIn("USTRUCT", self.target_selection)
@@ -47,6 +49,8 @@ class Phase2TargetSelectionSurfaceTests(unittest.TestCase):
             self.assertIn(method, self.software_policy)
         self.assertIn("find_nearest_selectable_target(", self.software_policy)
         self.assertIn("select_target_telemetry(", self.software_policy)
+        self.assertIn("ApproachMotionState approach_motion", self.software_policy)
+        self.assertIn("classify_approach_motion(", self.software_policy)
 
     def test_cycle_operation_uses_authoritative_runtime_state(self) -> None:
         self.assertIn("cycle_next_target_selection", self.target_cycle_runtime)
@@ -68,6 +72,8 @@ class Phase2TargetSelectionSurfaceTests(unittest.TestCase):
 
     def test_unreal_adapter_exposes_target_cycle_without_owning_ordering(self) -> None:
         self.assertIn("FEverwardTargetSelectionStatus", self.adapter_h)
+        self.assertIn("EEverwardApproachMotion", self.adapter_h)
+        self.assertIn("ApproachMotion", self.adapter_h)
         for method in (
             "GetSelectedTargetStatus",
             "CommandSelectNearestTarget",
@@ -82,9 +88,12 @@ class Phase2TargetSelectionSurfaceTests(unittest.TestCase):
         self.assertIn("cycle_next_target_selection(*Core", self.bridge_cpp)
         self.assertIn("Core->select_target(", self.bridge_cpp)
         self.assertIn("Core->clear_target_selection()", self.bridge_cpp)
+        self.assertIn("ToApproachMotion", self.bridge_cpp)
+        self.assertIn("Selection.approach_motion", self.bridge_cpp)
         self.assertNotIn("find_next_selectable_target", self.bridge_cpp)
         self.assertNotIn("surface_range_to_body", self.bridge_cpp)
         self.assertNotIn("closing_speed_to_body", self.bridge_cpp)
+        self.assertNotIn("classify_approach_motion", self.bridge_cpp)
 
     def test_player_controller_cycles_target_with_t(self) -> None:
         self.assertIn("EKeys::T", self.controller_cpp)
@@ -99,6 +108,18 @@ class Phase2TargetSelectionSurfaceTests(unittest.TestCase):
         self.assertIn("SurfaceRangeMeters", self.hud_cpp)
         self.assertIn("ClosingSpeedMetersPerSecond", self.hud_cpp)
         self.assertNotIn("everward/simulation", self.hud_cpp)
+
+    def test_hud_labels_approach_motion_instead_of_always_closing(self) -> None:
+        # The TARGET row previously always printed "CLOSING %.2f M/S" even
+        # while the probe was receding (a negative closing speed). It must
+        # now read the authoritative ApproachMotion classification instead
+        # of hardcoding one label for every sign.
+        self.assertIn("TargetSelection.ApproachMotion", self.hud_cpp)
+        self.assertIn("EEverwardApproachMotion::Closing", self.hud_cpp)
+        self.assertIn("EEverwardApproachMotion::Opening", self.hud_cpp)
+        self.assertIn("EEverwardApproachMotion::HoldingRange", self.hud_cpp)
+        self.assertIn("OPENING %.2f M/S", self.hud_cpp)
+        self.assertIn("HOLDING RANGE", self.hud_cpp)
 
     def test_environment_highlights_selected_target_from_authoritative_status(self) -> None:
         # Parallel-safe visual selection indicator: the registered physical

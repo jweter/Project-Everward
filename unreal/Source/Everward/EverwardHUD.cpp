@@ -381,11 +381,28 @@ void AEverwardHUD::DrawHUD()
     // Slice 7 foundation: authoritative range/closing speed for whatever the
     // player has selected with T, over the same registered-body list the
     // swept contact solver already consumes. No selection reads as a plain
-    // muted prompt rather than fabricated zeros.
+    // muted prompt rather than fabricated zeros. The approach step's motion
+    // label (CLOSING / OPENING / HOLDING RANGE) reflects
+    // TargetSelection.ApproachMotion rather than always reading "CLOSING",
+    // since a negative closing speed means the probe is receding.
+    FString ApproachLabel;
+    switch (TargetSelection.ApproachMotion)
+    {
+        case EEverwardApproachMotion::Closing:
+            ApproachLabel = FString::Printf(TEXT("CLOSING %.2f M/S"), TargetSelection.ClosingSpeedMetersPerSecond);
+            break;
+        case EEverwardApproachMotion::Opening:
+            ApproachLabel = FString::Printf(TEXT("OPENING %.2f M/S"), FMath::Abs(TargetSelection.ClosingSpeedMetersPerSecond));
+            break;
+        case EEverwardApproachMotion::HoldingRange:
+        default:
+            ApproachLabel = TEXT("HOLDING RANGE");
+            break;
+    }
     DrawText(
         TargetSelection.bHasSelection
-            ? FString::Printf(TEXT("TARGET  %s // %.1f M // CLOSING %.2f M/S"),
-                *TargetSelection.TargetId, TargetSelection.SurfaceRangeMeters, TargetSelection.ClosingSpeedMetersPerSecond)
+            ? FString::Printf(TEXT("TARGET  %s // %.1f M // %s"),
+                *TargetSelection.TargetId, TargetSelection.SurfaceRangeMeters, *ApproachLabel)
             : FString(TEXT("TARGET  NONE SELECTED // [T] SELECT NEAREST")),
         TargetSelection.bHasSelection ? TextColor : MutedColor,
         Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 5.0f,

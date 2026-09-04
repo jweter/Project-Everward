@@ -343,6 +343,18 @@ struct EVERWARD_API FEverwardManipulatorArmState
     FString GraspedTargetId;
 };
 
+// Slice 7 "approach" step: classifies ClosingSpeedMetersPerSecond into the
+// qualitative motion state a player actually reads at a glance. Mirrors
+// target_selection.hpp's ApproachMotionState -- presentation-classification
+// only, no new physics or authoritative state.
+UENUM(BlueprintType)
+enum class EEverwardApproachMotion : uint8
+{
+    Closing UMETA(DisplayName="Closing"),
+    HoldingRange UMETA(DisplayName="Holding Range"),
+    Opening UMETA(DisplayName="Opening")
+};
+
 // Slice 7 foundation: authoritative selected-target range/closing-speed
 // telemetry over the registered StaticSphereBody list. Mirrors
 // target_selection.hpp's TargetRangeTelemetry, plus bHasSelection so "no
@@ -364,6 +376,9 @@ struct EVERWARD_API FEverwardTargetSelectionStatus
 
     UPROPERTY(BlueprintReadOnly, Category="Everward|Target")
     double ClosingSpeedMetersPerSecond = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target")
+    EEverwardApproachMotion ApproachMotion = EEverwardApproachMotion::HoldingRange;
 };
 
 // Slice 7 "align a manipulator" minimum interaction (PHASE2_VERTICAL_SLICE_PLAN.md):

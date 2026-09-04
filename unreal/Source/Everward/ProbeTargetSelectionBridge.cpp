@@ -5,6 +5,20 @@
 
 #include <string>
 
+namespace
+{
+EEverwardApproachMotion ToApproachMotion(everward::simulation::ApproachMotionState State)
+{
+    switch (State)
+    {
+        case everward::simulation::ApproachMotionState::Closing: return EEverwardApproachMotion::Closing;
+        case everward::simulation::ApproachMotionState::Opening: return EEverwardApproachMotion::Opening;
+        case everward::simulation::ApproachMotionState::HoldingRange:
+        default: return EEverwardApproachMotion::HoldingRange;
+    }
+}
+} // namespace
+
 FEverwardTargetSelectionStatus UProbeSimulationAdapter::GetSelectedTargetStatus() const
 {
     FEverwardTargetSelectionStatus Status;
@@ -18,6 +32,7 @@ FEverwardTargetSelectionStatus UProbeSimulationAdapter::GetSelectedTargetStatus(
     Status.TargetId = UTF8_TO_TCHAR(Selection.body_id.c_str());
     Status.SurfaceRangeMeters = Selection.surface_range_m;
     Status.ClosingSpeedMetersPerSecond = Selection.closing_speed_mps;
+    Status.ApproachMotion = ToApproachMotion(Selection.approach_motion);
     return Status;
 }
 
