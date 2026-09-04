@@ -162,7 +162,7 @@
         "argv": [
           "python",
           "engineering/growth_engine.py",
-          "--help"
+          "validate"
         ],
         "kind": "governance",
         "fast": true
