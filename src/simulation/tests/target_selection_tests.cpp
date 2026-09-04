@@ -8,9 +8,11 @@
 
 namespace {
 
+using everward::simulation::ApproachMotionState;
 using everward::simulation::StaticSphereBody;
 using everward::simulation::TargetRangeTelemetry;
 using everward::simulation::Vector3d;
+using everward::simulation::classify_approach_motion;
 using everward::simulation::closing_speed_to_body;
 using everward::simulation::find_nearest_selectable_target;
 using everward::simulation::select_target_telemetry;
@@ -172,6 +174,29 @@ void test_select_target_telemetry_reports_range_and_closing_speed() {
     assert(nearly_equal(result->closing_speed_mps, 4.0));
 }
 
+void test_classify_approach_motion_closing_above_deadband() {
+    assert(classify_approach_motion(3.0) == ApproachMotionState::Closing);
+}
+
+void test_classify_approach_motion_opening_below_negative_deadband() {
+    assert(classify_approach_motion(-3.0) == ApproachMotionState::Opening);
+}
+
+void test_classify_approach_motion_holding_range_at_zero() {
+    assert(classify_approach_motion(0.0) == ApproachMotionState::HoldingRange);
+}
+
+void test_classify_approach_motion_holding_range_within_deadband() {
+    assert(classify_approach_motion(0.04) == ApproachMotionState::HoldingRange);
+    assert(classify_approach_motion(-0.04) == ApproachMotionState::HoldingRange);
+}
+
+void test_classify_approach_motion_respects_custom_deadband() {
+    assert(classify_approach_motion(0.2, 0.5) == ApproachMotionState::HoldingRange);
+    assert(classify_approach_motion(0.6, 0.5) == ApproachMotionState::Closing);
+    assert(classify_approach_motion(-0.6, 0.5) == ApproachMotionState::Opening);
+}
+
 } // namespace
 
 int main() {
@@ -188,6 +213,11 @@ int main() {
     test_select_target_telemetry_rejects_empty_id();
     test_select_target_telemetry_rejects_unknown_id();
     test_select_target_telemetry_reports_range_and_closing_speed();
+    test_classify_approach_motion_closing_above_deadband();
+    test_classify_approach_motion_opening_below_negative_deadband();
+    test_classify_approach_motion_holding_range_at_zero();
+    test_classify_approach_motion_holding_range_within_deadband();
+    test_classify_approach_motion_respects_custom_deadband();
 
     std::puts("target_selection_tests: all tests passed");
     return 0;

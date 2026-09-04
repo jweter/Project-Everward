@@ -60,9 +60,23 @@ sub-slices (e.g. a multi-target cycle) but are not yet bound to input.
 
 HUD: the always-visible telemetry panel gains a `TARGET` row between
 `VELOCITY` and `SIM`, reading either
-`TARGET  <id> // <range> M // CLOSING <rate> M/S` or a muted
+`TARGET  <id> // <range> M // CLOSING <rate> M/S` /
+`TARGET  <id> // <range> M // OPENING <rate> M/S` /
+`TARGET  <id> // <range> M // HOLDING RANGE`, or a muted
 `TARGET  NONE SELECTED // [T] SELECT NEAREST` prompt. The `F1` controls
 reference's "MANIPULATOR + MINING" column documents `T`.
+
+**Approach-motion label fix:** the row originally always printed
+`CLOSING <rate> M/S`, including while the reported rate was negative (i.e.
+while actually receding). `target_selection.hpp`'s new
+`classify_approach_motion()` classifies `closing_speed_mps` into
+`Closing` / `HoldingRange` / `Opening` (a small deadband around zero avoids
+label flicker while holding range), `TargetSelectionStatus` now carries that
+classification as `approach_motion`, and the HUD row's label follows it
+instead of a hardcoded word. This is presentation-classification only — no
+new physics, authoritative state, or player input; the probe still
+approaches purely through existing manual translation. See
+`PROJECT_STATUS.md`'s Slice 7 section.
 
 ## Local UE 5.8 test script
 
@@ -75,19 +89,20 @@ reference's "MANIPULATOR + MINING" column documents `T`.
    scan/mining flow already uses) until it is within 500 m, then press `T`.
    Confirm the row switches to `TARGET  phase2-test-target-001 // <range> M
    // CLOSING <rate> M/S` and a command-accepted banner appears.
-4. Continue approaching. Confirm the reported range decreases and the
-   closing-speed reading stays plausible (positive while closing, near zero
-   at a matched approach speed) without needing to stop.
-5. Reverse away from the target. Confirm the range increases and closing
-   speed goes negative (or the reading otherwise clearly reads as
-   "opening" rather than "closing").
-6. Press `T` again while far enough that no body is within 500 m. Confirm a
+4. Continue approaching. Confirm the reported range decreases and the row
+   reads `CLOSING <rate> M/S` with a positive rate.
+5. Reverse away from the target. Confirm the range increases and the row
+   now reads `OPENING <rate> M/S` (not `CLOSING` with a negative number).
+6. Hold a matched velocity so the range stops changing. Confirm the row
+   reads `HOLDING RANGE` rather than a noisy near-zero `CLOSING`/`OPENING`
+   rate flickering back and forth.
+7. Press `T` again while far enough that no body is within 500 m. Confirm a
    "COMMAND REJECTED" banner referencing "no physical target within 500 m"
    appears and the row reverts to the muted "NONE SELECTED" prompt rather
    than keeping a stale reading.
-7. Open the `F1` controls reference and confirm the "MANIPULATOR + MINING"
+8. Open the `F1` controls reference and confirm the "MANIPULATOR + MINING"
    column lists `T — SELECT NEAREST PHYSICAL TARGET`.
-8. Confirm existing flight, scan, manipulator, mining, and contact/damage
+9. Confirm existing flight, scan, manipulator, mining, and contact/damage
    behavior is unaffected by any of the above.
 
 ## Acceptance questions

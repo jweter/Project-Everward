@@ -518,6 +518,54 @@ should specifically confirm the project still compiles under UBT before
 relying on this further, and should exercise the new step in the sequence
 below.
 
+### Approach-motion labeling — the "approach" step's missing player-legible state (Slice 7)
+
+`PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 7 loop names `approach` as its own
+step (`detect -> select -> approach -> scan -> reach -> grasp -> move ->
+release`), and every prior sub-slice document flagged "approach-as-motion"
+as the one loop step with no dedicated player-legible state of its own —
+range and closing speed were already exposed as raw numbers on the `TARGET`
+HUD row, but the row's label unconditionally read `CLOSING <rate> M/S` even
+while the reported rate was negative, i.e. while the probe was actually
+receding. This pass closes that specific, previously-undetected gap the
+same minimal way reach/grasp/move/release each classified an existing
+number into a player-legible state, without adding any new movement
+mechanic: the probe still only approaches through existing manual
+translation.
+
+- new `target_selection.hpp` `ApproachMotionState` (`Closing` /
+  `HoldingRange` / `Opening`) and `classify_approach_motion(closing_speed_mps,
+  deadband_mps = 0.05)`, reusing the exact `closing_speed_mps` the `TARGET`
+  row already computes — no second closing-speed formula;
+- `TargetSelectionStatus` (`software_policy.hpp`) gains an `approach_motion`
+  field, set by `selected_target_status()` alongside the existing
+  `closing_speed_mps` it already derives;
+- `UProbeSimulationAdapter`'s `FEverwardTargetSelectionStatus` gains
+  `ApproachMotion` (new `EEverwardApproachMotion` UENUM), mapped from the
+  authoritative classification in `ProbeTargetSelectionBridge.cpp`'s
+  `GetSelectedTargetStatus()`;
+- the `TARGET` HUD row's label now follows `ApproachMotion` instead of a
+  hardcoded word: `CLOSING <rate> M/S` / `OPENING <rate> M/S` (absolute
+  rate) / `HOLDING RANGE` (no misleading rate near a stable hold).
+
+**Status: implemented, Product Reality pending.** New deterministic
+coverage in `everward_target_selection_tests` (`classify_approach_motion`
+above/below/within the deadband, and a custom deadband) and
+`everward_software_policy_tests` (`selected_target_status()` reports
+`Closing` while approaching head-on and `Opening` while receding, alongside
+the existing closing-speed-sign coverage); `tools/test_phase2_target_selection_surface.py`
+gained cases proving the classification is engine-independent and actually
+wired into the adapter/bridge/HUD rather than merely present alongside
+them. All 20 `src/simulation` ctest suites and all 133 `tools/test_phase2*.py`
+source-contract tests pass. No Unreal Editor/UBT build was available in this
+sandbox to compile-verify `ProbeSimulationAdapter.h`, `ProbeTargetSelectionBridge.cpp`,
+or `EverwardHUD.cpp`; the change follows the exact `UENUM`/struct-field and
+`DrawText` patterns already compiling elsewhere in those files. See the
+updated `PHASE2_TARGET_SELECTION_TEST.md` local acceptance steps 4-6. This
+does not by itself advance Slice 7's completion gate — no grasp/dock/move
+physics changed, and the slice's completion gate remains the accumulated
+local Product Reality pass, not the presence of this code.
+
 ### Mining routes extracted mass through authoritative storage
 
 The scan-to-mining loop's `CommandMineBootstrapTarget` bridge previously
@@ -683,7 +731,7 @@ HUD before attempting later mining/contact acceptance.
 13. verify no stale policy action executes after Computation is destroyed and no operational/integrity state contradiction appears;
 14. deploy an arm, open the manipulator page (`M`), and verify each joint's commanded target can be selected (`4`/`5`/`6`) and nudged (`,`/`.`) independently, with the current angle visibly slewing toward the commanded target rather than snapping, the visible upper-arm/forearm geometry moving in sync with that readout rather than only the HUD numbers changing, and joint commands rejected while the arm is not deployed;
 15. deploy an arm, fold the shoulder toward its limit and confirm the arm visibly stops short of passing through the probe's own hull rather than clipping through it; then approach the registered physical scan target with an arm deployed and command a joint pose that would sweep the arm into it, and confirm that motion also stops short instead of clipping into the target;
-16. press `T` within 500 m of the registered physical target and verify the telemetry panel's `TARGET` row shows its id, surface range, and closing speed that track live as you approach/retreat, and that the target's own mesh visibly retints to its selected highlight color at the same moment (and reverts the moment selection clears), then press `T` again out of range and verify a clear rejection rather than a stale reading or stale highlight (`PHASE2_TARGET_SELECTION_TEST.md`, `PHASE2_TARGET_VISUAL_INDICATOR_TEST.md`);
+16. press `T` within 500 m of the registered physical target and verify the telemetry panel's `TARGET` row shows its id, surface range, and closing speed that track live as you approach/retreat, that the row's label reads `CLOSING`/`OPENING`/`HOLDING RANGE` correctly rather than always `CLOSING` (including with a negative rate while receding), and that the target's own mesh visibly retints to its selected highlight color at the same moment (and reverts the moment selection clears), then press `T` again out of range and verify a clear rejection rather than a stale reading or stale highlight (`PHASE2_TARGET_SELECTION_TEST.md`, `PHASE2_TARGET_VISUAL_INDICATOR_TEST.md`);
 17. with the target still selected, press `T` repeatedly and confirm selection advances nearest→farthest across all three registered bodies (`SCAN-001` -> `REF-002` -> `REF-003`), each retinting on selection and reverting when it loses selection, then wraps back to `SCAN-001` on a fourth press (`PHASE2_TARGET_CYCLING_TEST.md`);
 18. with a target still selected, open the manipulator page (`M`) and confirm a `REACH` row appears for the currently selected arm, reading "ARM NOT DEPLOYED" while stowed and switching to a live "IN REACH" / "OUT OF REACH // remaining distance" reading once deployed that tracks smoothly as the probe approaches/retreats and updates correctly after `N` switches the selected arm (`PHASE2_MANIPULATOR_REACH_TELEMETRY_TEST.md`);
 19. record visual overlap, clipping, unreadable telemetry, implausible contact, damage mismatch, or control confusion as Product Reality evidence;
@@ -702,7 +750,7 @@ Priority order:
 1. complete the accumulated local Phase-2 Product Reality pass above;
 2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
 3. **Slice 6 — articulated manipulator arms**: mechanics, joint-articulation HUD, visible geometry, and arm/body + arm/environment collision are all now implemented (every arm mesh still has `ECollisionEnabled::NoCollision`, but a self- or environment-intersecting pose is unreachable in the authoritative `ManipulatorRig` regardless) — Slice 6 is not complete until the local Product Reality pass above is recorded across its three test scripts plus the new collision behavior (step 15);
-4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, a visual selection indicator on the target's own mesh, manipulator reach telemetry ("align a manipulator"), manipulator grasp/release ("grasp or dock with a simple object"), manipulator move (a held target's registered position and its Unreal-side mesh/label now follow the holding arm's wrist), and release-with-consequence (releasing now fails closed rather than embedding the held body in the probe's own hull) are implemented (Product Reality pending, step 16/17/18/21/22/23 below); no approach-as-motion mechanic exists yet — that is the next Slice 7 sub-slice, and the slice's completion gate remains the accumulated local Product Reality pass above, not the presence of this code;
+4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, a visual selection indicator on the target's own mesh, manipulator reach telemetry ("align a manipulator"), manipulator grasp/release ("grasp or dock with a simple object"), manipulator move (a held target's registered position and its Unreal-side mesh/label now follow the holding arm's wrist), release-with-consequence (releasing now fails closed rather than embedding the held body in the probe's own hull), and approach-motion labeling (the `TARGET` row now reads `CLOSING`/`OPENING`/`HOLDING RANGE` instead of always `CLOSING`) are implemented (Product Reality pending, step 16/17/18/21/22/23/new-4-6 below); approach itself remains existing manual translation — no assisted-approach or auto-braking mechanic exists, and the slice's completion gate remains the accumulated local Product Reality pass above, not the presence of this code;
 5. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 
 While local Product Reality is unavailable, only work that satisfies the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md` may merge. Do not build new mechanics that assume unverified contact/damage behavior is correct.

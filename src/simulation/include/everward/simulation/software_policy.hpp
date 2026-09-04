@@ -61,6 +61,10 @@ struct TargetSelectionStatus {
     std::string body_id;
     double surface_range_m{0.0};
     double closing_speed_mps{0.0};
+    // Approach step motion classification (see target_selection.hpp's
+    // classify_approach_motion): meaningless default (HoldingRange) whenever
+    // has_selection is false.
+    ApproachMotionState approach_motion{ApproachMotionState::HoldingRange};
 };
 
 // Authoritative One-Probe runtime wrapper. SimulationCore owns the probe's
@@ -268,6 +272,7 @@ public:
             status.body_id = telemetry->body_id;
             status.surface_range_m = telemetry->surface_range_m;
             status.closing_speed_mps = telemetry->closing_speed_mps;
+            status.approach_motion = classify_approach_motion(telemetry->closing_speed_mps);
         }
         return status;
     }

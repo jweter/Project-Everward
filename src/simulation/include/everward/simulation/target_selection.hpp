@@ -86,6 +86,27 @@ struct TargetRangeTelemetry {
     return next->telemetry;
 }
 
+// Slice 7 "approach" step: the loop's minimum interactions already surface
+// range and closing speed as raw numbers (see TargetRangeTelemetry /
+// TargetSelectionStatus below), but nothing previously classified that
+// number into the qualitative closing/holding/opening motion state a player
+// actually reads at a glance. This is presentation-classification only --
+// it introduces no new physics, authoritative state, or player input; the
+// probe still approaches purely through existing manual translation. A
+// small deadband absorbs sensor/float noise near a stable hold so the label
+// does not flicker between Closing and Opening at effectively zero closing
+// speed.
+enum class ApproachMotionState { Closing, HoldingRange, Opening };
+
+inline constexpr double kApproachMotionDeadbandMps = 0.05;
+
+[[nodiscard]] inline ApproachMotionState classify_approach_motion(
+    double closing_speed_mps, double deadband_mps = kApproachMotionDeadbandMps) noexcept {
+    if (closing_speed_mps > deadband_mps) return ApproachMotionState::Closing;
+    if (closing_speed_mps < -deadband_mps) return ApproachMotionState::Opening;
+    return ApproachMotionState::HoldingRange;
+}
+
 [[nodiscard]] inline std::optional<TargetRangeTelemetry> select_target_telemetry(
     const std::string& requested_body_id,
     const std::vector<StaticSphereBody>& bodies,
