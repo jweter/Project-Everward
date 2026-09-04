@@ -1,0 +1,26 @@
+name: Preflight
+
+on:
+  push:
+    branches-ignore:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Canonical preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Run full preflight
+        run: python engineering/preflight.py --evidence preflight-evidence.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preflight-evidence
+          path: preflight-evidence.json
