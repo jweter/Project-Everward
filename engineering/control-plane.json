@@ -1,13 +1,19 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "portfolio_project": "Everward",
   "repository": "jweter/Project-Everward",
   "repository_role": "standalone",
   "source_of_truth": "GitHub repository state plus authoritative documents listed below",
   "authoritative_documents": [
-    "CLAUDE.md",
-    "docs/roadmap.md",
-    "docs/architecture.md"
+    "docs/PROJECT_STATUS.md",
+    "docs/CURRENT_EXECUTION_PLAN.md",
+    "docs/AGENT_DEVELOPMENT_POLICY.md",
+    "docs/ROADMAP.md",
+    "docs/ARCHITECTURE.md",
+    "docs/TESTING_STRATEGY.md",
+    "docs/INDUSTRY_REALITY_CHECK.md",
+    "AGENTS.md",
+    "CLAUDE.md"
   ],
   "definition_of_done": {
     "implementation_complete": true,
@@ -18,7 +24,7 @@
     "architecture_security_licensing_provenance_privacy_clear": true,
     "documentation_updated_when_project_reality_changes": true,
     "regression_protection_for_reproduced_bugs": "when practical",
-    "product_reality": "pre-merge only when explicitly documented; otherwise track as post-merge acceptance debt"
+    "product_reality": "follow docs/AGENT_DEVELOPMENT_POLICY.md and docs/PROJECT_STATUS.md: Unreal Product Reality is pre-merge when those governing docs require it; parallel-safe exceptions apply only when every documented condition is satisfied"
   },
   "invariants": [
     "deterministic_simulation_authority",
@@ -42,7 +48,34 @@
       "collision_damage",
       "save_load_player_flow"
     ],
-    "rule": "never convert missing human evidence into PASS; keep implementation status separate from Product Reality acceptance"
+    "rule": "never convert missing human evidence into PASS; keep implementation status separate from Product Reality acceptance",
+    "executable_lanes": [
+      {
+        "id": "deterministic_simulation",
+        "steps": [
+          [
+            "cmake",
+            "-S",
+            "src/simulation",
+            "-B",
+            "build/control-plane",
+            "-DCMAKE_BUILD_TYPE=Release"
+          ],
+          [
+            "cmake",
+            "--build",
+            "build/control-plane"
+          ],
+          [
+            "ctest",
+            "--test-dir",
+            "build/control-plane",
+            "--output-on-failure"
+          ]
+        ],
+        "evidence": "Engine-independent deterministic production simulation suite"
+      }
+    ]
   },
   "work_ownership": {
     "authority": "GitHub",
@@ -70,5 +103,6 @@
     ],
     "rule": "report unknown when evidence is insufficient"
   },
-  "continuation": "derive from current roadmap/issues with earliest incomplete vertical-slice acceptance first"
+  "continuation": "derive from current roadmap/issues with earliest incomplete vertical-slice acceptance first",
+  "cross_repo_authorities": []
 }
