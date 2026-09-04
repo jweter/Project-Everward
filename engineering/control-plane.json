@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "portfolio_project": "Everward",
+  "repository": "jweter/Project-Everward",
+  "repository_role": "standalone",
+  "source_of_truth": "GitHub repository state plus authoritative documents listed below",
+  "authoritative_documents": [
+    "CLAUDE.md",
+    "docs/roadmap.md",
+    "docs/architecture.md"
+  ],
+  "definition_of_done": {
+    "implementation_complete": true,
+    "tests_required_for_change_scope": true,
+    "current_required_ci_green": true,
+    "mergeability_resolved": true,
+    "blocking_reviews_and_comments_resolved": true,
+    "architecture_security_licensing_provenance_privacy_clear": true,
+    "documentation_updated_when_project_reality_changes": true,
+    "regression_protection_for_reproduced_bugs": "when practical",
+    "product_reality": "pre-merge only when explicitly documented; otherwise track as post-merge acceptance debt"
+  },
+  "invariants": [
+    "deterministic_simulation_authority",
+    "simulation_separate_from_presentation",
+    "player_agency",
+    "difficulty_semantics",
+    "probe_child_probe_extensibility",
+    "procedural_evolution_systems"
+  ],
+  "verification": {
+    "automated_lanes": [
+      "foundation_checks",
+      "security",
+      "deterministic_simulation_scenarios",
+      "save_load_regression",
+      "interaction_regression"
+    ],
+    "product_reality_lanes": [
+      "ue_5_8_compile",
+      "manipulator_mining_storage_interaction",
+      "collision_damage",
+      "save_load_player_flow"
+    ],
+    "rule": "never convert missing human evidence into PASS; keep implementation status separate from Product Reality acceptance"
+  },
+  "work_ownership": {
+    "authority": "GitHub",
+    "active_work_sources": [
+      "open pull requests",
+      "open issues with active implementation evidence",
+      "recent focused branches/commits when attributable"
+    ],
+    "rule": "do not duplicate or compete with active work; prefer finishing existing work"
+  },
+  "regression_memory": {
+    "rule": "a reproduced correctness defect should gain regression protection before closure when practical",
+    "authoritative_history": "repository tests plus issue/PR/error-resolution history"
+  },
+  "readiness_scoring": {
+    "mode": "evidence-derived",
+    "prohibit_guessed_percent_complete": true,
+    "dimensions": [
+      "implementation",
+      "automated_verification",
+      "integration",
+      "product_reality",
+      "documentation",
+      "security_and_policy"
+    ],
+    "rule": "report unknown when evidence is insufficient"
+  },
+  "continuation": "derive from current roadmap/issues with earliest incomplete vertical-slice acceptance first"
+}
