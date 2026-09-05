@@ -43,6 +43,15 @@ class Phase2ManipulatorReleaseSurfaceTests(unittest.TestCase):
         self.assertNotIn("#include \"CoreMinimal.h\"", self.manipulator_release)
         self.assertNotIn("USTRUCT", self.manipulator_release)
 
+    def test_release_gate_also_checks_other_registered_bodies(self) -> None:
+        # Eleventh parallel-safe sub-slice: releasing near another
+        # registered body now also fails closed, not just the probe's own
+        # hull, reusing the held body's id to skip a self-comparison.
+        self.assertIn("sphere_intersects_other_registered_body", self.manipulator_release)
+        self.assertIn(
+            "sphere_intersects_other_registered_body(held_id, found->center_m, found->radius_m, bodies)",
+            self.manipulator_release)
+
     def test_release_fails_closed_on_missing_grasp_or_deregistered_body(self) -> None:
         self.assertIn("if (held_id.empty()) return false;", self.manipulator_release)
         self.assertIn("if (found == bodies.end()) return false;", self.manipulator_release)

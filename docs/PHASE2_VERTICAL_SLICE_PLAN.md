@@ -278,6 +278,25 @@ slice's completion gate by itself: it labels the existing approach step
 correctly rather than adding an assisted-approach or auto-braking
 mechanic, and grasp/move/release behavior is unchanged.
 
+An eleventh parallel-safe sub-slice then closed the first gap named by
+`PHASE2_MANIPULATOR_RELEASE_TEST.md`'s own "explicitly not complete" list:
+releasing near another registered body had no consequence beyond the
+probe's-own-hull check. `manipulator_release.hpp`'s new
+`sphere_intersects_other_registered_body()` runs the exact same
+sphere-overlap test `sphere_intersects_compound_hull()` already runs
+against the hull's samples, instead against every other currently
+registered `StaticSphereBody` (skipping the held body itself by id).
+`attempt_release_grasped_target()` now rejects a release that would leave
+the held body overlapping the hull **or** any other registered body;
+`release_grasp` itself stays unconditional and unchanged, and no second
+overlap formula is invented (see `PROJECT_STATUS.md`'s "Manipulator
+release" section and the updated `PHASE2_MANIPULATOR_RELEASE_TEST.md`).
+
+**Status: implemented, Product Reality pending.** This does not advance the
+slice's completion gate by itself: "place"/"drop toward a target" targeting,
+automatic hand-off into the mining/storage flow, and released-object
+velocity/momentum still do not exist.
+
 Turn scanning and manipulators into one loop:
 
 `detect -> select -> approach -> scan -> reach -> grasp -> move -> release`
