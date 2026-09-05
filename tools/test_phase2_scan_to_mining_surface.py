@@ -67,6 +67,34 @@ class Phase2ScanToMiningSurfaceTests(unittest.TestCase):
         self.assertIn("[G] MINE", self.environment)
         self.assertIn("DepositRemainingKilograms", self.environment)
 
+    def test_mining_deposit_position_tracks_a_carried_target_rather_than_spawn_constants(self) -> None:
+        # Slice 7's manipulator move mechanic
+        # (ProbeRuntime::update_static_sphere_body_position(), see
+        # PHASE2_MANIPULATOR_MOVE_TEST.md) can relocate the exact registered
+        # body this bootstrap mining deposit tracks while an arm grasps and
+        # carries it, and the visible mesh/label already mirror that live
+        # position every tick. Mining must reuse the same live position
+        # instead of only the spawn-time BootstrapBodyCenter*Meters
+        # constants, or a carried-then-mined target would compute its
+        # tool-tip surface gap against a stale location the mesh no longer
+        # occupies.
+        self.assertIn("LiveBootstrapBodyCenterMeters", self.bridge)
+        self.assertIn("Core.static_bodies()", self.bridge)
+        self.assertIn("Body.center_m", self.bridge)
+        self.assertIn(
+            "MakeBootstrapDeposit(\n        BootstrapDepositRemainingKilograms, "
+            "LiveBootstrapBodyCenterMeters(*Core, TargetId))",
+            self.bridge,
+        )
+        # The spawn-time constants must remain only as the defensive
+        # fallback inside the live-lookup helper, not as the deposit's
+        # position source at the call site.
+        make_deposit_body = self.bridge.split(
+            "everward::simulation::ResourceDeposit MakeBootstrapDeposit", 1
+        )[1].split("\n}", 1)[0]
+        self.assertIn("LiveCenterMeters", make_deposit_body)
+        self.assertNotIn("BootstrapBodyCenterXMeters", make_deposit_body)
+
     def test_selected_arm_joint_has_world_space_visual_feedback(self) -> None:
         self.assertIn("SetManipulatorSelectionHighlight", self.pawn_h)
         self.assertIn("SetManipulatorSelectionHighlight", self.controller_tick)

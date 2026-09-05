@@ -72,6 +72,46 @@ updated the bootstrap mining-status widget, so the general STORAGE readout
 stayed at zero regardless of how much was mined; both readouts now share
 authoritative `storage_used_kg`.
 
+## Mining tracks a carried target's live position
+
+`PHASE2_MANIPULATOR_MOVE_TEST.md`'s own "explicitly not complete" list named
+this exact gap: releasing over "the original scan/mining flow" had no
+consequence, because `CommandMineBootstrapTarget()` built its
+`ResourceDeposit` from `AEverwardPhase2TestEnvironment::BootstrapBodyCenter*Meters`
+-- the target's spawn-time position -- on every call, never the live
+registered position `update_static_sphere_body_position()` writes while an
+arm grasps and carries `SCAN-001` (the same live position the visible mesh
+and label already mirror via `RefreshScanTargetPosition()`/
+`GetStaticBodyPositionMeters()`). A grasped-then-moved `SCAN-001` would
+therefore compute its tool-tip surface gap against a location the mesh no
+longer occupied, so mining could accept or reject at the wrong place once
+the target had been carried anywhere.
+
+`ProbeMiningBridge.cpp`'s new `LiveBootstrapBodyCenterMeters()` reads the
+current position back out of `Core->static_bodies()` (the same list
+`GetStaticBodyPositionMeters()` already searches) and `MakeBootstrapDeposit()`
+now takes that live center instead of the spawn-time constants; the spawn
+constants remain only as a defensive fallback if the body were ever
+deregistered, which does not happen in the current bootstrap scene. No
+change to `mining.hpp`'s engine-independent `mine_once()` math, the scan
+gate, storage routing, or any manipulator/grasp/move/release behavior.
+
+**Status: implemented, Product Reality pending.** No Unreal Editor/UBT
+build was available in this sandbox to compile-verify
+`ProbeMiningBridge.cpp`; the change follows the exact `Core->static_bodies()`
+loop pattern already compiling in `ProbeTargetSelectionBridge.cpp`'s
+`GetStaticBodyPositionMeters()`, and `tools/test_phase2_scan_to_mining_surface.py`
+gained a case proving the live lookup is actually wired into the deposit
+construction rather than merely present alongside it. The next local
+Unreal pass should specifically add this to the mining acceptance sequence:
+grasp `SCAN-001` and articulate the holding arm to carry it a few meters
+away from its original spawn point, then confirm a mining attempt now
+reasons about the tool's distance to the *carried* position rather than the
+original spawn position -- e.g. positioning the probe/tool near the
+original spawn point and confirming mining is rejected as out of reach even
+though that is where the deposit used to be, and/or positioning near the
+carried location and confirming mining succeeds there instead.
+
 ## Safety/physics expectations
 
 - Mining must not work remotely from arbitrary distance.
