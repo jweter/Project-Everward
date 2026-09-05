@@ -297,6 +297,29 @@ slice's completion gate by itself: "place"/"drop toward a target" targeting,
 automatic hand-off into the mining/storage flow, and released-object
 velocity/momentum still do not exist.
 
+A twelfth parallel-safe sub-slice then closed a different named gap from the
+same list: `PHASE2_MANIPULATOR_MOVE_TEST.md`'s own "explicitly not complete"
+list flagged "no consequence for ... the original scan/mining flow" beyond
+the body remaining wherever it was released. The underlying cause was that
+`CommandMineBootstrapTarget()` always built its mining deposit from
+`SCAN-001`'s spawn-time position constants rather than the live registered
+position `update_static_sphere_body_position()` writes while an arm carries
+that same body -- the same live position the visible mesh/label already
+mirror. `ProbeMiningBridge.cpp`'s new `LiveBootstrapBodyCenterMeters()`
+reads the current position back out of `Core->static_bodies()` (the same
+list `GetStaticBodyPositionMeters()` already searches) so a grasped-then-
+carried target's mining tool-tip surface gap is now computed against where
+it actually is rather than where it spawned; the spawn constants remain
+only as a defensive fallback. No change to `mining.hpp`'s engine-independent
+math, the scan gate, storage routing, or any grasp/move/release mechanic
+(see `PROJECT_STATUS.md`'s "Mining tracks a carried target's live position"
+section and the updated `PHASE2_SCAN_TO_MINING_TEST.md`).
+
+**Status: implemented, Product Reality pending.** This does not advance the
+slice's completion gate by itself: "place"/"drop toward a target" targeting,
+automatic hand-off into the mining/storage flow, and released-object
+velocity/momentum still do not exist.
+
 Turn scanning and manipulators into one loop:
 
 `detect -> select -> approach -> scan -> reach -> grasp -> move -> release`

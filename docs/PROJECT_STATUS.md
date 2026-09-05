@@ -551,6 +551,49 @@ one-line `ProbeSimulationAdapter.cpp` message change; the next local Unreal
 Product Reality pass should confirm the project still compiles under UBT
 and exercise the new release-near-another-body rejection.
 
+### Mining tracks a carried target's live position (Slice 7 follow-up)
+
+`PHASE2_MANIPULATOR_MOVE_TEST.md`'s own "explicitly not complete" list named
+this exact gap: releasing over "the original scan/mining flow" had no
+consequence. The underlying cause was that `CommandMineBootstrapTarget()`
+built its `ResourceDeposit` from
+`AEverwardPhase2TestEnvironment::BootstrapBodyCenter*Meters` -- the
+`SCAN-001` target's spawn-time position -- on every call, never the live
+registered position `update_static_sphere_body_position()` writes while an
+arm grasps and carries that same body (the position the visible mesh/label
+already mirror through `RefreshScanTargetPosition()`/
+`GetStaticBodyPositionMeters()`). A grasped-then-carried `SCAN-001` would
+therefore have its mining tool-tip surface gap computed against a location
+the mesh no longer occupied, so mining could accept or reject at the wrong
+place once the target had moved from its bootstrap position -- a direct
+violation of Slice 7's own "keep object state authoritative and persistent
+during the session" minimum interaction.
+
+`ProbeMiningBridge.cpp`'s new `LiveBootstrapBodyCenterMeters()` reads the
+body's current position back out of `Core->static_bodies()` -- the same
+list `GetStaticBodyPositionMeters()` already searches -- and
+`MakeBootstrapDeposit()` now takes that live center instead of the
+spawn-time constants, which remain only as a defensive fallback for the
+(not currently reachable) case where the body is not registered. No change
+to `mining.hpp`'s engine-independent `mine_once()` math, the scan gate,
+storage routing, or any manipulator grasp/move/release behavior.
+
+**Status: implemented, Product Reality pending.** No Unreal Editor/UBT
+build was available in this sandbox to compile-verify
+`ProbeMiningBridge.cpp`; the change follows the exact `Core->static_bodies()`
+loop pattern already compiling in `ProbeTargetSelectionBridge.cpp`'s
+`GetStaticBodyPositionMeters()`. `tools/test_phase2_scan_to_mining_surface.py`
+gained a case proving the live lookup is actually wired into the deposit
+construction rather than merely present alongside it; all 135 Phase 2
+source-contract tests pass via `python3 -m unittest discover -s tools -p
+"test_phase2*.py"`, and all 20 `src/simulation` CTest suites still pass
+(unaffected -- this change is Unreal-adapter-only). See the new "Mining
+tracks a carried target's live position" section in
+`PHASE2_SCAN_TO_MINING_TEST.md`. The next local Unreal Product Reality pass
+should specifically confirm the project still compiles under UBT and
+exercise mining a `SCAN-001` that has been grasped and carried away from its
+spawn point.
+
 ### Approach-motion labeling — the "approach" step's missing player-legible state (Slice 7)
 
 `PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 7 loop names `approach` as its own
@@ -737,6 +780,7 @@ Everward continues to preserve:
 - manipulator grasp: an arm within reach of the selected target can grasp/release it (`F`), gated by the exact same reach result and rejecting stow while still holding something (Slice 7 "grasp or dock with a simple object"; implemented, Product Reality pending; no `move` mechanics yet);
 - manipulator move: a currently grasped target's registered position now follows the holding arm's wrist every fixed step through a single authoritative mutation point (`update_static_sphere_body_position()`), with the Unreal-side scan-target mesh/label mirroring that same position each tick (Slice 7 "move"; implemented, Product Reality pending);
 - manipulator release-with-consequence: releasing (`F`) now fails closed instead of embedding the held body in the probe's own hull or any other currently registered physical body, gated by the same five-sphere `ProbeCompoundCollisionEnvelope` the arm/hull and swept-contact guards already use plus a matching sphere-overlap test against the registered-body list (Slice 7 "release"; implemented, Product Reality pending; any place/hand-off-into-storage mechanic or released-object velocity/momentum still has no consequence);
+- mining reads a carried target's live registered position rather than its spawn-time position, so a `SCAN-001` grasped and moved by a manipulator arm is mined (or correctly rejected as out of reach) at its actual current location instead of a stale one (Slice 7 follow-up; implemented, Product Reality pending);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending; no multi-probe/lineage schema or migration framework yet — see "Save/load Unreal UI wiring" above).
 
@@ -772,7 +816,8 @@ HUD before attempting later mining/contact acceptance.
 21. with the arm out of reach of the selected target, press `F` and confirm the grasp is rejected; approach until the REACH row reads "IN REACH", press `F`, and confirm the arm's status line (both the manipulator page and the always-visible telemetry panel) now reads `// HOLDING <target id>`; attempt to stow that arm and confirm it is rejected; press `F` again to release, confirm `HOLDING` disappears, and confirm the arm now stows normally (`PHASE2_MANIPULATOR_GRASP_TEST.md`);
 22. while an arm is still holding the target, translate the probe and separately nudge the holding arm's joints (`,`/`.`) and confirm the `SCAN-001` mesh and its label visibly follow both the probe's motion and the arm's articulation rather than staying at their original position, that the `TARGET`/`REACH` rows keep reading correctly against the now-moved body, and that releasing (`F`) leaves the mesh at its current position rather than snapping back (`PHASE2_MANIPULATOR_MOVE_TEST.md`);
 23. immediately after grasping `SCAN-001`, press `F` to release without articulating the arm and confirm it is rejected (`HOLDING` stays, global feedback reports the target would collide with the probe hull); articulate the holding arm's shoulder/elbow outward and away from the hull, release again, and confirm it now succeeds; re-grasp, move back near the hull boundary, and confirm the accept/reject boundary tracks the mesh's visible position rather than flickering or lagging; with a second registered reference target present, articulate the holding arm so the held target overlaps that other body and confirm release is rejected the same way, then move clear and confirm it succeeds (`PHASE2_MANIPULATOR_RELEASE_TEST.md`);
-24. change position/attitude/power allocation and manipulator state away from defaults, press `F5`, then continue playing so state changes further, then press `F6` and confirm the probe visibly snaps back to the saved state with a "probe state loaded" banner; delete/rename the save file and press `F6` again to confirm a clear "no save file found" rejection rather than a crash (`PHASE2_SAVE_LOAD_UI_TEST.md`).
+24. grasp `SCAN-001` and articulate the holding arm to carry it a few meters from its original spawn point; confirm a mining attempt (`G`) now reasons about the tool's distance to the *carried* position -- e.g. positioning near the original spawn point rejects mining as out of reach even though that is where the deposit used to be, and positioning near the carried location instead allows mining to succeed there (`PHASE2_SCAN_TO_MINING_TEST.md`'s "Mining tracks a carried target's live position" section);
+25. change position/attitude/power allocation and manipulator state away from defaults, press `F5`, then continue playing so state changes further, then press `F6` and confirm the probe visibly snaps back to the saved state with a "probe state loaded" banner; delete/rename the save file and press `F6` again to confirm a clear "no save file found" rejection rather than a crash (`PHASE2_SAVE_LOAD_UI_TEST.md`).
 
 A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
 

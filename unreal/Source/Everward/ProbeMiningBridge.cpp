@@ -16,15 +16,45 @@ std::string BootstrapTargetIdUtf8()
     return std::string(TCHAR_TO_UTF8(AEverwardPhase2TestEnvironment::BootstrapScanTargetId));
 }
 
-everward::simulation::ResourceDeposit MakeBootstrapDeposit(double RemainingKilograms)
+// The bootstrap deposit's mining-relevant position must track wherever the
+// registered body actually is right now, not where it spawned: Slice 7's
+// manipulator move mechanic (ProbeRuntime::update_static_sphere_body_position(),
+// see PHASE2_MANIPULATOR_MOVE_TEST.md) can relocate this exact registered
+// body while an arm grasps and carries it, and the visible mesh/label
+// already mirror that live position every tick
+// (AEverwardPhase2TestEnvironment::RefreshScanTargetPosition() reads it back
+// through GetStaticBodyPositionMeters()). Reusing the original spawn-time
+// constants here instead would compute the tool-tip surface gap against a
+// location the mesh no longer occupies once the target has been carried
+// away from its bootstrap position. The spawn-time constants remain only as
+// a defensive fallback: the bootstrap body is always registered in
+// UProbeSimulationAdapter::BeginPlay(), so the "not found" branch should not
+// be reachable in practice.
+everward::simulation::Vector3d LiveBootstrapBodyCenterMeters(
+    const everward::simulation::DamageAwareProbeRuntime& Core,
+    const std::string& TargetId)
 {
-    everward::simulation::ResourceDeposit Deposit;
-    Deposit.body.body_id = BootstrapTargetIdUtf8();
-    Deposit.body.center_m = {
+    for (const everward::simulation::StaticSphereBody& Body : Core.static_bodies())
+    {
+        if (Body.body_id == TargetId)
+        {
+            return Body.center_m;
+        }
+    }
+    return {
         AEverwardPhase2TestEnvironment::BootstrapBodyCenterXMeters,
         AEverwardPhase2TestEnvironment::BootstrapBodyCenterYMeters,
         AEverwardPhase2TestEnvironment::BootstrapBodyCenterZMeters,
     };
+}
+
+everward::simulation::ResourceDeposit MakeBootstrapDeposit(
+    double RemainingKilograms,
+    everward::simulation::Vector3d LiveCenterMeters)
+{
+    everward::simulation::ResourceDeposit Deposit;
+    Deposit.body.body_id = BootstrapTargetIdUtf8();
+    Deposit.body.center_m = LiveCenterMeters;
     Deposit.body.radius_m = AEverwardPhase2TestEnvironment::BootstrapBodyRadiusMeters;
     Deposit.material_id = "iron_bearing_silicate_regolith";
     Deposit.display_name = "Iron-bearing silicate regolith";
@@ -66,7 +96,8 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandMineBootstrapTarget(
 
     everward::simulation::MiningSystem Mining;
     const std::string TargetId = BootstrapTargetIdUtf8();
-    Mining.add_deposit(MakeBootstrapDeposit(BootstrapDepositRemainingKilograms));
+    Mining.add_deposit(MakeBootstrapDeposit(
+        BootstrapDepositRemainingKilograms, LiveBootstrapBodyCenterMeters(*Core, TargetId)));
     if (bBootstrapResourceSurveyed)
     {
         Mining.mark_surveyed(TargetId);
