@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "repository": "jweter/Project-Everward",
+  "open_pull_requests": [],
+  "open_issue_numbers": [
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166,
+    167,
+    168
+  ],
+  "product_reality": {
+    "ue_5_8_compile": "PENDING",
+    "manipulator_mining_storage_interaction": "PENDING",
+    "collision_damage": "PENDING",
+    "save_load_player_flow": "PENDING"
+  },
+  "readiness_dimensions": {
+    "implementation": "UNKNOWN",
+    "automated_verification": "UNKNOWN",
+    "integration": "UNKNOWN",
+    "product_reality": "UNKNOWN",
+    "documentation": "UNKNOWN",
+    "security_and_policy": "UNKNOWN"
+  },
+  "rule": "Generated from live GitHub state and committed Product Reality evidence; UNKNOWN is intentional when evidence is insufficient."
+}
