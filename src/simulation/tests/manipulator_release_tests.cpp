@@ -23,6 +23,7 @@ using everward::simulation::attempt_release_grasped_target;
 using everward::simulation::contact_add;
 using everward::simulation::manipulator_arm_contact_samples;
 using everward::simulation::sphere_intersects_compound_hull;
+using everward::simulation::sphere_intersects_other_registered_body;
 
 ManipulatorRig deployed_rig(ManipulatorArmId id) {
     ManipulatorRig rig;
@@ -72,6 +73,45 @@ void test_release_into_hull_fails_closed_and_keeps_holding() {
     const bool released = attempt_release_grasped_target(rig, ManipulatorArmId::Port, ProbeWorldPose{}, bodies);
     assert(!released);
     assert(rig.arm(ManipulatorArmId::Port).grasped_target_body_id == "rock");
+}
+
+void test_release_near_another_registered_body_fails_closed_and_keeps_holding() {
+    std::vector<StaticSphereBody> bodies;
+    ManipulatorRig rig = grasped_rig(ManipulatorArmId::Port, "rock", bodies);
+
+    // Register a second body overlapping exactly where "rock" would land if
+    // released now (well clear of the probe's own hull, so only the new
+    // other-body check can be responsible for the rejection).
+    bodies.push_back(StaticSphereBody{"other-target", bodies.front().center_m, 0.05});
+
+    const bool released = attempt_release_grasped_target(rig, ManipulatorArmId::Port, ProbeWorldPose{}, bodies);
+    assert(!released);
+    assert(rig.arm(ManipulatorArmId::Port).grasped_target_body_id == "rock");
+}
+
+void test_release_clear_of_other_registered_bodies_succeeds() {
+    std::vector<StaticSphereBody> bodies;
+    ManipulatorRig rig = grasped_rig(ManipulatorArmId::Port, "rock", bodies);
+
+    // A second registered body far away must not block an otherwise-clear
+    // release.
+    bodies.push_back(StaticSphereBody{"other-target", Vector3d{1000.0, 1000.0, 1000.0}, 0.05});
+
+    const bool released = attempt_release_grasped_target(rig, ManipulatorArmId::Port, ProbeWorldPose{}, bodies);
+    assert(released);
+    assert(rig.arm(ManipulatorArmId::Port).grasped_target_body_id.empty());
+}
+
+void test_sphere_intersects_other_registered_body_skips_the_held_body_itself() {
+    std::vector<StaticSphereBody> bodies;
+    bodies.push_back(StaticSphereBody{"rock", Vector3d{5.0, 0.0, 0.0}, 0.05});
+
+    // The held body always geometrically "overlaps" its own recorded
+    // position; the held id must be excluded or every release would fail.
+    assert(!sphere_intersects_other_registered_body("rock", bodies.front().center_m, 0.05, bodies));
+
+    bodies.push_back(StaticSphereBody{"other-target", bodies.front().center_m, 0.05});
+    assert(sphere_intersects_other_registered_body("rock", bodies.front().center_m, 0.05, bodies));
 }
 
 void test_release_deregistered_body_fails_closed() {
@@ -137,6 +177,9 @@ int main() {
     test_release_nothing_held_fails_closed();
     test_release_clear_of_hull_succeeds();
     test_release_into_hull_fails_closed_and_keeps_holding();
+    test_release_near_another_registered_body_fails_closed_and_keeps_holding();
+    test_release_clear_of_other_registered_bodies_succeeds();
+    test_sphere_intersects_other_registered_body_skips_the_held_body_itself();
     test_release_deregistered_body_fails_closed();
     test_release_gate_stays_scoped_to_the_queried_arm();
     test_release_accounts_for_probe_pose_not_just_local_origin();

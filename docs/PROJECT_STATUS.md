@@ -518,6 +518,39 @@ should specifically confirm the project still compiles under UBT before
 relying on this further, and should exercise the new step in the sequence
 below.
 
+### Manipulator release near another registered body (Slice 7 follow-up)
+
+`PHASE2_MANIPULATOR_RELEASE_TEST.md`'s own "explicitly not complete" list
+named releasing near another registered body as the first still-open gap:
+only the probe's own hull was checked. `manipulator_release.hpp` gains
+`sphere_intersects_other_registered_body()`, the same sphere-overlap test
+`sphere_intersects_compound_hull()` already runs against the hull's five
+samples, run instead against every other currently registered
+`StaticSphereBody` (skipping the held body itself by id, since it always
+overlaps its own recorded position). `attempt_release_grasped_target()` now
+rejects a release that would leave the held body overlapping the hull
+**or** any other registered body; `release_grasp()` itself is unchanged and
+still unconditional. `UProbeSimulationAdapter::CommandReleaseGraspedTarget()`'s
+rejection message widened from "target would collide with probe hull" to
+"target would collide with the probe hull or another object" to match; no
+other adapter behavior changed.
+
+**Status: implemented, Product Reality pending.** New deterministic
+coverage in `everward_manipulator_release_tests`: a body overlapping
+another registered body fails closed without clearing the grasp; a body
+clear of every other registered body (but far from the hull) releases
+successfully; and the overlap test itself correctly excludes the held body
+from comparison against itself. All 20 `src/simulation` CTest suites pass.
+`tools/test_phase2_manipulator_release_surface.py` gained an assertion that
+the new gate is wired into `attempt_release_grasped_target`; all 134 Phase 2
+source-contract tests pass via `python3 -m unittest discover -s tools -p
+"test_phase2*.py"`. See `PHASE2_MANIPULATOR_RELEASE_TEST.md`'s new
+"Eleventh sub-slice" section and its updated local acceptance step 8. No
+Unreal Editor/UBT build was available in this sandbox to compile-verify the
+one-line `ProbeSimulationAdapter.cpp` message change; the next local Unreal
+Product Reality pass should confirm the project still compiles under UBT
+and exercise the new release-near-another-body rejection.
+
 ### Approach-motion labeling — the "approach" step's missing player-legible state (Slice 7)
 
 `PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 7 loop names `approach` as its own
@@ -703,7 +736,7 @@ Everward continues to preserve:
 - manipulator reach telemetry connecting target selection to the arms: whether the currently selected arm's wrist is within a fixed reach envelope of the selected target's surface, reported on the existing manipulator HUD page (Slice 7 "align a manipulator"; implemented, Product Reality pending);
 - manipulator grasp: an arm within reach of the selected target can grasp/release it (`F`), gated by the exact same reach result and rejecting stow while still holding something (Slice 7 "grasp or dock with a simple object"; implemented, Product Reality pending; no `move` mechanics yet);
 - manipulator move: a currently grasped target's registered position now follows the holding arm's wrist every fixed step through a single authoritative mutation point (`update_static_sphere_body_position()`), with the Unreal-side scan-target mesh/label mirroring that same position each tick (Slice 7 "move"; implemented, Product Reality pending);
-- manipulator release-with-consequence: releasing (`F`) now fails closed instead of embedding the held body in the probe's own hull, gated by the same five-sphere `ProbeCompoundCollisionEnvelope` the arm/hull and swept-contact guards already use (Slice 7 "release"; implemented, Product Reality pending; releasing near another registered body or any place/hand-off-into-storage mechanic still has no consequence);
+- manipulator release-with-consequence: releasing (`F`) now fails closed instead of embedding the held body in the probe's own hull or any other currently registered physical body, gated by the same five-sphere `ProbeCompoundCollisionEnvelope` the arm/hull and swept-contact guards already use plus a matching sphere-overlap test against the registered-body list (Slice 7 "release"; implemented, Product Reality pending; any place/hand-off-into-storage mechanic or released-object velocity/momentum still has no consequence);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending; no multi-probe/lineage schema or migration framework yet — see "Save/load Unreal UI wiring" above).
 
@@ -738,7 +771,7 @@ HUD before attempting later mining/contact acceptance.
 20. repeat the embodiment/HUD/control/clunkiness/movement/automation/desire-to-continue ratings against the first-run baseline;
 21. with the arm out of reach of the selected target, press `F` and confirm the grasp is rejected; approach until the REACH row reads "IN REACH", press `F`, and confirm the arm's status line (both the manipulator page and the always-visible telemetry panel) now reads `// HOLDING <target id>`; attempt to stow that arm and confirm it is rejected; press `F` again to release, confirm `HOLDING` disappears, and confirm the arm now stows normally (`PHASE2_MANIPULATOR_GRASP_TEST.md`);
 22. while an arm is still holding the target, translate the probe and separately nudge the holding arm's joints (`,`/`.`) and confirm the `SCAN-001` mesh and its label visibly follow both the probe's motion and the arm's articulation rather than staying at their original position, that the `TARGET`/`REACH` rows keep reading correctly against the now-moved body, and that releasing (`F`) leaves the mesh at its current position rather than snapping back (`PHASE2_MANIPULATOR_MOVE_TEST.md`);
-23. immediately after grasping `SCAN-001`, press `F` to release without articulating the arm and confirm it is rejected (`HOLDING` stays, global feedback reports the target would collide with the probe hull); articulate the holding arm's shoulder/elbow outward and away from the hull, release again, and confirm it now succeeds; re-grasp, move back near the hull boundary, and confirm the accept/reject boundary tracks the mesh's visible position rather than flickering or lagging (`PHASE2_MANIPULATOR_RELEASE_TEST.md`);
+23. immediately after grasping `SCAN-001`, press `F` to release without articulating the arm and confirm it is rejected (`HOLDING` stays, global feedback reports the target would collide with the probe hull); articulate the holding arm's shoulder/elbow outward and away from the hull, release again, and confirm it now succeeds; re-grasp, move back near the hull boundary, and confirm the accept/reject boundary tracks the mesh's visible position rather than flickering or lagging; with a second registered reference target present, articulate the holding arm so the held target overlaps that other body and confirm release is rejected the same way, then move clear and confirm it succeeds (`PHASE2_MANIPULATOR_RELEASE_TEST.md`);
 24. change position/attitude/power allocation and manipulator state away from defaults, press `F5`, then continue playing so state changes further, then press `F6` and confirm the probe visibly snaps back to the saved state with a "probe state loaded" banner; delete/rename the save file and press `F6` again to confirm a clear "no save file found" rejection rather than a crash (`PHASE2_SAVE_LOAD_UI_TEST.md`).
 
 A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
@@ -750,7 +783,7 @@ Priority order:
 1. complete the accumulated local Phase-2 Product Reality pass above;
 2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
 3. **Slice 6 — articulated manipulator arms**: mechanics, joint-articulation HUD, visible geometry, and arm/body + arm/environment collision are all now implemented (every arm mesh still has `ECollisionEnabled::NoCollision`, but a self- or environment-intersecting pose is unreachable in the authoritative `ManipulatorRig` regardless) — Slice 6 is not complete until the local Product Reality pass above is recorded across its three test scripts plus the new collision behavior (step 15);
-4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, a visual selection indicator on the target's own mesh, manipulator reach telemetry ("align a manipulator"), manipulator grasp/release ("grasp or dock with a simple object"), manipulator move (a held target's registered position and its Unreal-side mesh/label now follow the holding arm's wrist), release-with-consequence (releasing now fails closed rather than embedding the held body in the probe's own hull), and approach-motion labeling (the `TARGET` row now reads `CLOSING`/`OPENING`/`HOLDING RANGE` instead of always `CLOSING`) are implemented (Product Reality pending, step 16/17/18/21/22/23/new-4-6 below); approach itself remains existing manual translation — no assisted-approach or auto-braking mechanic exists, and the slice's completion gate remains the accumulated local Product Reality pass above, not the presence of this code;
+4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, a visual selection indicator on the target's own mesh, manipulator reach telemetry ("align a manipulator"), manipulator grasp/release ("grasp or dock with a simple object"), manipulator move (a held target's registered position and its Unreal-side mesh/label now follow the holding arm's wrist), release-with-consequence (releasing now fails closed rather than embedding the held body in the probe's own hull or any other registered body), and approach-motion labeling (the `TARGET` row now reads `CLOSING`/`OPENING`/`HOLDING RANGE` instead of always `CLOSING`) are implemented (Product Reality pending, step 16/17/18/21/22/23/new-4-6 below); approach itself remains existing manual translation — no assisted-approach or auto-braking mechanic exists, and the slice's completion gate remains the accumulated local Product Reality pass above, not the presence of this code;
 5. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 
 While local Product Reality is unavailable, only work that satisfies the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md` may merge. Do not build new mechanics that assume unverified contact/damage behavior is correct.

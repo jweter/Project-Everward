@@ -36,6 +36,28 @@ reuses `rotate_local_contact_offset` to place the hull's local samples in
 world space, exactly as `manipulator_pose_intersects_environment` already
 does for the arm itself.
 
+## Eleventh sub-slice: releasing near another registered body
+
+This pass's own "explicitly not complete" list (below) named releasing near
+another registered body as the first still-open release-with-consequence
+gap -- only the probe's own hull was checked. `manipulator_release.hpp`
+gains `sphere_intersects_other_registered_body()`, the same sphere-overlap
+test `sphere_intersects_compound_hull()` already runs against the hull's
+five samples, run instead against every other currently registered
+`StaticSphereBody` (skipping the held body itself by id, since it always
+overlaps its own recorded position). `attempt_release_grasped_target()`
+now rejects a release that would leave the held body overlapping the
+probe's own hull **or** any other registered body; `release_grasp` itself
+is still unconditional and unchanged. The Unreal-side rejection message
+widened from "target would collide with probe hull" to "target would
+collide with the probe hull or another object" to match; no other adapter
+behavior changed.
+
+No new grasp/reach/move mechanic is introduced, and this does not touch the
+existing hull check or any behavior still awaiting Product Reality -- it
+adds one more registered-body-shaped obstruction to the same fail-closed
+gate already documented above.
+
 ## Important integration finding from local verification
 
 The current single-target test scene's `SCAN-001` body is registered with
@@ -65,18 +87,20 @@ separate grasp-test target, or reach-envelope/joint-range reconciliation).
 ## Behavior
 
 - Releasing (`F`) while the held body's current position would overlap the
-  probe's own hull envelope is rejected: the arm keeps `HOLDING <id>`, and
-  global feedback reports "arm cannot release: target would collide with
-  probe hull".
-- Releasing once the held body is clear of the hull succeeds exactly as
-  before: the mesh stays at its current (moved) position, `HOLDING`
-  clears, and `TARGET`/`REACH` telemetry update the same way
-  `PHASE2_MANIPULATOR_MOVE_TEST.md` already documents.
+  probe's own hull envelope, or any other currently registered physical
+  body, is rejected: the arm keeps `HOLDING <id>`, and global feedback
+  reports "arm cannot release: target would collide with the probe hull or
+  another object".
+- Releasing once the held body is clear of the hull and every other
+  registered body succeeds exactly as before: the mesh stays at its
+  current (moved) position, `HOLDING` clears, and `TARGET`/`REACH`
+  telemetry update the same way `PHASE2_MANIPULATOR_MOVE_TEST.md` already
+  documents.
 - No change to deploy/stow, joint articulation, tool attach/detach, grasp's
   own proximity gate, target selection/cycling, contact, or damage behavior.
-- Releasing over empty space clear of the hull, near another registered
-  body, or into the mining/storage flow still has no consequence beyond this
-  one hull check -- that remains intentionally out of scope.
+- Releasing over empty space clear of the hull and every other registered
+  body, or into the mining/storage flow, still has no consequence beyond
+  these two overlap checks -- that remains intentionally out of scope.
 
 ## CI-verifiable acceptance
 
@@ -84,16 +108,20 @@ separate grasp-test target, or reach-envelope/joint-range reconciliation).
   (`everward_manipulator_release_tests` in `src/simulation/CMakeLists.txt`)
   covers: nothing held fails closed; a body clear of the hull releases
   successfully; a body overlapping the hull fails closed without clearing
-  the grasp; a since-deregistered held body fails closed; the gate stays
+  the grasp; a body overlapping another registered body fails closed
+  without clearing the grasp; a body clear of every other registered body
+  (but far from the hull) releases successfully; the other-body overlap
+  test itself correctly excludes the held body from comparison against
+  itself; a since-deregistered held body fails closed; the gate stays
   scoped to the queried arm; the probe's own world pose (not just local
   origin) is accounted for; and the runtime overload matches the free
-  function. All 20 `src/simulation` CTest suites (including this new one)
-  were run locally and pass.
-- `tools/test_phase2_manipulator_release_surface.py` and the updated
-  `tools/test_phase2_manipulator_grasp_surface.py` (whose adapter assertion
-  moved from a direct `Manipulators->release_grasp(` call to the new gated
-  wrapper) were run locally via `python3 -m unittest discover -s tools -p
-  "test_phase2*.py"`; all 132 Phase 2 source-contract tests pass.
+  function. All 20 `src/simulation` CTest suites (including this one) were
+  run locally and pass.
+- `tools/test_phase2_manipulator_release_surface.py`, extended with an
+  assertion that the new other-registered-body gate is wired into
+  `attempt_release_grasped_target`, was run locally via `python3 -m
+  unittest discover -s tools -p "test_phase2*.py"`; all 134 Phase 2
+  source-contract tests pass.
 
 No Unreal Editor/UBT build was available in this sandbox to compile-verify
 `ProbeSimulationAdapter.cpp`. The adapter change follows the exact
@@ -127,24 +155,28 @@ unavailable.
 7. Confirm this pass has not changed deploy/stow, joint articulation, tool
    attach/detach, grasp's own proximity gate, target selection/cycling,
    contact, or damage behavior.
-8. Record any discrepancy (release accepted while visibly embedded in the
-   hull, release rejected while clearly clear of the hull, no joint pose
-   within range ever clearing the hull, stale `HOLDING` state after a
-   rejected release, or a build/compile failure) as Product Reality
-   evidence.
+8. With another registered reference target present in the scene (e.g. the
+   Slice 8 partial `phase2-test-target-002`/`-003` bodies), articulate the
+   holding arm so the grasped target's position overlaps that other body
+   and attempt release (`F`). Confirm it is rejected the same way as the
+   hull case, with feedback reading "target would collide with the probe
+   hull or another object", then move clear and confirm release succeeds.
+9. Record any discrepancy (release accepted while visibly embedded in the
+   hull or another registered body, release rejected while clearly clear of
+   both, no joint pose within range ever clearing the hull, stale `HOLDING`
+   state after a rejected release, or a build/compile failure) as Product
+   Reality evidence.
 
 ## Explicitly not complete in this pass
 
-- No consequence for releasing near another registered body (only the
-  probe's own hull is checked).
 - No "place" or "drop toward a target location" mechanic, and no automatic
   hand-off into the mining/storage flow on release.
 - No velocity/momentum imparted to a released body; it simply remains at
   its last held position once release is accepted, matching
   `PHASE2_MANIPULATOR_MOVE_TEST.md`'s existing behavior.
 - Slice 7's completion gate remains the local Product Reality pass recorded
-  in `PROJECT_STATUS.md`; this closes the last previously-named
-  release-with-consequence gap but does not by itself close the slice.
+  in `PROJECT_STATUS.md`; this closes the "releasing near another registered
+  body" gap but does not by itself close the slice.
 
 ## Status
 
