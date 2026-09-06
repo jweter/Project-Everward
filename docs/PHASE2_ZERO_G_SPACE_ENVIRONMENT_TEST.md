@@ -1,12 +1,12 @@
 # Phase 2 Slice 8 — Dedicated Zero-G Space Environment Acceptance Contract
 
-Status: implementation-enabling acceptance contract
+Status: dedicated environment implementation added; Product Reality pending
 
 ## Purpose
 
 This contract turns the existing Slice 8 requirements in `PHASE2_VERTICAL_SLICE_PLAN.md` into a concrete, testable Product Reality gate without changing authoritative simulation mechanics.
 
-The dedicated zero-g environment is separate from the current ground sandbox. It must exercise existing probe flight, target selection, scanning, contact, manipulator, and telemetry behavior in a free six-degree-of-freedom context. This document does not authorize new movement physics, assisted approach, orbital mechanics, or planetary gravity.
+The dedicated zero-g environment is separate from the current ground sandbox. Launch it through the normal Phase-2 game mode with the explicit URL option `?ZeroG=1`; without that option the existing Phase-2 environment remains the default. It must exercise existing probe flight, target selection, scanning, contact, manipulator, and telemetry behavior in a free six-degree-of-freedom context. This document does not authorize new movement physics, assisted approach, orbital mechanics, or planetary gravity.
 
 ## Required scene properties
 
