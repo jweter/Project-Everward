@@ -5,6 +5,8 @@
 #include "EverwardPhase2TestEnvironment.h"
 #include "EverwardPlayerController.h"
 #include "EverwardProbePawn.h"
+#include "EverwardZeroGTestEnvironment.h"
+#include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 #include "PlaytestRecorderActor.h"
 
@@ -37,8 +39,14 @@ void AEverwardGameMode::InitGame(
         FRotator::ZeroRotator,
         SpawnParameters);
 
-    World->SpawnActor<AEverwardPhase2TestEnvironment>(
-        AEverwardPhase2TestEnvironment::StaticClass(),
+    const bool bUseZeroGEnvironment =
+        UGameplayStatics::GetIntOption(Options, TEXT("ZeroG"), 0) == 1;
+    UClass* EnvironmentClass = bUseZeroGEnvironment
+        ? AEverwardZeroGTestEnvironment::StaticClass()
+        : AEverwardPhase2TestEnvironment::StaticClass();
+
+    World->SpawnActor<AActor>(
+        EnvironmentClass,
         FVector::ZeroVector,
         FRotator::ZeroRotator,
         SpawnParameters);
