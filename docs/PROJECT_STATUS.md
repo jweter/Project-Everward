@@ -784,6 +784,17 @@ Everward continues to preserve:
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending; no multi-probe/lineage schema or migration framework yet — see "Save/load Unreal UI wiring" above).
 
+## Planetary-body geometry foundation (Slice 9, parallel-safe)
+
+The first Slice 9 sub-slice is now implemented in the engine-independent simulation layer:
+
+- `SphericalPlanetaryBody` owns body center, radius, and body velocity without Unreal dependencies;
+- deterministic helpers compute altitude above the reference sphere, outward surface normal, an orthonormal local horizon frame, below-surface state, and body-relative velocity;
+- dedicated simulation tests cover off-center bodies, negative altitude, pole-stable horizon construction, orthogonality, and moving-body relative velocity;
+- no gravity, planetary collision response, orbital classification, or Unreal rendering/presentation is claimed by this slice.
+
+**Status: implementation branch, Product Reality not applicable to the pure geometry itself.** Later Slice 9 integration into authoritative collision/flight and Unreal presentation remains separately gated.
+
 ## Exact next local UE 5.8 Product Reality pass
 
 Use the exact passed build and validate the accumulated Phase-2 chain in order:
