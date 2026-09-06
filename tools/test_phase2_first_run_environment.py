@@ -43,7 +43,8 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         self.assertIn('virtual void InitGame', self.game_mode_h)
         self.assertIn('ChoosePlayerStart_Implementation', self.game_mode_h)
         self.assertIn('SpawnActor<APlayerStart>', self.game_mode_cpp)
-        self.assertIn('SpawnActor<AEverwardPhase2TestEnvironment>', self.game_mode_cpp)
+        self.assertIn('AEverwardPhase2TestEnvironment::StaticClass()', self.game_mode_cpp)
+        self.assertIn('SpawnActor<AActor>', self.game_mode_cpp)
         self.assertIn('return Phase2PlayerStart;', self.game_mode_cpp)
 
     def test_scan_command_uses_the_visible_environment_target_id(self) -> None:
