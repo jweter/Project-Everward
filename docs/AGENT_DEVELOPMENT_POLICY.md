@@ -101,6 +101,14 @@ The slice must:
 
 Prefer finishing work over starting work.
 
+### Project liveness behind Unreal/Product Reality gates
+
+Unreal Editor/UBT availability, laptop-only playtests, visual acceptance, packaged builds, and other human Product Reality evidence are **lane-local gates**, not permission to stop Everward development. A pending local test may block completion/acceptance of the mechanic that depends on it, but it does not block parallel-safe work authorized by the current vertical-slice plan.
+
+Before reporting Everward as blocked, parked, or waiting, inspect the current Phase-2 plan and issue queue and prove that no authorized parallel-safe P4/P5 slice is eligible. If any such slice exists, advance one in the same run. Examples include engine-independent deterministic mechanics, save/load and persistence foundations, interaction/resource/repair foundations, controls/HUD architecture that does not assume visual acceptance, tests/tooling, and other explicitly parallel-safe vertical-slice work.
+
+Do not spend consecutive scheduled runs merely waiting for a laptop or Unreal test. Keep Product Reality debt visible, preserve the earliest incomplete slice as the completion priority, and continue accumulating dependency-safe implementation behind it without claiming the blocked slice accepted.
+
 ## 6. Priority order
 
 Use this order unless an explicit repository decision states otherwise:
