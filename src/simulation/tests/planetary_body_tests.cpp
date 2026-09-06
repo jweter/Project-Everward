@@ -68,6 +68,17 @@ void test_local_horizon_frame_is_stable_at_pole() {
     assert(nearly_equal(magnitude(frame.north), 1.0));
 }
 
+void test_local_horizon_frame_does_not_snap_near_old_pole_threshold() {
+    SphericalPlanetaryBody body{"moon", {0.0, 0.0, 0.0}, 100.0, {}};
+    const PlanetaryLocalFrame below = local_horizon_frame({4.48, 0.0, 99.8996}, body);
+    const PlanetaryLocalFrame above = local_horizon_frame({4.46, 0.0, 99.9005}, body);
+
+    // These nearby positions straddle the former abs(up.z) > 0.999 switch.
+    // A continuous tangent construction keeps corresponding axes aligned.
+    assert(dot(below.east, above.east) > 0.999);
+    assert(dot(below.north, above.north) > 0.999);
+}
+
 void test_body_relative_velocity_subtracts_body_motion() {
     SphericalPlanetaryBody body{"moon", {}, 100.0, {2.0, -3.0, 4.0}};
     const Vector3d relative = body_relative_velocity({12.0, 7.0, -1.0}, body);
@@ -84,6 +95,7 @@ int main() {
     test_surface_normal_points_outward_from_offset_body_center();
     test_local_horizon_frame_is_orthonormal();
     test_local_horizon_frame_is_stable_at_pole();
+    test_local_horizon_frame_does_not_snap_near_old_pole_threshold();
     test_body_relative_velocity_subtracts_body_motion();
 
     std::puts("planetary_body_tests: all tests passed");
