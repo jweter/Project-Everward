@@ -352,6 +352,8 @@ Minimum environment:
 
 Introduce a spherical body model rather than treating planets as flat levels.
 
+**Parallel-safe foundation in progress:** the first engine-independent geometry slice now defines a spherical planetary body plus deterministic altitude-above-surface, local outward normal, orthonormal horizon basis, below-surface detection, and body-relative velocity. It deliberately does not yet add gravity, collision resolution, orbit classification, or Unreal presentation; those remain later Slice 9 sub-slices and Product Reality work.
+
 Foundation data/behavior:
 
 - body center and radius;
