@@ -73,15 +73,19 @@ struct PlanetaryLocalFrame {
     const SphericalPlanetaryBody& body) noexcept {
     const Vector3d up = local_surface_normal(position_m, body);
 
-    // Prefer the global +Z axis as a stable construction reference, but fall
-    // back to +Y close to the poles so the cross product never degenerates.
-    const Vector3d reference =
-        std::fabs(planetary_dot(up, {0.0, 0.0, 1.0})) > 0.999
-            ? Vector3d{0.0, 1.0, 0.0}
-            : Vector3d{0.0, 0.0, 1.0};
-
-    const Vector3d east = planetary_normalized_or_x(planetary_cross(reference, up));
-    const Vector3d north = planetary_normalized_or_x(planetary_cross(up, east));
+    // Project the global +Z axis into the tangent plane. This keeps the basis
+    // continuous at all non-polar latitudes instead of switching reference
+    // axes at an arbitrary threshold. Only the true polar singularity uses a
+    // deterministic +Y fallback.
+    const Vector3d global_z{0.0, 0.0, 1.0};
+    const Vector3d north_candidate = planetary_subtract(
+        global_z,
+        planetary_scale(up, planetary_dot(global_z, up)));
+    const double north_magnitude = planetary_magnitude(north_candidate);
+    const Vector3d north = north_magnitude <= 1e-12
+        ? Vector3d{0.0, up.z >= 0.0 ? 1.0 : -1.0, 0.0}
+        : planetary_scale(north_candidate, 1.0 / north_magnitude);
+    const Vector3d east = planetary_normalized_or_x(planetary_cross(north, up));
     return {up, east, north};
 }
 
