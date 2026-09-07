@@ -9,12 +9,14 @@ namespace {
 
 using everward::simulation::PlanetaryLocalFrame;
 using everward::simulation::SphericalPlanetaryBody;
+using everward::simulation::SurfaceRelativeMotion;
 using everward::simulation::Vector3d;
 using everward::simulation::altitude_above_reference_surface;
 using everward::simulation::body_relative_velocity;
 using everward::simulation::is_below_reference_surface;
 using everward::simulation::local_horizon_frame;
 using everward::simulation::local_surface_normal;
+using everward::simulation::surface_relative_motion;
 
 bool nearly_equal(double a, double b, double epsilon = 1e-6) {
     return std::fabs(a - b) <= epsilon;
@@ -87,6 +89,42 @@ void test_body_relative_velocity_subtracts_body_motion() {
     assert(nearly_equal(relative.z, -5.0));
 }
 
+void test_surface_relative_motion_splits_vertical_and_tangential_velocity() {
+    SphericalPlanetaryBody body{"moon", {}, 100.0, {1.0, 2.0, 3.0}};
+    const SurfaceRelativeMotion motion = surface_relative_motion(
+        {100.0, 0.0, 0.0},
+        {6.0, 14.0, 3.0},
+        body);
+
+    assert(nearly_equal(motion.body_relative_velocity_mps.x, 5.0));
+    assert(nearly_equal(motion.body_relative_velocity_mps.y, 12.0));
+    assert(nearly_equal(motion.body_relative_velocity_mps.z, 0.0));
+    assert(nearly_equal(motion.vertical_speed_mps, 5.0));
+    assert(nearly_equal(motion.vertical_velocity_mps.x, 5.0));
+    assert(nearly_equal(motion.vertical_velocity_mps.y, 0.0));
+    assert(nearly_equal(motion.tangential_velocity_mps.x, 0.0));
+    assert(nearly_equal(motion.tangential_velocity_mps.y, 12.0));
+    assert(nearly_equal(motion.tangential_speed_mps, 12.0));
+    assert(nearly_equal(
+        dot(motion.vertical_velocity_mps, motion.tangential_velocity_mps),
+        0.0));
+}
+
+void test_surface_relative_motion_preserves_descent_sign() {
+    SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const SurfaceRelativeMotion motion = surface_relative_motion(
+        {0.0, 100.0, 0.0},
+        {3.0, -7.0, 4.0},
+        body);
+
+    assert(nearly_equal(motion.vertical_speed_mps, -7.0));
+    assert(nearly_equal(motion.vertical_velocity_mps.y, -7.0));
+    assert(nearly_equal(motion.tangential_velocity_mps.x, 3.0));
+    assert(nearly_equal(motion.tangential_velocity_mps.y, 0.0));
+    assert(nearly_equal(motion.tangential_velocity_mps.z, 4.0));
+    assert(nearly_equal(motion.tangential_speed_mps, 5.0));
+}
+
 } // namespace
 
 int main() {
@@ -97,6 +135,8 @@ int main() {
     test_local_horizon_frame_is_stable_at_pole();
     test_local_horizon_frame_does_not_snap_near_old_pole_threshold();
     test_body_relative_velocity_subtracts_body_motion();
+    test_surface_relative_motion_splits_vertical_and_tangential_velocity();
+    test_surface_relative_motion_preserves_descent_sign();
 
     std::puts("planetary_body_tests: all tests passed");
     return 0;
