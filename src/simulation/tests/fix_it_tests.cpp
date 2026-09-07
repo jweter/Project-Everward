@@ -9,7 +9,7 @@ namespace {
 using namespace everward::simulation;
 
 FixItResources ample() {
-    return {1000.0, 1.0e9, 1.0e6, false, false};
+    return {1000.0, 1.0e9, 1.0e6, false, false, false, false};
 }
 
 void test_preserves_computation_before_noncritical_repairs() {
@@ -62,6 +62,26 @@ void test_full_repair_advances_to_replacement_when_fabrication_exists() {
     assert(decision->stage == FixItStage::Replacement);
 }
 
+void test_upgrade_redesign_and_evolution_require_explicit_capability() {
+    ComponentIntegritySnapshot integrity;
+    auto resources = ample();
+
+    resources.upgrade_design_available = true;
+    auto decision = FixItPlanner::plan_next(integrity, resources);
+    assert(decision.has_value());
+    assert(decision->stage == FixItStage::Upgrade);
+
+    resources.redesign_design_available = true;
+    decision = FixItPlanner::plan_next(integrity, resources);
+    assert(decision.has_value());
+    assert(decision->stage == FixItStage::Redesign);
+
+    resources.evolution_design_available = true;
+    decision = FixItPlanner::plan_next(integrity, resources);
+    assert(decision.has_value());
+    assert(decision->stage == FixItStage::Evolution);
+}
+
 void test_evolution_requires_explicit_design_capability() {
     ComponentIntegritySnapshot integrity;
     auto resources = ample();
@@ -96,8 +116,12 @@ int main() {
     test_improves_weakest_functioning_component_in_bands();
     test_full_repair_waits_without_fabrication();
     test_full_repair_advances_to_replacement_when_fabrication_exists();
+    test_upgrade_redesign_and_evolution_require_explicit_capability();
     test_evolution_requires_explicit_design_capability();
     test_offline_component_can_surface_replacement_when_repair_unaffordable();
     std::puts("fix_it_tests: all tests passed");
     return 0;
 }
+
+
+static_assert(FixItPlanner::canonical_generation1_policy().size() == 4);
