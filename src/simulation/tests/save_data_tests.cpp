@@ -22,6 +22,9 @@ using everward::simulation::PowerSubsystem;
 using everward::simulation::ProbeSaveData;
 using everward::simulation::ProbeStateSnapshot;
 using everward::simulation::SaveGameV1;
+using everward::simulation::SaveMigrationResult;
+using everward::simulation::kSaveFormatVersion;
+using everward::simulation::migrate_save_json_to_current;
 using everward::simulation::SimulationCore;
 using everward::simulation::SoftwarePolicy;
 using everward::simulation::SoftwarePolicyRule;
@@ -172,6 +175,32 @@ void test_round_trip_with_no_policy_or_selection() {
 
     assert(restored.active_policy() == nullptr);
     assert(!restored.selected_target_status().has_selection);
+}
+
+void test_current_save_migration_boundary_is_deterministic_noop() {
+    const ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    const std::string json_text = serialize_save_game(SaveGameV1{1, 42, {data}});
+
+    const SaveMigrationResult migrated = migrate_save_json_to_current(json_text);
+    assert(migrated.source_version == 1);
+    assert(migrated.target_version == kSaveFormatVersion);
+    assert(migrated.applied_target_versions.empty());
+
+    const SaveGameV1 parsed = deserialize_save_game(migrated.canonical_json);
+    assert(parsed.save_version == kSaveFormatVersion);
+    assert(parsed.simulation_tick == 42);
+    assert(parsed.probes.size() == 1);
+}
+
+void test_legacy_save_without_registered_migration_fails_closed() {
+    const std::string legacy_save = R"({"save_version": 0, "simulation_tick": "0", "probes": []})";
+    bool threw = false;
+    try {
+        (void)migrate_save_json_to_current(legacy_save);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
 }
 
 void test_unsupported_save_version_fails_closed() {
@@ -418,6 +447,8 @@ void test_restore_rejects_inconsistent_snapshot() {
 int main() {
     test_round_trip_preserves_full_probe_state();
     test_round_trip_with_no_policy_or_selection();
+    test_current_save_migration_boundary_is_deterministic_noop();
+    test_legacy_save_without_registered_migration_fails_closed();
     test_unsupported_save_version_fails_closed();
     test_missing_required_field_fails_closed();
     test_malformed_json_fails_closed();
