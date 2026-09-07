@@ -151,7 +151,13 @@ enum class DomainEventType {
     ManeuverStarted,
     ManeuverCompleted,
     Contact,
-    MaterialStored
+    MaterialStored,
+    MaterialConsumed,
+    EnergyConsumed,
+    FixItRepairStarted,
+    FixItRepairProgress,
+    FixItRepairCompleted,
+    FixItRepairInterrupted
 };
 
 struct DomainEvent {
