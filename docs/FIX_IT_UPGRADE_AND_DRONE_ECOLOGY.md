@@ -83,6 +83,10 @@ Build successor bodies, specialized worker machines, infrastructure, or probe de
 
 The key design principle is that evolution has a **cause**. Machines change because the simulation reveals pressure to change them.
 
+### Current implementation foundation
+
+The first engine-independent `Fix_It` planning kernel now lives in `src/simulation/include/everward/simulation/fix_it.hpp`. It deliberately starts with the existing component-integrity truth rather than a separate health system. The current foundation can deterministically recommend staged repair work and expose when fabrication/design prerequisites make Replacement, Upgrade, Redesign, or Evolution eligible. It does **not** yet fabricate/install hardware, rewrite architecture, spawn descendants, transfer consciousness, or autonomously override the player. Those are downstream systems that consume this planning contract.
+
 ## Worker-drone ecology
 
 Worker drones are a major industrial and progression layer. They are not cosmetic companions and should not be treated as abstract production bonuses.
