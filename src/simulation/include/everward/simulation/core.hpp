@@ -348,6 +348,36 @@ public:
                             "stored material increased by " + std::to_string(kilograms) + " kg"});
     }
 
+    void consume_stored_material_kg(double kilograms) {
+        if (!std::isfinite(kilograms) || kilograms < 0.0) {
+            throw std::invalid_argument("material consumption must be finite and non-negative");
+        }
+        if (kilograms > probe_.storage_used_kg + 1e-9) {
+            throw std::runtime_error("insufficient stored material");
+        }
+        probe_.storage_used_kg = std::max(0.0, probe_.storage_used_kg - kilograms);
+        events_.push_back({clock_.tick(), DomainEventType::MaterialConsumed,
+                            "stored material consumed by " + std::to_string(kilograms) + " kg"});
+    }
+
+    void consume_stored_energy_j(double joules) {
+        if (!std::isfinite(joules) || joules < 0.0) {
+            throw std::invalid_argument("energy consumption must be finite and non-negative");
+        }
+        if (joules > probe_.stored_energy_j + 1e-6) {
+            throw std::runtime_error("insufficient stored energy");
+        }
+        const double before = probe_.stored_energy_j;
+        probe_.stored_energy_j = std::max(0.0, probe_.stored_energy_j - joules);
+        if (before > 0.0 && probe_.stored_energy_j <= 0.0) {
+            probe_.is_energy_depleted = true;
+            events_.push_back({clock_.tick(), DomainEventType::EnergyDepleted,
+                                "stored energy depleted by direct consumption"});
+        }
+        events_.push_back({clock_.tick(), DomainEventType::EnergyConsumed,
+                            "stored energy consumed by " + std::to_string(joules) + " J"});
+    }
+
     [[nodiscard]] double total_power_allocated_w() const noexcept {
         return probe_.power_allocated_sensors_w + probe_.power_allocated_propulsion_w +
                probe_.power_allocated_computation_w + probe_.power_allocated_thermal_w;
