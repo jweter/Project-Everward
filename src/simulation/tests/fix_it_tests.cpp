@@ -194,6 +194,103 @@ void test_executor_rejects_non_repair_stage() {
     assert(threw);
 }
 
+
+
+void test_offline_replacement_uses_explicit_fabrication_recipe() {
+    ComponentIntegritySnapshot integrity;
+    integrity.computation = 0.40;
+    integrity.thermal = 0.40;
+    integrity.sensors = 0.0;
+
+    auto resources = ample();
+    resources.material_kg = 0.0;
+    resources.energy_j = 0.0;
+    resources.available_time_s = 0.0;
+    resources.fabrication_available = true;
+
+    const auto decision = FixItPlanner::plan_next(integrity, resources);
+    assert(decision.has_value());
+    assert(decision->stage == FixItStage::Replacement);
+    assert(decision->subsystem == PowerSubsystem::Sensors);
+    assert(decision->target_integrity == 1.0);
+    assert(decision->material_required_kg == 20.0);
+    assert(decision->energy_required_j == 3.0e6);
+    assert(decision->time_required_s == 600.0);
+}
+
+void test_replacement_consumes_resources_but_installs_only_when_complete() {
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+    runtime.set_subsystem_integrity(PowerSubsystem::Sensors, 0.0);
+    runtime.add_stored_material_kg(25.0);
+
+    auto resources = ample();
+    resources.material_kg = 0.0;
+    resources.energy_j = 0.0;
+    resources.available_time_s = 0.0;
+    resources.fabrication_available = true;
+    const auto decision = FixItPlanner::plan_next(runtime.component_integrity(), resources);
+    assert(decision.has_value());
+    assert(decision->stage == FixItStage::Replacement);
+
+    const double initial_energy = runtime.snapshot().stored_energy_j;
+    const double initial_material = runtime.snapshot().storage_used_kg;
+
+    FixItReplacementExecutor executor;
+    executor.start(*decision, true);
+    executor.advance(runtime, decision->time_required_s / 2.0);
+
+    assert(executor.status().state == FixItExecutionState::Running);
+    assert(runtime.subsystem_integrity(PowerSubsystem::Sensors) == 0.0);
+    assert(runtime.snapshot().stored_energy_j < initial_energy);
+    assert(runtime.snapshot().storage_used_kg < initial_material);
+
+    executor.advance(runtime, decision->time_required_s / 2.0);
+    assert(executor.status().state == FixItExecutionState::Completed);
+    assert(runtime.subsystem_integrity(PowerSubsystem::Sensors) == 1.0);
+    assert(executor.status().material_consumed_kg == decision->material_required_kg);
+    assert(executor.status().energy_consumed_j == decision->energy_required_j);
+}
+
+void test_replacement_requires_fabrication_capability() {
+    FixItDecision decision;
+    decision.stage = FixItStage::Replacement;
+    decision.integrity_before = 0.0;
+    decision.target_integrity = 1.0;
+    decision.material_required_kg = 1.0;
+    decision.energy_required_j = 1.0;
+    decision.time_required_s = 1.0;
+
+    FixItReplacementExecutor executor;
+    bool threw = false;
+    try {
+        executor.start(decision, false);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
+}
+
+void test_replacement_interruption_does_not_install_partial_component() {
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+    runtime.set_subsystem_integrity(PowerSubsystem::Sensors, 0.0);
+    runtime.add_stored_material_kg(5.0);
+
+    auto resources = ample();
+    resources.material_kg = 0.0;
+    resources.energy_j = 0.0;
+    resources.available_time_s = 0.0;
+    resources.fabrication_available = true;
+    const auto decision = FixItPlanner::plan_next(runtime.component_integrity(), resources);
+    assert(decision.has_value());
+
+    FixItReplacementExecutor executor;
+    executor.start(*decision, true);
+    executor.advance(runtime, decision->time_required_s / 2.0);
+
+    assert(executor.status().state == FixItExecutionState::Interrupted);
+    assert(runtime.subsystem_integrity(PowerSubsystem::Sensors) == 0.0);
+}
+
 } // namespace
 
 int main() {
@@ -209,6 +306,10 @@ int main() {
     test_executor_interrupts_atomically_when_material_is_insufficient();
     test_executor_interrupts_atomically_when_energy_is_insufficient();
     test_executor_rejects_non_repair_stage();
+    test_offline_replacement_uses_explicit_fabrication_recipe();
+    test_replacement_consumes_resources_but_installs_only_when_complete();
+    test_replacement_requires_fabrication_capability();
+    test_replacement_interruption_does_not_install_partial_component();
     std::puts("fix_it_tests: all tests passed");
     return 0;
 }
