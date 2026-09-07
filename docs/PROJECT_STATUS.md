@@ -771,7 +771,7 @@ Everward continues to preserve:
 - capability-driven Unreal HUD/control shell and `UProbeSimulationAdapter` boundary;
 - deterministic physical-body/contact records;
 - component-specific impact/damage foundation;
-- first simulation-authoritative `Fix_It` kernel over component integrity: canonical program identity/directive, survival-first staged repair planning, material/energy/time estimates, and explicit Replacement -> Upgrade -> Redesign -> Evolution eligibility gates (implementation branch; fabrication/install, successor/lineage, and consciousness-transfer execution remain downstream);
+- first simulation-authoritative `Fix_It` kernel over component integrity: canonical program identity/directive, survival-first staged repair planning, material/energy/time estimates, and explicit Replacement -> Upgrade -> Redesign -> Evolution eligibility gates; the same branch now includes a transactional repair executor that consumes authoritative stored material and energy over repair time, restores the existing impact-damage integrity state progressively, and interrupts without partial resource mutation when a required resource is unavailable (fabrication/install, successor/lineage, and consciousness-transfer execution remain downstream);
 - Prime A tube-body silhouette with functional materials and a rescaled collision envelope (Slice 5);
 - adjacent-generation evolution foundation;
 - evolving machine sensorium/audio progression foundation;
