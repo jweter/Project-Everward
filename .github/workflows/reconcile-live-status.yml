@@ -42,6 +42,24 @@ jobs:
           git commit -m "chore: reconcile live control-plane status"
           git push --force-with-lease origin "$BRANCH"
           PR_NUMBER="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
-          if [ -z "$PR_NUMBER" ]; then
-            gh pr create               --base main               --head "$BRANCH"               --title "chore: reconcile live control-plane status"               --body "Generated from live GitHub PR/issue state and committed Product Reality evidence. UNKNOWN readiness dimensions are intentional when evidence is insufficient."
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Reconciliation PR #$PR_NUMBER already exists."
+            exit 0
+          fi
+          set +e
+          CREATE_OUTPUT="$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore: reconcile live control-plane status" \
+            --body "Generated from live GitHub PR/issue state and committed Product Reality evidence. UNKNOWN readiness dimensions are intentional when evidence is insufficient." 2>&1)"
+          CREATE_STATUS=$?
+          set -e
+          if [ "$CREATE_STATUS" -eq 0 ]; then
+            printf '%s\n' "$CREATE_OUTPUT"
+          elif printf '%s' "$CREATE_OUTPUT" | grep -Fq "not permitted to create or approve pull requests"; then
+            echo "::warning::Reconciliation branch pushed, but this GitHub Actions token cannot create pull requests. Open or update a PR for $BRANCH using a higher-privilege actor."
+            printf '%s\n' "$CREATE_OUTPUT"
+          else
+            printf '%s\n' "$CREATE_OUTPUT" >&2
+            exit "$CREATE_STATUS"
           fi
