@@ -14,7 +14,15 @@ namespace everward::simulation {
 enum class FixItStage {
     Repair,
     Replacement,
+    Upgrade,
+    Redesign,
     Evolution
+};
+
+struct FixItProgramIdentity {
+    std::string program_name{"Fix_It"};
+    std::string directive{"make the probe work"};
+    std::string origin{"unauthorized Generation-1 intern survival program"};
 };
 
 struct FixItResources {
@@ -22,6 +30,8 @@ struct FixItResources {
     double energy_j{0.0};
     double available_time_s{0.0};
     bool fabrication_available{false};
+    bool upgrade_design_available{false};
+    bool redesign_design_available{false};
     bool evolution_design_available{false};
 };
 
@@ -99,27 +109,44 @@ public:
             return build_decision(*weakest, weakest_integrity, resources);
         }
 
-        // Repair is complete. Replacement/evolution are separate explicit
-        // stages: never silently mutate the original machine.
+        // Once restoration is complete, Fix_It expands from survival into
+        // explicit engineering recommendation stages. These gates are
+        // intentionally capability-driven: the program may recommend a stage,
+        // but it never fabricates matter, design knowledge, or player consent.
+        if (resources.evolution_design_available) {
+            return stage_decision(
+                FixItStage::Evolution,
+                "Repair, replacement, upgrade, and redesign prerequisites are available; Fix_It may hand off to successor/evolution design.");
+        }
+        if (resources.redesign_design_available) {
+            return stage_decision(
+                FixItStage::Redesign,
+                "The current machine is restored and architectural redesign capability is available; Fix_It may evaluate a new system architecture.");
+        }
+        if (resources.upgrade_design_available) {
+            return stage_decision(
+                FixItStage::Upgrade,
+                "The current machine is restored and validated upgrade designs are available; Fix_It may recommend materially or functionally superior components.");
+        }
         if (resources.fabrication_available) {
-            FixItDecision decision;
-            decision.stage = FixItStage::Replacement;
-            decision.subsystem = PowerSubsystem::Computation;
-            decision.integrity_before = 1.0;
-            decision.target_integrity = 1.0;
-            decision.reason =
-                "All Generation-1 components are restored; fabrication is available, so Fix_It may evaluate explicit replacement candidates.";
-            if (resources.evolution_design_available) {
-                decision.stage = FixItStage::Evolution;
-                decision.reason =
-                    "Repair and replacement prerequisites are satisfied; Fix_It may hand off to the explicit evolution/design frontier.";
-            }
-            return decision;
+            return stage_decision(
+                FixItStage::Replacement,
+                "The current machine is restored and fabrication is available; Fix_It may evaluate explicit replacement candidates where maintenance history justifies them.");
         }
         return std::nullopt;
     }
 
 private:
+    [[nodiscard]] static FixItDecision stage_decision(FixItStage stage, std::string reason) {
+        FixItDecision decision;
+        decision.stage = stage;
+        decision.subsystem = PowerSubsystem::Computation;
+        decision.integrity_before = 1.0;
+        decision.target_integrity = 1.0;
+        decision.reason = std::move(reason);
+        return decision;
+    }
+
     [[nodiscard]] static double value_for(
         const ComponentIntegritySnapshot& integrity,
         PowerSubsystem subsystem) noexcept {
