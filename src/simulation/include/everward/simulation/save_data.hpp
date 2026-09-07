@@ -470,8 +470,47 @@ namespace detail {
     return save_game_to_json(save).dump();
 }
 
+// Ordered migration boundary for campaign saves. There is intentionally no
+// invented pre-v1 schema: v1 is the first persisted format and therefore has
+// no migration step today. Future schema bumps add explicit vN -> vN+1
+// transforms here, each with fixture coverage, instead of teaching the normal
+// parser to silently accept fields it does not understand.
+struct SaveMigrationResult {
+    int source_version{kSaveFormatVersion};
+    int target_version{kSaveFormatVersion};
+    std::vector<int> applied_target_versions{};
+    std::string canonical_json{};
+};
+
+[[nodiscard]] inline SaveMigrationResult migrate_save_json_to_current(const std::string& text) {
+    JsonValue value = JsonValue::parse(text);
+    const std::int64_t source_version = value.require("save_version").as_int64();
+
+    if (source_version > kSaveFormatVersion) {
+        throw std::runtime_error(
+            "unsupported future save_version " + std::to_string(source_version) +
+            " (this build supports version " + std::to_string(kSaveFormatVersion) + ")");
+    }
+    if (source_version < 1) {
+        throw std::runtime_error(
+            "unsupported legacy save_version " + std::to_string(source_version) +
+            " (no explicit migration path is registered)");
+    }
+
+    // v1 is the first schema, so a current save is already canonical. Keep the
+    // result object even for this no-op path so future versions can report the
+    // exact ordered migration chain without changing callers.
+    return SaveMigrationResult{
+        static_cast<int>(source_version),
+        kSaveFormatVersion,
+        {},
+        value.dump(),
+    };
+}
+
 [[nodiscard]] inline SaveGameV1 deserialize_save_game(const std::string& text) {
-    return save_game_from_json(JsonValue::parse(text));
+    const SaveMigrationResult migrated = migrate_save_json_to_current(text);
+    return save_game_from_json(JsonValue::parse(migrated.canonical_json));
 }
 
 // Bridges the persisted schema to the live runtime. capture_probe_save_data
