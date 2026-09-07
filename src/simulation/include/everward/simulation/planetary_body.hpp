@@ -24,6 +24,17 @@ struct PlanetaryLocalFrame {
     Vector3d north{};
 };
 
+// Phase 2 Slice 10 read model for near-surface operations. Keeping the
+// decomposition in the deterministic simulation layer lets presentation code
+// consume vertical and tangential motion without redefining planetary truth.
+struct SurfaceRelativeMotion {
+    Vector3d body_relative_velocity_mps{};
+    Vector3d vertical_velocity_mps{};
+    Vector3d tangential_velocity_mps{};
+    double vertical_speed_mps{0.0};
+    double tangential_speed_mps{0.0};
+};
+
 [[nodiscard]] inline Vector3d planetary_subtract(Vector3d a, Vector3d b) noexcept {
     return {a.x - b.x, a.y - b.y, a.z - b.z};
 }
@@ -93,6 +104,24 @@ struct PlanetaryLocalFrame {
     Vector3d object_velocity_mps,
     const SphericalPlanetaryBody& body) noexcept {
     return planetary_subtract(object_velocity_mps, body.velocity_mps);
+}
+
+[[nodiscard]] inline SurfaceRelativeMotion surface_relative_motion(
+    Vector3d position_m,
+    Vector3d object_velocity_mps,
+    const SphericalPlanetaryBody& body) noexcept {
+    const Vector3d relative = body_relative_velocity(object_velocity_mps, body);
+    const Vector3d up = local_surface_normal(position_m, body);
+    const double vertical_speed = planetary_dot(relative, up);
+    const Vector3d vertical = planetary_scale(up, vertical_speed);
+    const Vector3d tangential = planetary_subtract(relative, vertical);
+    return {
+        relative,
+        vertical,
+        tangential,
+        vertical_speed,
+        planetary_magnitude(tangential),
+    };
 }
 
 [[nodiscard]] inline bool is_below_reference_surface(
