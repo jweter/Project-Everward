@@ -214,4 +214,4 @@ int main() {
 }
 
 
-static_assert(FixItPlanner::canonical_generation1_policy().size() == 4);
+static_assert(everward::simulation::FixItPlanner::canonical_generation1_policy().size() == 4);
