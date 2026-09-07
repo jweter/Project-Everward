@@ -35,6 +35,20 @@ struct SurfaceRelativeMotion {
     double tangential_speed_mps{0.0};
 };
 
+struct ControlledDescentEnvelope {
+    double max_descent_speed_mps{5.0};
+    double max_tangential_speed_mps{2.0};
+    double minimum_clearance_m{0.0};
+};
+
+enum class SurfaceApproachState {
+    Clear,
+    ControlledDescent,
+    ExcessiveDescentRate,
+    ExcessiveTangentialRate,
+    SurfacePenetration,
+};
+
 [[nodiscard]] inline Vector3d planetary_subtract(Vector3d a, Vector3d b) noexcept {
     return {a.x - b.x, a.y - b.y, a.z - b.z};
 }
@@ -122,6 +136,29 @@ struct SurfaceRelativeMotion {
         vertical_speed,
         planetary_magnitude(tangential),
     };
+}
+
+[[nodiscard]] inline SurfaceApproachState classify_surface_approach(
+    Vector3d position_m,
+    Vector3d object_velocity_mps,
+    const SphericalPlanetaryBody& body,
+    const ControlledDescentEnvelope& envelope = {}) noexcept {
+    const double altitude = altitude_above_reference_surface(position_m, body);
+    if (altitude < envelope.minimum_clearance_m) {
+        return SurfaceApproachState::SurfacePenetration;
+    }
+
+    const SurfaceRelativeMotion motion = surface_relative_motion(position_m, object_velocity_mps, body);
+    if (motion.vertical_speed_mps < -std::fabs(envelope.max_descent_speed_mps)) {
+        return SurfaceApproachState::ExcessiveDescentRate;
+    }
+    if (motion.tangential_speed_mps > std::fabs(envelope.max_tangential_speed_mps)) {
+        return SurfaceApproachState::ExcessiveTangentialRate;
+    }
+    if (motion.vertical_speed_mps < 0.0) {
+        return SurfaceApproachState::ControlledDescent;
+    }
+    return SurfaceApproachState::Clear;
 }
 
 [[nodiscard]] inline bool is_below_reference_surface(
