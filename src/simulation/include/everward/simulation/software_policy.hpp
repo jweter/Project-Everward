@@ -201,6 +201,8 @@ public:
     void set_max_operating_temperature_k(double kelvin) { core_.set_max_operating_temperature_k(kelvin); }
     [[nodiscard]] double total_power_allocated_w() const noexcept { return core_.total_power_allocated_w(); }
     void add_stored_material_kg(double kilograms) { core_.add_stored_material_kg(kilograms); }
+    void consume_stored_material_kg(double kilograms) { core_.consume_stored_material_kg(kilograms); }
+    void consume_stored_energy_j(double joules) { core_.consume_stored_energy_j(joules); }
 
     void install_policy(SoftwarePolicy policy) {
         validate_policy(policy);
