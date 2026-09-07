@@ -66,8 +66,9 @@ int main() {
         assert(result.accepted);
         assert(nearly_equal(result.probe_after.velocity_mps.x, 0.4));
         assert(nearly_equal(result.target_after.velocity_mps.x, -0.1));
-        assert(std::fabs(result.probe_after.velocity_mps.x) ==
-               4.0 * std::fabs(result.target_after.velocity_mps.x));
+        assert(nearly_equal(
+            std::fabs(result.probe_after.velocity_mps.x),
+            4.0 * std::fabs(result.target_after.velocity_mps.x)));
     }
 
     // Pre-existing probe momentum can be transferred through the coupling.
