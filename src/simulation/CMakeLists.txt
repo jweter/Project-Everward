@@ -90,4 +90,8 @@ if(BUILD_TESTING)
     add_executable(everward_planetary_body_tests tests/planetary_body_tests.cpp)
     target_link_libraries(everward_planetary_body_tests PRIVATE everward_simulation)
     add_test(NAME everward_planetary_body_tests COMMAND everward_planetary_body_tests)
+
+    add_executable(everward_tractor_field_tests tests/tractor_field_tests.cpp)
+    target_link_libraries(everward_tractor_field_tests PRIVATE everward_simulation)
+    add_test(NAME everward_tractor_field_tests COMMAND everward_tractor_field_tests)
 endif()
