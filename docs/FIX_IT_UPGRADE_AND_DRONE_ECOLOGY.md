@@ -85,7 +85,7 @@ The key design principle is that evolution has a **cause**. Machines change beca
 
 ### Current implementation foundation
 
-The first engine-independent `Fix_It` planning kernel now lives in `src/simulation/include/everward/simulation/fix_it.hpp`. It deliberately starts with the existing component-integrity truth rather than a separate health system. The current foundation can deterministically recommend staged repair work and expose when fabrication/design prerequisites make Replacement, Upgrade, Redesign, or Evolution eligible. It does **not** yet fabricate/install hardware, rewrite architecture, spawn descendants, transfer consciousness, or autonomously override the player. Those are downstream systems that consume this planning contract.
+The first engine-independent `Fix_It` implementation now lives in `src/simulation/include/everward/simulation/fix_it.hpp`. It deliberately starts with the existing component-integrity truth rather than a separate health system. The current foundation can deterministically recommend staged repair work, execute repair against authoritative stored material/energy/time, and fabricate/install a Generation-1 replacement component through explicit subsystem recipes when fabrication capability exists. Replacement fabrication consumes authoritative resources progressively but does not install a partial component: the old integrity remains mechanically authoritative until fabrication completes, then the replacement is installed at its defined target integrity. Upgrade, Redesign, and Evolution remain explicit later design/execution stages; successor creation, lineage, consciousness transfer, and autonomous override are not fabricated by this foundation.
 
 ## Worker-drone ecology
 
