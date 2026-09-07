@@ -7,12 +7,15 @@
 
 namespace {
 
+using everward::simulation::ControlledDescentEnvelope;
 using everward::simulation::PlanetaryLocalFrame;
 using everward::simulation::SphericalPlanetaryBody;
+using everward::simulation::SurfaceApproachState;
 using everward::simulation::SurfaceRelativeMotion;
 using everward::simulation::Vector3d;
 using everward::simulation::altitude_above_reference_surface;
 using everward::simulation::body_relative_velocity;
+using everward::simulation::classify_surface_approach;
 using everward::simulation::is_below_reference_surface;
 using everward::simulation::local_horizon_frame;
 using everward::simulation::local_surface_normal;
@@ -125,6 +128,34 @@ void test_surface_relative_motion_preserves_descent_sign() {
     assert(nearly_equal(motion.tangential_speed_mps, 5.0));
 }
 
+void test_surface_approach_classifies_controlled_descent() {
+    SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
+    assert(classify_surface_approach({110.0, 0.0, 0.0}, {-4.0, 1.0, 0.0}, body, envelope)
+        == SurfaceApproachState::ControlledDescent);
+}
+
+void test_surface_approach_rejects_excessive_descent_rate() {
+    SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
+    assert(classify_surface_approach({110.0, 0.0, 0.0}, {-6.0, 0.0, 0.0}, body, envelope)
+        == SurfaceApproachState::ExcessiveDescentRate);
+}
+
+void test_surface_approach_rejects_excessive_tangential_rate() {
+    SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
+    assert(classify_surface_approach({110.0, 0.0, 0.0}, {-2.0, 3.0, 0.0}, body, envelope)
+        == SurfaceApproachState::ExcessiveTangentialRate);
+}
+
+void test_surface_approach_detects_clearance_violation() {
+    SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const ControlledDescentEnvelope envelope{5.0, 2.0, 1.0};
+    assert(classify_surface_approach({100.5, 0.0, 0.0}, {0.0, 0.0, 0.0}, body, envelope)
+        == SurfaceApproachState::SurfacePenetration);
+}
+
 } // namespace
 
 int main() {
@@ -137,6 +168,10 @@ int main() {
     test_body_relative_velocity_subtracts_body_motion();
     test_surface_relative_motion_splits_vertical_and_tangential_velocity();
     test_surface_relative_motion_preserves_descent_sign();
+    test_surface_approach_classifies_controlled_descent();
+    test_surface_approach_rejects_excessive_descent_rate();
+    test_surface_approach_rejects_excessive_tangential_rate();
+    test_surface_approach_detects_clearance_violation();
 
     std::puts("planetary_body_tests: all tests passed");
     return 0;
