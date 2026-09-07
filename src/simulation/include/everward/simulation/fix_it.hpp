@@ -56,6 +56,124 @@ struct FixItDecision {
     std::string reason;
 };
 
+enum class FixItExecutionState {
+    Idle,
+    Running,
+    Completed,
+    Interrupted
+};
+
+struct FixItExecutionStatus {
+    FixItExecutionState state{FixItExecutionState::Idle};
+    std::optional<FixItDecision> decision{};
+    double elapsed_s{0.0};
+    double material_consumed_kg{0.0};
+    double energy_consumed_j{0.0};
+    std::string detail;
+};
+
+class FixItRepairExecutor {
+public:
+    void start(const FixItDecision& decision) {
+        if (status_.state == FixItExecutionState::Running) {
+            throw std::logic_error("Fix_It repair already running");
+        }
+        if (decision.stage != FixItStage::Repair) {
+            throw std::invalid_argument("Fix_It repair executor accepts Repair decisions only");
+        }
+        if (!(decision.target_integrity > decision.integrity_before) ||
+            decision.target_integrity > 1.0 ||
+            decision.material_required_kg < 0.0 ||
+            decision.energy_required_j < 0.0 ||
+            !(decision.time_required_s > 0.0)) {
+            throw std::invalid_argument("invalid Fix_It repair decision");
+        }
+        status_ = {};
+        status_.state = FixItExecutionState::Running;
+        status_.decision = decision;
+        status_.detail = "Fix_It repair running";
+    }
+
+    [[nodiscard]] const FixItExecutionStatus& status() const noexcept {
+        return status_;
+    }
+
+    void interrupt(std::string reason) {
+        if (status_.state != FixItExecutionState::Running) {
+            return;
+        }
+        status_.state = FixItExecutionState::Interrupted;
+        status_.detail = reason.empty() ? "Fix_It repair interrupted" : std::move(reason);
+    }
+
+    void advance(DamageAwareProbeRuntime& runtime, double elapsed_s) {
+        if (status_.state != FixItExecutionState::Running) {
+            throw std::logic_error("Fix_It repair is not running");
+        }
+        if (!std::isfinite(elapsed_s) || elapsed_s < 0.0) {
+            throw std::invalid_argument("Fix_It repair elapsed time must be finite and non-negative");
+        }
+        if (elapsed_s == 0.0) {
+            return;
+        }
+
+        const FixItDecision& decision = *status_.decision;
+        const double remaining_s = std::max(0.0, decision.time_required_s - status_.elapsed_s);
+        const double applied_s = std::min(elapsed_s, remaining_s);
+        if (applied_s <= 0.0) {
+            complete(runtime);
+            return;
+        }
+
+        const double fraction = applied_s / decision.time_required_s;
+        const double material_delta = decision.material_required_kg * fraction;
+        const double energy_delta = decision.energy_required_j * fraction;
+        const auto& snapshot = runtime.snapshot();
+
+        // Fail closed before either debit so interruption cannot consume one
+        // resource while failing the second half of the same repair step.
+        if (snapshot.storage_used_kg + 1e-9 < material_delta) {
+            interrupt("Fix_It repair interrupted: insufficient stored material");
+            return;
+        }
+        if (snapshot.stored_energy_j + 1e-6 < energy_delta) {
+            interrupt("Fix_It repair interrupted: insufficient stored energy");
+            return;
+        }
+
+        runtime.consume_stored_material_kg(material_delta);
+        runtime.consume_stored_energy_j(energy_delta);
+        status_.material_consumed_kg += material_delta;
+        status_.energy_consumed_j += energy_delta;
+        status_.elapsed_s += applied_s;
+
+        const double total_fraction = std::clamp(
+            status_.elapsed_s / decision.time_required_s, 0.0, 1.0);
+        const double integrity = decision.integrity_before +
+            (decision.target_integrity - decision.integrity_before) * total_fraction;
+        runtime.set_subsystem_integrity(decision.subsystem, integrity);
+
+        if (status_.elapsed_s + 1e-9 >= decision.time_required_s) {
+            complete(runtime);
+        } else {
+            status_.detail = "Fix_It repair progressing";
+        }
+    }
+
+private:
+    void complete(DamageAwareProbeRuntime& runtime) {
+        const FixItDecision& decision = *status_.decision;
+        runtime.set_subsystem_integrity(decision.subsystem, decision.target_integrity);
+        status_.elapsed_s = decision.time_required_s;
+        status_.material_consumed_kg = decision.material_required_kg;
+        status_.energy_consumed_j = decision.energy_required_j;
+        status_.state = FixItExecutionState::Completed;
+        status_.detail = "Fix_It repair completed";
+    }
+
+    FixItExecutionStatus status_{};
+};
+
 class FixItPlanner {
 public:
     [[nodiscard]] static constexpr std::array<FixItComponentPolicy, 4> canonical_generation1_policy() noexcept {
