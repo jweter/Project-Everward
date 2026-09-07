@@ -44,6 +44,9 @@ struct FixItComponentPolicy {
     double energy_j_per_integrity{1.0e6};
     double seconds_per_integrity{120.0};
     bool replaceable{true};
+    double replacement_material_kg{25.0};
+    double replacement_energy_j{4.0e6};
+    double replacement_time_s{600.0};
 };
 
 struct FixItDecision {
@@ -175,14 +178,110 @@ private:
     FixItExecutionStatus status_{};
 };
 
+class FixItReplacementExecutor {
+public:
+    void start(const FixItDecision& decision, bool fabrication_available) {
+        if (status_.state == FixItExecutionState::Running) {
+            throw std::logic_error("Fix_It replacement already running");
+        }
+        if (!fabrication_available) {
+            throw std::runtime_error("Fix_It replacement requires fabrication capability");
+        }
+        if (decision.stage != FixItStage::Replacement) {
+            throw std::invalid_argument("Fix_It replacement executor accepts Replacement decisions only");
+        }
+        if (!(decision.target_integrity > decision.integrity_before) ||
+            decision.target_integrity > 1.0 ||
+            !(decision.material_required_kg > 0.0) ||
+            !(decision.energy_required_j > 0.0) ||
+            !(decision.time_required_s > 0.0)) {
+            throw std::invalid_argument("replacement decision is not executable");
+        }
+        status_ = {};
+        status_.state = FixItExecutionState::Running;
+        status_.decision = decision;
+        status_.detail = "Fix_It replacement fabrication running";
+    }
+
+    [[nodiscard]] const FixItExecutionStatus& status() const noexcept {
+        return status_;
+    }
+
+    void advance(DamageAwareProbeRuntime& runtime, double elapsed_s) {
+        if (status_.state != FixItExecutionState::Running) {
+            throw std::logic_error("Fix_It replacement is not running");
+        }
+        if (!std::isfinite(elapsed_s) || elapsed_s < 0.0) {
+            throw std::invalid_argument("Fix_It replacement elapsed time must be finite and non-negative");
+        }
+        if (elapsed_s == 0.0) return;
+
+        const FixItDecision& decision = *status_.decision;
+        const double remaining_s = std::max(0.0, decision.time_required_s - status_.elapsed_s);
+        const double applied_s = std::min(elapsed_s, remaining_s);
+        if (applied_s <= 0.0) {
+            complete(runtime);
+            return;
+        }
+
+        const double fraction = applied_s / decision.time_required_s;
+        const double material_delta = decision.material_required_kg * fraction;
+        const double energy_delta = decision.energy_required_j * fraction;
+        const auto& snapshot = runtime.snapshot();
+
+        // A replacement part is not installed partially. Resource debits may
+        // progress during fabrication, but the old component integrity remains
+        // authoritative until fabrication/installation reaches 100%.
+        if (snapshot.storage_used_kg + 1e-9 < material_delta) {
+            interrupt("Fix_It replacement interrupted: insufficient stored material");
+            return;
+        }
+        if (snapshot.stored_energy_j + 1e-6 < energy_delta) {
+            interrupt("Fix_It replacement interrupted: insufficient stored energy");
+            return;
+        }
+
+        runtime.consume_stored_material_kg(material_delta);
+        runtime.consume_stored_energy_j(energy_delta);
+        status_.material_consumed_kg += material_delta;
+        status_.energy_consumed_j += energy_delta;
+        status_.elapsed_s += applied_s;
+
+        if (status_.elapsed_s + 1e-9 >= decision.time_required_s) {
+            complete(runtime);
+        } else {
+            status_.detail = "Fix_It replacement fabrication progressing";
+        }
+    }
+
+    void interrupt(std::string reason) {
+        if (status_.state != FixItExecutionState::Running) return;
+        status_.state = FixItExecutionState::Interrupted;
+        status_.detail = reason.empty() ? "Fix_It replacement interrupted" : std::move(reason);
+    }
+
+private:
+    void complete(DamageAwareProbeRuntime& runtime) {
+        const FixItDecision& decision = *status_.decision;
+        runtime.set_subsystem_integrity(decision.subsystem, decision.target_integrity);
+        status_.elapsed_s = decision.time_required_s;
+        status_.material_consumed_kg = decision.material_required_kg;
+        status_.energy_consumed_j = decision.energy_required_j;
+        status_.state = FixItExecutionState::Completed;
+        status_.detail = "Fix_It replacement fabricated and installed";
+    }
+
+    FixItExecutionStatus status_{};
+};
+
 class FixItPlanner {
 public:
     [[nodiscard]] static constexpr std::array<FixItComponentPolicy, 4> canonical_generation1_policy() noexcept {
         return {{
-            {PowerSubsystem::Computation, true, 0.25, 14.0, 1.8e6, 180.0, true},
-            {PowerSubsystem::Thermal, true, 0.25, 11.0, 1.3e6, 150.0, true},
-            {PowerSubsystem::Sensors, false, 0.25, 8.0, 0.9e6, 90.0, true},
-            {PowerSubsystem::Propulsion, false, 0.25, 18.0, 2.5e6, 240.0, true},
+            {PowerSubsystem::Computation, true, 0.25, 14.0, 1.8e6, 180.0, true, 45.0, 8.0e6, 1200.0},
+            {PowerSubsystem::Thermal, true, 0.25, 11.0, 1.3e6, 150.0, true, 35.0, 5.0e6, 900.0},
+            {PowerSubsystem::Sensors, false, 0.25, 8.0, 0.9e6, 90.0, true, 20.0, 3.0e6, 600.0},
+            {PowerSubsystem::Propulsion, false, 0.25, 18.0, 2.5e6, 240.0, true, 60.0, 12.0e6, 1800.0},
         }};
     }
 
@@ -304,8 +403,12 @@ private:
         if (current <= 0.0 && component.replaceable && resources.fabrication_available &&
             !can_afford(decision, resources)) {
             decision.stage = FixItStage::Replacement;
+            decision.target_integrity = 1.0;
+            decision.material_required_kg = component.replacement_material_kg;
+            decision.energy_required_j = component.replacement_energy_j;
+            decision.time_required_s = component.replacement_time_s;
             decision.reason =
-                "Component is offline and staged repair cannot currently be afforded; fabrication permits an explicit replacement path.";
+                "Component is offline and staged repair cannot currently be afforded; fabricate and install a complete Generation-1 replacement.";
             return decision;
         }
 
