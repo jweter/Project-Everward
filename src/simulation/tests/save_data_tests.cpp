@@ -23,6 +23,8 @@ using everward::simulation::ProbeSaveData;
 using everward::simulation::ProbeStateSnapshot;
 using everward::simulation::SaveGameV1;
 using everward::simulation::SaveMigrationResult;
+using everward::simulation::SaveMigrationStep;
+using everward::simulation::apply_ordered_save_migrations;
 using everward::simulation::kSaveFormatVersion;
 using everward::simulation::migrate_save_json_to_current;
 using everward::simulation::SimulationCore;
@@ -175,6 +177,128 @@ void test_round_trip_with_no_policy_or_selection() {
 
     assert(restored.active_policy() == nullptr);
     assert(!restored.selected_target_status().has_selection);
+}
+
+JsonValue migrate_fixture_v1_to_v2(const JsonValue& source) {
+    JsonValue migrated = source;
+    migrated.set("save_version", JsonValue(static_cast<std::int64_t>(2)));
+    migrated.set("migration_fixture_v2", JsonValue("applied"));
+    return migrated;
+}
+
+JsonValue migrate_fixture_v2_to_v3(const JsonValue& source) {
+    JsonValue migrated = source;
+    migrated.set("save_version", JsonValue(static_cast<std::int64_t>(3)));
+    migrated.set("migration_fixture_v3", JsonValue("applied"));
+    return migrated;
+}
+
+JsonValue broken_fixture_migration(const JsonValue& source) {
+    JsonValue migrated = source;
+    migrated.set("migration_fixture_broken", JsonValue(true));
+    return migrated;
+}
+
+void test_ordered_migration_framework_applies_contiguous_steps() {
+    const JsonValue source = JsonValue::parse(
+        R"({"save_version":1,"simulation_tick":"0","probes":[]})");
+
+    const SaveMigrationResult migrated = apply_ordered_save_migrations(
+        source,
+        3,
+        {
+            SaveMigrationStep{1, 2, &migrate_fixture_v1_to_v2},
+            SaveMigrationStep{2, 3, &migrate_fixture_v2_to_v3},
+        });
+
+    assert(migrated.source_version == 1);
+    assert(migrated.target_version == 3);
+    assert((migrated.applied_target_versions == std::vector<int>{2, 3}));
+
+    const JsonValue canonical = JsonValue::parse(migrated.canonical_json);
+    assert(canonical.require("save_version").as_int64() == 3);
+    assert(canonical.require("migration_fixture_v2").as_string() == "applied");
+    assert(canonical.require("migration_fixture_v3").as_string() == "applied");
+}
+
+void test_migration_framework_rejects_gap() {
+    const JsonValue source = JsonValue::parse(
+        R"({"save_version":1,"simulation_tick":"0","probes":[]})");
+
+    bool threw = false;
+    try {
+        (void)apply_ordered_save_migrations(
+            source,
+            3,
+            {SaveMigrationStep{2, 3, &migrate_fixture_v2_to_v3}});
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
+}
+
+void test_migration_framework_rejects_duplicate_source_version() {
+    const JsonValue source = JsonValue::parse(
+        R"({"save_version":1,"simulation_tick":"0","probes":[]})");
+
+    bool threw = false;
+    try {
+        (void)apply_ordered_save_migrations(
+            source,
+            2,
+            {
+                SaveMigrationStep{1, 2, &migrate_fixture_v1_to_v2},
+                SaveMigrationStep{1, 2, &migrate_fixture_v1_to_v2},
+            });
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
+}
+
+void test_migration_framework_rejects_noncontiguous_registration() {
+    const JsonValue source = JsonValue::parse(
+        R"({"save_version":1,"simulation_tick":"0","probes":[]})");
+
+    bool threw = false;
+    try {
+        (void)apply_ordered_save_migrations(
+            source,
+            3,
+            {SaveMigrationStep{1, 3, &migrate_fixture_v1_to_v2}});
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
+}
+
+void test_migration_framework_validates_transform_target_version() {
+    const JsonValue source = JsonValue::parse(
+        R"({"save_version":1,"simulation_tick":"0","probes":[]})");
+
+    bool threw = false;
+    try {
+        (void)apply_ordered_save_migrations(
+            source,
+            2,
+            {SaveMigrationStep{1, 2, &broken_fixture_migration}});
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
+}
+
+void test_migration_framework_rejects_backward_migration() {
+    const JsonValue source = JsonValue::parse(
+        R"({"save_version":2,"simulation_tick":"0","probes":[]})");
+
+    bool threw = false;
+    try {
+        (void)apply_ordered_save_migrations(source, 1, {});
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
 }
 
 void test_current_save_migration_boundary_is_deterministic_noop() {
@@ -447,6 +571,12 @@ void test_restore_rejects_inconsistent_snapshot() {
 int main() {
     test_round_trip_preserves_full_probe_state();
     test_round_trip_with_no_policy_or_selection();
+    test_ordered_migration_framework_applies_contiguous_steps();
+    test_migration_framework_rejects_gap();
+    test_migration_framework_rejects_duplicate_source_version();
+    test_migration_framework_rejects_noncontiguous_registration();
+    test_migration_framework_validates_transform_target_version();
+    test_migration_framework_rejects_backward_migration();
     test_current_save_migration_boundary_is_deterministic_noop();
     test_legacy_save_without_registered_migration_fails_closed();
     test_unsupported_save_version_fails_closed();
