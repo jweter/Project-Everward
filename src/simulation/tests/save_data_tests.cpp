@@ -617,6 +617,55 @@ void test_invalid_generation_algorithm_version_fails_closed() {
     assert(threw);
 }
 
+void test_duplicate_persisted_probe_ids_fail_closed() {
+    ProbeSaveData first =
+        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    ProbeSaveData duplicate = first;
+
+    const std::string json_text =
+        serialize_save_game(SaveGameV1{1, 0, 1234, 1, {first, duplicate}});
+
+    bool threw = false;
+    try {
+        (void)deserialize_save_game(json_text);
+    } catch (const std::runtime_error& error) {
+        threw = std::string(error.what()).find("duplicate persisted probe_id") != std::string::npos;
+    }
+    assert(threw);
+}
+
+void test_empty_persisted_probe_id_fails_closed() {
+    ProbeSaveData data =
+        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    data.probe.probe_id.clear();
+
+    const std::string json_text =
+        serialize_save_game(SaveGameV1{1, 0, 1234, 1, {data}});
+
+    bool threw = false;
+    try {
+        (void)deserialize_save_game(json_text);
+    } catch (const std::runtime_error& error) {
+        threw = std::string(error.what()).find("probe_id must not be empty") != std::string::npos;
+    }
+    assert(threw);
+}
+
+void test_distinct_probe_ids_can_share_one_campaign_save() {
+    ProbeSaveData first =
+        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    ProbeSaveData second = first;
+    second.probe.probe_id = "EV-0002";
+    second.probe.generation = 2;
+
+    const SaveGameV1 parsed = deserialize_save_game(
+        serialize_save_game(SaveGameV1{1, 99, 1234, 1, {first, second}}));
+
+    assert(parsed.probes.size() == 2);
+    assert(parsed.probes.at(0).probe.probe_id == "EV-0001");
+    assert(parsed.probes.at(1).probe.probe_id == "EV-0002");
+}
+
 } // namespace
 
 int main() {
