@@ -15,7 +15,7 @@ The tractor technology remains speculative, but the mechanical result reuses `tr
 5. **Release B** to disengage. The target keeps the velocity it acquired in zero gravity.
 6. Use the existing propulsion controls before or during tractor work to experiment with relative motion and momentum.
 
-The first coupling attempt also produces an on-screen status message. A rejected attempt states why, for example no selected target, target outside field range, or target already held by a manipulator.
+A persistent temporary tractor readout keeps the control discoverable and reports target/probe mass, mass ratio, current surface gap, and field range. The first coupling attempt also produces an on-screen status message. A rejected attempt states why, for example no selected target, target outside field range, or target already held by a manipulator.
 
 ## Phase-2 mass calibration
 
@@ -33,7 +33,7 @@ The bootstrap body starts at exactly the Gen-1 tractor limit in the current test
 
 This is not an Unreal-physics shortcut.
 
-- The controller owns only input and the temporary cyan beam presentation.
+- The controller owns only input and the temporary cyan beam/readout presentation.
 - `ProbeTractorFieldBridge.cpp` constructs `TractorBodyState` values and calls the engine-independent `TractorFieldSystem`.
 - Probe velocity is written back through `DamageAwareProbeRuntime::set_velocity_mps()`.
 - Target position is written back through `update_static_sphere_body_position()`.
@@ -62,7 +62,7 @@ This is intentionally the first playable bridge, not the final tractor system.
 - The current target-selection closing-speed telemetry still treats registered spheres as static bodies; it does not yet subtract tractor-created target velocity.
 - Target-target collision and full dynamic-body contact resolution are not generalized yet.
 - Engine commands already change the probe's authoritative velocity and therefore change the momentum state entering the next tractor step, but this first bridge does not yet expose a dedicated continuous engine-force vector to the tractor solver.
-- The cyan `DrawDebugLine`/`DrawDebugSphere` is temporary Product Reality feedback. A production field effect, sound, emitter hardware animation, power draw, heat, and permanent tractor HUD panel remain later presentation/system work.
+- The cyan `DrawDebugLine`/`DrawDebugSphere` and debug readout are temporary Product Reality feedback. A production field effect, sound, emitter hardware animation, power draw, heat, and permanent tractor HUD panel remain later presentation/system work.
 
 These limitations should be removed incrementally without replacing the momentum-conserving mechanic with an arcade pickup rule.
 
