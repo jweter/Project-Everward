@@ -46,7 +46,7 @@ class JoseAutopilotSourceContractTests(unittest.TestCase):
 
     def test_autopilot_and_mining_auto_approach_do_not_compete(self) -> None:
         self.assertIn("bAutoApproachMiningTarget = false", self.autopilot_cpp)
-        self.assertIn("CancelJoseTakeTheWheel(false, false)", self.tick_cpp)
+        self.assertIn("CancelJoseTakeTheWheel(true, false)", self.tick_cpp)
         self.assertIn("ToggleAutoApproachMiningTarget", self.tick_cpp)
 
     def test_product_reality_hud_and_playtest_contract_are_discoverable(self) -> None:
