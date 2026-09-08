@@ -215,15 +215,20 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandEngageTractorField(
     const double TargetMassKilograms = ResolvePhase2BodyMassKilograms(TargetId, Body->radius_m);
     const FString ExpectedMotion = ExpectedMotionText(Probe.mass_kg, TargetMassKilograms);
 
-    if (Selection.surface_range_m > TractorMaxSurfaceRangeMeters)
+    // TargetSelection's legacy range is measured from the probe center to the
+    // target surface. Tractor range is explicitly surface-to-surface, so use
+    // the same hull-envelope-aware gap the tractor solver itself uses instead
+    // of accidentally shortening Gen-1 range by EV-0001's 8 m hull radius.
+    const FEverwardTractorFieldStatus RangeStatus = GetTractorFieldStatus();
+    if (!RangeStatus.bHasTarget || RangeStatus.SurfaceRangeMeters > TractorMaxSurfaceRangeMeters)
     {
         return RecordCommandResult(
             CommandId,
             false,
             FString::Printf(
-                TEXT("tractor target outside %.1f m field range // current %.1f m"),
+                TEXT("tractor target outside %.1f m surface range // current %.1f m"),
                 TractorMaxSurfaceRangeMeters,
-                Selection.surface_range_m));
+                RangeStatus.SurfaceRangeMeters));
     }
 
     bTractorFieldEngaged = true;
