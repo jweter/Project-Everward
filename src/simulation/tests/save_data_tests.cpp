@@ -692,6 +692,8 @@ int main() {
     test_world_identity_round_trips_losslessly();
     test_missing_world_identity_fails_closed();
     test_invalid_generation_algorithm_version_fails_closed();
+    test_empty_persisted_probe_id_fails_closed();
+    test_duplicate_persisted_probe_ids_fail_closed();
 
     std::puts("save_data_tests: all tests passed");
     return 0;
