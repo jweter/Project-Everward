@@ -28,6 +28,14 @@ struct PlanetaryLocalFrame {
     Vector3d north{};
 };
 
+struct OrbitalContext {
+    double radius_from_center_m{0.0};
+    double radial_speed_mps{0.0};
+    double tangential_speed_mps{0.0};
+    double circular_orbit_speed_mps{0.0};
+    bool gravity_enabled{false};
+};
+
 // Phase 2 Slice 10 read model for near-surface operations. Keeping the
 // decomposition in the deterministic simulation layer lets presentation code
 // consume vertical and tangential motion without redefining planetary truth.
@@ -159,6 +167,25 @@ enum class SurfaceApproachState {
         tangential,
         vertical_speed,
         planetary_magnitude(tangential),
+    };
+}
+
+[[nodiscard]] inline OrbitalContext orbital_context(
+    Vector3d position_m,
+    Vector3d object_velocity_mps,
+    const SphericalPlanetaryBody& body) noexcept {
+    const Vector3d offset = planetary_subtract(position_m, body.center_m);
+    const double radius = planetary_magnitude(offset);
+    const SurfaceRelativeMotion motion = surface_relative_motion(position_m, object_velocity_mps, body);
+    const double mu = body.gravitational_parameter_m3_s2;
+    const bool gravity_enabled = std::isfinite(mu) && mu > 0.0 && radius > 1e-12;
+    const double circular_speed = gravity_enabled ? std::sqrt(mu / radius) : 0.0;
+    return {
+        radius,
+        motion.vertical_speed_mps,
+        motion.tangential_speed_mps,
+        circular_speed,
+        gravity_enabled,
     };
 }
 
