@@ -6,6 +6,7 @@
 #include "EverwardPlayerController.h"
 #include "EverwardProbePawn.h"
 #include "EverwardZeroGTestEnvironment.h"
+#include "FixItRuntimeActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 #include "PlaytestRecorderActor.h"
@@ -60,6 +61,20 @@ void AEverwardGameMode::InitGame(
             SpawnParameters) == nullptr)
     {
         UE_LOG(LogTemp, Warning, TEXT("Everward playtest recorder unavailable; continuing without structured capture"));
+    }
+
+    // Fix_It is part of the playable probe, not background lore. This runtime
+    // actor binds to the authoritative UProbeSimulationAdapter after the pawn
+    // exists, seeds the current damaged-awakening Product Reality state, runs
+    // the engine-independent Fix_It planner/executor, consumes real stored
+    // material/energy, and emits structured playtest evidence.
+    if (World->SpawnActor<AFixItRuntimeActor>(
+            AFixItRuntimeActor::StaticClass(),
+            FVector::ZeroVector,
+            FRotator::ZeroRotator,
+            SpawnParameters) == nullptr)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Everward Fix_It runtime unavailable; continuing without automatic repair integration"));
     }
 }
 
