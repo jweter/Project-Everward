@@ -1,5 +1,17 @@
 {
   "schema_version": 1,
   "repository": "jweter/Project-Everward",
-  "entries": []
+  "entries": [
+    {
+      "id": "save-migration-duplicate-key-replacement",
+      "symptom": "Synthetic save migration preflight failed because the transform appeared to set save_version=2 but validation still read save_version=1.",
+      "root_cause": "JsonValue::set is append-only and JsonValue::require returns the first matching key, so adding a second save_version created duplicate schema keys and left the original version authoritative.",
+      "fix": "Added fail-closed JsonValue::replace for existing object fields and changed migration transforms to replace save_version rather than append a duplicate key.",
+      "verification": "Full canonical preflight passed on commit dda0248bde9f730710bb630e1b62acb755235ef3 after the repair; all 23 simulation tests passed including ordered migration fixtures.",
+      "regression_protection": [
+        "src/simulation/tests/save_data_tests.cpp"
+      ],
+      "residual_risk": "Future migration transforms can still misuse append-only set for other existing schema keys unless they follow the same replace-existing-field rule; schema migrations should review every modified existing key for replacement semantics."
+    }
+  ]
 }

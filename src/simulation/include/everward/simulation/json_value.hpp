@@ -53,6 +53,20 @@ public:
         object.emplace_back(std::move(key), std::move(value));
     }
 
+    void replace(const std::string& key, JsonValue value) {
+        if (!is_object()) {
+            throw std::logic_error("JsonValue::replace called on a non-object value");
+        }
+        auto& object = std::get<Object>(data_);
+        for (auto& [existing_key, existing_value] : object) {
+            if (existing_key == key) {
+                existing_value = std::move(value);
+                return;
+            }
+        }
+        throw std::runtime_error("save data missing required field for replacement: " + key);
+    }
+
     void push_back(JsonValue value) {
         if (!is_array()) {
             throw std::logic_error("JsonValue::push_back called on a non-array value");

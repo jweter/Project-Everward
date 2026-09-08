@@ -470,17 +470,105 @@ namespace detail {
     return save_game_to_json(save).dump();
 }
 
-// Ordered migration boundary for campaign saves. There is intentionally no
-// invented pre-v1 schema: v1 is the first persisted format and therefore has
-// no migration step today. Future schema bumps add explicit vN -> vN+1
-// transforms here, each with fixture coverage, instead of teaching the normal
-// parser to silently accept fields it does not understand.
+// Ordered migration boundary for campaign saves. v1 is the first persisted
+// schema, so the production registry is empty today. The framework below is
+// intentionally real before v2 exists: future schema bumps register explicit,
+// deterministic, contiguous vN -> vN+1 transforms with fixture coverage rather
+// than teaching the normal parser to silently accept historical shapes.
+using SaveMigrationTransform = JsonValue (*)(const JsonValue&);
+
+struct SaveMigrationStep {
+    int source_version{0};
+    int target_version{0};
+    SaveMigrationTransform transform{nullptr};
+};
+
 struct SaveMigrationResult {
     int source_version{kSaveFormatVersion};
     int target_version{kSaveFormatVersion};
     std::vector<int> applied_target_versions{};
     std::string canonical_json{};
 };
+
+[[nodiscard]] inline SaveMigrationResult apply_ordered_save_migrations(
+        JsonValue value,
+        int target_version,
+        const std::vector<SaveMigrationStep>& steps) {
+    const std::int64_t raw_source_version = value.require("save_version").as_int64();
+    if (raw_source_version < 1 ||
+        raw_source_version > static_cast<std::int64_t>(std::numeric_limits<int>::max())) {
+        throw std::runtime_error(
+            "unsupported legacy save_version " + std::to_string(raw_source_version) +
+            " (no explicit migration path is registered)");
+    }
+
+    const int source_version = static_cast<int>(raw_source_version);
+    if (target_version < source_version) {
+        throw std::runtime_error(
+            "cannot migrate save_version " + std::to_string(source_version) +
+            " backward to " + std::to_string(target_version));
+    }
+
+    std::vector<const SaveMigrationStep*> by_source(
+        static_cast<std::size_t>(target_version + 1), nullptr);
+    for (const auto& step : steps) {
+        if (step.source_version < 1 || step.target_version != step.source_version + 1) {
+            throw std::runtime_error(
+                "save migration steps must be contiguous vN -> vN+1 transforms");
+        }
+        if (step.transform == nullptr) {
+            throw std::runtime_error("save migration step has no transform");
+        }
+        if (step.source_version <= target_version) {
+            auto*& slot = by_source.at(static_cast<std::size_t>(step.source_version));
+            if (slot != nullptr) {
+                throw std::runtime_error(
+                    "duplicate save migration registered from version " +
+                    std::to_string(step.source_version));
+            }
+            slot = &step;
+        }
+    }
+
+    std::vector<int> applied_target_versions;
+    int current_version = source_version;
+    while (current_version < target_version) {
+        if (current_version >= static_cast<int>(by_source.size()) ||
+            by_source[static_cast<std::size_t>(current_version)] == nullptr) {
+            throw std::runtime_error(
+                "no explicit save migration registered from version " +
+                std::to_string(current_version));
+        }
+
+        const SaveMigrationStep& step =
+            *by_source[static_cast<std::size_t>(current_version)];
+        JsonValue migrated = step.transform(value);
+        const std::int64_t migrated_version =
+            migrated.require("save_version").as_int64();
+        if (migrated_version != step.target_version) {
+            throw std::runtime_error(
+                "save migration from version " + std::to_string(step.source_version) +
+                " did not produce declared target version " +
+                std::to_string(step.target_version));
+        }
+
+        value = std::move(migrated);
+        current_version = step.target_version;
+        applied_target_versions.push_back(current_version);
+    }
+
+    return SaveMigrationResult{
+        source_version,
+        target_version,
+        std::move(applied_target_versions),
+        value.dump(),
+    };
+}
+
+[[nodiscard]] inline const std::vector<SaveMigrationStep>& registered_save_migrations() {
+    static const std::vector<SaveMigrationStep> kRegisteredMigrations{};
+    return kRegisteredMigrations;
+}
 
 [[nodiscard]] inline SaveMigrationResult migrate_save_json_to_current(const std::string& text) {
     JsonValue value = JsonValue::parse(text);
@@ -491,21 +579,11 @@ struct SaveMigrationResult {
             "unsupported future save_version " + std::to_string(source_version) +
             " (this build supports version " + std::to_string(kSaveFormatVersion) + ")");
     }
-    if (source_version < 1) {
-        throw std::runtime_error(
-            "unsupported legacy save_version " + std::to_string(source_version) +
-            " (no explicit migration path is registered)");
-    }
 
-    // v1 is the first schema, so a current save is already canonical. Keep the
-    // result object even for this no-op path so future versions can report the
-    // exact ordered migration chain without changing callers.
-    return SaveMigrationResult{
-        static_cast<int>(source_version),
+    return apply_ordered_save_migrations(
+        std::move(value),
         kSaveFormatVersion,
-        {},
-        value.dump(),
-    };
+        registered_save_migrations());
 }
 
 [[nodiscard]] inline SaveGameV1 deserialize_save_game(const std::string& text) {
