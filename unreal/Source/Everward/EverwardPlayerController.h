@@ -60,6 +60,10 @@ private:
     void ToggleAutoApproachMiningTarget();
     void AdvanceAutoApproachMiningTarget(float DeltaSeconds);
 
+    void ToggleJoseTakeTheWheel();
+    void AdvanceJoseTakeTheWheel(float DeltaSeconds);
+    void CancelJoseTakeTheWheel(bool bStopVelocity, bool bShowMessage);
+
     void SelectNearestPhysicalTarget();
     void ToggleManipulatorGrasp();
 
@@ -82,6 +86,9 @@ private:
     int32 SelectedMiningTargetIndex = 0;
     bool bAutoApproachMiningTarget = false;
 
+    bool bJoseAutopilotEngaged = false;
+    FString JoseDestinationTargetId;
+
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double Phase2ScanDurationSeconds = 10.0;
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="1.0"))
@@ -98,6 +105,14 @@ private:
     double AutoApproachSideStandoffMeters = 6.5;
     UPROPERTY(EditAnywhere, Category="Everward|Mining", meta=(ClampMin="0.01"))
     double AutoApproachStopToleranceMeters = 0.25;
+    UPROPERTY(EditAnywhere, Category="Everward|Autopilot", meta=(ClampMin="0.1"))
+    double JoseCruiseSpeedMetersPerSecond = 6.0;
+    UPROPERTY(EditAnywhere, Category="Everward|Autopilot", meta=(ClampMin="0.1"))
+    double JoseArrivalSurfaceRangeMeters = 20.0;
+    UPROPERTY(EditAnywhere, Category="Everward|Autopilot", meta=(ClampMin="0.01"))
+    double JoseArrivalToleranceMeters = 0.5;
+    UPROPERTY(EditAnywhere, Category="Everward|Autopilot", meta=(ClampMin="0.01"))
+    double JoseApproachGainPerSecond = 0.35;
     UPROPERTY(EditAnywhere, Category="Everward|Target", meta=(ClampMin="1.0"))
     double TargetSelectionRangeMeters = 500.0;
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="0.01"))

@@ -80,6 +80,31 @@ Auto-approach only navigates to an arm-side staging position. It does not articu
 
 Phase 2 currently exposes one mineable bootstrap target. Target cycling is already modeled as a list-based control so additional scanned resource bodies can join the same workflow without changing the input contract.
 
+## José Take the Wheel validation
+
+**José Take the Wheel** is the general-purpose smart autopilot. It is separate from mining auto-approach: José gets the probe from point A to a player-selected destination, while mining auto-approach handles specialized arm-side work positioning.
+
+```text
+T       cycle/select physical destination
+Y       engage/cancel José Take the Wheel
+SPACE   emergency stop / manual takeover
+WASDQE  manual translation / immediate takeover
+```
+
+For the current first playable slice, verify:
+
+1. select a physical target with `T`;
+2. press `Y` and confirm the actual probe begins moving toward it;
+3. confirm the persistent HUD line shows José as engaged and names the destination;
+4. confirm commanded speed reduces as surface range approaches the configured stand-off;
+5. confirm José stops rather than colliding with the selected body;
+6. during transit, press `SPACE` and confirm manual control returns immediately;
+7. re-engage, then press a manual translation key and confirm manual control returns immediately;
+8. change the selected target during transit and confirm José stops instead of continuing toward a stale destination;
+9. verify a rejected propulsion command produces a readable autopilot-stop message rather than silent failure.
+
+The canonical design and future navigation progression are defined in [`JOSE_TAKE_THE_WHEEL.md`](JOSE_TAKE_THE_WHEEL.md).
+
 ## Raw evidence versus repository artifacts
 
 Do **not** commit complete `Saved/Playtests/` sessions to Git. Raw screenshots, logs, crashes, and telemetry can become large quickly.

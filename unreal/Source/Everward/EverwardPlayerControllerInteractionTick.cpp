@@ -35,6 +35,54 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
         Probe->SetManipulatorSelectionHighlight(bHighlightEnabled, ArmId, Joint);
     }
 
+    // "José Take the Wheel" is the friendly automatic-driving layer. It
+    // deliberately composes with the existing physical target selector:
+    //   T = cycle/select destination
+    //   Y = give José the wheel / cancel
+    //   SPACE or any manual translation trim = immediate manual takeover
+    // The first playable version uses safe surface-range arrival and progressive
+    // deceleration. Rich orbital route planning can evolve behind the same UI.
+    if (WasInputKeyJustPressed(EKeys::Y))
+    {
+        ToggleJoseTakeTheWheel();
+    }
+
+    const bool bManualTranslationRequested =
+        WasInputKeyJustPressed(EKeys::W) ||
+        WasInputKeyJustPressed(EKeys::S) ||
+        WasInputKeyJustPressed(EKeys::A) ||
+        WasInputKeyJustPressed(EKeys::D) ||
+        WasInputKeyJustPressed(EKeys::Q) ||
+        WasInputKeyJustPressed(EKeys::E) ||
+        WasInputKeyJustPressed(EKeys::Up) ||
+        WasInputKeyJustPressed(EKeys::Down);
+    if (bManualTranslationRequested && bJoseAutopilotEngaged)
+    {
+        // Input bindings have already applied the player's requested trim by
+        // Tick time; cancel without zeroing so the manual command wins.
+        CancelJoseTakeTheWheel(false, true);
+    }
+    if (WasInputKeyJustPressed(EKeys::SpaceBar) && bJoseAutopilotEngaged)
+    {
+        CancelJoseTakeTheWheel(false, true);
+    }
+
+    AdvanceJoseTakeTheWheel(DeltaSeconds);
+
+    if (GEngine != nullptr)
+    {
+        const FString JoseReadout = bJoseAutopilotEngaged
+            ? FString::Printf(
+                TEXT("JOSÉ TAKE THE WHEEL // ENGAGED // %s // [SPACE/WASDQE] TAKE OVER"),
+                *JoseDestinationTargetId)
+            : TEXT("JOSÉ TAKE THE WHEEL // [T] SELECT DESTINATION // [Y] ENGAGE");
+        GEngine->AddOnScreenDebugMessage(
+            74002,
+            0.10f,
+            bJoseAutopilotEngaged ? FColor::Cyan : FColor(130, 175, 190),
+            JoseReadout);
+    }
+
     // First playable tractor-field control. T already owns physical target
     // selection, so tractor use composes with that existing interaction rather
     // than inventing another target list:
@@ -136,6 +184,7 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
     }
     if (WasInputKeyJustPressed(EKeys::P))
     {
+        CancelJoseTakeTheWheel(true, false);
         ToggleAutoApproachMiningTarget();
     }
     if (WasInputKeyJustPressed(EKeys::SpaceBar))
