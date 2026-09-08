@@ -42,6 +42,17 @@ class Phase2TractorFieldSurfaceTests(unittest.TestCase):
         self.assertNotIn("SetActorLocation", self.bridge_cpp)
         self.assertNotIn("SetWorldLocation", self.bridge_cpp)
 
+    def test_tractor_range_is_surface_to_surface(self) -> None:
+        self.assertIn(
+            "Probe.collision_envelope_radius_m + Body->radius_m",
+            self.bridge_cpp,
+        )
+        self.assertIn("GetTractorFieldStatus();", self.bridge_cpp)
+        self.assertNotIn(
+            "Selection.surface_range_m > TractorMaxSurfaceRangeMeters",
+            self.bridge_cpp,
+        )
+
     def test_phase2_targets_cover_light_heavy_and_equal_mass_behaviors(self) -> None:
         self.assertIn("BootstrapBodyMassKilograms = 500.0", self.environment_h)
         self.assertIn("ReferenceTarget1MassKilograms = 10000.0", self.environment_h)
@@ -54,12 +65,13 @@ class Phase2TractorFieldSurfaceTests(unittest.TestCase):
         self.assertIn("CommandDisengageTractorField", self.controller_tick)
         self.assertIn("AdvanceTractorField(DeltaSeconds)", self.controller_tick)
 
-    def test_coupling_has_visible_world_feedback(self) -> None:
+    def test_coupling_has_visible_world_feedback_and_discoverable_control(self) -> None:
         self.assertIn("GetTractorFieldStatus", self.controller_tick)
         self.assertIn("GetStaticBodyPositionMeters", self.controller_tick)
         self.assertIn("DrawDebugLine", self.controller_tick)
         self.assertIn("DrawDebugSphere", self.controller_tick)
         self.assertIn("TRACTOR COUPLED", self.controller_tick)
+        self.assertIn("HOLD [B]", self.controller_tick)
 
     def test_bridge_preserves_zero_g_target_drift_after_release(self) -> None:
         self.assertIn("target retains zero-g drift", self.bridge_cpp)
