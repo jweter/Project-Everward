@@ -67,7 +67,7 @@ void AFixItRuntimeActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
     RepairExecutor = nullptr;
     delete ReplacementExecutor;
     ReplacementExecutor = nullptr;
-    Adapter.Reset();
+    Adapter = nullptr;
     BoundCore = nullptr;
     Super::EndPlay(EndPlayReason);
 }
@@ -123,7 +123,7 @@ void AFixItRuntimeActor::BindToCurrentProbe()
         return;
     }
 
-    if (Adapter.Get() != NewAdapter || BoundCore != NewAdapter->Core)
+    if (Adapter != NewAdapter || BoundCore != NewAdapter->Core)
     {
         Adapter = NewAdapter;
         BoundCore = NewAdapter->Core;
