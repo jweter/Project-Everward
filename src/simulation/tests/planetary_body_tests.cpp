@@ -8,6 +8,7 @@
 namespace {
 
 using everward::simulation::ControlledDescentEnvelope;
+using everward::simulation::OrbitalContext;
 using everward::simulation::PlanetaryLocalFrame;
 using everward::simulation::SphericalPlanetaryBody;
 using everward::simulation::SurfaceApproachState;
@@ -20,6 +21,7 @@ using everward::simulation::gravitational_acceleration;
 using everward::simulation::is_below_reference_surface;
 using everward::simulation::local_horizon_frame;
 using everward::simulation::local_surface_normal;
+using everward::simulation::orbital_context;
 using everward::simulation::surface_relative_motion;
 
 bool nearly_equal(double a, double b, double epsilon = 1e-6) {
@@ -150,6 +152,27 @@ void test_surface_relative_motion_preserves_descent_sign() {
     assert(nearly_equal(motion.tangential_speed_mps, 5.0));
 }
 
+void test_orbital_context_reports_circular_reference_speed() {
+    SphericalPlanetaryBody body{"moon", {}, 100.0, {}, 400.0};
+    const OrbitalContext context = orbital_context({100.0, 0.0, 0.0}, {0.0, 2.0, 0.0}, body);
+
+    assert(context.gravity_enabled);
+    assert(nearly_equal(context.radius_from_center_m, 100.0));
+    assert(nearly_equal(context.radial_speed_mps, 0.0));
+    assert(nearly_equal(context.tangential_speed_mps, 2.0));
+    assert(nearly_equal(context.circular_orbit_speed_mps, 2.0));
+}
+
+void test_orbital_context_preserves_radial_sign_and_zero_g_fallback() {
+    SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const OrbitalContext context = orbital_context({100.0, 0.0, 0.0}, {-3.0, 4.0, 0.0}, body);
+
+    assert(!context.gravity_enabled);
+    assert(nearly_equal(context.radial_speed_mps, -3.0));
+    assert(nearly_equal(context.tangential_speed_mps, 4.0));
+    assert(nearly_equal(context.circular_orbit_speed_mps, 0.0));
+}
+
 void test_surface_approach_classifies_controlled_descent() {
     SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
     const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
@@ -192,6 +215,8 @@ int main() {
     test_gravity_defaults_to_zero_and_is_safe_at_body_center();
     test_surface_relative_motion_splits_vertical_and_tangential_velocity();
     test_surface_relative_motion_preserves_descent_sign();
+    test_orbital_context_reports_circular_reference_speed();
+    test_orbital_context_preserves_radial_sign_and_zero_g_fallback();
     test_surface_approach_classifies_controlled_descent();
     test_surface_approach_rejects_excessive_descent_rate();
     test_surface_approach_rejects_excessive_tangential_rate();
