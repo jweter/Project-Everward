@@ -184,7 +184,7 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
     }
     if (WasInputKeyJustPressed(EKeys::P))
     {
-        CancelJoseTakeTheWheel(false, false);
+        CancelJoseTakeTheWheel(true, false);
         ToggleAutoApproachMiningTarget();
     }
     if (WasInputKeyJustPressed(EKeys::SpaceBar))
