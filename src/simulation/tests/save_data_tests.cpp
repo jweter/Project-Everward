@@ -694,6 +694,7 @@ int main() {
     test_invalid_generation_algorithm_version_fails_closed();
     test_empty_persisted_probe_id_fails_closed();
     test_duplicate_persisted_probe_ids_fail_closed();
+    test_distinct_probe_ids_can_share_one_campaign_save();
 
     std::puts("save_data_tests: all tests passed");
     return 0;
