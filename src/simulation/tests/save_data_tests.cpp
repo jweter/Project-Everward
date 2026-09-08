@@ -88,7 +88,7 @@ void test_round_trip_preserves_full_probe_state() {
     const DamageAwareProbeRuntime original = build_representative_runtime();
 
     const ProbeSaveData captured = capture_probe_save_data(original);
-    const SaveGameV1 save{1, original.tick(), {captured}};
+    const SaveGameV1 save{1, original.tick(), 0, 1, {captured}};
     const std::string json_text = serialize_save_game(save);
 
     const SaveGameV1 parsed = deserialize_save_game(json_text);
@@ -171,7 +171,7 @@ void test_round_trip_with_no_policy_or_selection() {
     assert(!captured.policy.has_value());
     assert(captured.selected_target_id.empty());
 
-    const std::string json_text = serialize_save_game(SaveGameV1{1, runtime.tick(), {captured}});
+    const std::string json_text = serialize_save_game(SaveGameV1{1, runtime.tick(), 0, 1, {captured}});
     const SaveGameV1 parsed = deserialize_save_game(json_text);
     const DamageAwareProbeRuntime restored = restore_probe_runtime(parsed.probes.at(0), parsed.simulation_tick);
 
@@ -317,7 +317,7 @@ void test_migration_framework_rejects_backward_migration() {
 
 void test_current_save_migration_boundary_is_deterministic_noop() {
     const ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
-    const std::string json_text = serialize_save_game(SaveGameV1{1, 42, {data}});
+    const std::string json_text = serialize_save_game(SaveGameV1{1, 42, 0, 1, {data}});
 
     const SaveMigrationResult migrated = migrate_save_json_to_current(json_text);
     assert(migrated.source_version == 1);
@@ -397,7 +397,7 @@ void test_large_tick_values_round_trip_losslessly() {
     data.probe.last_contact_normal_speed_mps = 0.1;
     data.probe.last_contact_tick = kLargeTick;
 
-    const std::string json_text = serialize_save_game(SaveGameV1{1, kLargeTick, {data}});
+    const std::string json_text = serialize_save_game(SaveGameV1{1, kLargeTick, 0, 1, {data}});
     const SaveGameV1 parsed = deserialize_save_game(json_text);
     assert(parsed.simulation_tick == kLargeTick);
     assert(parsed.probes.at(0).probe.last_contact_tick == kLargeTick);
@@ -409,7 +409,7 @@ void test_large_tick_values_round_trip_losslessly() {
 
 void test_generation_out_of_range_fails_closed() {
     const ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
-    std::string json_text = serialize_save_game(SaveGameV1{1, 0, {data}});
+    std::string json_text = serialize_save_game(SaveGameV1{1, 0, 0, 1, {data}});
 
     const std::string needle = "\"generation\": 1";
     const std::size_t pos = json_text.find(needle);
@@ -470,7 +470,7 @@ void test_manipulator_arm_state_round_trips() {
     rig.begin_grasp(ManipulatorArmId::Port, "rock");
 
     const ProbeSaveData data = capture_probe_save_data(runtime, rig);
-    const std::string json_text = serialize_save_game(SaveGameV1{1, runtime.tick(), {data}});
+    const std::string json_text = serialize_save_game(SaveGameV1{1, runtime.tick(), 0, 1, {data}});
     const SaveGameV1 parsed = deserialize_save_game(json_text);
 
     const ManipulatorRig restored_rig = restore_manipulator_rig(parsed.probes.at(0));
@@ -491,7 +491,7 @@ void test_manipulator_arm_state_round_trips() {
 
 void test_manipulator_arm_out_of_range_angle_fails_closed() {
     const ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
-    std::string json_text = serialize_save_game(SaveGameV1{1, 0, {data}});
+    std::string json_text = serialize_save_game(SaveGameV1{1, 0, 0, 1, {data}});
 
     const std::string needle = "\"shoulder_degrees\": 0";
     const std::size_t pos = json_text.find(needle);
@@ -580,6 +580,43 @@ void test_restore_rejects_inconsistent_snapshot() {
     assert(threw_negative_tick);
 }
 
+void test_world_identity_round_trips_losslessly() {
+    constexpr std::int64_t kSeed = 9'007'199'254'740'993LL;
+    const ProbeSaveData data =
+        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    const SaveGameV1 source{1, 77, kSeed, 3, {data}};
+
+    const SaveGameV1 parsed = deserialize_save_game(serialize_save_game(source));
+    assert(parsed.universe_seed == kSeed);
+    assert(parsed.generation_algorithm_version == 3);
+    assert(parsed.simulation_tick == 77);
+}
+
+void test_missing_world_identity_fails_closed() {
+    const std::string missing_identity =
+        R"({"save_version":1,"simulation_tick":"0","probes":[]})";
+    bool threw = false;
+    try {
+        (void)deserialize_save_game(missing_identity);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
+}
+
+void test_invalid_generation_algorithm_version_fails_closed() {
+    const std::string invalid =
+        R"({"save_version":1,"simulation_tick":"0","universe_seed":"42","generation_algorithm_version":0,"probes":[]})";
+
+    bool threw = false;
+    try {
+        (void)deserialize_save_game(invalid);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
+}
+
 } // namespace
 
 int main() {
@@ -603,6 +640,9 @@ int main() {
     test_manipulator_arm_state_round_trips();
     test_manipulator_arm_out_of_range_angle_fails_closed();
     test_restore_rejects_inconsistent_snapshot();
+    test_world_identity_round_trips_losslessly();
+    test_missing_world_identity_fails_closed();
+    test_invalid_generation_algorithm_version_fails_closed();
 
     std::puts("save_data_tests: all tests passed");
     return 0;
