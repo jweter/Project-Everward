@@ -67,6 +67,30 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
         Adapter->AdvanceTractorField(DeltaSeconds);
 
         const FEverwardTractorFieldStatus Tractor = Adapter->GetTractorFieldStatus();
+
+        // Temporary Product Reality readout until the dedicated tool HUD is
+        // built. A fixed message key updates one line in place every frame,
+        // so the new control is discoverable rather than hidden in docs.
+        if (GEngine != nullptr)
+        {
+            FString TractorReadout = TEXT("TRACTOR // [T] SELECT TARGET // HOLD [B] COUPLE");
+            FColor TractorReadoutColor = FColor(130, 175, 190);
+            if (Tractor.bHasTarget)
+            {
+                TractorReadout = FString::Printf(
+                    TEXT("TRACTOR %s // %s // %.0f KG / PROBE %.0f KG // %.2fX // %.1f/%.1f M // HOLD [B]"),
+                    Tractor.bEngaged ? TEXT("COUPLED") : TEXT("READY"),
+                    *Tractor.TargetId,
+                    Tractor.TargetMassKilograms,
+                    Tractor.ProbeMassKilograms,
+                    Tractor.TargetToProbeMassRatio,
+                    Tractor.SurfaceRangeMeters,
+                    Tractor.MaxSurfaceRangeMeters);
+                TractorReadoutColor = Tractor.bEngaged ? FColor::Cyan : FColor(150, 215, 230);
+            }
+            GEngine->AddOnScreenDebugMessage(74001, 0.10f, TractorReadoutColor, TractorReadout);
+        }
+
         if (Tractor.bEngaged && Tractor.bHasTarget && Probe != nullptr && GetWorld() != nullptr)
         {
             FVector TargetPositionMeters;
