@@ -605,17 +605,12 @@ void test_missing_world_identity_fails_closed() {
 }
 
 void test_invalid_generation_algorithm_version_fails_closed() {
-    const ProbeSaveData data =
-        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
-    std::string json_text = serialize_save_game(SaveGameV1{1, 0, 42, 1, {data}});
-    const std::string needle = "\"generation_algorithm_version\":1";
-    const std::size_t pos = json_text.find(needle);
-    assert(pos != std::string::npos);
-    json_text.replace(pos, needle.size(), "\"generation_algorithm_version\":0");
+    JsonValue invalid = save_game_to_json(SaveGameV1{1, 0, 42, 1, {}});
+    invalid.set("generation_algorithm_version", JsonValue(static_cast<std::int64_t>(0)));
 
     bool threw = false;
     try {
-        (void)deserialize_save_game(json_text);
+        (void)save_game_from_json(invalid);
     } catch (const std::runtime_error&) {
         threw = true;
     }
