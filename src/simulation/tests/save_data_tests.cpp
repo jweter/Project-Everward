@@ -171,7 +171,7 @@ void test_round_trip_with_no_policy_or_selection() {
     assert(!captured.policy.has_value());
     assert(captured.selected_target_id.empty());
 
-    const std::string json_text = serialize_save_game(SaveGameV1{1, runtime.tick(), {captured}});
+    const std::string json_text = serialize_save_game(SaveGameV1{1, runtime.tick(), 0, 1, {captured}});
     const SaveGameV1 parsed = deserialize_save_game(json_text);
     const DamageAwareProbeRuntime restored = restore_probe_runtime(parsed.probes.at(0), parsed.simulation_tick);
 
