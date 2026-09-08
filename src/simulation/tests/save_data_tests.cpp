@@ -181,14 +181,14 @@ void test_round_trip_with_no_policy_or_selection() {
 
 JsonValue migrate_fixture_v1_to_v2(const JsonValue& source) {
     JsonValue migrated = source;
-    migrated.set("save_version", JsonValue(static_cast<std::int64_t>(2)));
+    migrated.replace("save_version", JsonValue(static_cast<std::int64_t>(2)));
     migrated.set("migration_fixture_v2", JsonValue("applied"));
     return migrated;
 }
 
 JsonValue migrate_fixture_v2_to_v3(const JsonValue& source) {
     JsonValue migrated = source;
-    migrated.set("save_version", JsonValue(static_cast<std::int64_t>(3)));
+    migrated.replace("save_version", JsonValue(static_cast<std::int64_t>(3)));
     migrated.set("migration_fixture_v3", JsonValue("applied"));
     return migrated;
 }
@@ -197,6 +197,20 @@ JsonValue broken_fixture_migration(const JsonValue& source) {
     JsonValue migrated = source;
     migrated.set("migration_fixture_broken", JsonValue(true));
     return migrated;
+}
+
+void test_json_replace_requires_existing_field() {
+    JsonValue object = JsonValue::parse(R"({"save_version":1})");
+    object.replace("save_version", JsonValue(static_cast<std::int64_t>(2)));
+    assert(object.require("save_version").as_int64() == 2);
+
+    bool threw = false;
+    try {
+        object.replace("missing", JsonValue(true));
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
 }
 
 void test_ordered_migration_framework_applies_contiguous_steps() {
@@ -571,6 +585,7 @@ void test_restore_rejects_inconsistent_snapshot() {
 int main() {
     test_round_trip_preserves_full_probe_state();
     test_round_trip_with_no_policy_or_selection();
+    test_json_replace_requires_existing_field();
     test_ordered_migration_framework_applies_contiguous_steps();
     test_migration_framework_rejects_gap();
     test_migration_framework_rejects_duplicate_source_version();
