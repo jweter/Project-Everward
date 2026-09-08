@@ -381,6 +381,55 @@ struct EVERWARD_API FEverwardTargetSelectionStatus
     EEverwardApproachMotion ApproachMotion = EEverwardApproachMotion::HoldingRange;
 };
 
+// First player-facing bridge over tractor_field.hpp. The field physics remain
+// engine-independent; this struct only exposes the currently selected/coupled
+// body's mass, range, force and velocity so controls/HUD/Blueprint presentation
+// never has to recreate the mass-ratio rules itself.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardTractorFieldStatus
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    bool bEngaged = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    bool bHasTarget = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    FString TargetId;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    double ProbeMassKilograms = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    double TargetMassKilograms = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    double TargetToProbeMassRatio = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    double SurfaceRangeMeters = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    double MaxSurfaceRangeMeters = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    double RequestedForceNewtons = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    double AppliedForceNewtons = 0.0;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    FVector TargetVelocityMetersPerSecond = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    FString ExpectedMotion;
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor")
+    FString Detail;
+};
+
 // Slice 7 "align a manipulator" minimum interaction (PHASE2_VERTICAL_SLICE_PLAN.md):
 // read-only telemetry over the same authoritative wrist forward-kinematics and
 // registered-body geometry the arm/environment collision guard and target
@@ -475,6 +524,9 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Target")
     FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;
 
+    UFUNCTION(BlueprintPure, Category="Everward|Tractor")
+    FEverwardTractorFieldStatus GetTractorFieldStatus() const;
+
     // Slice 7 "move": the authoritative current world position (meters) of
     // any registered physical body, not only the currently selected one --
     // TickComponent already writes a grasped body's authoritative center_m
@@ -524,6 +576,17 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandClearTargetSelection();
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandEngageTractorField(double RequestedForceNewtons);
+
+    UFUNCTION(BlueprintCallable, Category="Everward|Command")
+    FEverwardProbeCommandResult CommandDisengageTractorField();
+
+    // Called by the current PlayerController frame loop. It internally
+    // accumulates to the same fixed step used by the canonical simulation so
+    // variable rendering frame time never changes tractor integration cadence.
+    void AdvanceTractorField(double DeltaSeconds);
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command")
     FEverwardProbeCommandResult CommandAllocatePower(EEverwardPowerSubsystem Subsystem, double Watts);
@@ -576,11 +639,14 @@ private:
     static constexpr double SimulationTicksPerSecond = 1000000.0;
     static constexpr double FixedStepSeconds = static_cast<double>(FixedStepTicks) / SimulationTicksPerSecond;
     static constexpr double MetersToCentimeters = 100.0;
+    static constexpr double TractorMaxSurfaceRangeMeters = 40.0;
+    static constexpr double TractorMaxForceNewtons = 5000.0;
 
     FEverwardProbeCommandResult RecordCommandResult(FName CommandId, bool bAccepted, const FString& Detail);
     void SyncOwnerTransformFromSimulation();
 
     double FixedStepAccumulatorSeconds = 0.0;
+    double TractorStepAccumulatorSeconds = 0.0;
     int64 CommandSequence = 0;
     int64 AutomationSequence = 0;
     int64 ScanLifecycleSequence = 0;
@@ -591,6 +657,14 @@ private:
     bool bBootstrapResourceSurveyed = false;
     double BootstrapDepositRemainingKilograms = 250.0;
     double BootstrapExtractedMaterialKilograms = 0.0;
+
+    bool bTractorFieldEngaged = false;
+    FString TractorTargetId;
+    double TractorRequestedForceNewtons = 0.0;
+    double TractorAppliedForceNewtons = 0.0;
+    FString TractorFieldDetail;
+    TMap<FString, FVector> TractorTargetVelocitiesMetersPerSecond;
+
     everward::simulation::DamageAwareProbeRuntime* Core = nullptr;
     everward::simulation::ManipulatorRig* Manipulators = nullptr;
 };

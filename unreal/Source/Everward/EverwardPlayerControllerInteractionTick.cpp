@@ -1,5 +1,7 @@
 #include "EverwardPlayerController.h"
 
+#include "DrawDebugHelpers.h"
+#include "Engine/Engine.h"
 #include "EverwardHUD.h"
 #include "EverwardProbePawn.h"
 #include "InputCoreTypes.h"
@@ -11,6 +13,7 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
 
     AEverwardProbePawn* Probe = Cast<AEverwardProbePawn>(GetPawn());
     AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD());
+    UProbeSimulationAdapter* Adapter = GetProbeAdapter();
     if (Probe != nullptr)
     {
         const bool bHighlightEnabled = EverwardHUD != nullptr && EverwardHUD->IsManipulatorPanelExpanded();
@@ -30,6 +33,91 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
             }
         }
         Probe->SetManipulatorSelectionHighlight(bHighlightEnabled, ArmId, Joint);
+    }
+
+    // First playable tractor-field control. T already owns physical target
+    // selection, so tractor use composes with that existing interaction rather
+    // than inventing another target list:
+    //   T = cycle/select physical target
+    //   hold B = couple tractor field at 1 kN
+    //   release B = disengage; the target keeps acquired zero-g drift
+    // The adapter fixed-steps tractor physics using tractor_field.hpp; this
+    // controller only owns input and presentation.
+    if (Adapter != nullptr && WasInputKeyJustPressed(EKeys::B))
+    {
+        const FEverwardProbeCommandResult Result = Adapter->CommandEngageTractorField(1000.0);
+        if (GEngine != nullptr)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                -1,
+                4.0f,
+                Result.bAccepted ? FColor::Cyan : FColor::Orange,
+                Result.bAccepted
+                    ? FString::Printf(TEXT("TRACTOR COUPLED // %s"), *Result.Detail)
+                    : FString::Printf(TEXT("TRACTOR REJECTED // %s"), *Result.Detail));
+        }
+    }
+    if (Adapter != nullptr && WasInputKeyJustReleased(EKeys::B))
+    {
+        (void)Adapter->CommandDisengageTractorField();
+    }
+
+    if (Adapter != nullptr)
+    {
+        Adapter->AdvanceTractorField(DeltaSeconds);
+
+        const FEverwardTractorFieldStatus Tractor = Adapter->GetTractorFieldStatus();
+
+        // Temporary Product Reality readout until the dedicated tool HUD is
+        // built. A fixed message key updates one line in place every frame,
+        // so the new control is discoverable rather than hidden in docs.
+        if (GEngine != nullptr)
+        {
+            FString TractorReadout = TEXT("TRACTOR // [T] SELECT TARGET // HOLD [B] COUPLE");
+            FColor TractorReadoutColor = FColor(130, 175, 190);
+            if (Tractor.bHasTarget)
+            {
+                TractorReadout = FString::Printf(
+                    TEXT("TRACTOR %s // %s // %.0f KG / PROBE %.0f KG // %.2fX // %.1f/%.1f M // HOLD [B]"),
+                    Tractor.bEngaged ? TEXT("COUPLED") : TEXT("READY"),
+                    *Tractor.TargetId,
+                    Tractor.TargetMassKilograms,
+                    Tractor.ProbeMassKilograms,
+                    Tractor.TargetToProbeMassRatio,
+                    Tractor.SurfaceRangeMeters,
+                    Tractor.MaxSurfaceRangeMeters);
+                TractorReadoutColor = Tractor.bEngaged ? FColor::Cyan : FColor(150, 215, 230);
+            }
+            GEngine->AddOnScreenDebugMessage(74001, 0.10f, TractorReadoutColor, TractorReadout);
+        }
+
+        if (Tractor.bEngaged && Tractor.bHasTarget && Probe != nullptr && GetWorld() != nullptr)
+        {
+            FVector TargetPositionMeters;
+            if (Adapter->GetStaticBodyPositionMeters(Tractor.TargetId, TargetPositionMeters))
+            {
+                const FVector TargetPositionCentimeters = TargetPositionMeters * 100.0;
+                DrawDebugLine(
+                    GetWorld(),
+                    Probe->GetActorLocation(),
+                    TargetPositionCentimeters,
+                    FColor::Cyan,
+                    false,
+                    0.0f,
+                    0,
+                    10.0f);
+                DrawDebugSphere(
+                    GetWorld(),
+                    TargetPositionCentimeters,
+                    75.0f,
+                    12,
+                    FColor::Cyan,
+                    false,
+                    0.0f,
+                    0,
+                    6.0f);
+            }
+        }
     }
 
     // Mining control surface:
@@ -64,7 +152,7 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
     // requirements authoritatively and reports why an attempt fails.
     if (WasInputKeyJustPressed(EKeys::G))
     {
-        if (UProbeSimulationAdapter* Adapter = GetProbeAdapter())
+        if (Adapter != nullptr)
         {
             (void)Adapter->CommandMineBootstrapTarget();
         }

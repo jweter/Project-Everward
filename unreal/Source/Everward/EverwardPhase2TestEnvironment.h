@@ -28,6 +28,10 @@ public:
     static constexpr double BootstrapBodyCenterYMeters = 0.0;
     static constexpr double BootstrapBodyCenterZMeters = 0.0;
     static constexpr double BootstrapBodyRadiusMeters = 2.0;
+    // Tractor-field Product Reality calibration: deliberately lighter than
+    // EV-0001's canonical 2,500 kg mass so the first nearby body visibly
+    // accelerates toward the probe more strongly than the probe reacts.
+    static constexpr double BootstrapBodyMassKilograms = 500.0;
 
     // Slice 8 (partial): a second and third registered physical body at
     // different ranges from the bootstrap scan target. These are plain
@@ -44,12 +48,17 @@ public:
     static constexpr double ReferenceTarget1CenterYMeters = 40.0;
     static constexpr double ReferenceTarget1CenterZMeters = 0.0;
     static constexpr double ReferenceTarget1RadiusMeters = 3.0;
+    // Heavier than EV-0001: this is the anchor-behavior tractor test body.
+    static constexpr double ReferenceTarget1MassKilograms = 10000.0;
 
     static constexpr const TCHAR* ReferenceTarget2Id = TEXT("phase2-test-target-003");
     static constexpr double ReferenceTarget2CenterXMeters = 160.0;
     static constexpr double ReferenceTarget2CenterYMeters = -60.0;
     static constexpr double ReferenceTarget2CenterZMeters = 15.0;
     static constexpr double ReferenceTarget2RadiusMeters = 4.0;
+    // Matched to EV-0001 so both sides of the coupling receive the same
+    // acceleration magnitude when no other external force is applied.
+    static constexpr double ReferenceTarget2MassKilograms = 2500.0;
 
 private:
     void ApplyEnvironmentMaterialScaffold();
