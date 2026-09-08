@@ -58,6 +58,12 @@ struct ProbeSaveData {
 struct SaveGameV1 {
     int save_version{kSaveFormatVersion};
     std::int64_t simulation_tick{0};
+    // Stable deterministic identity for the generated campaign. Version 1
+    // persists the seed and generator version before broader generated-region
+    // persistence exists, so future world reconstruction has an authoritative
+    // identity rather than depending on presentation/runtime defaults.
+    std::int64_t universe_seed{0};
+    int generation_algorithm_version{1};
     std::vector<ProbeSaveData> probes{};
 };
 
@@ -442,6 +448,8 @@ namespace detail {
     JsonValue object = JsonValue::make_object();
     object.set("save_version", JsonValue(static_cast<std::int64_t>(save.save_version)));
     object.set("simulation_tick", detail::int64_to_json(save.simulation_tick));
+    object.set("universe_seed", detail::int64_to_json(save.universe_seed));
+    object.set("generation_algorithm_version", JsonValue(static_cast<std::int64_t>(save.generation_algorithm_version)));
     JsonValue probes = JsonValue::make_array();
     for (const auto& probe : save.probes) {
         probes.push_back(probe_save_data_to_json(probe));
@@ -460,6 +468,14 @@ namespace detail {
     SaveGameV1 save;
     save.save_version = static_cast<int>(save_version);
     save.simulation_tick = detail::int64_from_json(value.require("simulation_tick"));
+    save.universe_seed = detail::int64_from_json(value.require("universe_seed"));
+    const std::int64_t generation_algorithm_version =
+        value.require("generation_algorithm_version").as_int64();
+    if (generation_algorithm_version < 1 ||
+        generation_algorithm_version > static_cast<std::int64_t>(std::numeric_limits<int>::max())) {
+        throw std::runtime_error("generation_algorithm_version must be a positive supported integer");
+    }
+    save.generation_algorithm_version = static_cast<int>(generation_algorithm_version);
     for (const auto& probe_value : value.require("probes").as_array()) {
         save.probes.push_back(probe_save_data_from_json(probe_value));
     }
