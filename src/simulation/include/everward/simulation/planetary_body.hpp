@@ -16,6 +16,10 @@ struct SphericalPlanetaryBody {
     Vector3d center_m{};
     double radius_m{1.0};
     Vector3d velocity_mps{};
+    // Standard gravitational parameter GM in m^3/s^2. Zero preserves the
+    // existing non-gravitating test-body behavior for current aggregate
+    // initializers and presentation-only reference bodies.
+    double gravitational_parameter_m3_s2{0.0};
 };
 
 struct PlanetaryLocalFrame {
@@ -118,6 +122,26 @@ enum class SurfaceApproachState {
     Vector3d object_velocity_mps,
     const SphericalPlanetaryBody& body) noexcept {
     return planetary_subtract(object_velocity_mps, body.velocity_mps);
+}
+
+// Deterministic point-mass gravity outside the body's center. This is a
+// read-model calculation only; callers decide if/when an authoritative
+// integration step applies the acceleration. Non-positive/non-finite GM and
+// the exact center fail safely to zero rather than manufacturing a direction.
+[[nodiscard]] inline Vector3d gravitational_acceleration(
+    Vector3d position_m,
+    const SphericalPlanetaryBody& body) noexcept {
+    const double mu = body.gravitational_parameter_m3_s2;
+    if (!std::isfinite(mu) || mu <= 0.0) {
+        return {};
+    }
+    const Vector3d toward_center = planetary_subtract(body.center_m, position_m);
+    const double radius_squared = planetary_dot(toward_center, toward_center);
+    if (radius_squared <= 1e-12) {
+        return {};
+    }
+    const double radius = std::sqrt(radius_squared);
+    return planetary_scale(toward_center, mu / (radius_squared * radius));
 }
 
 [[nodiscard]] inline SurfaceRelativeMotion surface_relative_motion(
