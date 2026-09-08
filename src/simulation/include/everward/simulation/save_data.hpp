@@ -29,6 +29,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -476,8 +477,22 @@ namespace detail {
         throw std::runtime_error("generation_algorithm_version must be a positive supported integer");
     }
     save.generation_algorithm_version = static_cast<int>(generation_algorithm_version);
+
+    // Stable IDs are campaign identity, not presentation labels. Reject an
+    // empty or duplicated probe ID at the persistence boundary so a future
+    // lineage/player/infrastructure record can never ambiguously reference
+    // one of several loaded bodies with the same identity.
+    std::unordered_set<std::string> probe_ids;
     for (const auto& probe_value : value.require("probes").as_array()) {
-        save.probes.push_back(probe_save_data_from_json(probe_value));
+        ProbeSaveData probe = probe_save_data_from_json(probe_value);
+        if (probe.probe.probe_id.empty()) {
+            throw std::runtime_error("persisted probe_id must not be empty");
+        }
+        if (!probe_ids.insert(probe.probe.probe_id).second) {
+            throw std::runtime_error(
+                "duplicate persisted probe_id: " + probe.probe.probe_id);
+        }
+        save.probes.push_back(std::move(probe));
     }
     return save;
 }
