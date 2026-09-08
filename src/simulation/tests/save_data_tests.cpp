@@ -88,7 +88,7 @@ void test_round_trip_preserves_full_probe_state() {
     const DamageAwareProbeRuntime original = build_representative_runtime();
 
     const ProbeSaveData captured = capture_probe_save_data(original);
-    const SaveGameV1 save{1, original.tick(), {captured}};
+    const SaveGameV1 save{1, original.tick(), 0, 1, {captured}};
     const std::string json_text = serialize_save_game(save);
 
     const SaveGameV1 parsed = deserialize_save_game(json_text);
