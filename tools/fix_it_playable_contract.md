@@ -1,0 +1,1 @@
+Playable Fix_It contract marker: the Unreal production path must spawn AFixItRuntimeActor, use the engine-independent FixItPlanner/FixItRepairExecutor against DamageAwareProbeRuntime, consume authoritative stored material/energy, expose player-visible reasoning, and record lifecycle evidence. See docs/PHASE2_FIX_IT_PLAYABLE_TEST.md.
