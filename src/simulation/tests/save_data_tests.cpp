@@ -605,12 +605,12 @@ void test_missing_world_identity_fails_closed() {
 }
 
 void test_invalid_generation_algorithm_version_fails_closed() {
-    JsonValue invalid = save_game_to_json(SaveGameV1{1, 0, 42, 1, {}});
-    invalid.set("generation_algorithm_version", JsonValue(static_cast<std::int64_t>(0)));
+    const std::string invalid =
+        R"({"save_version":1,"simulation_tick":"0","universe_seed":"42","generation_algorithm_version":0,"probes":[]})";
 
     bool threw = false;
     try {
-        (void)save_game_from_json(invalid);
+        (void)deserialize_save_game(invalid);
     } catch (const std::runtime_error&) {
         threw = true;
     }
