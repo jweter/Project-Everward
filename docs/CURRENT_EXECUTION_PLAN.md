@@ -10,6 +10,8 @@ The master phase boundaries remain defined by [`ROADMAP.md`](ROADMAP.md).
 
 The canonical damaged-awakening, staged self-repair, and starter-zone departure experience is defined in [`STARTER_AWAKENING_AND_SELF_REPAIR.md`](STARTER_AWAKENING_AND_SELF_REPAIR.md). Earlier slices should preserve the component, damage, resource, power, manipulator, and repair architecture required to assemble that opening without a later rewrite.
 
+The canonical smart-navigation/accessibility contract is defined in [`JOSE_TAKE_THE_WHEEL.md`](JOSE_TAKE_THE_WHEEL.md). **José Take the Wheel** is the probe's friendly general-purpose autopilot: the player chooses a destination, delegates point-to-point navigation, and can immediately reclaim manual control. Navigation automation must continue to use authoritative movement/physics rather than teleportation or presentation-only motion.
+
 ## Selection rule
 
 When choosing the next Everward development task:
@@ -32,7 +34,7 @@ Parallel-safe work may merge after green portable CI only when it does not assum
 4. impact severity and damage foundation;
 5. Prime Generation-1 probe body blockout;
 6. articulated manipulator arms;
-7. object selection and physical interaction;
+7. object selection and physical interaction, including optional **José Take the Wheel** point-to-point autopilot over selected physical destinations;
 8. dedicated zero-g space environment;
 9. planetary-body foundation;
 10. surface/near-surface operations;
