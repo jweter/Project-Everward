@@ -39,7 +39,7 @@ private:
 
     static constexpr double FixedFixItStepSeconds = 1.0 / 60.0;
 
-    TWeakObjectPtr<UProbeSimulationAdapter> Adapter;
+    UProbeSimulationAdapter* Adapter = nullptr;
     everward::simulation::DamageAwareProbeRuntime* BoundCore = nullptr;
     everward::simulation::FixItRepairExecutor* RepairExecutor = nullptr;
     everward::simulation::FixItReplacementExecutor* ReplacementExecutor = nullptr;
