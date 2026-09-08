@@ -16,6 +16,7 @@ using everward::simulation::Vector3d;
 using everward::simulation::altitude_above_reference_surface;
 using everward::simulation::body_relative_velocity;
 using everward::simulation::classify_surface_approach;
+using everward::simulation::gravitational_acceleration;
 using everward::simulation::is_below_reference_surface;
 using everward::simulation::local_horizon_frame;
 using everward::simulation::local_surface_normal;
@@ -92,6 +93,27 @@ void test_body_relative_velocity_subtracts_body_motion() {
     assert(nearly_equal(relative.z, -5.0));
 }
 
+void test_gravity_points_toward_body_center_with_inverse_square_magnitude() {
+    SphericalPlanetaryBody body{"moon", {}, 100.0, {}, 400.0};
+    const Vector3d near_acceleration = gravitational_acceleration({10.0, 0.0, 0.0}, body);
+    const Vector3d far_acceleration = gravitational_acceleration({20.0, 0.0, 0.0}, body);
+
+    assert(nearly_equal(near_acceleration.x, -4.0));
+    assert(nearly_equal(near_acceleration.y, 0.0));
+    assert(nearly_equal(near_acceleration.z, 0.0));
+    assert(nearly_equal(magnitude(far_acceleration), magnitude(near_acceleration) / 4.0));
+}
+
+void test_gravity_defaults_to_zero_and_is_safe_at_body_center() {
+    SphericalPlanetaryBody disabled{"moon", {}, 100.0, {}};
+    const Vector3d disabled_acceleration = gravitational_acceleration({10.0, 0.0, 0.0}, disabled);
+    assert(nearly_equal(magnitude(disabled_acceleration), 0.0));
+
+    SphericalPlanetaryBody enabled{"moon", {}, 100.0, {}, 400.0};
+    const Vector3d center_acceleration = gravitational_acceleration({}, enabled);
+    assert(nearly_equal(magnitude(center_acceleration), 0.0));
+}
+
 void test_surface_relative_motion_splits_vertical_and_tangential_velocity() {
     SphericalPlanetaryBody body{"moon", {}, 100.0, {1.0, 2.0, 3.0}};
     const SurfaceRelativeMotion motion = surface_relative_motion(
@@ -166,6 +188,8 @@ int main() {
     test_local_horizon_frame_is_stable_at_pole();
     test_local_horizon_frame_does_not_snap_near_old_pole_threshold();
     test_body_relative_velocity_subtracts_body_motion();
+    test_gravity_points_toward_body_center_with_inverse_square_magnitude();
+    test_gravity_defaults_to_zero_and_is_safe_at_body_center();
     test_surface_relative_motion_splits_vertical_and_tangential_velocity();
     test_surface_relative_motion_preserves_descent_sign();
     test_surface_approach_classifies_controlled_descent();
