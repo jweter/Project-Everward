@@ -74,6 +74,23 @@ void test_holds_inward_command_at_minimum_clearance() {
     assert(nearly_equal(command.velocity_mps.z, 0.0));
 }
 
+void test_holds_at_planet_scale_clearance_despite_radial_roundoff() {
+    constexpr double radius_m = 6'371'000.0;
+    constexpr double clearance_m = 2.0;
+    const SphericalPlanetaryBody body{"earth-scale", {}, radius_m, {}};
+    const ControlledDescentEnvelope envelope{5.0, 2.0, clearance_m};
+    const AltitudeAwareDescentProfile profile{20.0, 0.5};
+    const double component = (radius_m + clearance_m) / std::sqrt(3.0);
+    const auto command = constrain_surface_approach_velocity(
+        {component, component, component}, {-1.0, -1.0, -1.0}, body, envelope, profile
+    );
+    assert(command.descent_rate_limited);
+    const double radial_speed = (
+        command.velocity_mps.x + command.velocity_mps.y + command.velocity_mps.z
+    ) / std::sqrt(3.0);
+    assert(nearly_equal(radial_speed, 0.0));
+}
+
 void test_profile_never_increases_envelope_descent_limit() {
     const SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
     const ControlledDescentEnvelope envelope{3.0, 2.0, 0.0};
@@ -90,6 +107,7 @@ int main() {
     test_preserves_outward_motion_while_limiting_tangential_rate();
     test_tapers_descent_speed_as_clearance_is_approached();
     test_holds_inward_command_at_minimum_clearance();
+    test_holds_at_planet_scale_clearance_despite_radial_roundoff();
     test_profile_never_increases_envelope_descent_limit();
     std::puts("surface_descent_guidance_tests: all tests passed");
     return 0;
