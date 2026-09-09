@@ -2,6 +2,7 @@
 
 #include "everward/simulation/types.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -51,6 +52,13 @@ struct ControlledDescentEnvelope {
     double max_descent_speed_mps{5.0};
     double max_tangential_speed_mps{2.0};
     double minimum_clearance_m{0.0};
+};
+
+struct SurfaceContactResolution {
+    Vector3d position_m{};
+    Vector3d velocity_mps{};
+    bool corrected{false};
+    double penetration_depth_m{0.0};
 };
 
 enum class SurfaceApproachState {
