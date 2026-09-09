@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace everward::simulation {
 
@@ -35,7 +36,12 @@ struct AltitudeAwareDescentProfile {
     );
     const double clearance = std::max(0.0, envelope.minimum_clearance_m);
     const double altitude = altitude_above_reference_surface(position_m, body) - clearance;
-    if (altitude <= 1e-12) {
+    const double clearance_tolerance = std::max(
+        1e-12,
+        8.0 * std::numeric_limits<double>::epsilon()
+            * std::max({1.0, std::fabs(body.radius_m), clearance})
+    );
+    if (altitude <= clearance_tolerance) {
         return 0.0;
     }
     const double full_speed_altitude = std::max(0.0, profile.full_speed_altitude_m);
