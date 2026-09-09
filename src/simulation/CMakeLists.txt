@@ -10,91 +10,72 @@ if(BUILD_TESTING)
     add_executable(everward_simulation_tests tests/simulation_core_tests.cpp)
     target_link_libraries(everward_simulation_tests PRIVATE everward_simulation)
     add_test(NAME everward_simulation_tests COMMAND everward_simulation_tests)
-
     add_executable(everward_attitude_control_tests tests/attitude_control_tests.cpp)
     target_link_libraries(everward_attitude_control_tests PRIVATE everward_simulation)
     add_test(NAME everward_attitude_control_tests COMMAND everward_attitude_control_tests)
-
     add_executable(everward_evolution_tests tests/evolution_generator_tests.cpp)
     target_link_libraries(everward_evolution_tests PRIVATE everward_simulation)
     add_test(NAME everward_evolution_tests COMMAND everward_evolution_tests)
-
     add_executable(everward_sensorium_tests tests/sensorium_tests.cpp)
     target_link_libraries(everward_sensorium_tests PRIVATE everward_simulation)
     add_test(NAME everward_sensorium_tests COMMAND everward_sensorium_tests)
-
     add_executable(everward_software_policy_tests tests/software_policy_tests.cpp)
     target_link_libraries(everward_software_policy_tests PRIVATE everward_simulation)
     add_test(NAME everward_software_policy_tests COMMAND everward_software_policy_tests)
-
     add_executable(everward_subsystem_consequence_tests tests/subsystem_consequence_tests.cpp)
     target_link_libraries(everward_subsystem_consequence_tests PRIVATE everward_simulation)
     add_test(NAME everward_subsystem_consequence_tests COMMAND everward_subsystem_consequence_tests)
-
     add_executable(everward_contact_physics_tests tests/contact_physics_tests.cpp)
     target_link_libraries(everward_contact_physics_tests PRIVATE everward_simulation)
     add_test(NAME everward_contact_physics_tests COMMAND everward_contact_physics_tests)
-
     add_executable(everward_compound_contact_tests tests/compound_contact_tests.cpp)
     target_link_libraries(everward_compound_contact_tests PRIVATE everward_simulation)
     add_test(NAME everward_compound_contact_tests COMMAND everward_compound_contact_tests)
-
     add_executable(everward_impact_damage_tests tests/impact_damage_tests.cpp)
     target_link_libraries(everward_impact_damage_tests PRIVATE everward_simulation)
     add_test(NAME everward_impact_damage_tests COMMAND everward_impact_damage_tests)
-
     add_executable(everward_fix_it_tests tests/fix_it_tests.cpp)
     target_link_libraries(everward_fix_it_tests PRIVATE everward_simulation)
     add_test(NAME everward_fix_it_tests COMMAND everward_fix_it_tests)
-
     add_executable(everward_manipulator_tests tests/manipulator_tests.cpp)
     target_link_libraries(everward_manipulator_tests PRIVATE everward_simulation)
     add_test(NAME everward_manipulator_tests COMMAND everward_manipulator_tests)
-
     add_executable(everward_manipulator_hull_contact_tests tests/manipulator_hull_contact_tests.cpp)
     target_link_libraries(everward_manipulator_hull_contact_tests PRIVATE everward_simulation)
     add_test(NAME everward_manipulator_hull_contact_tests COMMAND everward_manipulator_hull_contact_tests)
-
     add_executable(everward_mining_tests tests/mining_tests.cpp)
     target_link_libraries(everward_mining_tests PRIVATE everward_simulation)
     add_test(NAME everward_mining_tests COMMAND everward_mining_tests)
-
     add_executable(everward_target_selection_tests tests/target_selection_tests.cpp)
     target_link_libraries(everward_target_selection_tests PRIVATE everward_simulation)
     add_test(NAME everward_target_selection_tests COMMAND everward_target_selection_tests)
-
     add_executable(everward_target_cycle_tests tests/target_cycle_tests.cpp)
     target_link_libraries(everward_target_cycle_tests PRIVATE everward_simulation)
     add_test(NAME everward_target_cycle_tests COMMAND everward_target_cycle_tests)
-
     add_executable(everward_target_cycle_runtime_tests tests/target_cycle_runtime_tests.cpp)
     target_link_libraries(everward_target_cycle_runtime_tests PRIVATE everward_simulation)
     add_test(NAME everward_target_cycle_runtime_tests COMMAND everward_target_cycle_runtime_tests)
-
     add_executable(everward_manipulator_reach_tests tests/manipulator_reach_tests.cpp)
     target_link_libraries(everward_manipulator_reach_tests PRIVATE everward_simulation)
     add_test(NAME everward_manipulator_reach_tests COMMAND everward_manipulator_reach_tests)
-
     add_executable(everward_manipulator_grasp_tests tests/manipulator_grasp_tests.cpp)
     target_link_libraries(everward_manipulator_grasp_tests PRIVATE everward_simulation)
     add_test(NAME everward_manipulator_grasp_tests COMMAND everward_manipulator_grasp_tests)
-
     add_executable(everward_manipulator_move_tests tests/manipulator_move_tests.cpp)
     target_link_libraries(everward_manipulator_move_tests PRIVATE everward_simulation)
     add_test(NAME everward_manipulator_move_tests COMMAND everward_manipulator_move_tests)
-
     add_executable(everward_manipulator_release_tests tests/manipulator_release_tests.cpp)
     target_link_libraries(everward_manipulator_release_tests PRIVATE everward_simulation)
     add_test(NAME everward_manipulator_release_tests COMMAND everward_manipulator_release_tests)
-
     add_executable(everward_save_data_tests tests/save_data_tests.cpp)
     target_link_libraries(everward_save_data_tests PRIVATE everward_simulation)
     add_test(NAME everward_save_data_tests COMMAND everward_save_data_tests)
-
     add_executable(everward_planetary_body_tests tests/planetary_body_tests.cpp)
     target_link_libraries(everward_planetary_body_tests PRIVATE everward_simulation)
     add_test(NAME everward_planetary_body_tests COMMAND everward_planetary_body_tests)
-
+    add_executable(everward_swept_surface_contact_tests tests/swept_surface_contact_tests.cpp)
+    target_link_libraries(everward_swept_surface_contact_tests PRIVATE everward_simulation)
+    add_test(NAME everward_swept_surface_contact_tests COMMAND everward_swept_surface_contact_tests)
     add_executable(everward_tractor_field_tests tests/tractor_field_tests.cpp)
     target_link_libraries(everward_tractor_field_tests PRIVATE everward_simulation)
     add_test(NAME everward_tractor_field_tests COMMAND everward_tractor_field_tests)
