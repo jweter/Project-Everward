@@ -22,6 +22,7 @@ using everward::simulation::is_below_reference_surface;
 using everward::simulation::local_horizon_frame;
 using everward::simulation::local_surface_normal;
 using everward::simulation::orbital_context;
+using everward::simulation::resolve_surface_contact;
 using everward::simulation::surface_relative_motion;
 
 bool nearly_equal(double a, double b, double epsilon = 1e-6) {
@@ -81,8 +82,6 @@ void test_local_horizon_frame_does_not_snap_near_old_pole_threshold() {
     const PlanetaryLocalFrame below = local_horizon_frame({4.48, 0.0, 99.8996}, body);
     const PlanetaryLocalFrame above = local_horizon_frame({4.46, 0.0, 99.9005}, body);
 
-    // These nearby positions straddle the former abs(up.z) > 0.999 switch.
-    // A continuous tangent construction keeps corresponding axes aligned.
     assert(dot(below.east, above.east) > 0.999);
     assert(dot(below.north, above.north) > 0.999);
 }
@@ -118,10 +117,7 @@ void test_gravity_defaults_to_zero_and_is_safe_at_body_center() {
 
 void test_surface_relative_motion_splits_vertical_and_tangential_velocity() {
     SphericalPlanetaryBody body{"moon", {}, 100.0, {1.0, 2.0, 3.0}};
-    const SurfaceRelativeMotion motion = surface_relative_motion(
-        {100.0, 0.0, 0.0},
-        {6.0, 14.0, 3.0},
-        body);
+    const SurfaceRelativeMotion motion = surface_relative_motion({100.0, 0.0, 0.0}, {6.0, 14.0, 3.0}, body);
 
     assert(nearly_equal(motion.body_relative_velocity_mps.x, 5.0));
     assert(nearly_equal(motion.body_relative_velocity_mps.y, 12.0));
@@ -132,17 +128,12 @@ void test_surface_relative_motion_splits_vertical_and_tangential_velocity() {
     assert(nearly_equal(motion.tangential_velocity_mps.x, 0.0));
     assert(nearly_equal(motion.tangential_velocity_mps.y, 12.0));
     assert(nearly_equal(motion.tangential_speed_mps, 12.0));
-    assert(nearly_equal(
-        dot(motion.vertical_velocity_mps, motion.tangential_velocity_mps),
-        0.0));
+    assert(nearly_equal(dot(motion.vertical_velocity_mps, motion.tangential_velocity_mps), 0.0));
 }
 
 void test_surface_relative_motion_preserves_descent_sign() {
     SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
-    const SurfaceRelativeMotion motion = surface_relative_motion(
-        {0.0, 100.0, 0.0},
-        {3.0, -7.0, 4.0},
-        body);
+    const SurfaceRelativeMotion motion = surface_relative_motion({0.0, 100.0, 0.0}, {3.0, -7.0, 4.0}, body);
 
     assert(nearly_equal(motion.vertical_speed_mps, -7.0));
     assert(nearly_equal(motion.vertical_velocity_mps.y, -7.0));
@@ -173,32 +164,56 @@ void test_orbital_context_preserves_radial_sign_and_zero_g_fallback() {
     assert(nearly_equal(context.circular_orbit_speed_mps, 0.0));
 }
 
+void test_surface_contact_projects_to_clearance_and_removes_only_inward_speed() {
+    SphericalPlanetaryBody body{"moon", {10.0, 0.0, 0.0}, 100.0, {1.0, 2.0, 0.0}};
+    const auto resolved = resolve_surface_contact({100.0, 0.0, 0.0}, {-4.0, 7.0, 3.0}, body, 2.0);
+
+    assert(resolved.corrected);
+    assert(nearly_equal(resolved.penetration_depth_m, 12.0));
+    assert(nearly_equal(resolved.position_m.x, 112.0));
+    assert(nearly_equal(resolved.position_m.y, 0.0));
+    assert(nearly_equal(resolved.velocity_mps.x, 1.0));
+    assert(nearly_equal(resolved.velocity_mps.y, 7.0));
+    assert(nearly_equal(resolved.velocity_mps.z, 3.0));
+}
+
+void test_surface_contact_preserves_outward_motion_and_clear_positions() {
+    SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const auto outward = resolve_surface_contact({99.0, 0.0, 0.0}, {4.0, 5.0, 0.0}, body);
+    assert(outward.corrected);
+    assert(nearly_equal(outward.position_m.x, 100.0));
+    assert(nearly_equal(outward.velocity_mps.x, 4.0));
+    assert(nearly_equal(outward.velocity_mps.y, 5.0));
+
+    const auto clear = resolve_surface_contact({101.0, 0.0, 0.0}, {-1.0, 2.0, 0.0}, body);
+    assert(!clear.corrected);
+    assert(nearly_equal(clear.position_m.x, 101.0));
+    assert(nearly_equal(clear.velocity_mps.x, -1.0));
+    assert(nearly_equal(clear.velocity_mps.y, 2.0));
+}
+
 void test_surface_approach_classifies_controlled_descent() {
     SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
     const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
-    assert(classify_surface_approach({110.0, 0.0, 0.0}, {-4.0, 1.0, 0.0}, body, envelope)
-        == SurfaceApproachState::ControlledDescent);
+    assert(classify_surface_approach({110.0, 0.0, 0.0}, {-4.0, 1.0, 0.0}, body, envelope) == SurfaceApproachState::ControlledDescent);
 }
 
 void test_surface_approach_rejects_excessive_descent_rate() {
     SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
     const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
-    assert(classify_surface_approach({110.0, 0.0, 0.0}, {-6.0, 0.0, 0.0}, body, envelope)
-        == SurfaceApproachState::ExcessiveDescentRate);
+    assert(classify_surface_approach({110.0, 0.0, 0.0}, {-6.0, 0.0, 0.0}, body, envelope) == SurfaceApproachState::ExcessiveDescentRate);
 }
 
 void test_surface_approach_rejects_excessive_tangential_rate() {
     SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
     const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
-    assert(classify_surface_approach({110.0, 0.0, 0.0}, {-2.0, 3.0, 0.0}, body, envelope)
-        == SurfaceApproachState::ExcessiveTangentialRate);
+    assert(classify_surface_approach({110.0, 0.0, 0.0}, {-2.0, 3.0, 0.0}, body, envelope) == SurfaceApproachState::ExcessiveTangentialRate);
 }
 
 void test_surface_approach_detects_clearance_violation() {
     SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
     const ControlledDescentEnvelope envelope{5.0, 2.0, 1.0};
-    assert(classify_surface_approach({100.5, 0.0, 0.0}, {0.0, 0.0, 0.0}, body, envelope)
-        == SurfaceApproachState::SurfacePenetration);
+    assert(classify_surface_approach({100.5, 0.0, 0.0}, {0.0, 0.0, 0.0}, body, envelope) == SurfaceApproachState::SurfacePenetration);
 }
 
 } // namespace
@@ -217,6 +232,8 @@ int main() {
     test_surface_relative_motion_preserves_descent_sign();
     test_orbital_context_reports_circular_reference_speed();
     test_orbital_context_preserves_radial_sign_and_zero_g_fallback();
+    test_surface_contact_projects_to_clearance_and_removes_only_inward_speed();
+    test_surface_contact_preserves_outward_motion_and_clear_positions();
     test_surface_approach_classifies_controlled_descent();
     test_surface_approach_rejects_excessive_descent_rate();
     test_surface_approach_rejects_excessive_tangential_rate();
