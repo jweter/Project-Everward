@@ -12,6 +12,7 @@ using everward::simulation::ControlledDescentEnvelope;
 using everward::simulation::SphericalPlanetaryBody;
 using everward::simulation::altitude_limited_descent_speed_mps;
 using everward::simulation::constrain_surface_approach_velocity;
+using everward::simulation::surface_relative_motion;
 
 bool nearly_equal(double a, double b, double epsilon = 1e-6) {
     return std::fabs(a - b) <= epsilon;
@@ -91,6 +92,20 @@ void test_holds_at_planet_scale_clearance_despite_radial_roundoff() {
     assert(nearly_equal(radial_speed, 0.0));
 }
 
+void test_reports_surface_relative_motion_for_moving_body() {
+    const SphericalPlanetaryBody body{"moon", {10.0, 20.0, 30.0}, 100.0, {1.0, 2.0, 3.0}};
+    const auto motion = surface_relative_motion({112.0, 20.0, 30.0}, {-1.0, 5.0, 3.0}, body);
+    assert(nearly_equal(motion.clearance_m, 2.0));
+    assert(nearly_equal(motion.surface_normal.x, 1.0));
+    assert(nearly_equal(motion.surface_normal.y, 0.0));
+    assert(nearly_equal(motion.surface_normal.z, 0.0));
+    assert(nearly_equal(motion.radial_speed_mps, -2.0));
+    assert(nearly_equal(motion.tangential_velocity_mps.x, 0.0));
+    assert(nearly_equal(motion.tangential_velocity_mps.y, 3.0));
+    assert(nearly_equal(motion.tangential_velocity_mps.z, 0.0));
+    assert(nearly_equal(motion.tangential_speed_mps, 3.0));
+}
+
 void test_profile_never_increases_envelope_descent_limit() {
     const SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
     const ControlledDescentEnvelope envelope{3.0, 2.0, 0.0};
@@ -108,6 +123,7 @@ int main() {
     test_tapers_descent_speed_as_clearance_is_approached();
     test_holds_inward_command_at_minimum_clearance();
     test_holds_at_planet_scale_clearance_despite_radial_roundoff();
+    test_reports_surface_relative_motion_for_moving_body();
     test_profile_never_increases_envelope_descent_limit();
     std::puts("surface_descent_guidance_tests: all tests passed");
     return 0;
