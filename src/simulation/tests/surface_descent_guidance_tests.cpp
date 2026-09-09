@@ -18,21 +18,9 @@ bool nearly_equal(double a, double b, double epsilon = 1e-6) {
 }
 
 void test_limits_descent_and_tangential_rates_relative_to_moving_body() {
-    const SphericalPlanetaryBody body{
-        "moon",
-        {10.0, 20.0, 30.0},
-        100.0,
-        {1.0, 2.0, 3.0},
-    };
+    const SphericalPlanetaryBody body{"moon", {10.0, 20.0, 30.0}, 100.0, {1.0, 2.0, 3.0}};
     const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
-
-    const auto command = constrain_surface_approach_velocity(
-        {210.0, 20.0, 30.0},
-        {-8.0, 8.0, 3.0},
-        body,
-        envelope
-    );
-
+    const auto command = constrain_surface_approach_velocity({210.0, 20.0, 30.0}, {-8.0, 8.0, 3.0}, body, envelope);
     assert(command.descent_rate_limited);
     assert(command.tangential_rate_limited);
     assert(nearly_equal(command.velocity_mps.x, -4.0));
@@ -43,14 +31,7 @@ void test_limits_descent_and_tangential_rates_relative_to_moving_body() {
 void test_preserves_request_already_inside_controlled_descent_envelope() {
     const SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
     const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
-
-    const auto command = constrain_surface_approach_velocity(
-        {200.0, 0.0, 0.0},
-        {-4.0, 1.5, 0.0},
-        body,
-        envelope
-    );
-
+    const auto command = constrain_surface_approach_velocity({200.0, 0.0, 0.0}, {-4.0, 1.5, 0.0}, body, envelope);
     assert(!command.descent_rate_limited);
     assert(!command.tangential_rate_limited);
     assert(nearly_equal(command.velocity_mps.x, -4.0));
@@ -61,14 +42,7 @@ void test_preserves_request_already_inside_controlled_descent_envelope() {
 void test_preserves_outward_motion_while_limiting_tangential_rate() {
     const SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
     const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
-
-    const auto command = constrain_surface_approach_velocity(
-        {110.0, 0.0, 0.0},
-        {4.0, 3.0, 4.0},
-        body,
-        envelope
-    );
-
+    const auto command = constrain_surface_approach_velocity({110.0, 0.0, 0.0}, {4.0, 3.0, 4.0}, body, envelope);
     assert(!command.descent_rate_limited);
     assert(command.tangential_rate_limited);
     assert(nearly_equal(command.velocity_mps.x, 4.0));
@@ -80,36 +54,49 @@ void test_tapers_descent_speed_as_clearance_is_approached() {
     const SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
     const ControlledDescentEnvelope envelope{5.0, 2.0, 2.0};
     const AltitudeAwareDescentProfile profile{20.0, 0.5};
-
-    assert(nearly_equal(
-        altitude_limited_descent_speed_mps({122.0, 0.0, 0.0}, body, envelope, profile),
-        5.0
-    ));
-    assert(nearly_equal(
-        altitude_limited_descent_speed_mps({112.0, 0.0, 0.0}, body, envelope, profile),
-        2.75
-    ));
-    assert(nearly_equal(
-        altitude_limited_descent_speed_mps({102.0, 0.0, 0.0}, body, envelope, profile),
-        0.5
-    ));
-
-    const auto command = constrain_surface_approach_velocity(
-        {112.0, 0.0, 0.0}, {-5.0, 0.0, 0.0}, body, envelope, profile
-    );
+    assert(nearly_equal(altitude_limited_descent_speed_mps({122.0, 0.0, 0.0}, body, envelope, profile), 5.0));
+    assert(nearly_equal(altitude_limited_descent_speed_mps({112.0, 0.0, 0.0}, body, envelope, profile), 2.75));
+    assert(nearly_equal(altitude_limited_descent_speed_mps({102.0, 0.0, 0.0}, body, envelope, profile), 0.0));
+    const auto command = constrain_surface_approach_velocity({112.0, 0.0, 0.0}, {-5.0, 0.0, 0.0}, body, envelope, profile);
     assert(command.descent_rate_limited);
     assert(nearly_equal(command.velocity_mps.x, -2.75));
+}
+
+void test_holds_inward_command_at_minimum_clearance() {
+    const SphericalPlanetaryBody body{"moon", {}, 100.0, {1.0, 0.0, 0.0}};
+    const ControlledDescentEnvelope envelope{5.0, 2.0, 2.0};
+    const AltitudeAwareDescentProfile profile{20.0, 0.5};
+    const auto command = constrain_surface_approach_velocity({102.0, 0.0, 0.0}, {-4.0, 1.0, 0.0}, body, envelope, profile);
+    assert(command.descent_rate_limited);
+    assert(!command.tangential_rate_limited);
+    assert(nearly_equal(command.velocity_mps.x, 1.0));
+    assert(nearly_equal(command.velocity_mps.y, 1.0));
+    assert(nearly_equal(command.velocity_mps.z, 0.0));
+}
+
+void test_holds_at_planet_scale_clearance_despite_radial_roundoff() {
+    constexpr double radius_m = 6'371'000.0;
+    constexpr double clearance_m = 2.0;
+    const SphericalPlanetaryBody body{"earth-scale", {}, radius_m, {}};
+    const ControlledDescentEnvelope envelope{5.0, 2.0, clearance_m};
+    const AltitudeAwareDescentProfile profile{20.0, 0.5};
+    const double component = (radius_m + clearance_m) / std::sqrt(3.0);
+    const auto command = constrain_surface_approach_velocity(
+        {component, component, component}, {-1.0, -1.0, -1.0}, body, envelope, profile
+    );
+    assert(command.descent_rate_limited);
+    const double radial_speed = (
+        command.velocity_mps.x + command.velocity_mps.y + command.velocity_mps.z
+    ) / std::sqrt(3.0);
+    assert(nearly_equal(radial_speed, 0.0));
 }
 
 void test_profile_never_increases_envelope_descent_limit() {
     const SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
     const ControlledDescentEnvelope envelope{3.0, 2.0, 0.0};
     const AltitudeAwareDescentProfile profile{10.0, 20.0};
-
-    assert(nearly_equal(
-        altitude_limited_descent_speed_mps({100.0, 0.0, 0.0}, body, envelope, profile),
-        3.0
-    ));
+    assert(nearly_equal(altitude_limited_descent_speed_mps({100.0, 0.0, 0.0}, body, envelope, profile), 0.0));
+    assert(nearly_equal(altitude_limited_descent_speed_mps({110.0, 0.0, 0.0}, body, envelope, profile), 3.0));
 }
 
 } // namespace
@@ -119,8 +106,9 @@ int main() {
     test_preserves_request_already_inside_controlled_descent_envelope();
     test_preserves_outward_motion_while_limiting_tangential_rate();
     test_tapers_descent_speed_as_clearance_is_approached();
+    test_holds_inward_command_at_minimum_clearance();
+    test_holds_at_planet_scale_clearance_despite_radial_roundoff();
     test_profile_never_increases_envelope_descent_limit();
-
     std::puts("surface_descent_guidance_tests: all tests passed");
     return 0;
 }

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace everward::simulation {
 
@@ -11,7 +12,8 @@ namespace everward::simulation {
 // This helper does not model thruster authority or move the probe. It only
 // constrains a requested inertial velocity to a body-relative controlled-
 // descent envelope and, when configured, reduces descent speed as clearance
-// is approached. Contact resolution remains authoritative for penetration.
+// is approached. At minimum clearance it prevents a commanded inward velocity;
+// contact resolution remains authoritative for penetration correction.
 struct SurfaceApproachVelocityCommand {
     Vector3d velocity_mps{};
     bool descent_rate_limited{false};
@@ -32,11 +34,16 @@ struct AltitudeAwareDescentProfile {
     const double touchdown_speed = std::clamp(
         std::fabs(profile.touchdown_descent_speed_mps), 0.0, max_speed
     );
-    const double altitude = std::max(
-        0.0,
-        altitude_above_reference_surface(position_m, body) -
-            std::max(0.0, envelope.minimum_clearance_m)
+    const double clearance = std::max(0.0, envelope.minimum_clearance_m);
+    const double altitude = altitude_above_reference_surface(position_m, body) - clearance;
+    const double clearance_tolerance = std::max(
+        1e-12,
+        8.0 * std::numeric_limits<double>::epsilon()
+            * std::max({1.0, std::fabs(body.radius_m), clearance})
     );
+    if (altitude <= clearance_tolerance) {
+        return 0.0;
+    }
     const double full_speed_altitude = std::max(0.0, profile.full_speed_altitude_m);
     if (full_speed_altitude <= 1e-12 || altitude >= full_speed_altitude) {
         return max_speed;
