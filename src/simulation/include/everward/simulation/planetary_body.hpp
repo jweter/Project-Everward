@@ -197,6 +197,22 @@ enum class SurfaceApproachState {
     };
 }
 
+[[nodiscard]] inline SurfaceContactResolution resolve_surface_contact(
+    Vector3d position_m, Vector3d velocity_mps,
+    const SphericalPlanetaryBody& body, double minimum_clearance_m = 0.0) noexcept {
+    const double clearance_m = std::max(0.0, minimum_clearance_m);
+    const double altitude_m = altitude_above_reference_surface(position_m, body);
+    if (altitude_m >= clearance_m) return {position_m, velocity_mps, false, 0.0};
+    const Vector3d normal = local_surface_normal(position_m, body);
+    const double radius_m = body.radius_m + clearance_m;
+    position_m = {body.center_m.x + normal.x * radius_m, body.center_m.y + normal.y * radius_m, body.center_m.z + normal.z * radius_m};
+    Vector3d relative = body_relative_velocity(velocity_mps, body);
+    const double normal_speed = planetary_dot(relative, normal);
+    if (normal_speed < 0.0) relative = planetary_subtract(relative, planetary_scale(normal, normal_speed));
+    velocity_mps = {body.velocity_mps.x + relative.x, body.velocity_mps.y + relative.y, body.velocity_mps.z + relative.z};
+    return {position_m, velocity_mps, true, clearance_m - altitude_m};
+}
+
 [[nodiscard]] inline SurfaceApproachState classify_surface_approach(
     Vector3d position_m,
     Vector3d object_velocity_mps,
