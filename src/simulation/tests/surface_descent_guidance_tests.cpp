@@ -7,8 +7,10 @@
 
 namespace {
 
+using everward::simulation::AltitudeAwareDescentProfile;
 using everward::simulation::ControlledDescentEnvelope;
 using everward::simulation::SphericalPlanetaryBody;
+using everward::simulation::altitude_limited_descent_speed_mps;
 using everward::simulation::constrain_surface_approach_velocity;
 
 bool nearly_equal(double a, double b, double epsilon = 1e-6) {
@@ -25,7 +27,7 @@ void test_limits_descent_and_tangential_rates_relative_to_moving_body() {
     const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
 
     const auto command = constrain_surface_approach_velocity(
-        {110.0, 20.0, 30.0},
+        {210.0, 20.0, 30.0},
         {-8.0, 8.0, 3.0},
         body,
         envelope
@@ -43,7 +45,7 @@ void test_preserves_request_already_inside_controlled_descent_envelope() {
     const ControlledDescentEnvelope envelope{5.0, 2.0, 0.0};
 
     const auto command = constrain_surface_approach_velocity(
-        {110.0, 0.0, 0.0},
+        {200.0, 0.0, 0.0},
         {-4.0, 1.5, 0.0},
         body,
         envelope
@@ -74,12 +76,50 @@ void test_preserves_outward_motion_while_limiting_tangential_rate() {
     assert(nearly_equal(command.velocity_mps.z, 1.6));
 }
 
+void test_tapers_descent_speed_as_clearance_is_approached() {
+    const SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const ControlledDescentEnvelope envelope{5.0, 2.0, 2.0};
+    const AltitudeAwareDescentProfile profile{20.0, 0.5};
+
+    assert(nearly_equal(
+        altitude_limited_descent_speed_mps({122.0, 0.0, 0.0}, body, envelope, profile),
+        5.0
+    ));
+    assert(nearly_equal(
+        altitude_limited_descent_speed_mps({112.0, 0.0, 0.0}, body, envelope, profile),
+        2.75
+    ));
+    assert(nearly_equal(
+        altitude_limited_descent_speed_mps({102.0, 0.0, 0.0}, body, envelope, profile),
+        0.5
+    ));
+
+    const auto command = constrain_surface_approach_velocity(
+        {112.0, 0.0, 0.0}, {-5.0, 0.0, 0.0}, body, envelope, profile
+    );
+    assert(command.descent_rate_limited);
+    assert(nearly_equal(command.velocity_mps.x, -2.75));
+}
+
+void test_profile_never_increases_envelope_descent_limit() {
+    const SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const ControlledDescentEnvelope envelope{3.0, 2.0, 0.0};
+    const AltitudeAwareDescentProfile profile{10.0, 20.0};
+
+    assert(nearly_equal(
+        altitude_limited_descent_speed_mps({100.0, 0.0, 0.0}, body, envelope, profile),
+        3.0
+    ));
+}
+
 } // namespace
 
 int main() {
     test_limits_descent_and_tangential_rates_relative_to_moving_body();
     test_preserves_request_already_inside_controlled_descent_envelope();
     test_preserves_outward_motion_while_limiting_tangential_rate();
+    test_tapers_descent_speed_as_clearance_is_approached();
+    test_profile_never_increases_envelope_descent_limit();
 
     std::puts("surface_descent_guidance_tests: all tests passed");
     return 0;

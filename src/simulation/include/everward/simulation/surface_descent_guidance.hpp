@@ -9,19 +9,48 @@ namespace everward::simulation {
 
 // Deterministic Slice 10 command shaping for near-surface operations.
 // This helper does not model thruster authority or move the probe. It only
-// constrains a requested inertial velocity to the body-relative controlled-
-// descent envelope already used by classify_surface_approach().
+// constrains a requested inertial velocity to a body-relative controlled-
+// descent envelope and, when configured, reduces descent speed as clearance
+// is approached. Contact resolution remains authoritative for penetration.
 struct SurfaceApproachVelocityCommand {
     Vector3d velocity_mps{};
     bool descent_rate_limited{false};
     bool tangential_rate_limited{false};
 };
 
+struct AltitudeAwareDescentProfile {
+    double full_speed_altitude_m{25.0};
+    double touchdown_descent_speed_mps{0.5};
+};
+
+[[nodiscard]] inline double altitude_limited_descent_speed_mps(
+    Vector3d position_m,
+    const SphericalPlanetaryBody& body,
+    const ControlledDescentEnvelope& envelope,
+    const AltitudeAwareDescentProfile& profile) noexcept {
+    const double max_speed = std::fabs(envelope.max_descent_speed_mps);
+    const double touchdown_speed = std::clamp(
+        std::fabs(profile.touchdown_descent_speed_mps), 0.0, max_speed
+    );
+    const double altitude = std::max(
+        0.0,
+        altitude_above_reference_surface(position_m, body) -
+            std::max(0.0, envelope.minimum_clearance_m)
+    );
+    const double full_speed_altitude = std::max(0.0, profile.full_speed_altitude_m);
+    if (full_speed_altitude <= 1e-12 || altitude >= full_speed_altitude) {
+        return max_speed;
+    }
+    const double blend = altitude / full_speed_altitude;
+    return touchdown_speed + (max_speed - touchdown_speed) * blend;
+}
+
 [[nodiscard]] inline SurfaceApproachVelocityCommand constrain_surface_approach_velocity(
     Vector3d position_m,
     Vector3d requested_velocity_mps,
     const SphericalPlanetaryBody& body,
-    const ControlledDescentEnvelope& envelope = {}) noexcept {
+    const ControlledDescentEnvelope& envelope = {},
+    const AltitudeAwareDescentProfile& profile = {}) noexcept {
     const Vector3d up = local_surface_normal(position_m, body);
     Vector3d relative = body_relative_velocity(requested_velocity_mps, body);
 
@@ -32,7 +61,9 @@ struct SurfaceApproachVelocityCommand {
     );
 
     bool descent_rate_limited = false;
-    const double max_descent_speed_mps = std::fabs(envelope.max_descent_speed_mps);
+    const double max_descent_speed_mps = altitude_limited_descent_speed_mps(
+        position_m, body, envelope, profile
+    );
     if (radial_speed_mps < -max_descent_speed_mps) {
         radial_speed_mps = -max_descent_speed_mps;
         descent_rate_limited = true;
