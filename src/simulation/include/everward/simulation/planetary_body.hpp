@@ -18,7 +18,16 @@ struct SphericalPlanetaryBody {
 
 struct PlanetaryLocalFrame { Vector3d up{}; Vector3d east{}; Vector3d north{}; };
 struct OrbitalContext { double radius_from_center_m{0.0}; double radial_speed_mps{0.0}; double tangential_speed_mps{0.0}; double circular_orbit_speed_mps{0.0}; bool gravity_enabled{false}; };
-struct SurfaceRelativeMotion { Vector3d body_relative_velocity_mps{}; Vector3d vertical_velocity_mps{}; Vector3d tangential_velocity_mps{}; double vertical_speed_mps{0.0}; double tangential_speed_mps{0.0}; };
+struct SurfaceRelativeMotion {
+    Vector3d body_relative_velocity_mps{};
+    Vector3d vertical_velocity_mps{};
+    Vector3d tangential_velocity_mps{};
+    double vertical_speed_mps{0.0};
+    double tangential_speed_mps{0.0};
+    Vector3d surface_normal{};
+    double clearance_m{0.0};
+    double radial_speed_mps{0.0};
+};
 struct ControlledDescentEnvelope { double max_descent_speed_mps{5.0}; double max_tangential_speed_mps{2.0}; double minimum_clearance_m{0.0}; };
 struct SurfaceContactResolution { Vector3d position_m{}; Vector3d velocity_mps{}; bool corrected{false}; double penetration_depth_m{0.0}; };
 
@@ -35,7 +44,14 @@ enum class SurfaceApproachState { Clear, ControlledDescent, ExcessiveDescentRate
 [[nodiscard]] inline PlanetaryLocalFrame local_horizon_frame(Vector3d p,const SphericalPlanetaryBody& b) noexcept { const Vector3d up=local_surface_normal(p,b); const Vector3d z{0,0,1}; const Vector3d nc=planetary_subtract(z,planetary_scale(up,planetary_dot(z,up))); const double nm=planetary_magnitude(nc); const Vector3d north=nm<=1e-12?Vector3d{0,up.z>=0?1.0:-1.0,0}:planetary_scale(nc,1.0/nm); return {up,planetary_normalized_or_x(planetary_cross(north,up)),north}; }
 [[nodiscard]] inline Vector3d body_relative_velocity(Vector3d v,const SphericalPlanetaryBody& b) noexcept { return planetary_subtract(v,b.velocity_mps); }
 [[nodiscard]] inline Vector3d gravitational_acceleration(Vector3d p,const SphericalPlanetaryBody& b) noexcept { const double mu=b.gravitational_parameter_m3_s2; if(!std::isfinite(mu)||mu<=0) return {}; const Vector3d d=planetary_subtract(b.center_m,p); const double r2=planetary_dot(d,d); if(r2<=1e-12) return {}; const double r=std::sqrt(r2); return planetary_scale(d,mu/(r2*r)); }
-[[nodiscard]] inline SurfaceRelativeMotion surface_relative_motion(Vector3d p,Vector3d v,const SphericalPlanetaryBody& b) noexcept { const Vector3d rel=body_relative_velocity(v,b); const Vector3d up=local_surface_normal(p,b); const double vs=planetary_dot(rel,up); const Vector3d vertical=planetary_scale(up,vs); const Vector3d tangent=planetary_subtract(rel,vertical); return {rel,vertical,tangent,vs,planetary_magnitude(tangent)}; }
+[[nodiscard]] inline SurfaceRelativeMotion surface_relative_motion(Vector3d p,Vector3d v,const SphericalPlanetaryBody& b) noexcept {
+    const Vector3d rel=body_relative_velocity(v,b);
+    const Vector3d up=local_surface_normal(p,b);
+    const double vs=planetary_dot(rel,up);
+    const Vector3d vertical=planetary_scale(up,vs);
+    const Vector3d tangent=planetary_subtract(rel,vertical);
+    return {rel,vertical,tangent,vs,planetary_magnitude(tangent),up,altitude_above_reference_surface(p,b),vs};
+}
 [[nodiscard]] inline OrbitalContext orbital_context(Vector3d p,Vector3d v,const SphericalPlanetaryBody& b) noexcept { const double r=planetary_magnitude(planetary_subtract(p,b.center_m)); const auto m=surface_relative_motion(p,v,b); const double mu=b.gravitational_parameter_m3_s2; const bool g=std::isfinite(mu)&&mu>0&&r>1e-12; return {r,m.vertical_speed_mps,m.tangential_speed_mps,g?std::sqrt(mu/r):0.0,g}; }
 
 [[nodiscard]] inline SurfaceContactResolution resolve_surface_contact(Vector3d p,Vector3d v,const SphericalPlanetaryBody& b,double clearance=0.0) noexcept {
@@ -69,9 +85,9 @@ enum class SurfaceApproachState { Clear, ControlledDescent, ExcessiveDescentRate
     const Vector3d normal = local_surface_normal(contact, body);
     Vector3d relative = body_relative_velocity(velocity_mps, body);
     const double normal_speed = planetary_dot(relative, normal);
-    if (normal_speed < 0.0) relative = planetary_subtract(relative, planetary_scale(normal, normal_speed));
-    velocity_mps = {body.velocity_mps.x+relative.x,body.velocity_mps.y+relative.y,body.velocity_mps.z+relative.z};
-    return {contact, velocity_mps, true, planetary_magnitude(delta) * (1.0 - t)};
+    if (normal_speed < 0.0) relative=planetary_subtract(relative,planetary_scale(normal,normal_speed));
+    velocity_mps={body.velocity_mps.x+relative.x,body.velocity_mps.y+relative.y,body.velocity_mps.z+relative.z};
+    return {contact,velocity_mps,true,planetary_magnitude(delta)*(1.0-t)};
 }
 
 [[nodiscard]] inline SurfaceApproachState classify_surface_approach(Vector3d p,Vector3d v,const SphericalPlanetaryBody& b,const ControlledDescentEnvelope& e={}) noexcept { const double a=altitude_above_reference_surface(p,b); if(a<e.minimum_clearance_m) return SurfaceApproachState::SurfacePenetration; const auto m=surface_relative_motion(p,v,b); if(m.vertical_speed_mps<-std::fabs(e.max_descent_speed_mps)) return SurfaceApproachState::ExcessiveDescentRate; if(m.tangential_speed_mps>std::fabs(e.max_tangential_speed_mps)) return SurfaceApproachState::ExcessiveTangentialRate; if(m.vertical_speed_mps<0) return SurfaceApproachState::ControlledDescent; return SurfaceApproachState::Clear; }
