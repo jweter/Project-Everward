@@ -21,6 +21,8 @@ def render_state_report(evidence: Mapping[str, Any]) -> str:
         raise ValueError("initial_state and final_state must be mappings")
     if not isinstance(invariants, Mapping):
         raise ValueError("invariants must be a mapping")
+    if any(type(value) is not bool for value in invariants.values()):
+        raise ValueError("invariant results must be booleans")
 
     keys = sorted(set(initial) | set(final), key=str)
     rows = "".join(
@@ -29,7 +31,7 @@ def render_state_report(evidence: Mapping[str, Any]) -> str:
         for key in keys
     )
     checks = "".join(
-        f"<li><strong>{escape(str(name))}</strong>: {'PASS' if bool(value) else 'FAIL'}</li>"
+        f"<li><strong>{escape(str(name))}</strong>: {'PASS' if value else 'FAIL'}</li>"
         for name, value in sorted(invariants.items(), key=lambda item: str(item[0]))
     )
     return f"""<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">
@@ -48,7 +50,14 @@ table{{width:100%;border-collapse:collapse}}th,td{{padding:8px;border-bottom:1px
 
 
 def _required(data: Mapping[str, Any], key: str) -> str:
-    value = str(data.get(key, "")).strip()
-    if not value:
+    value = data.get(key)
+    if value is None:
         raise ValueError(f"missing required field: {key}")
-    return value
+    if isinstance(value, bool):
+        raise ValueError(f"invalid required field: {key}")
+    if not isinstance(value, (str, int)):
+        raise ValueError(f"invalid required field: {key}")
+    normalized = str(value).strip()
+    if not normalized:
+        raise ValueError(f"missing required field: {key}")
+    return normalized
