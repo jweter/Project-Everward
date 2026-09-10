@@ -2,6 +2,14 @@
 
 Everward campaigns may span hundreds of hours and many game versions. Save compatibility must therefore be treated as a versioned data-contract problem, not as engine-object serialization.
 
+## Current v1 implementation boundary
+
+The current vertical-slice implementation is intentionally narrower than the eventual campaign schema below. Version 1 persists the canonical probe/runtime state through the engine-independent save-data layer, uses an explicit `save_version`, validates loads fail-closed, and has an ordered migration boundary. Because v1 is the first persisted schema, the production migration registry is currently empty; the current-version migration path is a deterministic no-op and future versions must add explicit ordered transforms plus fixture coverage before they are accepted.
+
+The following remain future schema-expansion work rather than implicit v1 guarantees: generated-world identity beyond the canonical single-probe state, multiple probes, parent/successor lineage records, persistent generated/modified regions, campaign history, and other top-level campaign categories listed below. Those additions must introduce stable IDs and generation-algorithm versioning where applicable and must not be inferred from transient Unreal objects.
+
+This boundary keeps the implemented vertical-slice save contract truthful while preserving the long-duration campaign requirements in this document.
+
 ## Required principles
 
 1. Every save declares a `save_version`.
