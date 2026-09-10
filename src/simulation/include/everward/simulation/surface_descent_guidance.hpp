@@ -20,38 +20,10 @@ struct SurfaceApproachVelocityCommand {
     bool tangential_rate_limited{false};
 };
 
-struct SurfaceRelativeMotion {
-    Vector3d surface_normal{};
-    Vector3d tangential_velocity_mps{};
-    double clearance_m{0.0};
-    double radial_speed_mps{0.0};
-    double tangential_speed_mps{0.0};
-};
-
 struct AltitudeAwareDescentProfile {
     double full_speed_altitude_m{25.0};
     double touchdown_descent_speed_mps{0.5};
 };
-
-[[nodiscard]] inline SurfaceRelativeMotion surface_relative_motion(
-    Vector3d position_m,
-    Vector3d velocity_mps,
-    const SphericalPlanetaryBody& body) noexcept {
-    const Vector3d up = local_surface_normal(position_m, body);
-    const Vector3d relative = body_relative_velocity(velocity_mps, body);
-    const double radial_speed_mps = planetary_dot(relative, up);
-    const Vector3d tangential_velocity_mps = planetary_subtract(
-        relative,
-        planetary_scale(up, radial_speed_mps)
-    );
-    return {
-        up,
-        tangential_velocity_mps,
-        altitude_above_reference_surface(position_m, body),
-        radial_speed_mps,
-        planetary_magnitude(tangential_velocity_mps),
-    };
-}
 
 [[nodiscard]] inline double altitude_limited_descent_speed_mps(
     Vector3d position_m,
