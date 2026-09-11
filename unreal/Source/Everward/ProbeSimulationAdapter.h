@@ -244,6 +244,30 @@ struct EVERWARD_API FEverwardManipulatorReachStatus
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator") double RemainingDistanceMeters = 0.0;
 };
 
+UENUM(BlueprintType)
+enum class EEverwardJoseGuidanceOutcome : uint8
+{
+    Continue UMETA(DisplayName="Continue"),
+    Arrived UMETA(DisplayName="Arrived"),
+    DestinationUnresolved UMETA(DisplayName="Destination Unresolved"),
+    DestinationNotFound UMETA(DisplayName="Destination Not Found")
+};
+
+// docs/JOSE_TAKE_THE_WHEEL.md guidance-law result: the authoritative
+// engine-independent decision (jose_autopilot.hpp), not a raw telemetry
+// read. Unreal's autopilot controller only interprets Outcome and, on
+// Continue, issues CommandVelocityMetersPerSecond through the existing
+// CommandSetVelocityMetersPerSecond() boundary -- it does not compute the
+// heading or approach speed itself.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardJoseGuidanceCommand
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Autopilot") EEverwardJoseGuidanceOutcome Outcome = EEverwardJoseGuidanceOutcome::DestinationNotFound;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Autopilot") FVector CommandVelocityMetersPerSecond = FVector::ZeroVector;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Autopilot") double RemainingSurfaceRangeMeters = 0.0;
+};
+
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardMiningStatus
 {
@@ -279,6 +303,12 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Tractor") FEverwardTractorFieldStatus GetTractorFieldStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") bool GetStaticBodyPositionMeters(const FString& BodyId, FVector& OutPositionMeters) const;
+    UFUNCTION(BlueprintPure, Category="Everward|Autopilot") FEverwardJoseGuidanceCommand GetJoseGuidanceCommand(
+        const FString& DestinationBodyId,
+        double CruiseSpeedMetersPerSecond,
+        double ArrivalSurfaceStandoffMeters,
+        double ArrivalToleranceMeters,
+        double ApproachGainPerSecond) const;
     UFUNCTION(BlueprintPure, Category="Everward|Command") FEverwardProbeCommandResult GetLastCommandResult() const;
     UFUNCTION(BlueprintPure, Category="Everward|Automation") FEverwardAutomationNotice GetLastAutomationNotice() const;
     UFUNCTION(BlueprintPure, Category="Everward|Scan") FEverwardScanLifecycleNotice GetLastScanLifecycleNotice() const;
