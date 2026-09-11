@@ -408,13 +408,21 @@ Player-visible result:
 
 **Status:** `surface_descent_guidance.hpp`'s command-shaping math (altitude-
 tapered descent speed, radial/tangential velocity-command clamping toward a
-`ControlledDescentEnvelope`) landed earlier as a standalone, ctest-covered
-module (`everward_surface_descent_guidance_tests`) but remains unwired: no
-authoritative command, `ProbeRuntime`/adapter method, or player input calls
-it, unlike Slice 9's gravity/contact math which this same pass wired into
-the live tick. Wiring a controlled-descent command (the José-autopilot-style
-pattern already used for target navigation) is the next concrete step here,
-not yet attempted.
+`ControlledDescentEnvelope`) is now wired to an authoritative command, the
+José-autopilot-style pattern this section previously named as the next
+concrete step: `controlled_descent_velocity_command()` (new, fails closed to
+`std::nullopt` with no registered planetary body) backs
+`UProbeSimulationAdapter::GetControlledDescentVelocityCommand()` (read-only
+query) and `CommandSetControlledDescentVelocityMetersPerSecond()` (applies
+the constrained velocity through the existing `Core->set_velocity_mps()`
+boundary). See `PHASE2_SURFACE_DESCENT_COMMAND_TEST.md`.
+**Status: implemented, Product Reality pending.** No key binding, HUD row,
+or controller-side engage/cancel session state machine exists yet -- the
+command surface itself is not yet reachable from ordinary play, the same
+way `GetJoseGuidanceCommand()` alone did not make José reachable until a
+later pass added the controller loop -- and no dedicated Unreal scene with a
+registered planetary body exists yet to exercise it in PIE. That
+player-facing wiring is the next concrete step here, not yet attempted.
 
 Prove the same probe can operate near a physical surface:
 

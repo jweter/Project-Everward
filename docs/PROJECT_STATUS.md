@@ -880,7 +880,8 @@ dedicated test file, but was never mentioned here and was not called from
 `SimulationCore`, `ProbeRuntime`, `DamageAwareProbeRuntime`, or any Unreal
 adapter file -- a standalone module exercised solely by its own unit tests.
 This pass closes exactly that wiring gap for the Slice 9 half (gravity and
-surface contact); Slice 10's descent-command shaping remains unwired, see
+surface contact); Slice 10's descent-command shaping was wired in a later
+pass, see "Controlled-descent command wiring (Slice 10)" below and
 `PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 10 status.
 
 - `SimulationCore` gains an optional registered `SphericalPlanetaryBody`
@@ -941,6 +942,56 @@ Slice 9 -- no Unreal scene, adapter telemetry/HUD, or local Product Reality
 pass exists yet for planetary gravity or surface contact. See
 `PHASE2_VERTICAL_SLICE_PLAN.md`'s updated Slice 9 status for what remains.
 
+### Controlled-descent command wiring (Slice 10)
+
+`PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 10 status previously named this exact
+gap: `surface_descent_guidance.hpp`'s altitude-tapered descent/tangential
+velocity-command shaping landed as a standalone, ctest-covered module but no
+authoritative command, adapter method, or player input ever called it. This
+pass wires it in, following the same read-only-query pattern
+`GetJoseGuidanceCommand()` already established for Slice 7 destination
+navigation:
+
+- new `controlled_descent_velocity_command()` in `surface_descent_guidance.hpp`
+  reasons about `SimulationCore`'s *optional* registered planetary body
+  directly (`std::optional<SphericalPlanetaryBody>`), failing closed to
+  `std::nullopt` with none registered rather than requiring every caller to
+  already have unwrapped it -- no change to the existing
+  `constrain_surface_approach_velocity()` math it delegates to;
+- new `UProbeSimulationAdapter::GetControlledDescentVelocityCommand()`
+  (`BlueprintPure`, new `ProbeSurfaceDescentBridge.cpp`) reads `Core`'s live
+  pose and registered planetary body plus the caller's tunable
+  envelope/profile parameters and reports the constrained command, or
+  `bHasResult=false` with none registered;
+- new `UProbeSimulationAdapter::CommandSetControlledDescentVelocityMetersPerSecond()`
+  computes the identical constrained command and applies it through the
+  exact same `Core->set_velocity_mps()` mutation boundary
+  `CommandSetVelocityMetersPerSecond()` already uses -- no second
+  velocity-mutation path -- rejecting ("no planetary body registered")
+  rather than silently falling back to an unconstrained raw velocity command
+  when none is registered.
+
+**Status: implemented, Product Reality pending.** New deterministic coverage
+in `everward_surface_descent_guidance_tests` (fails closed with no
+registered body; matches `constrain_surface_approach_velocity()` exactly
+once one is registered); all 27 `src/simulation` ctest suites pass.
+`tools/test_surface_descent_command_surface.py` (new) proves the wrapper is
+ctest-covered and that the adapter query/command are actually wired to it
+rather than merely declared. See `PHASE2_SURFACE_DESCENT_COMMAND_TEST.md`.
+No Unreal Editor/UBT build was available in this sandbox to compile-verify
+`ProbeSimulationAdapter.h`/the new `ProbeSurfaceDescentBridge.cpp`; the
+change follows the exact `Core == nullptr` guard and
+`RecordCommandResult`/try-catch-`std::exception` rejection pattern already
+compiling in `ProbeTargetSelectionBridge.cpp`'s `GetJoseGuidanceCommand()`/
+`CommandSetVelocityMetersPerSecond()`. This does not itself make controlled
+descent reachable from ordinary play -- no key binding, HUD row, or
+controller-side engage/cancel session state machine exists yet, and no
+dedicated Unreal scene with a registered planetary body exists yet to
+exercise it in PIE, mirroring how `GetJoseGuidanceCommand()` alone did not
+make José reachable until a later pass added the controller loop. The next
+local Unreal Product Reality pass should specifically confirm the project
+still compiles under UBT before relying on this further.
+
 ## Current authoritative foundation
 
 Everward continues to preserve:
@@ -971,6 +1022,7 @@ Everward continues to preserve:
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending; no multi-probe/lineage schema or migration framework yet — see "Save/load Unreal UI wiring" above);
 - Slice 9 planetary gravity and swept surface-contact: an optional registered spherical planetary body now actually affects the authoritative tick (gravitational acceleration each fixed step, tunneling-safe surface contact resolved through the same mutation point static-body contact uses), strictly opt-in so every existing deep-space scenario is unaffected, round-tripped through save/load as an additive v1 field (implemented, Product Reality pending; probe still treated as a point rather than the compound hull against the surface, does not yet compose with a static body in the same tick, and no Unreal scene/telemetry exists — see "Planetary gravity and surface contact wired into the authoritative tick" above).
+- Slice 10 controlled-descent command wiring: `controlled_descent_velocity_command()` fails closed to no result with no registered planetary body and otherwise constrains a requested velocity to the registered body's `ControlledDescentEnvelope`, exposed through `UProbeSimulationAdapter::GetControlledDescentVelocityCommand()` (read-only query) and `CommandSetControlledDescentVelocityMetersPerSecond()` (applies through the existing `set_velocity_mps()` boundary), mirroring the José-autopilot read-only-query pattern (implemented, Product Reality pending; not yet reachable from ordinary play — no key binding, HUD row, or engage/cancel controller loop, and no Unreal scene with a registered planetary body exists yet — see "Controlled-descent command wiring (Slice 10)" above).
 
 ## Exact next local UE 5.8 Product Reality pass
 

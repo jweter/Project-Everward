@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 
 namespace everward::simulation {
 
@@ -103,6 +104,25 @@ struct AltitudeAwareDescentProfile {
         descent_rate_limited,
         tangential_rate_limited,
     };
+}
+
+// Convenience overload matching jose_autopilot.hpp's jose_guidance_command_for_body
+// fail-closed pattern: reasons about SimulationCore's optional registered
+// planetary body (core_.planetary_body()) directly rather than requiring the
+// caller to already have unwrapped it, so the adapter boundary that wires
+// this into a player command can fail closed the same way GetJoseGuidanceCommand
+// does for an unregistered destination, instead of fabricating a descent
+// envelope with no planetary body to descend toward.
+[[nodiscard]] inline std::optional<SurfaceApproachVelocityCommand> controlled_descent_velocity_command(
+    Vector3d position_m,
+    Vector3d requested_velocity_mps,
+    const std::optional<SphericalPlanetaryBody>& body,
+    const ControlledDescentEnvelope& envelope = {},
+    const AltitudeAwareDescentProfile& profile = {}) noexcept {
+    if (!body.has_value()) {
+        return std::nullopt;
+    }
+    return constrain_surface_approach_velocity(position_m, requested_velocity_mps, *body, envelope, profile);
 }
 
 } // namespace everward::simulation
