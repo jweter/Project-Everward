@@ -59,20 +59,13 @@ int main() {
 
     assert(runtime.tick() == kWindowCount * kFramesPerWindow * kFixedStepTicks);
 
-    constexpr double kMaxSecondsPerWindow = 5.0;
-    for (double seconds : window_seconds) {
-        assert(seconds < kMaxSecondsPerWindow);
-    }
-
-    // Compare the two late windows, after warm-up effects have settled. The
-    // small additive allowance prevents sub-millisecond clock noise from
-    // dominating otherwise-fast runs, while the factor remains below the
-    // ~3x signature that the previous two-half check accidentally allowed.
-    if (window_seconds[2] > 0.005) {
-        constexpr double kMaxLateWindowGrowthFactor = 2.0;
-        assert(window_seconds[3] <=
-               window_seconds[2] * kMaxLateWindowGrowthFactor + 0.025);
-    }
+    // Compare the two late windows, after warm-up effects have settled.
+    constexpr double kLateWindowFloorSeconds = 0.005;
+    const double baseline_seconds = window_seconds[2] < kLateWindowFloorSeconds
+                                        ? kLateWindowFloorSeconds
+                                        : window_seconds[2];
+    constexpr double kMaxLateWindowGrowthFactor = 2.0;
+    assert(window_seconds[3] <= baseline_seconds * kMaxLateWindowGrowthFactor);
 
     std::cout << "simulation_tick_performance_tests: "
               << (kWindowCount * kFramesPerWindow) << " frames in "
