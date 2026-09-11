@@ -408,21 +408,40 @@ Player-visible result:
 
 **Status:** `surface_descent_guidance.hpp`'s command-shaping math (altitude-
 tapered descent speed, radial/tangential velocity-command clamping toward a
-`ControlledDescentEnvelope`) is now wired to an authoritative command, the
+`ControlledDescentEnvelope`) is wired to an authoritative command, the
 José-autopilot-style pattern this section previously named as the next
-concrete step: `controlled_descent_velocity_command()` (new, fails closed to
+concrete step: `controlled_descent_velocity_command()` (fails closed to
 `std::nullopt` with no registered planetary body) backs
 `UProbeSimulationAdapter::GetControlledDescentVelocityCommand()` (read-only
 query) and `CommandSetControlledDescentVelocityMetersPerSecond()` (applies
 the constrained velocity through the existing `Core->set_velocity_mps()`
 boundary). See `PHASE2_SURFACE_DESCENT_COMMAND_TEST.md`.
-**Status: implemented, Product Reality pending.** No key binding, HUD row,
-or controller-side engage/cancel session state machine exists yet -- the
-command surface itself is not yet reachable from ordinary play, the same
-way `GetJoseGuidanceCommand()` alone did not make José reachable until a
-later pass added the controller loop -- and no dedicated Unreal scene with a
-registered planetary body exists yet to exercise it in PIE. That
-player-facing wiring is the next concrete step here, not yet attempted.
+
+The player-facing engage/cancel loop this section previously named as the
+next step now also exists, following José's exact controller-loop
+precedent: `C` toggles **controlled descent**, an altitude-tapered velocity
+*governor* rather than a destination autopilot -- each fixed step it feeds
+the probe's own current velocity back through
+`GetControlledDescentVelocityCommand()`/`CommandSetControlledDescentVelocityMetersPerSecond()`
+and re-issues the constrained result, so ordinary WASDQE trim still steers
+while descent/lateral rate is capped and tapered near the registered
+planetary body's surface. It fails closed with a rejection message when no
+planetary body is registered, is mutually exclusive with José and mining
+auto-approach (engaging one releases the others, matching the existing
+three-way exclusivity between José and mining auto-approach), and any
+manual translation or `SPACE` immediately releases it. A persistent HUD
+readout mirrors José's discoverability line. See
+`EverwardPlayerControllerDescent.cpp` and the updated
+`PHASE2_SURFACE_DESCENT_COMMAND_TEST.md`.
+
+**Status: implemented, Product Reality pending.** No dedicated Unreal scene
+with a registered planetary body exists yet to exercise this near a real
+surface in PIE, and no Unreal Editor/UBT build was available in this
+sandbox to compile-verify the controller changes; they follow the exact
+`EverwardPlayerControllerAutopilot.cpp` toggle/advance/cancel shape already
+compiling in that file. The next local Unreal Product Reality pass should
+confirm the project still compiles under UBT and exercise `C` near a
+registered planetary body before relying on this further.
 
 Prove the same probe can operate near a physical surface:
 
