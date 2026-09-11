@@ -26,6 +26,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -307,6 +308,13 @@ namespace detail {
     object.set("is_overheated", JsonValue(state.is_overheated));
     object.set("storage_used_kg", JsonValue(state.storage_used_kg));
     object.set("storage_capacity_kg", JsonValue(state.storage_capacity_kg));
+    {
+        JsonValue inventory = JsonValue::make_object();
+        for (const auto& [material_id, kilograms] : state.material_inventory_kg) {
+            inventory.set(material_id, JsonValue(kilograms));
+        }
+        object.set("material_inventory_kg", std::move(inventory));
+    }
     object.set("can_scan", JsonValue(state.can_scan));
     object.set("can_thrust", JsonValue(state.can_thrust));
     object.set("sensors_operational", JsonValue(state.sensors_operational));
@@ -361,6 +369,20 @@ namespace detail {
     state.max_operating_temperature_k = value.require("max_operating_temperature_k").as_double();
     state.storage_used_kg = value.require("storage_used_kg").as_double();
     state.storage_capacity_kg = value.require("storage_capacity_kg").as_double();
+    // Additive v1 field: a save captured before material_inventory_kg existed
+    // has no entry for it. Rather than bumping save_version for a field whose
+    // absence has one unambiguous, invariant-preserving reading, infer a
+    // single "raw_regolith" entry covering the entire already-restored
+    // storage_used_kg (or no entry at all when nothing is stored), so
+    // restore_from_snapshot's sum-must-equal-storage_used_kg check below
+    // still holds for pre-existing saves without a schema migration.
+    if (const JsonValue* inventory = value.find("material_inventory_kg")) {
+        for (const auto& [material_id, kilograms] : inventory->as_object()) {
+            state.material_inventory_kg[material_id] = kilograms.as_double();
+        }
+    } else if (state.storage_used_kg > 0.0) {
+        state.material_inventory_kg["raw_regolith"] = state.storage_used_kg;
+    }
     state.sensors_operational = value.require("sensors_operational").as_bool();
     state.propulsion_operational = value.require("propulsion_operational").as_bool();
     state.computation_operational = value.require("computation_operational").as_bool();

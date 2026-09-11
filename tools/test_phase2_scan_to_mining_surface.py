@@ -45,10 +45,12 @@ class Phase2ScanToMiningSurfaceTests(unittest.TestCase):
         # Snapshot.storage_used_kg). Accumulating it only in an
         # adapter-local counter would leave that HUD readout at zero even
         # while this mining status widget reports material recovered.
-        self.assertIn("Core->add_stored_material_kg(Result.extracted_kg)", self.bridge)
+        self.assertIn(
+            "Core->add_stored_material_kg(Result.extracted_kg, Result.material_id)", self.bridge
+        )
         accepted_branch = self.bridge.split("if (Result.accepted)", 1)[1]
         self.assertIn(
-            "Core->add_stored_material_kg(Result.extracted_kg)",
+            "Core->add_stored_material_kg(Result.extracted_kg, Result.material_id)",
             accepted_branch.split("}", 1)[0],
         )
         # existing_storage_kg passed into mine_once must be the authoritative
@@ -59,6 +61,10 @@ class Phase2ScanToMiningSurfaceTests(unittest.TestCase):
         self.assertNotIn(
             "Snapshot.storage_used_kg + BootstrapExtractedMaterialKilograms", self.bridge
         )
+        # Material identity must travel with extracted mass rather than
+        # collapsing into an anonymous kilogram count at the storage boundary.
+        self.assertIn("std::string material_id;", self.mining)
+        self.assertIn("result.material_id = state.deposit.material_id;", self.mining)
 
     def test_mining_control_is_discoverable_and_global_in_current_slice(self) -> None:
         self.assertIn("WasInputKeyJustPressed(EKeys::G)", self.controller_tick)

@@ -660,6 +660,52 @@ accepted mining cycle through it instead.
 where extracted mass is recorded changed; `docs/PHASE2_SCAN_TO_MINING_TEST.md`
 now also checks the always-visible STORAGE mass and percentage after mining.
 
+### Per-material storage identity (Slice 12 foundation)
+
+`docs/PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 12 ("resource/sample loop")
+lists "item/material identity and provenance" as required scope, but
+`storage_used_kg` was a single anonymous kilogram counter: mining already
+carried a `ResourceDeposit::material_id` (e.g. `iron_bearing_silicate_regolith`),
+yet that identity was discarded the moment extracted mass reached storage.
+This pass closes exactly that gap as a pure data-model addition, with no new
+Unreal-facing command, HUD row, or gameplay rule:
+
+- `ProbeStateSnapshot` gains `material_inventory_kg`, a deterministic
+  `std::map<material_id, kilograms>` breakdown of `storage_used_kg`; the sum
+  of its values must always equal `storage_used_kg`, checked by
+  `SimulationCore::restore_from_snapshot()` alongside the existing
+  storage/capacity checks;
+- `SimulationCore::add_stored_material_kg()` takes an optional `material_id`
+  (defaulting to `"raw_regolith"`, matching `ResourceDeposit`'s own default)
+  and credits the breakdown alongside the existing aggregate;
+  `consume_stored_material_kg()` remains material-agnostic (repair/Fix_It
+  consumption does not yet reason about which material it draws from) and
+  depletes the breakdown deterministically in ascending `material_id` order
+  so behavior is reproducible rather than proportionally-scaled float drift;
+  `ProbeRuntime`/`DamageAwareProbeRuntime` forward both plus a new read-only
+  `material_inventory_kg()` accessor;
+- `MiningAttemptResult` gains `material_id` (the mined deposit's own id), and
+  `ProbeMiningBridge.cpp`'s `CommandMineBootstrapTarget` now passes it to
+  `add_stored_material_kg` instead of the previous unqualified call;
+- `save_data.hpp` round-trips the breakdown as an additive v1 JSON field
+  rather than a `save_version` bump: a save captured before this field
+  existed has no entry for it, and deserialization infers a single
+  `raw_regolith` entry equal to `storage_used_kg` (or an empty breakdown when
+  nothing is stored) so the sum-consistency invariant holds for pre-existing
+  saves without a migration.
+
+**Status: implemented, Product Reality pending.** This is engine-independent
+data-model work behind the existing storage boundary; no inventory HUD/readout
+consumes the breakdown yet, and repair/Fix_It consumption still does not
+select a specific material. New coverage in `simulation_core_tests.cpp`
+(tracking, accumulation, deterministic ascending-order depletion, empty
+material id rejected), `save_data_tests.cpp` (round trip, sum-mismatch and
+empty-id fail closed, legacy-save inference with and without stored material),
+and `mining_tests.cpp`/`tools/test_phase2_scan_to_mining_surface.py` (material
+identity is actually wired from deposit through to storage). All 26
+`src/simulation` ctest suites and all 154 `tools/test_phase2*.py`
+source-contract tests pass.
+
 ### Human-readable HUD and dedicated controls reference
 
 The user-provided 2026-08-30 current-build captures confirm the prior HUD is a
@@ -782,6 +828,7 @@ Everward continues to preserve:
 - manipulator move: a currently grasped target's registered position now follows the holding arm's wrist every fixed step through a single authoritative mutation point (`update_static_sphere_body_position()`), with the Unreal-side scan-target mesh/label mirroring that same position each tick (Slice 7 "move"; implemented, Product Reality pending);
 - manipulator release-with-consequence: releasing (`F`) now fails closed instead of embedding the held body in the probe's own hull or any other currently registered physical body, gated by the same five-sphere `ProbeCompoundCollisionEnvelope` the arm/hull and swept-contact guards already use plus a matching sphere-overlap test against the registered-body list (Slice 7 "release"; implemented, Product Reality pending; any place/hand-off-into-storage mechanic or released-object velocity/momentum still has no consequence);
 - mining reads a carried target's live registered position rather than its spawn-time position, so a `SCAN-001` grasped and moved by a manipulator arm is mined (or correctly rejected as out of reach) at its actual current location instead of a stale one (Slice 7 follow-up; implemented, Product Reality pending);
+- per-material storage identity: `storage_used_kg` now has an authoritative `material_inventory_kg` breakdown by `material_id`, credited by mining and depleted deterministically by generic consumption, with save/load round-tripping it as an additive v1 field (Slice 12 foundation; implemented, Product Reality pending; no inventory HUD readout or material-specific repair consumption yet);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending; no multi-probe/lineage schema or migration framework yet — see "Save/load Unreal UI wiring" above).
 

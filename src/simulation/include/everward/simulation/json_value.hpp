@@ -104,6 +104,13 @@ public:
         return std::get<Array>(data_);
     }
 
+    [[nodiscard]] const Object& as_object() const {
+        if (!is_object()) {
+            throw std::runtime_error("save data field is not an object");
+        }
+        return std::get<Object>(data_);
+    }
+
     [[nodiscard]] const std::string& as_string() const {
         if (!is_string()) {
             throw std::runtime_error("save data field is not a string");

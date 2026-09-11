@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -446,8 +447,13 @@ public:
     [[nodiscard]] double total_power_allocated_w() const noexcept {
         return runtime_.total_power_allocated_w();
     }
-    void add_stored_material_kg(double kilograms) { runtime_.add_stored_material_kg(kilograms); }
+    void add_stored_material_kg(double kilograms, std::string material_id = "raw_regolith") {
+        runtime_.add_stored_material_kg(kilograms, std::move(material_id));
+    }
     void consume_stored_material_kg(double kilograms) { runtime_.consume_stored_material_kg(kilograms); }
+    [[nodiscard]] const std::map<std::string, double>& material_inventory_kg() const noexcept {
+        return runtime_.material_inventory_kg();
+    }
     void consume_stored_energy_j(double joules) { runtime_.consume_stored_energy_j(joules); }
 
     void install_policy(SoftwarePolicy policy) { runtime_.install_policy(std::move(policy)); }

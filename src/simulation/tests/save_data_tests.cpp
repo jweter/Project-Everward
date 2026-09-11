@@ -68,6 +68,8 @@ DamageAwareProbeRuntime build_representative_runtime() {
     runtime.set_subsystem_integrity(PowerSubsystem::Propulsion, 0.7);
     runtime.set_subsystem_integrity(PowerSubsystem::Thermal, 0.4);
 
+    runtime.add_stored_material_kg(12.5, "iron_bearing_silicate_regolith");
+
     SoftwarePolicy policy;
     policy.id = "basic-survival-test";
     policy.enabled = true;
@@ -117,6 +119,11 @@ void test_round_trip_preserves_full_probe_state() {
     assert(got.is_overheated == want.is_overheated);
     assert(nearly_equal(got.storage_used_kg, want.storage_used_kg));
     assert(nearly_equal(got.storage_capacity_kg, want.storage_capacity_kg));
+    assert(got.material_inventory_kg.size() == want.material_inventory_kg.size());
+    for (const auto& [material_id, kilograms] : want.material_inventory_kg) {
+        assert(got.material_inventory_kg.contains(material_id));
+        assert(nearly_equal(got.material_inventory_kg.at(material_id), kilograms));
+    }
     assert(got.can_scan == want.can_scan);
     assert(got.can_thrust == want.can_thrust);
     assert(got.sensors_operational == want.sensors_operational);
@@ -578,6 +585,67 @@ void test_restore_rejects_inconsistent_snapshot() {
         threw_negative_tick = true;
     }
     assert(threw_negative_tick);
+
+    ProbeStateSnapshot bad_inventory_sum = DamageAwareProbeRuntime::make_canonical_ev0001().snapshot();
+    bad_inventory_sum.storage_used_kg = 10.0;
+    bad_inventory_sum.material_inventory_kg["raw_regolith"] = 4.0;
+    bool threw_inventory_sum = false;
+    try {
+        (void)SimulationCore::restore_from_snapshot(bad_inventory_sum, 0);
+    } catch (const std::invalid_argument&) {
+        threw_inventory_sum = true;
+    }
+    assert(threw_inventory_sum);
+
+    ProbeStateSnapshot bad_inventory_entry = DamageAwareProbeRuntime::make_canonical_ev0001().snapshot();
+    bad_inventory_entry.storage_used_kg = 10.0;
+    bad_inventory_entry.material_inventory_kg[""] = 10.0;
+    bool threw_inventory_entry = false;
+    try {
+        (void)SimulationCore::restore_from_snapshot(bad_inventory_entry, 0);
+    } catch (const std::invalid_argument&) {
+        threw_inventory_entry = true;
+    }
+    assert(threw_inventory_entry);
+}
+
+void test_legacy_save_without_material_inventory_infers_single_entry() {
+    using everward::simulation::detail::probe_state_from_json;
+    using everward::simulation::detail::probe_state_to_json;
+
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+    runtime.add_stored_material_kg(30.0, "iron_bearing_silicate_regolith");
+
+    JsonValue full = probe_state_to_json(runtime.snapshot());
+    JsonValue without_inventory = JsonValue::make_object();
+    for (const auto& [key, field] : full.as_object()) {
+        if (key != "material_inventory_kg") {
+            without_inventory.set(key, field);
+        }
+    }
+
+    const ProbeStateSnapshot restored = probe_state_from_json(without_inventory);
+    assert(restored.material_inventory_kg.size() == 1);
+    assert(restored.material_inventory_kg.contains("raw_regolith"));
+    assert(nearly_equal(restored.material_inventory_kg.at("raw_regolith"), 30.0));
+
+    // restore_from_snapshot must accept the inferred breakdown: the whole
+    // point of inferring it during deserialization is to keep the
+    // sum-must-equal-storage_used_kg invariant satisfied for a pre-existing
+    // save without a schema migration.
+    (void)SimulationCore::restore_from_snapshot(restored, 0);
+
+    // A legacy save with nothing stored infers an empty breakdown rather than
+    // a spurious zero-kilogram entry.
+    JsonValue empty_full = probe_state_to_json(DamageAwareProbeRuntime::make_canonical_ev0001().snapshot());
+    JsonValue empty_without_inventory = JsonValue::make_object();
+    for (const auto& [key, field] : empty_full.as_object()) {
+        if (key != "material_inventory_kg") {
+            empty_without_inventory.set(key, field);
+        }
+    }
+    const ProbeStateSnapshot restored_empty = probe_state_from_json(empty_without_inventory);
+    assert(restored_empty.material_inventory_kg.empty());
 }
 
 void test_world_identity_round_trips_losslessly() {
@@ -689,6 +757,7 @@ int main() {
     test_manipulator_arm_state_round_trips();
     test_manipulator_arm_out_of_range_angle_fails_closed();
     test_restore_rejects_inconsistent_snapshot();
+    test_legacy_save_without_material_inventory_infers_single_entry();
     test_world_identity_round_trips_losslessly();
     test_missing_world_identity_fails_closed();
     test_invalid_generation_algorithm_version_fails_closed();

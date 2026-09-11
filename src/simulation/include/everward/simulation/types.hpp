@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <map>
 #include <string>
 
 namespace everward::simulation {
@@ -109,6 +110,17 @@ struct ProbeStateSnapshot {
     bool is_overheated{false};
     double storage_used_kg{0.0};
     double storage_capacity_kg{500.0};
+    // Per-material breakdown of storage_used_kg by material_id (e.g.
+    // "raw_regolith"). The sum of values must always equal storage_used_kg;
+    // SimulationCore::add_stored_material_kg()/consume_stored_material_kg()
+    // are the sole mutation boundary that keeps this invariant, the same way
+    // storage_used_kg itself is never touched outside those methods. A
+    // std::map (rather than unordered_map) keeps save serialization and any
+    // future inventory readout deterministically ordered by material_id.
+    // Save data captured before this field existed has no entry here; see
+    // save_data.hpp's material_inventory_kg deserialization for how a
+    // pre-existing storage_used_kg is inferred into this breakdown.
+    std::map<std::string, double> material_inventory_kg{};
     bool can_scan{true};
     bool can_thrust{true};
     // Independent hardware-operational state for each power subsystem.

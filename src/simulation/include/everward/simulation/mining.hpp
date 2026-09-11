@@ -34,6 +34,11 @@ struct MiningAttemptResult {
     double stored_material_kg{0.0};
     double remaining_deposit_kg{0.0};
     double tool_surface_gap_m{0.0};
+    // The mined deposit's material_id, set alongside extracted_kg on an
+    // accepted attempt so the caller can route extracted mass into the
+    // authoritative per-material inventory (SimulationCore::add_stored_material_kg)
+    // instead of losing material identity at the storage boundary.
+    std::string material_id;
     std::string detail;
 };
 
@@ -209,6 +214,7 @@ public:
 
         result.accepted = true;
         result.extracted_kg = extracted;
+        result.material_id = state.deposit.material_id;
         result.stored_material_kg = stored_material_kg_;
         result.remaining_deposit_kg = state.deposit.remaining_kg;
         result.detail = "MINED " + one_decimal(extracted) + " kg " + state.deposit.display_name +
