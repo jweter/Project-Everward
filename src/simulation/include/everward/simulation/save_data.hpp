@@ -46,6 +46,12 @@ struct ProbeSaveData {
     ProbeStateSnapshot probe{};
     ComponentIntegritySnapshot integrity{};
     std::vector<StaticSphereBody> static_bodies{};
+    // Slice 9 foundation: the registered planetary body, if any, that the
+    // probe's gravity/surface-contact integration reacts to (see core.hpp's
+    // set_planetary_body). Additive v1 field: absent on every save captured
+    // before this existed, read back as nullopt rather than requiring a
+    // schema migration -- matching material_inventory_kg's precedent below.
+    std::optional<SphericalPlanetaryBody> planetary_body{};
     std::optional<SoftwarePolicy> policy{};
     std::string selected_target_id{};
     // ManipulatorRig is not composed inside DamageAwareProbeRuntime (see
@@ -189,6 +195,29 @@ namespace detail {
     body.body_id = value.require("body_id").as_string();
     body.center_m = vector3d_from_json(value.require("center_m"));
     body.radius_m = value.require("radius_m").as_double();
+    return body;
+}
+
+[[nodiscard]] inline JsonValue planetary_body_to_json(const SphericalPlanetaryBody& body) {
+    JsonValue object = JsonValue::make_object();
+    object.set("body_id", JsonValue(body.body_id));
+    object.set("center_m", vector3d_to_json(body.center_m));
+    object.set("radius_m", JsonValue(body.radius_m));
+    object.set("velocity_mps", vector3d_to_json(body.velocity_mps));
+    object.set(
+        "gravitational_parameter_m3_s2",
+        JsonValue(body.gravitational_parameter_m3_s2));
+    return object;
+}
+
+[[nodiscard]] inline SphericalPlanetaryBody planetary_body_from_json(const JsonValue& value) {
+    SphericalPlanetaryBody body;
+    body.body_id = value.require("body_id").as_string();
+    body.center_m = vector3d_from_json(value.require("center_m"));
+    body.radius_m = value.require("radius_m").as_double();
+    body.velocity_mps = vector3d_from_json(value.require("velocity_mps"));
+    body.gravitational_parameter_m3_s2 =
+        value.require("gravitational_parameter_m3_s2").as_double();
     return body;
 }
 
@@ -434,6 +463,10 @@ namespace detail {
         static_bodies.push_back(detail::static_body_to_json(body));
     }
     object.set("static_bodies", std::move(static_bodies));
+    object.set(
+        "planetary_body",
+        data.planetary_body.has_value() ? detail::planetary_body_to_json(*data.planetary_body)
+                                         : JsonValue());
     object.set("policy", data.policy.has_value() ? detail::policy_to_json(*data.policy) : JsonValue());
     object.set("selected_target_id", JsonValue(data.selected_target_id));
     object.set("port_manipulator_arm", detail::manipulator_arm_state_to_json(data.port_manipulator_arm));
@@ -449,6 +482,14 @@ namespace detail {
     data.integrity = detail::component_integrity_from_json(value.require("integrity"));
     for (const auto& body_value : value.require("static_bodies").as_array()) {
         data.static_bodies.push_back(detail::static_body_from_json(body_value));
+    }
+    // Additive v1 field (see ProbeSaveData's comment): absent entirely on a
+    // save captured before this field existed, and null on any save (old or
+    // new) with no planetary body registered -- both read back as nullopt.
+    if (const JsonValue* planetary_value = value.find("planetary_body")) {
+        if (!planetary_value->is_null()) {
+            data.planetary_body = detail::planetary_body_from_json(*planetary_value);
+        }
     }
     const JsonValue& policy_value = value.require("policy");
     if (!policy_value.is_null()) {
@@ -665,6 +706,7 @@ struct SaveMigrationResult {
     data.probe = runtime.snapshot();
     data.integrity = runtime.component_integrity();
     data.static_bodies = runtime.static_bodies();
+    data.planetary_body = runtime.planetary_body();
     if (const SoftwarePolicy* active = runtime.active_policy(); active != nullptr) {
         data.policy = *active;
     }
@@ -688,6 +730,9 @@ struct SaveMigrationResult {
 
     for (const auto& body : data.static_bodies) {
         runtime.add_static_sphere_body(body);
+    }
+    if (data.planetary_body.has_value()) {
+        runtime.set_planetary_body(*data.planetary_body);
     }
     if (data.policy.has_value()) {
         runtime.install_policy(*data.policy);

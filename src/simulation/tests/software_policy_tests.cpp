@@ -18,6 +18,7 @@ using everward::simulation::ProbeRuntime;
 using everward::simulation::SimulationClock;
 using everward::simulation::SoftwarePolicy;
 using everward::simulation::SoftwarePolicyRule;
+using everward::simulation::SphericalPlanetaryBody;
 using everward::simulation::StaticSphereBody;
 using everward::simulation::TargetSelectionStatus;
 
@@ -287,6 +288,45 @@ int main() {
         runtime.select_target("body-a");
         runtime.clear_static_bodies();
         assert(!runtime.selected_target_status().has_selection);
+    }
+
+    // Slice 9 foundation: registering a planetary body forwards to
+    // SimulationCore, and advance_wall_ticks() actually invokes the new
+    // swept surface-contact resolution rather than merely making it
+    // reachable -- a fast radial descent that would tunnel through the
+    // reference sphere in one fixed step is instead stopped exactly at the
+    // surface with its inward velocity removed, the same authoritative
+    // resolve_contact() mutation point resolve_static_contacts already uses.
+    {
+        ProbeRuntime runtime;
+        assert(!runtime.planetary_body().has_value());
+
+        const SphericalPlanetaryBody moon{"test-moon", {0.0, 0.0, 0.0}, 100.0, {}, 0.0};
+        runtime.set_planetary_body(moon);
+        assert(runtime.planetary_body().has_value());
+        assert(runtime.planetary_body()->body_id == "test-moon");
+
+        // Climb to 150 m altitude (no gravity registered on this body, so a
+        // one-second upward burst lands exactly there), then descend fast
+        // enough that a naive one-step position update would land 50 m
+        // *below* the surface -- proving the swept resolver, not just a
+        // post-hoc altitude clamp, actually catches the crossing.
+        runtime.set_velocity_mps({0.0, 0.0, 150.0});
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        assert(nearly_equal_local(runtime.snapshot().position_m.z, 150.0));
+
+        runtime.set_velocity_mps({0.0, 0.0, -200.0});
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
+
+        assert(nearly_equal_local(runtime.snapshot().position_m.z, 100.0));
+        assert(nearly_equal_local(runtime.snapshot().position_m.x, 0.0));
+        assert(nearly_equal_local(runtime.snapshot().position_m.y, 0.0));
+        assert(nearly_equal_local(runtime.snapshot().velocity_mps.z, 0.0));
+        assert(runtime.snapshot().has_contact_history);
+        assert(runtime.snapshot().last_contact_body_id == "test-moon");
+
+        runtime.clear_planetary_body();
+        assert(!runtime.planetary_body().has_value());
     }
 
     std::cout << "Generation-1 software policy tests passed\n";

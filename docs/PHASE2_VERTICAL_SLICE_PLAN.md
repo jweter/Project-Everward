@@ -350,6 +350,40 @@ Minimum environment:
 
 ### Slice 9 — Planetary-body foundation
 
+**Status:** the engine-independent spherical-body math (`planetary_body.hpp`:
+gravitational acceleration, altitude/local-surface-normal/local-horizon-frame,
+surface-relative motion, orbital context, point-in-time and swept
+tunneling-safe surface-contact resolution) landed earlier as a standalone,
+ctest-covered module (`everward_planetary_body_tests`,
+`everward_swept_surface_contact_tests`) but, until this pass, was not called
+from anywhere outside its own tests -- not `SimulationCore`, not the Unreal
+adapter. This pass wires it into the live authoritative tick behind an
+explicit opt-in registration, the same pattern `add_static_sphere_body`
+already established for local bodies: `SimulationCore::set_planetary_body`/
+`clear_planetary_body`/`planetary_body()` (forwarded through
+`ProbeRuntime`/`DamageAwareProbeRuntime`, matching their existing
+static-body forwarding), a new `integrate_gravity()` step applied each fixed
+tick immediately before position integration (a no-op, and therefore
+behavior-identical to every existing deep-space test, whenever no body is
+registered), and a new `ProbeRuntime::resolve_planetary_surface_contact()`
+swept-contact step run alongside the existing static-body sweep so a fast
+approach cannot tunnel through the reference surface in one fixed step.
+Persistence round-trips the registration as an additive v1
+`ProbeSaveData::planetary_body` field, absent-tolerant for saves captured
+before this field existed (`everward_save_data_tests`). See
+`PROJECT_STATUS.md`'s "Planetary gravity and surface contact wired into the
+authoritative tick" section.
+
+**Explicitly not complete:** the probe is still treated as a single point at
+zero clearance against the reference surface rather than the five-sample
+compound hull static-body contact already uses; a registered planetary body
+and static bodies are not yet composed in the same tick; no Unreal scene,
+adapter telemetry, or player-visible altitude/orbital-context HUD exists
+yet; and no local Product Reality evidence has been recorded. This is
+parallel-safe deterministic simulation-core work behind the existing
+adapter boundary -- it does not depend on, and does not claim to complete,
+the still-pending Slice 3/4 contact/damage Product Reality evidence.
+
 Introduce a spherical body model rather than treating planets as flat levels.
 
 Foundation data/behavior:
@@ -371,6 +405,16 @@ Player-visible result:
 - player cannot fly through the planetary surface.
 
 ### Slice 10 — Surface / near-surface operations
+
+**Status:** `surface_descent_guidance.hpp`'s command-shaping math (altitude-
+tapered descent speed, radial/tangential velocity-command clamping toward a
+`ControlledDescentEnvelope`) landed earlier as a standalone, ctest-covered
+module (`everward_surface_descent_guidance_tests`) but remains unwired: no
+authoritative command, `ProbeRuntime`/adapter method, or player input calls
+it, unlike Slice 9's gravity/contact math which this same pass wired into
+the live tick. Wiring a controlled-descent command (the José-autopilot-style
+pattern already used for target navigation) is the next concrete step here,
+not yet attempted.
 
 Prove the same probe can operate near a physical surface:
 

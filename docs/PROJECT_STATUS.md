@@ -868,6 +868,79 @@ validation sequence to confirm cruise/approach/arrival/takeover behavior is
 unchanged now that the decision is computed on the simulation side of the
 adapter boundary.
 
+### Planetary gravity and surface contact wired into the authoritative tick (Slice 9)
+
+This status record had fallen behind actual `main`: an engine-independent
+Slice 9 planetary-body math foundation (`planetary_body.hpp` -- gravitational
+acceleration, altitude/local-surface-normal/local-horizon-frame, orbital
+context, point-in-time and swept tunneling-safe surface-contact resolution,
+plus `surface_descent_guidance.hpp`'s Slice 10 command-shaping helpers) had
+already landed across several earlier PRs, each ctest-covered by its own
+dedicated test file, but was never mentioned here and was not called from
+`SimulationCore`, `ProbeRuntime`, `DamageAwareProbeRuntime`, or any Unreal
+adapter file -- a standalone module exercised solely by its own unit tests.
+This pass closes exactly that wiring gap for the Slice 9 half (gravity and
+surface contact); Slice 10's descent-command shaping remains unwired, see
+`PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 10 status.
+
+- `SimulationCore` gains an optional registered `SphericalPlanetaryBody`
+  (`set_planetary_body`/`clear_planetary_body`/`planetary_body()`), mirroring
+  `add_static_sphere_body`'s registration idiom and validated the same
+  fail-closed way (non-empty id, finite positive radius, finite
+  center/velocity, finite non-negative gravitational parameter). With none
+  registered -- every existing deep-space scenario -- the new
+  `integrate_gravity()` step `advance_wall_ticks()` now runs immediately
+  before position integration is exactly a no-op, so no prior test or
+  gameplay behavior changed;
+- with a body registered, `integrate_gravity()` applies
+  `gravitational_acceleration()` to velocity each fixed tick (semi-implicit
+  Euler, matching this class's existing accumulate-then-apply-once-per-step
+  pattern) before `integrate_probe()` advances position;
+- `ProbeRuntime::resolve_planetary_surface_contact()` runs alongside the
+  existing static-body `resolve_static_contacts()` sweep each tick,
+  reusing `resolve_swept_surface_contact()` so a fast approach cannot tunnel
+  through the reference surface within one fixed step, and routes its
+  resolution through the same authoritative `SimulationCore::resolve_contact()`
+  mutation point static-body contact already uses (shared contact-history/
+  event telemetry, no second contact-recording path). This deliberately
+  treats the probe as a single point at zero clearance rather than sweeping
+  the five-sample compound hull static-body contact uses -- an explicit,
+  documented simplification (a planetary surface is enormous relative to the
+  hull, unlike a nearby mineable target), not a silent one -- and does not
+  yet compose with a static body registered in the same tick;
+  `ProbeRuntime`/`DamageAwareProbeRuntime` forward the same three
+  registration accessors rather than duplicating the state, matching the
+  existing static-body/target-selection forwarding pattern;
+- `save_data.hpp`'s `ProbeSaveData` gains an additive v1
+  `planetary_body` field, absent-tolerant on read (a save captured before
+  this field existed, or one that never registered a body, both restore to
+  no registered body) exactly like `material_inventory_kg`'s precedent, so no
+  save_version bump was needed.
+
+New deterministic coverage: `simulation_core_tests.cpp` (no-registration is
+byte-identical to prior behavior, fail-closed validation for each invalid
+field, and a closed-form Newtonian point-mass check that a registered body's
+gravity actually changes velocity by the expected amount and stops once
+cleared); `software_policy_tests.cpp` (a fast radial descent that would
+tunnel 50 m through the reference surface in one fixed step is instead
+stopped exactly at the surface with inward velocity removed and contact
+history recorded); `impact_damage_tests.cpp` (`DamageAwareProbeRuntime`
+forwards registration rather than duplicating it); `save_data_tests.cpp`
+(full round trip through a registered planetary body, and a legacy/absent
+`planetary_body` key or an explicit null both restore to no registered
+body). All 27 `src/simulation` ctest suites pass; `tools/check_foundation.py`,
+`tools/validate_reference_assets.py`, and the full `tools/test_*.py` suite
+(210 tests) pass unchanged, since this pass touches no Unreal or tooling
+file.
+
+**Status: implemented, Product Reality pending.** This is parallel-safe
+deterministic simulation-core work behind the existing adapter boundary; it
+does not depend on, and does not advance, the still-pending Slice 3/4
+contact/damage Product Reality evidence, and it does not by itself complete
+Slice 9 -- no Unreal scene, adapter telemetry/HUD, or local Product Reality
+pass exists yet for planetary gravity or surface contact. See
+`PHASE2_VERTICAL_SLICE_PLAN.md`'s updated Slice 9 status for what remains.
+
 ## Current authoritative foundation
 
 Everward continues to preserve:
@@ -896,7 +969,8 @@ Everward continues to preserve:
 - per-material storage identity: `storage_used_kg` now has an authoritative `material_inventory_kg` breakdown by `material_id`, credited by mining and depleted deterministically by generic consumption, with save/load round-tripping it as an additive v1 field (Slice 12 foundation; implemented, Product Reality pending; no inventory HUD readout or material-specific repair consumption yet);
 - José Take the Wheel Phase-2 autopilot: destination-locking onto the existing target-selection system, `Y` engage/cancel, progressive approach-speed shaping toward a configurable cruise speed, arrival at a fixed surface stand-off, and immediate manual-translation/`SPACE` takeover, with the underlying guidance-law decision now engine-independent and ctest-covered (`jose_autopilot.hpp`) behind `UProbeSimulationAdapter::GetJoseGuidanceCommand()` rather than computed in Unreal C++ (implemented, Product Reality pending; no orbital/obstacle-avoidance/route-planning navigation yet — see `docs/JOSE_TAKE_THE_WHEEL.md`);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
-- deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending; no multi-probe/lineage schema or migration framework yet — see "Save/load Unreal UI wiring" above).
+- deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending; no multi-probe/lineage schema or migration framework yet — see "Save/load Unreal UI wiring" above);
+- Slice 9 planetary gravity and swept surface-contact: an optional registered spherical planetary body now actually affects the authoritative tick (gravitational acceleration each fixed step, tunneling-safe surface contact resolved through the same mutation point static-body contact uses), strictly opt-in so every existing deep-space scenario is unaffected, round-tripped through save/load as an additive v1 field (implemented, Product Reality pending; probe still treated as a point rather than the compound hull against the surface, does not yet compose with a static body in the same tick, and no Unreal scene/telemetry exists — see "Planetary gravity and surface contact wired into the authoritative tick" above).
 
 ## Exact next local UE 5.8 Product Reality pass
 

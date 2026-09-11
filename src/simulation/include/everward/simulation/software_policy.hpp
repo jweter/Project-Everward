@@ -99,7 +99,18 @@ public:
         const Vector3d start_position = core_.snapshot().position_m;
         core_.advance_wall_ticks(wall_ticks);
         resolve_static_contacts(start_position);
+        resolve_planetary_surface_contact(start_position);
         evaluate_policy();
+    }
+
+    // Slice 9 foundation: forwards straight to SimulationCore, the sole
+    // owner of the registered body gravity/contact react to. See
+    // core.hpp's set_planetary_body for the fail-closed validation and
+    // integrate_gravity for the no-op-when-unregistered guarantee.
+    void set_planetary_body(SphericalPlanetaryBody body) { core_.set_planetary_body(std::move(body)); }
+    void clear_planetary_body() noexcept { core_.clear_planetary_body(); }
+    [[nodiscard]] const std::optional<SphericalPlanetaryBody>& planetary_body() const noexcept {
+        return core_.planetary_body();
     }
 
     [[nodiscard]] std::vector<DomainEvent> drain_events() {
@@ -373,6 +384,49 @@ private:
             incoming_velocity,
             resolution.normal_speed_mps,
             resolution.resolved_velocity);
+    }
+
+    // Slice 9 foundation: swept contact against a registered planetary body's
+    // reference sphere, the surface-scale counterpart to
+    // resolve_static_contacts' compound-envelope sweep against small local
+    // bodies. Deliberately treats the probe as a single point at zero
+    // clearance rather than sweeping the five-sample compound hull: unlike a
+    // nearby mineable target, a planetary body's surface is enormous relative
+    // to the hull, so the hull's shape is not yet load-bearing here -- a
+    // documented simplification, not a silent one, and a candidate for a
+    // later pass once the compound envelope and a planetary surface actually
+    // need to agree at typical landing scale. Composing this with
+    // resolve_static_contacts in the same tick (a registered planetary body
+    // and static bodies both present) is not yet supported: whichever ran
+    // first may already have moved the probe, so this sweep's start_position
+    // would not describe the true pre-tick segment in that combined case. No
+    // current scenario registers both simultaneously.
+    void resolve_planetary_surface_contact(Vector3d start_position) {
+        const auto& planetary_body = core_.planetary_body();
+        if (!planetary_body.has_value()) {
+            return;
+        }
+
+        const auto& state = core_.snapshot();
+        const Vector3d incoming_velocity = state.velocity_mps;
+        const SurfaceContactResolution resolution = resolve_swept_surface_contact(
+            start_position, state.position_m, incoming_velocity, *planetary_body);
+        if (!resolution.corrected) {
+            return;
+        }
+
+        const Vector3d normal = local_surface_normal(resolution.position_m, *planetary_body);
+        const Vector3d relative_velocity = body_relative_velocity(incoming_velocity, *planetary_body);
+        const double inward_normal_speed = std::max(0.0, -dot(relative_velocity, normal));
+
+        core_.resolve_contact(
+            planetary_body->body_id,
+            resolution.position_m,
+            resolution.position_m,
+            normal,
+            relative_velocity,
+            inward_normal_speed,
+            resolution.velocity_mps);
     }
 
     [[nodiscard]] bool policy_executor_available() const noexcept {

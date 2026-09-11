@@ -30,6 +30,7 @@ using everward::simulation::migrate_save_json_to_current;
 using everward::simulation::SimulationCore;
 using everward::simulation::SoftwarePolicy;
 using everward::simulation::SoftwarePolicyRule;
+using everward::simulation::SphericalPlanetaryBody;
 using everward::simulation::StaticSphereBody;
 using everward::simulation::Vector3d;
 using everward::simulation::capture_probe_save_data;
@@ -55,6 +56,8 @@ DamageAwareProbeRuntime build_representative_runtime() {
 
     runtime.add_static_sphere_body(StaticSphereBody{"rock", Vector3d{12.0, 3.0, -1.0}, 1.5});
     runtime.select_target("rock");
+    runtime.set_planetary_body(SphericalPlanetaryBody{
+        "moon", Vector3d{0.0, 0.0, -500.0}, 80.0, Vector3d{1.0, 0.0, 0.0}, 3.0e5});
 
     runtime.set_velocity_mps(Vector3d{1.5, -0.5, 0.25});
     runtime.adjust_attitude_degrees(EulerAttitudeDegrees{30.0, 10.0, -15.0});
@@ -150,6 +153,16 @@ void test_round_trip_preserves_full_probe_state() {
     assert(restored.static_bodies().at(0).body_id == "rock");
     assert(vectors_equal(restored.static_bodies().at(0).center_m, original.static_bodies().at(0).center_m));
     assert(nearly_equal(restored.static_bodies().at(0).radius_m, original.static_bodies().at(0).radius_m));
+
+    assert(original.planetary_body().has_value());
+    assert(restored.planetary_body().has_value());
+    assert(restored.planetary_body()->body_id == original.planetary_body()->body_id);
+    assert(vectors_equal(restored.planetary_body()->center_m, original.planetary_body()->center_m));
+    assert(nearly_equal(restored.planetary_body()->radius_m, original.planetary_body()->radius_m));
+    assert(vectors_equal(restored.planetary_body()->velocity_mps, original.planetary_body()->velocity_mps));
+    assert(nearly_equal(
+        restored.planetary_body()->gravitational_parameter_m3_s2,
+        original.planetary_body()->gravitational_parameter_m3_s2));
 
     const auto* want_policy = original.active_policy();
     const auto* got_policy = restored.active_policy();
@@ -648,6 +661,34 @@ void test_legacy_save_without_material_inventory_infers_single_entry() {
     assert(restored_empty.material_inventory_kg.empty());
 }
 
+void test_legacy_save_without_planetary_body_field_infers_no_body() {
+    using everward::simulation::probe_save_data_from_json;
+    using everward::simulation::probe_save_data_to_json;
+
+    const ProbeSaveData data =
+        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    assert(!data.planetary_body.has_value());
+
+    const JsonValue full = probe_save_data_to_json(data);
+    assert(full.require("planetary_body").is_null());
+
+    // This build's own writer always emits the key (null when absent); a
+    // save missing the key entirely (captured before this field existed)
+    // must round-trip identically rather than throwing on a missing field.
+    JsonValue without_field = JsonValue::make_object();
+    for (const auto& [key, field] : full.as_object()) {
+        if (key != "planetary_body") {
+            without_field.set(key, field);
+        }
+    }
+
+    const ProbeSaveData restored_from_missing_key = probe_save_data_from_json(without_field);
+    assert(!restored_from_missing_key.planetary_body.has_value());
+
+    const ProbeSaveData restored_from_null = probe_save_data_from_json(full);
+    assert(!restored_from_null.planetary_body.has_value());
+}
+
 void test_world_identity_round_trips_losslessly() {
     constexpr std::int64_t kSeed = 9'007'199'254'740'993LL;
     const ProbeSaveData data =
@@ -758,6 +799,7 @@ int main() {
     test_manipulator_arm_out_of_range_angle_fails_closed();
     test_restore_rejects_inconsistent_snapshot();
     test_legacy_save_without_material_inventory_infers_single_entry();
+    test_legacy_save_without_planetary_body_field_infers_no_body();
     test_world_identity_round_trips_losslessly();
     test_missing_world_identity_fails_closed();
     test_invalid_generation_algorithm_version_fails_closed();
