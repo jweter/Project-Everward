@@ -26,6 +26,12 @@ struct AltitudeAwareDescentProfile {
     double touchdown_descent_speed_mps{0.5};
 };
 
+struct SurfaceHoverProfile {
+    double target_altitude_m{5.0};
+    double altitude_gain_per_second{0.5};
+    double max_vertical_correction_speed_mps{2.0};
+};
+
 [[nodiscard]] inline double altitude_limited_descent_speed_mps(
     Vector3d position_m,
     const SphericalPlanetaryBody& body,
@@ -104,6 +110,73 @@ struct AltitudeAwareDescentProfile {
         descent_rate_limited,
         tangential_rate_limited,
     };
+}
+
+// Deterministic hover command shaping for Slice 10. The caller still owns
+// propulsion/thruster authority; this function only requests a body-relative
+// radial correction toward a target altitude while preserving the caller's
+// tangential translation request inside the same controlled-descent envelope.
+[[nodiscard]] inline SurfaceApproachVelocityCommand constrain_surface_hover_velocity(
+    Vector3d position_m,
+    Vector3d requested_velocity_mps,
+    const SphericalPlanetaryBody& body,
+    const ControlledDescentEnvelope& envelope = {},
+    const SurfaceHoverProfile& hover = {}) noexcept {
+    const Vector3d up = local_surface_normal(position_m, body);
+    const Vector3d relative = body_relative_velocity(requested_velocity_mps, body);
+    Vector3d tangential_velocity_mps = planetary_subtract(
+        relative,
+        planetary_scale(up, planetary_dot(relative, up))
+    );
+
+    const double max_tangential_speed_mps = std::fabs(envelope.max_tangential_speed_mps);
+    const double tangential_speed_mps = planetary_magnitude(tangential_velocity_mps);
+    bool tangential_rate_limited = false;
+    if (tangential_speed_mps > max_tangential_speed_mps && tangential_speed_mps > 1e-12) {
+        tangential_velocity_mps = planetary_scale(
+            tangential_velocity_mps,
+            max_tangential_speed_mps / tangential_speed_mps
+        );
+        tangential_rate_limited = true;
+    }
+
+    const double target_altitude_m = std::max(
+        std::max(0.0, envelope.minimum_clearance_m), hover.target_altitude_m
+    );
+    const double altitude_error_m = target_altitude_m
+        - altitude_above_reference_surface(position_m, body);
+    const double max_correction_mps = std::fabs(hover.max_vertical_correction_speed_mps);
+    const double correction_gain = std::max(0.0, hover.altitude_gain_per_second);
+    const double radial_speed_mps = std::clamp(
+        altitude_error_m * correction_gain, -max_correction_mps, max_correction_mps
+    );
+
+    const Vector3d constrained_relative{
+        up.x * radial_speed_mps + tangential_velocity_mps.x,
+        up.y * radial_speed_mps + tangential_velocity_mps.y,
+        up.z * radial_speed_mps + tangential_velocity_mps.z,
+    };
+    return {
+        {
+            body.velocity_mps.x + constrained_relative.x,
+            body.velocity_mps.y + constrained_relative.y,
+            body.velocity_mps.z + constrained_relative.z,
+        },
+        std::fabs(radial_speed_mps - planetary_dot(relative, up)) > 1e-12,
+        tangential_rate_limited,
+    };
+}
+
+[[nodiscard]] inline std::optional<SurfaceApproachVelocityCommand> controlled_hover_velocity_command(
+    Vector3d position_m,
+    Vector3d requested_velocity_mps,
+    const std::optional<SphericalPlanetaryBody>& body,
+    const ControlledDescentEnvelope& envelope = {},
+    const SurfaceHoverProfile& hover = {}) noexcept {
+    if (!body.has_value()) {
+        return std::nullopt;
+    }
+    return constrain_surface_hover_velocity(position_m, requested_velocity_mps, *body, envelope, hover);
 }
 
 // Convenience overload matching jose_autopilot.hpp's jose_guidance_command_for_body
