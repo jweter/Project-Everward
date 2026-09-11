@@ -1,11 +1,13 @@
 #pragma once
 
 #include "everward/simulation/clock.hpp"
+#include "everward/simulation/planetary_body.hpp"
 #include "everward/simulation/types.hpp"
 
 #include <cmath>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -131,6 +133,7 @@ public:
         }
         clock_.advance_by(wall_ticks);
         const double seconds = ticks_to_seconds(wall_ticks);
+        integrate_gravity(seconds);
         integrate_probe(seconds);
         integrate_scan(seconds);
         integrate_energy_balance(seconds);
@@ -301,6 +304,35 @@ public:
             throw std::invalid_argument("kelvin must be positive");
         }
         probe_.max_operating_temperature_k = kelvin;
+    }
+
+    // Slice 9 foundation: an optional registered planetary body the probe's
+    // own gravity/surface-contact integration reacts to. Registering a body
+    // is the sole way gravity or planetary surface contact affect the probe
+    // -- with none registered (the default, and every existing deep-space
+    // scenario), integrate_gravity() is a no-op and advance_wall_ticks()
+    // behaves exactly as before this field existed.
+    void set_planetary_body(SphericalPlanetaryBody body) {
+        if (body.body_id.empty()) {
+            throw std::invalid_argument("planetary body id must not be empty");
+        }
+        if (!(body.radius_m > 0.0) || !std::isfinite(body.radius_m)) {
+            throw std::invalid_argument("planetary body radius must be finite and positive");
+        }
+        require_finite_vector(body.center_m, "planetary body center");
+        require_finite_vector(body.velocity_mps, "planetary body velocity");
+        if (!std::isfinite(body.gravitational_parameter_m3_s2) ||
+            body.gravitational_parameter_m3_s2 < 0.0) {
+            throw std::invalid_argument(
+                "planetary body gravitational_parameter_m3_s2 must be finite and non-negative");
+        }
+        planetary_body_ = std::move(body);
+    }
+
+    void clear_planetary_body() noexcept { planetary_body_.reset(); }
+
+    [[nodiscard]] const std::optional<SphericalPlanetaryBody>& planetary_body() const noexcept {
+        return planetary_body_;
     }
 
     // Contact detection lives in the engine-independent ProbeRuntime, while
@@ -539,6 +571,23 @@ private:
         return static_cast<double>(ticks) / static_cast<double>(SimulationClock::TicksPerSecond);
     }
 
+    // Semi-implicit Euler: velocity is updated by the registered body's
+    // gravitational acceleration before integrate_probe() advances position
+    // by the (now gravity-affected) velocity, matching the order every other
+    // per-tick integration step in this class already uses (accumulate a
+    // rate, then apply it once per fixed step). With no planetary body
+    // registered this is exactly a no-op, preserving every existing
+    // deep-space command-driven translation test unchanged.
+    void integrate_gravity(double seconds) noexcept {
+        if (!planetary_body_.has_value()) {
+            return;
+        }
+        const Vector3d accel = gravitational_acceleration(probe_.position_m, *planetary_body_);
+        probe_.velocity_mps.x += accel.x * seconds;
+        probe_.velocity_mps.y += accel.y * seconds;
+        probe_.velocity_mps.z += accel.z * seconds;
+    }
+
     void integrate_probe(double seconds) noexcept {
         probe_.position_m.x += probe_.velocity_mps.x * seconds;
         probe_.position_m.y += probe_.velocity_mps.y * seconds;
@@ -630,6 +679,7 @@ private:
     SimulationClock clock_{};
     ProbeStateSnapshot probe_{};
     std::vector<DomainEvent> events_{};
+    std::optional<SphericalPlanetaryBody> planetary_body_{};
 };
 
 } // namespace everward::simulation

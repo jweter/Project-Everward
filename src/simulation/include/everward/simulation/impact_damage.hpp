@@ -382,6 +382,12 @@ public:
         runtime_.update_static_sphere_body_position(body_id, new_center_m);
     }
 
+    void set_planetary_body(SphericalPlanetaryBody body) { runtime_.set_planetary_body(std::move(body)); }
+    void clear_planetary_body() noexcept { runtime_.clear_planetary_body(); }
+    [[nodiscard]] const std::optional<SphericalPlanetaryBody>& planetary_body() const noexcept {
+        return runtime_.planetary_body();
+    }
+
     void set_velocity_mps(Vector3d velocity) { runtime_.set_velocity_mps(velocity); }
 
     // Damaged propulsion remains usable above zero integrity, but each manual

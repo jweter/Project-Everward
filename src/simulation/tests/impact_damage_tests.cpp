@@ -12,6 +12,7 @@ using everward::simulation::ImpactSeverity;
 using everward::simulation::IntegrityBand;
 using everward::simulation::PowerSubsystem;
 using everward::simulation::SimulationClock;
+using everward::simulation::SphericalPlanetaryBody;
 
 static bool nearly_equal(double a, double b, double eps = 1e-6) {
     return std::fabs(a - b) <= eps;
@@ -178,6 +179,20 @@ int main() {
         assert(runtime.selected_target_status().has_selection);
         runtime.select_target("nonexistent");
         assert(!runtime.selected_target_status().has_selection);
+    }
+
+    // DamageAwareProbeRuntime forwards Slice 9 planetary body registration
+    // to the wrapped ProbeRuntime rather than duplicating the state.
+    {
+        DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+        assert(!runtime.planetary_body().has_value());
+
+        runtime.set_planetary_body(SphericalPlanetaryBody{"gas-giant-moon", {}, 50.0, {}, 1.0e5});
+        assert(runtime.planetary_body().has_value());
+        assert(runtime.planetary_body()->body_id == "gas-giant-moon");
+
+        runtime.clear_planetary_body();
+        assert(!runtime.planetary_body().has_value());
     }
 
     std::cout << "Impact severity and component damage foundation tests passed\n";

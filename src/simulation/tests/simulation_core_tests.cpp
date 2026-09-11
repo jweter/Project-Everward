@@ -16,9 +16,11 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <stdexcept>
 
 using everward::simulation::SimulationClock;
 using everward::simulation::SimulationCore;
+using everward::simulation::SphericalPlanetaryBody;
 using everward::simulation::Vector3d;
 
 static bool nearly_equal(double a, double b, double eps = 1e-9) {
@@ -1239,6 +1241,77 @@ int main() {
         inventory_core.consume_stored_material_kg(4.0);
         assert(nearly_equal(inventory_core.snapshot().storage_used_kg, 0.0));
         assert(inventory_core.material_inventory_kg().empty());
+    }
+
+    // Slice 9 foundation: with no planetary body registered (the default),
+    // advancing ticks must be byte-for-byte identical to every existing
+    // deep-space scenario -- gravity is strictly opt-in.
+    {
+        SimulationCore no_gravity_core;
+        assert(!no_gravity_core.planetary_body().has_value());
+        no_gravity_core.set_velocity_mps(Vector3d{10.0, 0.0, 0.0});
+        no_gravity_core.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        assert(nearly_equal(no_gravity_core.snapshot().velocity_mps.x, 10.0));
+        assert(nearly_equal(no_gravity_core.snapshot().position_m.x, 10.0));
+    }
+
+    // Registering a planetary body must fail closed on invalid fields rather
+    // than silently accepting nonsensical gravity.
+    {
+        SimulationCore validation_core;
+        bool empty_id_threw = false;
+        try {
+            validation_core.set_planetary_body(SphericalPlanetaryBody{"", {}, 1.0, {}, 1.0});
+        } catch (const std::invalid_argument&) {
+            empty_id_threw = true;
+        }
+        assert(empty_id_threw);
+
+        bool non_positive_radius_threw = false;
+        try {
+            validation_core.set_planetary_body(SphericalPlanetaryBody{"moon", {}, 0.0, {}, 1.0});
+        } catch (const std::invalid_argument&) {
+            non_positive_radius_threw = true;
+        }
+        assert(non_positive_radius_threw);
+
+        bool negative_mu_threw = false;
+        try {
+            validation_core.set_planetary_body(SphericalPlanetaryBody{"moon", {}, 1.0, {}, -1.0});
+        } catch (const std::invalid_argument&) {
+            negative_mu_threw = true;
+        }
+        assert(negative_mu_threw);
+        assert(!validation_core.planetary_body().has_value());
+    }
+
+    // A registered body's gravity accelerates the probe toward its center
+    // each tick, matching the closed-form Newtonian point-mass result
+    // gravitational_acceleration() itself already proves deterministic.
+    {
+        SimulationCore gravity_core;
+        const SphericalPlanetaryBody moon{
+            "test-moon", Vector3d{0.0, 0.0, -1'000.0}, 200.0, Vector3d{}, 4.0e6};
+        gravity_core.set_planetary_body(moon);
+        assert(gravity_core.planetary_body().has_value());
+        assert(gravity_core.planetary_body()->body_id == "test-moon");
+
+        const double seconds = 1.0;
+        gravity_core.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        // The moon sits 1000 m in -z from the probe's starting position, so
+        // Newtonian point-mass attraction (mu / distance^2, directed toward
+        // the moon's center) pulls velocity.z negative.
+        const double expected_az = -moon.gravitational_parameter_m3_s2 / (1'000.0 * 1'000.0);
+        assert(nearly_equal(gravity_core.snapshot().velocity_mps.z, expected_az * seconds, 1e-6));
+        assert(gravity_core.snapshot().velocity_mps.z < 0.0);
+        assert(nearly_equal(gravity_core.snapshot().position_m.x, 0.0));
+        assert(nearly_equal(gravity_core.snapshot().position_m.y, 0.0));
+
+        gravity_core.clear_planetary_body();
+        assert(!gravity_core.planetary_body().has_value());
+        const double velocity_after_clear = gravity_core.snapshot().velocity_mps.z;
+        gravity_core.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        assert(nearly_equal(gravity_core.snapshot().velocity_mps.z, velocity_after_clear));
     }
 
     std::cout << "Everward simulation core tests passed\n";
