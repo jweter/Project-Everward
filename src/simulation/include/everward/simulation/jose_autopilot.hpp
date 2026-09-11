@@ -64,10 +64,18 @@ struct JoseGuidanceCommand {
         return result;
     }
 
+    // JoseCruiseSpeedMetersPerSecond is an independently EditAnywhere-tunable
+    // property (ClampMin 0.1) and can therefore be set below
+    // minimum_approach_speed_mps (0.25); std::clamp's [lo, hi] bounds are
+    // undefined behavior if lo > hi, so the effective upper bound is raised
+    // to never fall below the floor rather than trusting the two values to
+    // already be ordered. A cruise speed configured below the floor simply
+    // pins José to the floor speed instead of invoking undefined behavior.
+    const double effective_cruise_speed_mps = std::max(config.cruise_speed_mps, config.minimum_approach_speed_mps);
     const double approach_speed_mps = std::clamp(
         result.remaining_surface_range_m * config.approach_gain_per_second,
         config.minimum_approach_speed_mps,
-        config.cruise_speed_mps);
+        effective_cruise_speed_mps);
     result.outcome = JoseGuidanceOutcome::Continue;
     result.command_velocity_mps = contact_scale(delta, approach_speed_mps / distance_m);
     return result;
