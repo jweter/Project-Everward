@@ -64,6 +64,10 @@ private:
     void AdvanceJoseTakeTheWheel(float DeltaSeconds);
     void CancelJoseTakeTheWheel(bool bStopVelocity, bool bShowMessage);
 
+    void ToggleControlledDescent();
+    void AdvanceControlledDescent(float DeltaSeconds);
+    void CancelControlledDescent(bool bStopVelocity, bool bShowMessage);
+
     void SelectNearestPhysicalTarget();
     void ToggleManipulatorGrasp();
 
@@ -89,6 +93,8 @@ private:
     bool bJoseAutopilotEngaged = false;
     FString JoseDestinationTargetId;
 
+    bool bControlledDescentEngaged = false;
+
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double Phase2ScanDurationSeconds = 10.0;
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="1.0"))
@@ -113,6 +119,16 @@ private:
     double JoseArrivalToleranceMeters = 0.5;
     UPROPERTY(EditAnywhere, Category="Everward|Autopilot", meta=(ClampMin="0.01"))
     double JoseApproachGainPerSecond = 0.35;
+    UPROPERTY(EditAnywhere, Category="Everward|Descent", meta=(ClampMin="0.1"))
+    double ControlledDescentMaxDescentSpeedMetersPerSecond = 4.0;
+    UPROPERTY(EditAnywhere, Category="Everward|Descent", meta=(ClampMin="0.1"))
+    double ControlledDescentMaxTangentialSpeedMetersPerSecond = 2.0;
+    UPROPERTY(EditAnywhere, Category="Everward|Descent", meta=(ClampMin="0.0"))
+    double ControlledDescentMinimumClearanceMeters = 2.0;
+    UPROPERTY(EditAnywhere, Category="Everward|Descent", meta=(ClampMin="0.1"))
+    double ControlledDescentFullSpeedAltitudeMeters = 50.0;
+    UPROPERTY(EditAnywhere, Category="Everward|Descent", meta=(ClampMin="0.0"))
+    double ControlledDescentTouchdownSpeedMetersPerSecond = 0.5;
     UPROPERTY(EditAnywhere, Category="Everward|Target", meta=(ClampMin="1.0"))
     double TargetSelectionRangeMeters = 500.0;
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="0.01"))
