@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -200,8 +201,13 @@ public:
     void set_passive_cooling_w_per_k(double watts_per_k) { core_.set_passive_cooling_w_per_k(watts_per_k); }
     void set_max_operating_temperature_k(double kelvin) { core_.set_max_operating_temperature_k(kelvin); }
     [[nodiscard]] double total_power_allocated_w() const noexcept { return core_.total_power_allocated_w(); }
-    void add_stored_material_kg(double kilograms) { core_.add_stored_material_kg(kilograms); }
+    void add_stored_material_kg(double kilograms, std::string material_id = "raw_regolith") {
+        core_.add_stored_material_kg(kilograms, std::move(material_id));
+    }
     void consume_stored_material_kg(double kilograms) { core_.consume_stored_material_kg(kilograms); }
+    [[nodiscard]] const std::map<std::string, double>& material_inventory_kg() const noexcept {
+        return core_.material_inventory_kg();
+    }
     void consume_stored_energy_j(double joules) { core_.consume_stored_energy_j(joules); }
 
     void install_policy(SoftwarePolicy policy) {

@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -77,6 +78,20 @@ public:
             snapshot.storage_used_kg < 0.0 ||
             snapshot.storage_used_kg > snapshot.storage_capacity_kg + 1e-6) {
             throw std::invalid_argument("storage_used_kg out of range for storage_capacity_kg");
+        }
+        double material_inventory_total_kg = 0.0;
+        for (const auto& [material_id, kilograms] : snapshot.material_inventory_kg) {
+            if (material_id.empty()) {
+                throw std::invalid_argument("material_inventory_kg entry must have a non-empty material id");
+            }
+            if (!std::isfinite(kilograms) || kilograms <= 0.0) {
+                throw std::invalid_argument("material_inventory_kg entry must be finite and positive");
+            }
+            material_inventory_total_kg += kilograms;
+        }
+        if (std::abs(material_inventory_total_kg - snapshot.storage_used_kg) > 1e-6) {
+            throw std::invalid_argument(
+                "material_inventory_kg does not sum to storage_used_kg");
         }
         if (!std::isfinite(snapshot.power_capacity_w) || snapshot.power_capacity_w < 0.0) {
             throw std::invalid_argument("power_capacity_w must be finite and non-negative");
@@ -335,19 +350,31 @@ public:
     // conversion), so simulation-owned state is the only place that can move
     // it without creating a truth split between what the HUD reports and
     // what was actually mined.
-    void add_stored_material_kg(double kilograms) {
+    void add_stored_material_kg(double kilograms, std::string material_id = "raw_regolith") {
         if (!std::isfinite(kilograms) || kilograms < 0.0) {
             throw std::invalid_argument("stored material delta must be finite and non-negative");
+        }
+        if (material_id.empty()) {
+            throw std::invalid_argument("stored material id must not be empty");
         }
         const double updated_kg = probe_.storage_used_kg + kilograms;
         if (updated_kg > probe_.storage_capacity_kg + 1e-6) {
             throw std::runtime_error("stored material would exceed storage capacity");
         }
         probe_.storage_used_kg = updated_kg;
+        if (kilograms > 0.0) {
+            probe_.material_inventory_kg[material_id] += kilograms;
+        }
         events_.push_back({clock_.tick(), DomainEventType::MaterialStored,
-                            "stored material increased by " + std::to_string(kilograms) + " kg"});
+                            "stored material increased by " + std::to_string(kilograms) + " kg " +
+                            material_id});
     }
 
+    // Depletes the per-material breakdown deterministically in ascending
+    // material_id order rather than proportionally, so a caller that does not
+    // (yet) know which material a consumer such as Fix_It repair should draw
+    // from gets a reproducible, testable result instead of floating-point
+    // drift from repeated proportional scaling.
     void consume_stored_material_kg(double kilograms) {
         if (!std::isfinite(kilograms) || kilograms < 0.0) {
             throw std::invalid_argument("material consumption must be finite and non-negative");
@@ -356,8 +383,26 @@ public:
             throw std::runtime_error("insufficient stored material");
         }
         probe_.storage_used_kg = std::max(0.0, probe_.storage_used_kg - kilograms);
+        double remaining_to_deplete = kilograms;
+        for (auto it = probe_.material_inventory_kg.begin();
+             it != probe_.material_inventory_kg.end() && remaining_to_deplete > 1e-9;) {
+            const double taken = std::min(it->second, remaining_to_deplete);
+            it->second -= taken;
+            remaining_to_deplete -= taken;
+            if (it->second <= 1e-9) {
+                it = probe_.material_inventory_kg.erase(it);
+            } else {
+                ++it;
+            }
+        }
         events_.push_back({clock_.tick(), DomainEventType::MaterialConsumed,
                             "stored material consumed by " + std::to_string(kilograms) + " kg"});
+    }
+
+    // Read-only per-material breakdown of storage_used_kg. See
+    // ProbeStateSnapshot::material_inventory_kg for the invariant this keeps.
+    [[nodiscard]] const std::map<std::string, double>& material_inventory_kg() const noexcept {
+        return probe_.material_inventory_kg;
     }
 
     void consume_stored_energy_j(double joules) {

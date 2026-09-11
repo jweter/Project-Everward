@@ -64,6 +64,7 @@ int main() {
         assert(std::fabs(first.stored_material_kg - 5.0) < 1e-9);
         assert(std::fabs(first.remaining_deposit_kg - 15.0) < 1e-9);
         assert(std::fabs(first.tool_surface_gap_m - 0.20) < 1e-6);
+        assert(first.material_id == "iron_regolith");
     }
 
     {

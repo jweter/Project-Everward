@@ -117,7 +117,10 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandMineBootstrapTarget(
         // STORAGE readout reads (see ProbeSimulationAdapter.cpp's telemetry
         // conversion); it must move here or mining never appears in that
         // readout even though this mining status widget shows it moving.
-        Core->add_stored_material_kg(Result.extracted_kg);
+        // Result.material_id keeps the mined deposit's identity in the
+        // authoritative per-material inventory rather than collapsing it
+        // into an anonymous kilogram count.
+        Core->add_stored_material_kg(Result.extracted_kg, Result.material_id);
         BootstrapExtractedMaterialKilograms += Result.extracted_kg;
         BootstrapDepositRemainingKilograms = Result.remaining_deposit_kg;
     }

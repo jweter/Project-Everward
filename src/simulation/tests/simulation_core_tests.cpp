@@ -1189,6 +1189,58 @@ int main() {
             full_core.snapshot().storage_used_kg, full_core.snapshot().storage_capacity_kg));
     }
 
+    // material_inventory_kg: per-material breakdown of storage_used_kg. Must
+    // stay in exact sync with the aggregate so it can be trusted for a future
+    // inventory readout without inventing a second, divergent notion of what
+    // is stored.
+    {
+        SimulationCore inventory_core;
+        assert(inventory_core.material_inventory_kg().empty());
+
+        // Default material id matches ResourceDeposit's own default so an
+        // unspecified caller and an unspecified deposit agree.
+        inventory_core.add_stored_material_kg(4.0);
+        assert(inventory_core.material_inventory_kg().size() == 1);
+        assert(nearly_equal(inventory_core.material_inventory_kg().at("raw_regolith"), 4.0));
+
+        inventory_core.add_stored_material_kg(3.0, "iron_bearing_silicate_regolith");
+        assert(inventory_core.material_inventory_kg().size() == 2);
+        assert(nearly_equal(inventory_core.material_inventory_kg().at("raw_regolith"), 4.0));
+        assert(nearly_equal(
+            inventory_core.material_inventory_kg().at("iron_bearing_silicate_regolith"), 3.0));
+        assert(nearly_equal(inventory_core.snapshot().storage_used_kg, 7.0));
+
+        // Adding more of an already-tracked material accumulates rather than
+        // overwriting or creating a duplicate entry.
+        inventory_core.add_stored_material_kg(1.0, "raw_regolith");
+        assert(inventory_core.material_inventory_kg().size() == 2);
+        assert(nearly_equal(inventory_core.material_inventory_kg().at("raw_regolith"), 5.0));
+
+        bool empty_material_id_threw = false;
+        try {
+            inventory_core.add_stored_material_kg(1.0, "");
+        } catch (const std::invalid_argument&) {
+            empty_material_id_threw = true;
+        }
+        assert(empty_material_id_threw);
+
+        // Consumption depletes deterministically in ascending material_id
+        // order: "iron_bearing_silicate_regolith" sorts before "raw_regolith",
+        // so it is drained first, then the remainder is taken from
+        // "raw_regolith".
+        inventory_core.consume_stored_material_kg(4.0);
+        assert(nearly_equal(inventory_core.snapshot().storage_used_kg, 4.0));
+        assert(inventory_core.material_inventory_kg().size() == 1);
+        assert(!inventory_core.material_inventory_kg().contains("iron_bearing_silicate_regolith"));
+        assert(nearly_equal(inventory_core.material_inventory_kg().at("raw_regolith"), 4.0));
+
+        // Draining a material exactly to zero removes its entry entirely
+        // rather than leaving a stale zero-kilogram record.
+        inventory_core.consume_stored_material_kg(4.0);
+        assert(nearly_equal(inventory_core.snapshot().storage_used_kg, 0.0));
+        assert(inventory_core.material_inventory_kg().empty());
+    }
+
     std::cout << "Everward simulation core tests passed\n";
     return 0;
 }
