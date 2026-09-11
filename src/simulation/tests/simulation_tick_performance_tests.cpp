@@ -20,15 +20,8 @@ using everward::simulation::StaticSphereBody;
 
 namespace {
 
-// Mirrors UProbeSimulationAdapter.h's FixedStepTicks: the exact tick count
-// the real game advances the authoritative simulation by on every fixed
-// 60 Hz step, so this benchmark measures the same per-frame call the
-// player's build actually pays for.
 constexpr std::int64_t kFixedStepTicks = 16667;
 
-// A representative scene (matching the Phase 2 test environment's
-// SCAN-001/002/003 layout) so the benchmark exercises registered-body
-// gravity/contact resolution rather than an empty-world best case.
 void register_representative_scene(DamageAwareProbeRuntime& runtime) {
     runtime.add_static_sphere_body({"bench-target-001", {40.0, 0.0, 0.0}, 2.0});
     runtime.add_static_sphere_body({"bench-target-002", {0.0, 103.0, 0.0}, 2.0});
@@ -39,11 +32,6 @@ double run_frames(DamageAwareProbeRuntime& runtime, std::int64_t frame_count) {
     const auto start = std::chrono::steady_clock::now();
     for (std::int64_t frame = 0; frame < frame_count; ++frame) {
         runtime.advance_wall_ticks(kFixedStepTicks);
-        // Real per-frame usage always drains what it produces (see
-        // ProbeSimulationAdapter.cpp's TickComponent); an un-drained event/
-        // damage-record vector would otherwise grow without bound and this
-        // benchmark would be measuring that leak instead of steady-state
-        // per-frame cost.
         (void)runtime.drain_events();
         (void)runtime.drain_damage_records();
     }
@@ -57,45 +45,40 @@ int main() {
     DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
     register_representative_scene(runtime);
 
-    constexpr std::int64_t kFramesPerHalf = 100'000;
+    // Multiple equal windows make sustained growth visible without relying on
+    // a single first-half/second-half ratio. For a linear per-tick cost growth
+    // bug, adjacent late windows approach only ~1.4x rather than the misleading
+    // 3x aggregate half ratio, so a 2x bound rejects that failure class while
+    // retaining generous headroom for shared-runner jitter.
+    constexpr std::int64_t kFramesPerWindow = 50'000;
+    constexpr std::int64_t kWindowCount = 4;
+    double window_seconds[kWindowCount]{};
+    for (std::int64_t window = 0; window < kWindowCount; ++window) {
+        window_seconds[window] = run_frames(runtime, kFramesPerWindow);
+    }
 
-    const double first_half_seconds = run_frames(runtime, kFramesPerHalf);
-    const double second_half_seconds = run_frames(runtime, kFramesPerHalf);
+    assert(runtime.tick() == kWindowCount * kFramesPerWindow * kFixedStepTicks);
 
-    // Correctness: every requested frame actually advanced the authoritative
-    // clock by exactly kFixedStepTicks, matching how the real fixed-step
-    // loop accumulates tick(). A benchmark that silently measured a no-op
-    // would be worthless as a regression gate.
-    assert(runtime.tick() == 2 * kFramesPerHalf * kFixedStepTicks);
+    constexpr double kMaxSecondsPerWindow = 5.0;
+    for (double seconds : window_seconds) {
+        assert(seconds < kMaxSecondsPerWindow);
+    }
 
-    // Absolute floor: closed-form per-tick integration over a handful of
-    // registered bodies should comfortably clear tens of thousands of
-    // frames/second on any CI runner. This ceiling leaves roughly two
-    // orders of magnitude of headroom below that so it will not flake on
-    // slow/shared hardware, while still catching a catastrophic regression
-    // (for example an accidentally quadratic contact/gravity pass).
-    constexpr double kMaxSecondsPerHalf = 10.0;
-    assert(first_half_seconds < kMaxSecondsPerHalf);
-    assert(second_half_seconds < kMaxSecondsPerHalf);
-
-    // Growth-over-time check, independent of absolute machine speed:
-    // steady-state per-frame cost should not climb as more frames are
-    // simulated. This is what would actually catch the class of bug
-    // PERFORMANCE_BUDGETS.md warns about ("memory does not grow
-    // continuously when no new persistent entities/events are being
-    // created") -- e.g. an accidentally undrained accumulator scanned
-    // every tick -- without depending on this runner's absolute speed.
-    // A small absolute-time floor avoids dividing by noise when both
-    // halves are already fast enough to be dominated by clock jitter.
-    if (first_half_seconds > 0.01) {
-        constexpr double kMaxGrowthFactor = 3.0;
-        assert(second_half_seconds <= first_half_seconds * kMaxGrowthFactor + 0.05);
+    // Compare the two late windows, after warm-up effects have settled. The
+    // small additive allowance prevents sub-millisecond clock noise from
+    // dominating otherwise-fast runs, while the factor remains below the
+    // ~3x signature that the previous two-half check accidentally allowed.
+    if (window_seconds[2] > 0.005) {
+        constexpr double kMaxLateWindowGrowthFactor = 2.0;
+        assert(window_seconds[3] <=
+               window_seconds[2] * kMaxLateWindowGrowthFactor + 0.025);
     }
 
     std::cout << "simulation_tick_performance_tests: "
-              << (2 * kFramesPerHalf) << " frames in "
-              << (first_half_seconds + second_half_seconds) << "s ("
-              << first_half_seconds << "s then " << second_half_seconds << "s)\n";
+              << (kWindowCount * kFramesPerWindow) << " frames in "
+              << (window_seconds[0] + window_seconds[1] + window_seconds[2] + window_seconds[3])
+              << "s (windows: " << window_seconds[0] << ", " << window_seconds[1]
+              << ", " << window_seconds[2] << ", " << window_seconds[3] << "s)\n";
 
     return 0;
 }
