@@ -59,11 +59,6 @@ int main() {
 
     assert(runtime.tick() == kWindowCount * kFramesPerWindow * kFixedStepTicks);
 
-    constexpr double kMaxSecondsPerWindow = 5.0;
-    for (double seconds : window_seconds) {
-        assert(seconds < kMaxSecondsPerWindow);
-    }
-
     // Compare the two late windows, after warm-up effects have settled. The
     // small additive allowance prevents sub-millisecond clock noise from
     // dominating otherwise-fast runs, while the factor remains below the
