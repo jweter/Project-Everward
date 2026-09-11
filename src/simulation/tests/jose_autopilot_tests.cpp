@@ -58,6 +58,20 @@ void test_approach_speed_floors_at_minimum_rather_than_stalling() {
     assert(nearly_equal(magnitude(result.command_velocity_mps), config.minimum_approach_speed_mps));
 }
 
+void test_cruise_speed_below_minimum_floor_pins_to_floor_instead_of_ub() {
+    // JoseCruiseSpeedMetersPerSecond is independently EditAnywhere-tunable
+    // (ClampMin 0.1 in the Unreal controller) and can be set below the fixed
+    // minimum_approach_speed_mps floor (0.25). std::clamp's bounds must stay
+    // ordered (lo <= hi) or invoke undefined behavior, so an out-of-order
+    // configuration must not reach std::clamp unordered -- it must instead
+    // pin to the floor speed.
+    JoseAutopilotConfig config;
+    config.cruise_speed_mps = 0.15; // below minimum_approach_speed_mps (0.25)
+    const auto result = jose_guidance_command(Vector3d{0.0, 0.0, 0.0}, Vector3d{1000.0, 0.0, 0.0}, 1000.0, config);
+    assert(result.outcome == JoseGuidanceOutcome::Continue);
+    assert(nearly_equal(magnitude(result.command_velocity_mps), config.minimum_approach_speed_mps));
+}
+
 void test_command_direction_points_toward_destination() {
     const JoseAutopilotConfig config;
     const auto result = jose_guidance_command(Vector3d{5.0, 5.0, 5.0}, Vector3d{5.0, 5.0, 105.0}, 1000.0, config);
@@ -120,6 +134,7 @@ int main() {
     test_far_from_arrival_commands_cruise_speed();
     test_near_arrival_commands_proportionally_reduced_speed();
     test_approach_speed_floors_at_minimum_rather_than_stalling();
+    test_cruise_speed_below_minimum_floor_pins_to_floor_instead_of_ub();
     test_command_direction_points_toward_destination();
     test_remaining_range_at_or_below_tolerance_reports_arrived();
     test_coincident_probe_and_destination_is_unresolved_not_a_fabricated_heading();
