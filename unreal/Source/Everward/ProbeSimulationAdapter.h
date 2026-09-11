@@ -268,6 +268,23 @@ struct EVERWARD_API FEverwardJoseGuidanceCommand
     UPROPERTY(BlueprintReadOnly, Category="Everward|Autopilot") double RemainingSurfaceRangeMeters = 0.0;
 };
 
+// Slice 10 near-surface command shaping (surface_descent_guidance.hpp):
+// constrains a requested inertial velocity to a body-relative controlled-
+// descent envelope around whatever planetary body SimulationCore currently
+// has registered (Slice 9's set_planetary_body/clear_planetary_body).
+// bHasResult is false whenever no planetary body is registered -- this
+// never fabricates a descent envelope for deep space, mirroring
+// FEverwardJoseGuidanceCommand's DestinationNotFound fail-closed contract.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardControlledDescentCommand
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Descent") bool bHasResult = false;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Descent") FVector CommandVelocityMetersPerSecond = FVector::ZeroVector;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Descent") bool bDescentRateLimited = false;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Descent") bool bTangentialRateLimited = false;
+};
+
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardMiningStatus
 {
@@ -309,11 +326,25 @@ public:
         double ArrivalSurfaceStandoffMeters,
         double ArrivalToleranceMeters,
         double ApproachGainPerSecond) const;
+    UFUNCTION(BlueprintPure, Category="Everward|Descent") FEverwardControlledDescentCommand GetControlledDescentVelocityCommand(
+        FVector RequestedVelocityMetersPerSecond,
+        double MaxDescentSpeedMetersPerSecond,
+        double MaxTangentialSpeedMetersPerSecond,
+        double MinimumClearanceMeters,
+        double FullSpeedAltitudeMeters,
+        double TouchdownDescentSpeedMetersPerSecond) const;
     UFUNCTION(BlueprintPure, Category="Everward|Command") FEverwardProbeCommandResult GetLastCommandResult() const;
     UFUNCTION(BlueprintPure, Category="Everward|Automation") FEverwardAutomationNotice GetLastAutomationNotice() const;
     UFUNCTION(BlueprintPure, Category="Everward|Scan") FEverwardScanLifecycleNotice GetLastScanLifecycleNotice() const;
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandSetVelocityMetersPerSecond(FVector VelocityMetersPerSecond);
+    UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandSetControlledDescentVelocityMetersPerSecond(
+        FVector RequestedVelocityMetersPerSecond,
+        double MaxDescentSpeedMetersPerSecond,
+        double MaxTangentialSpeedMetersPerSecond,
+        double MinimumClearanceMeters,
+        double FullSpeedAltitudeMeters,
+        double TouchdownDescentSpeedMetersPerSecond);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandAdjustLocalVelocityMetersPerSecond(FVector DeltaLocalVelocityMetersPerSecond);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandAdjustAttitudeDegrees(FRotator DeltaAttitudeDegrees);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandStartScan(const FString& TargetId, double DurationSeconds);
