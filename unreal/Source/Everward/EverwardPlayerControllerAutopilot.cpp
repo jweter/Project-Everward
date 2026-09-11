@@ -1,7 +1,6 @@
 #include "EverwardPlayerController.h"
 
 #include "Engine/Engine.h"
-#include "EverwardProbePawn.h"
 #include "ProbeSimulationAdapter.h"
 
 namespace
@@ -61,8 +60,7 @@ void AEverwardPlayerController::AdvanceJoseTakeTheWheel(float DeltaSeconds)
     }
 
     UProbeSimulationAdapter* Adapter = GetProbeAdapter();
-    AEverwardProbePawn* Probe = Cast<AEverwardProbePawn>(GetPawn());
-    if (Adapter == nullptr || Probe == nullptr)
+    if (Adapter == nullptr)
     {
         CancelJoseTakeTheWheel(false, false);
         return;
@@ -76,49 +74,53 @@ void AEverwardPlayerController::AdvanceJoseTakeTheWheel(float DeltaSeconds)
         return;
     }
 
-    FVector DestinationMeters;
-    if (!Adapter->GetStaticBodyPositionMeters(JoseDestinationTargetId, DestinationMeters))
-    {
-        CancelJoseTakeTheWheel(true, false);
-        ShowJoseMessage(TEXT("José released the wheel because the destination is no longer available."), FColor::Orange);
-        return;
-    }
-
-    const double RemainingSurfaceRangeMeters = Target.SurfaceRangeMeters - JoseArrivalSurfaceRangeMeters;
-    if (RemainingSurfaceRangeMeters <= JoseArrivalToleranceMeters)
-    {
-        const FString ArrivedAt = JoseDestinationTargetId;
-        CancelJoseTakeTheWheel(true, false);
-        ShowJoseMessage(FString::Printf(
-            TEXT("José Take the Wheel // arrived at %s // holding %.1f m surface standoff"),
-            *ArrivedAt,
-            JoseArrivalSurfaceRangeMeters));
-        return;
-    }
-
-    const FVector ProbePositionMeters = Probe->GetActorLocation() * 0.01;
-    const FVector DeltaMeters = DestinationMeters - ProbePositionMeters;
-    if (DeltaMeters.IsNearlyZero())
-    {
-        CancelJoseTakeTheWheel(true, false);
-        ShowJoseMessage(TEXT("José stopped: destination geometry is unresolved."), FColor::Orange);
-        return;
-    }
-
     // Phase-2 José is deliberately simple but physically useful: aim at the
     // selected body's live center, use the simulation's authoritative surface
     // range as the arrival metric, and progressively reduce commanded speed as
-    // the safe stand-off is approached. Later versions can replace this local
-    // guidance law with orbital intercepts, obstacle avoidance, route planning,
-    // power/thermal budgeting, and interplanetary navigation without changing
-    // the player-facing "select destination -> José" contract.
-    const double ApproachSpeedMetersPerSecond = FMath::Clamp(
-        RemainingSurfaceRangeMeters * JoseApproachGainPerSecond,
-        0.25,
-        JoseCruiseSpeedMetersPerSecond);
-    const FVector CommandVelocity = DeltaMeters.GetSafeNormal() * ApproachSpeedMetersPerSecond;
+    // the safe stand-off is approached. The guidance decision itself lives in
+    // the engine-independent jose_autopilot.hpp (see GetJoseGuidanceCommand()),
+    // not here -- this controller only interprets the resulting Outcome and
+    // issues/cancels the authoritative velocity command. Later versions can
+    // replace that local guidance law with orbital intercepts, obstacle
+    // avoidance, route planning, power/thermal budgeting, and interplanetary
+    // navigation without changing the player-facing "select destination ->
+    // José" contract.
+    const FEverwardJoseGuidanceCommand Guidance = Adapter->GetJoseGuidanceCommand(
+        JoseDestinationTargetId,
+        JoseCruiseSpeedMetersPerSecond,
+        JoseArrivalSurfaceRangeMeters,
+        JoseArrivalToleranceMeters,
+        JoseApproachGainPerSecond);
+    switch (Guidance.Outcome)
+    {
+        case EEverwardJoseGuidanceOutcome::DestinationNotFound:
+        {
+            CancelJoseTakeTheWheel(true, false);
+            ShowJoseMessage(TEXT("José released the wheel because the destination is no longer available."), FColor::Orange);
+            return;
+        }
+        case EEverwardJoseGuidanceOutcome::Arrived:
+        {
+            const FString ArrivedAt = JoseDestinationTargetId;
+            CancelJoseTakeTheWheel(true, false);
+            ShowJoseMessage(FString::Printf(
+                TEXT("José Take the Wheel // arrived at %s // holding %.1f m surface standoff"),
+                *ArrivedAt,
+                JoseArrivalSurfaceRangeMeters));
+            return;
+        }
+        case EEverwardJoseGuidanceOutcome::DestinationUnresolved:
+        {
+            CancelJoseTakeTheWheel(true, false);
+            ShowJoseMessage(TEXT("José stopped: destination geometry is unresolved."), FColor::Orange);
+            return;
+        }
+        case EEverwardJoseGuidanceOutcome::Continue:
+        default:
+            break;
+    }
 
-    const FEverwardProbeCommandResult Result = Adapter->CommandSetVelocityMetersPerSecond(CommandVelocity);
+    const FEverwardProbeCommandResult Result = Adapter->CommandSetVelocityMetersPerSecond(Guidance.CommandVelocityMetersPerSecond);
     if (!Result.bAccepted)
     {
         CancelJoseTakeTheWheel(false, false);

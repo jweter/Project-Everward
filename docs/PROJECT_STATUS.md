@@ -803,6 +803,71 @@ This closes the Unreal-side half of issue #167's persistence gap named in
 vertical slice"; it does not itself advance any vertical-slice completion
 gate.
 
+### José Take the Wheel guidance law becomes engine-independent
+
+`docs/JOSE_TAKE_THE_WHEEL.md`'s Phase-2 first playable autopilot landed
+earlier (#207: destination locking from the existing target-selection
+system, `Y` engage/cancel, progressive approach-speed shaping, arrival
+stand-off, and manual-takeover release) but this status record never
+caught up to that merge -- it is documented here retroactively. That
+implementation put the actual guidance-law math (approach-speed clamping,
+arrival-range detection, heading computation) directly in
+`EverwardPlayerControllerAutopilot.cpp`, the one place in the Slice 6/7
+automation stack where the navigation *decision* itself, not just its
+Unreal wiring, was untestable without launching Unreal -- unlike
+`target_selection.hpp`, `manipulator_reach.hpp`, `manipulator_move.hpp`, and
+`manipulator_release.hpp`, which all keep their decision math pure and
+ctest-covered behind the adapter boundary.
+
+This pass closes exactly that gap, with no intended change to José's
+player-facing behavior or tuning values:
+
+- new engine-independent `jose_autopilot.hpp`: `jose_guidance_command()`
+  reproduces the exact prior Unreal arithmetic (arrival-standoff/tolerance
+  check, proportional approach-speed clamp between a minimum and cruise
+  speed, direction toward the live destination) as a pure function, and
+  `jose_guidance_command_for_body()` reuses `target_selection.hpp`'s
+  existing `surface_range_to_body()` against the same registered
+  `StaticSphereBody` list rather than inventing a second range formula,
+  failing closed (`nullopt`) when the destination body is not registered;
+- `UProbeSimulationAdapter::GetJoseGuidanceCommand()` (new
+  `ProbeTargetSelectionBridge.cpp` method, alongside the existing
+  `GetSelectedTargetStatus()`/`GetStaticBodyPositionMeters()`) reads Core's
+  live pose/registered-body state, forwards the controller's existing
+  `EditAnywhere` cruise-speed/arrival-standoff/arrival-tolerance/approach-gain
+  tuning properties into the pure function, and maps the result onto a new
+  Blueprint-visible `FEverwardJoseGuidanceCommand` (`Continue` /`Arrived` /
+  `DestinationUnresolved` / `DestinationNotFound`);
+- `EverwardPlayerControllerAutopilot.cpp`'s `AdvanceJoseTakeTheWheel()` no
+  longer computes a heading, clamp, or arrival threshold itself; it now
+  only reads the adapter's outcome and issues/cancels the resulting
+  authoritative velocity command, exactly mirroring how the manipulator
+  reach/grasp/move/release HUD code only ever interprets already-computed
+  simulation results.
+
+**Status: implemented and ctest-verified.** New `everward_jose_autopilot_tests`
+(cruise-speed clamping at long range, proportional reduction inside the
+clamp band, a floor at the minimum approach speed rather than stalling,
+heading direction, arrival at/inside the standoff+tolerance boundary,
+fail-closed `DestinationUnresolved` for a coincident probe/destination
+without fabricating a heading, arrival taking priority over the coincidence
+check, and `jose_guidance_command_for_body()` failing closed for an
+unregistered destination and reusing `surface_range_to_body()` exactly).
+All 27 `src/simulation` ctest suites pass; `tools/test_jose_autopilot_source_contract.py`
+was updated to assert the guidance law lives in `jose_autopilot.hpp` (not
+`FMath::Clamp` in Unreal C++) and that every existing `EditAnywhere` tuning
+property still reaches it; all 154 `tools/test_phase2*.py` source-contract
+tests pass. No Unreal Editor/UBT build was available in this sandbox to
+compile-verify `ProbeSimulationAdapter.h`/`.cpp`,
+`ProbeTargetSelectionBridge.cpp`, or `EverwardPlayerControllerAutopilot.cpp`;
+the change follows the exact accessor/struct patterns already compiling
+elsewhere in those files (`GetManipulatorReachStatus()`,
+`FEverwardManipulatorReachStatus`). The next local Unreal Product Reality
+pass should re-run `PLAYTESTING.md`'s existing José Take the Wheel
+validation sequence to confirm cruise/approach/arrival/takeover behavior is
+unchanged now that the decision is computed on the simulation side of the
+adapter boundary.
+
 ## Current authoritative foundation
 
 Everward continues to preserve:
@@ -829,6 +894,7 @@ Everward continues to preserve:
 - manipulator release-with-consequence: releasing (`F`) now fails closed instead of embedding the held body in the probe's own hull or any other currently registered physical body, gated by the same five-sphere `ProbeCompoundCollisionEnvelope` the arm/hull and swept-contact guards already use plus a matching sphere-overlap test against the registered-body list (Slice 7 "release"; implemented, Product Reality pending; any place/hand-off-into-storage mechanic or released-object velocity/momentum still has no consequence);
 - mining reads a carried target's live registered position rather than its spawn-time position, so a `SCAN-001` grasped and moved by a manipulator arm is mined (or correctly rejected as out of reach) at its actual current location instead of a stale one (Slice 7 follow-up; implemented, Product Reality pending);
 - per-material storage identity: `storage_used_kg` now has an authoritative `material_inventory_kg` breakdown by `material_id`, credited by mining and depleted deterministically by generic consumption, with save/load round-tripping it as an additive v1 field (Slice 12 foundation; implemented, Product Reality pending; no inventory HUD readout or material-specific repair consumption yet);
+- José Take the Wheel Phase-2 autopilot: destination-locking onto the existing target-selection system, `Y` engage/cancel, progressive approach-speed shaping toward a configurable cruise speed, arrival at a fixed surface stand-off, and immediate manual-translation/`SPACE` takeover, with the underlying guidance-law decision now engine-independent and ctest-covered (`jose_autopilot.hpp`) behind `UProbeSimulationAdapter::GetJoseGuidanceCommand()` rather than computed in Unreal C++ (implemented, Product Reality pending; no orbital/obstacle-avoidance/route-planning navigation yet — see `docs/JOSE_TAKE_THE_WHEEL.md`);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending; no multi-probe/lineage schema or migration framework yet — see "Save/load Unreal UI wiring" above).
 

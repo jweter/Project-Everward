@@ -1,6 +1,7 @@
 #include "ProbeSimulationAdapter.h"
 
 #include "everward/simulation/impact_damage.hpp"
+#include "everward/simulation/jose_autopilot.hpp"
 #include "everward/simulation/target_cycle_runtime.hpp"
 
 #include <string>
@@ -53,6 +54,61 @@ bool UProbeSimulationAdapter::GetStaticBodyPositionMeters(const FString& BodyId,
         }
     }
     return false;
+}
+
+FEverwardJoseGuidanceCommand UProbeSimulationAdapter::GetJoseGuidanceCommand(
+    const FString& DestinationBodyId,
+    double CruiseSpeedMetersPerSecond,
+    double ArrivalSurfaceStandoffMeters,
+    double ArrivalToleranceMeters,
+    double ApproachGainPerSecond) const
+{
+    // docs/JOSE_TAKE_THE_WHEEL.md: the guidance decision itself now lives in
+    // jose_autopilot.hpp, engine-independent and ctest-covered, following the
+    // same pattern GetManipulatorReachStatus()/GetSelectedTargetStatus()
+    // already use -- this method only reads Core's live pose/registered-body
+    // state and the caller's EditAnywhere-tunable parameters, then maps the
+    // pure-function result onto the Blueprint-visible struct. The autopilot
+    // controller interprets Outcome and issues the resulting velocity
+    // command; it does not compute either itself.
+    FEverwardJoseGuidanceCommand Result;
+    if (Core == nullptr)
+    {
+        return Result;
+    }
+
+    everward::simulation::JoseAutopilotConfig Config;
+    Config.cruise_speed_mps = CruiseSpeedMetersPerSecond;
+    Config.arrival_surface_standoff_m = ArrivalSurfaceStandoffMeters;
+    Config.arrival_tolerance_m = ArrivalToleranceMeters;
+    Config.approach_gain_per_second = ApproachGainPerSecond;
+
+    const std::string SimulationBodyId(TCHAR_TO_UTF8(*DestinationBodyId));
+    const auto Guidance = everward::simulation::jose_guidance_command_for_body(
+        Core->snapshot().position_m, Core->static_bodies(), SimulationBodyId, Config);
+    if (!Guidance.has_value())
+    {
+        Result.Outcome = EEverwardJoseGuidanceOutcome::DestinationNotFound;
+        return Result;
+    }
+
+    switch (Guidance->outcome)
+    {
+        case everward::simulation::JoseGuidanceOutcome::Arrived:
+            Result.Outcome = EEverwardJoseGuidanceOutcome::Arrived;
+            break;
+        case everward::simulation::JoseGuidanceOutcome::DestinationUnresolved:
+            Result.Outcome = EEverwardJoseGuidanceOutcome::DestinationUnresolved;
+            break;
+        case everward::simulation::JoseGuidanceOutcome::Continue:
+        default:
+            Result.Outcome = EEverwardJoseGuidanceOutcome::Continue;
+            break;
+    }
+    Result.CommandVelocityMetersPerSecond = FVector(
+        Guidance->command_velocity_mps.x, Guidance->command_velocity_mps.y, Guidance->command_velocity_mps.z);
+    Result.RemainingSurfaceRangeMeters = Guidance->remaining_surface_range_m;
+    return Result;
 }
 
 FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSelectNearestTarget(double MaxSelectionRangeMeters)
