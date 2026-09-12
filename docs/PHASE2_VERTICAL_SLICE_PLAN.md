@@ -443,6 +443,17 @@ compiling in that file. The next local Unreal Product Reality pass should
 confirm the project still compiles under UBT and exercise `C` near a
 registered planetary body before relying on this further.
 
+A read-only math foundation for this section's "stable hover/translation"
+bullet has since landed: `constrain_surface_hover_velocity()`/
+`controlled_hover_velocity_command()` in `surface_descent_guidance.hpp`
+shape a body-relative radial correction toward a target altitude while
+preserving the caller's tangential translation request, reusing the exact
+decomposition/clamping conventions `constrain_surface_approach_velocity()`
+already established. See `PROJECT_STATUS.md`'s "Surface hover guidance —
+read-only math foundation" section. **Status: math foundation only, not yet
+wired** to an authoritative command, adapter accessor, HUD row, or input
+binding.
+
 Prove the same probe can operate near a physical surface:
 
 - controlled descent/approach;
