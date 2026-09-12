@@ -835,6 +835,60 @@ in the same file's descent functions. The next pass should wire this
 command into a player-facing engage/cancel loop and HUD readout, following
 `EverwardPlayerControllerDescent.cpp`'s exact toggle/advance/cancel shape.
 
+### Surface hover engage/cancel loop (Slice 10)
+
+A follow-on pass wires the command above into a player-facing loop, exactly
+as the previous pass named as the next step, following controlled descent's
+own precedent:
+
+- new `EverwardPlayerControllerHover.cpp`: `ToggleControlledHover()`
+  previews `GetControlledHoverVelocityCommand()` with the probe's current
+  velocity and rejects with an on-screen message when no planetary body is
+  registered rather than engaging with nothing to hold altitude against;
+  `AdvanceControlledHover()` re-reads the probe's own live
+  `GetProbeTelemetry().VelocityMetersPerSecond` every fixed step (a
+  velocity governor, not a destination autopilot) and re-issues it through
+  `CommandSetControlledHoverVelocityMetersPerSecond()`, so ordinary WASDQE
+  translation still steers laterally while the radial component corrects
+  toward the configured target altitude; `CancelControlledHover()` mirrors
+  `CancelControlledDescent()`'s stop-velocity/message shape exactly;
+- `V` engages/cancels controlled hover (`EverwardPlayerControllerInteractionTick.cpp`);
+  any manual translation or `SPACE` immediately releases it, matching José
+  and controlled descent;
+- controlled hover, controlled descent, José, and mining auto-approach are
+  now mutually exclusive as a group of four: engaging any one releases the
+  other three (`ToggleControlledDescent()`/`ToggleJoseTakeTheWheel()` each
+  gained a `CancelControlledHover(false, false)` call, and the mining
+  auto-approach `P` handler gained `CancelControlledHover(true, false)`),
+  extending the exact three-way exclusivity controlled descent's own
+  command-wiring pass established;
+- a persistent `CONTROLLED HOVER` HUD readout mirrors the existing
+  `CONTROLLED DESCENT`/`JOSÉ TAKE THE WHEEL` discoverability lines.
+
+**Status: implemented, Product Reality pending.** New
+`tools/test_controlled_hover_player_loop_surface.py` (mirroring
+`tools/test_controlled_descent_player_loop_surface.py`) confirms the
+controller declares the engage/advance/cancel loop and every tunable
+`UPROPERTY` actually reaches the command; that the loop governs live
+velocity through the existing telemetry/command boundaries rather than a
+hardcoded direction or a `SetActorLocation`/`Teleport` shortcut; that `V`
+engages and manual translation/`SPACE` releases it; that it fails closed
+with no registered planetary body; that the HUD readout is discoverable;
+and that the four-way mutual exclusivity with José/controlled
+descent/mining auto-approach is wired in both directions. All 154
+`tools/test_phase2*.py`-pattern and related source-contract suites
+(including this new file and the existing hover-command and
+descent-player-loop tests) pass. No Unreal Editor/UBT build was available
+in this sandbox to compile-verify `EverwardPlayerControllerHover.cpp` or
+the other `EverwardPlayerController*` changes; the new file follows the
+exact structure and `Core == nullptr`/on-screen-message patterns already
+compiling in `EverwardPlayerControllerDescent.cpp`. See the updated
+`PHASE2_SURFACE_HOVER_COMMAND_TEST.md` and `PHASE2_VERTICAL_SLICE_PLAN.md`'s
+Slice 10 status. The next local Unreal Product Reality pass should
+specifically confirm the project still compiles under UBT and exercise `V`
+near a registered planetary body, including the four-way exclusivity with
+`C`/`Y`/`P`, before relying on this further.
+
 ### Human-readable HUD and dedicated controls reference
 
 The user-provided 2026-08-30 current-build captures confirm the prior HUD is a
@@ -1152,7 +1206,7 @@ Everward continues to preserve:
 - deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending — see "Save/load Unreal UI wiring" above); the schema already supports a multi-probe campaign (`SaveGameV1.probes`, unique/non-empty `probe_id` enforced) and an ordered vN -> vN+1 migration framework (empty registry today since v1 is the first schema), and, additively, a top-level `lineages` list persisting `probe_lineage.hpp`'s data-only `probe_id`/`lineage_id`/`parent_probe_id`/`generation` records, fail-closed validated against this same save's persisted probe IDs (see `docs/SAVE_FORMAT.md`) — no authoritative successor/generation-change mechanic exists yet to ever populate more than a single root lineage record, so this is schema-only persistence, not Slice-advancing gameplay;
 - Slice 9 planetary gravity and swept surface-contact: an optional registered spherical planetary body now actually affects the authoritative tick (gravitational acceleration each fixed step, tunneling-safe surface contact resolved through the same mutation point static-body contact uses), strictly opt-in so every existing deep-space scenario is unaffected, round-tripped through save/load as an additive v1 field (implemented, Product Reality pending; probe still treated as a point rather than the compound hull against the surface, does not yet compose with a static body in the same tick, and no Unreal scene/telemetry exists — see "Planetary gravity and surface contact wired into the authoritative tick" above).
 - Slice 10 controlled-descent command wiring: `controlled_descent_velocity_command()` fails closed to no result with no registered planetary body and otherwise constrains a requested velocity to the registered body's `ControlledDescentEnvelope`, exposed through `UProbeSimulationAdapter::GetControlledDescentVelocityCommand()` (read-only query) and `CommandSetControlledDescentVelocityMetersPerSecond()` (applies through the existing `set_velocity_mps()` boundary), mirroring the José-autopilot read-only-query pattern; a follow-on pass (#226) added the player-facing `C` engage/cancel loop, HUD readout, and José/mining-auto-approach exclusivity, so this is now reachable from ordinary play (implemented, Product Reality pending; no Unreal scene with a registered planetary body exists yet to exercise it in PIE — see "Controlled-descent command wiring (Slice 10)" above and `PHASE2_SURFACE_DESCENT_COMMAND_TEST.md`).
-- Slice 10 surface hover command wiring: `controlled_hover_velocity_command()` is now exposed through `UProbeSimulationAdapter::GetControlledHoverVelocityCommand()` (read-only query) and `CommandSetControlledHoverVelocityMetersPerSecond()` (applies through the same `set_velocity_mps()` boundary), reusing the existing `FEverwardControlledDescentCommand` result struct and the exact descent-command wiring shape (implemented, Product Reality pending; no key binding, HUD row, or engage/cancel controller loop exists yet — see "Surface hover command wiring" below).
+- Slice 10 surface hover command wiring and player loop: `controlled_hover_velocity_command()` is exposed through `UProbeSimulationAdapter::GetControlledHoverVelocityCommand()` (read-only query) and `CommandSetControlledHoverVelocityMetersPerSecond()` (applies through the same `set_velocity_mps()` boundary), reusing the existing `FEverwardControlledDescentCommand` result struct and the exact descent-command wiring shape; a follow-on pass added the player-facing `V` engage/cancel loop, HUD readout, and four-way exclusivity with José/controlled descent/mining auto-approach, so this is now reachable from ordinary play (implemented, Product Reality pending; no Unreal scene with a registered planetary body exists yet to exercise it in PIE — see "Surface hover command wiring" and "Surface hover engage/cancel loop (Slice 10)" below).
 - Slice 11 science-knowledge foundation: `science_knowledge.hpp`'s `TargetKnowledgeState`/`apply_observation()` are now wired into `SimulationCore::integrate_scan()`'s existing per-tick scan progress, persisted as an additive `target_knowledge` save field, and surfaced read-only through `UProbeSimulationAdapter::GetSelectedTargetKnowledgeStatus()` and a new telemetry-panel `KNOWLEDGE` row for whichever target is currently selected (implemented, Product Reality pending; no classification/composition estimate, passive-observation trigger, or discoveries HUD yet — see "Science knowledge foundation wired into the scan lifecycle (Slice 11)" above and `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`).
 
 ## Exact next local UE 5.8 Product Reality pass

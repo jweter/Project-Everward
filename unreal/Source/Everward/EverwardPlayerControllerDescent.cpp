@@ -42,6 +42,7 @@ void AEverwardPlayerController::ToggleControlledDescent()
     }
 
     CancelJoseTakeTheWheel(false, false);
+    CancelControlledHover(false, false);
     bAutoApproachMiningTarget = false;
     bControlledDescentEngaged = true;
     ShowDescentMessage(TEXT(

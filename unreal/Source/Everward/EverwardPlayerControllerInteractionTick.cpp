@@ -55,6 +55,14 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
     {
         ToggleControlledDescent();
     }
+    // Controlled hover is the same velocity-governor family as controlled
+    // descent (it holds altitude rather than tapering an approach), so it
+    // shares the exact composition/manual-override rules:
+    //   V = engage/cancel controlled hover near a registered planetary body
+    if (WasInputKeyJustPressed(EKeys::V))
+    {
+        ToggleControlledHover();
+    }
 
     const bool bManualTranslationRequested =
         WasInputKeyJustPressed(EKeys::W) ||
@@ -75,6 +83,10 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
     {
         CancelControlledDescent(false, true);
     }
+    if (bManualTranslationRequested && bControlledHoverEngaged)
+    {
+        CancelControlledHover(false, true);
+    }
     if (WasInputKeyJustPressed(EKeys::SpaceBar) && bJoseAutopilotEngaged)
     {
         CancelJoseTakeTheWheel(false, true);
@@ -83,9 +95,14 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
     {
         CancelControlledDescent(false, true);
     }
+    if (WasInputKeyJustPressed(EKeys::SpaceBar) && bControlledHoverEngaged)
+    {
+        CancelControlledHover(false, true);
+    }
 
     AdvanceJoseTakeTheWheel(DeltaSeconds);
     AdvanceControlledDescent(DeltaSeconds);
+    AdvanceControlledHover(DeltaSeconds);
 
     if (GEngine != nullptr)
     {
@@ -108,6 +125,15 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
             0.10f,
             bControlledDescentEngaged ? FColor::Cyan : FColor(130, 175, 190),
             DescentReadout);
+
+        const FString HoverReadout = bControlledHoverEngaged
+            ? TEXT("CONTROLLED HOVER // ENGAGED // [SPACE/WASDQE] TAKE OVER")
+            : TEXT("CONTROLLED HOVER // [V] ENGAGE NEAR A REGISTERED PLANETARY BODY");
+        GEngine->AddOnScreenDebugMessage(
+            74004,
+            0.10f,
+            bControlledHoverEngaged ? FColor::Cyan : FColor(130, 175, 190),
+            HoverReadout);
     }
 
     // First playable tractor-field control. T already owns physical target
@@ -213,6 +239,7 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
     {
         CancelJoseTakeTheWheel(true, false);
         CancelControlledDescent(true, false);
+        CancelControlledHover(true, false);
         ToggleAutoApproachMiningTarget();
     }
     if (WasInputKeyJustPressed(EKeys::SpaceBar))
