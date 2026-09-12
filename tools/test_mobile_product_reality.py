@@ -24,6 +24,65 @@ class MobileProductRealityTests(unittest.TestCase):
         self.assertIn("Human Product Reality:</strong> UNREVIEWED", html)
         self.assertIn("Unreal rendering", html)
 
+    def test_component_cards_are_read_only_evidence_not_game_logic(self) -> None:
+        html = render_state_report(
+            {
+                "commit": "abc123",
+                "scenario": "component-console",
+                "seed": 42,
+                "components": {
+                    "Save/Load": {
+                        "status": "PASS",
+                        "scenario": "save-load-roundtrip-v1",
+                        "timestamp": "2026-09-12T22:00:00Z",
+                        "detail": "authoritative round-trip invariant passed",
+                        "product_reality_debt": "Unreal F5/F6 flow still requires local acceptance",
+                    },
+                    "Manipulator": {
+                        "status": "PRODUCT REALITY REQUIRED",
+                        "scenario": "manipulator-visual-v1",
+                        "timestamp": "2026-09-12T22:00:00Z",
+                        "detail": "deterministic state evidence is insufficient for visual alignment",
+                    },
+                },
+            }
+        )
+        self.assertIn("Functional test console", html)
+        self.assertIn("Save/Load", html)
+        self.assertIn("Manipulator", html)
+        self.assertIn("PRODUCT REALITY REQUIRED", html)
+        self.assertIn("save-load-roundtrip-v1", html)
+        self.assertIn("abc123", html)
+        self.assertIn("Unreal F5/F6 flow still requires local acceptance", html)
+
+    def test_component_card_rejects_unknown_status(self) -> None:
+        with self.assertRaisesRegex(ValueError, "invalid component status"):
+            render_state_report(
+                {
+                    "commit": "abc123",
+                    "scenario": "component-console",
+                    "seed": 42,
+                    "components": {
+                        "Simulation": {
+                            "status": "GREENISH",
+                            "scenario": "simulation-v1",
+                            "timestamp": "2026-09-12T22:00:00Z",
+                        }
+                    },
+                }
+            )
+
+    def test_component_cards_require_structured_evidence(self) -> None:
+        with self.assertRaisesRegex(ValueError, "component entries must be mappings"):
+            render_state_report(
+                {
+                    "commit": "abc123",
+                    "scenario": "component-console",
+                    "seed": 42,
+                    "components": {"Simulation": "PASS"},
+                }
+            )
+
     def test_report_rejects_non_boolean_invariant_results(self) -> None:
         with self.assertRaisesRegex(ValueError, "invariant results must be booleans"):
             render_state_report(
