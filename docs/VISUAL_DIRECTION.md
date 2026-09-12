@@ -27,6 +27,22 @@ The long-term screenshot target is:
 
 The player should be able to watch mining equipment operating against a gas giant, cross a ring plane, orbit a cryovolcanic moon, approach a neutron star, or stare into a black-hole accretion environment and feel that the universe itself justified the journey.
 
+## Scalability promise
+
+Everward's cinematic ambition must scale down gracefully rather than becoming a hardware gate on gameplay.
+
+> **Low-end hardware gets the whole game. High-end hardware gets the spectacle.**
+
+The supported presentation ladder is **Emergency / Minimum → Low → Medium → High → Ultra / Cinematic**, plus a **Custom** mode built from those data-driven presets.
+
+Every preset must preserve the complete gameplay experience. The player must retain the same movement, scanning, mining, manipulation, tractor mechanics, damage, repair, `Fix_It`, resource systems, AI, progression, saves, hazards, interactions, and authoritative universe state regardless of presentation quality.
+
+When a high-end effect is too expensive, lower presets should substitute a cheaper readable representation rather than remove the information it communicates. Examples include simplified thruster effects, lower-cost mining impacts, cheaper tractor-field indicators, reduced volumetrics, simpler shadows, reduced decorative density, and lower-resolution textures. Gameplay-critical cues, targeting information, warnings, and HUD state remain mandatory.
+
+The lowest supported setting should still look unmistakably like Everward. **Low** should remain enjoyable, not merely bootable. **Ultra / Cinematic** exists to deliver the full wallpaper-screenshot ambition.
+
+The canonical rules are defined in `GRAPHICS_SCALABILITY_STANDARD.md`.
+
 ## Required scales
 
 ### Galactic scale
@@ -102,6 +118,8 @@ Likely major interfaces:
 
 At minimum the game should ultimately support hiding the HUD, selective panel visibility, scaling, major-panel repositioning, and a photo/screenshot mode.
 
+HUD readability is quality-preset invariant. Lower graphics settings may simplify effects around the HUD, but must not make gameplay-critical state, selection, warnings, or interaction prompts less available than on higher presets.
+
 ## Unreal production direction
 
 Unreal Engine is the intended production presentation/runtime engine because Everward's visual identity requires a serious path toward high-end real-time 3D rendering, lighting, materials, volumetrics, particles, cinematic cameras, and large-environment presentation.
@@ -125,5 +143,7 @@ The benchmark should continue to measure:
 - simulation integration,
 - large-coordinate behavior,
 - and scalability.
+
+The benchmark should eventually be captured across multiple quality presets rather than only at maximum fidelity. Low and Minimum must be evaluated for readability and playability, while Ultra/Cinematic measures the full visual target.
 
 The benchmark's role is now to validate Unreal and expose material technical risk. Godot remains useful comparative evidence, but a simpler or lighter implementation does not by itself override the accepted cinematic 3D product direction.
