@@ -1,11 +1,16 @@
 @echo off
-setlocal
+setlocal EnableExtensions EnableDelayedExpansion
 
 set "PROJECT=%~dp0..\unreal\Everward.uproject"
+set "PROFILE=%~dp0..\unreal\Config\EmergencyMinimum.ini"
 if "%UE_EDITOR%"=="" set "UE_EDITOR=C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe"
 
 if not exist "%PROJECT%" (
   echo ERROR: Everward.uproject not found at "%PROJECT%"
+  exit /b 1
+)
+if not exist "%PROFILE%" (
+  echo ERROR: Emergency profile not found at "%PROFILE%"
   exit /b 1
 )
 if not exist "%UE_EDITOR%" (
@@ -13,7 +18,21 @@ if not exist "%UE_EDITOR%" (
   exit /b 1
 )
 
+set "EXEC_CMDS="
+for /f "usebackq tokens=1,* delims==" %%A in ("%PROFILE%") do (
+  set "KEY=%%A"
+  if defined KEY if not "!KEY:~0,1!"==";" if not "!KEY:~0,1!"=="[" (
+    if defined EXEC_CMDS (set "EXEC_CMDS=!EXEC_CMDS!,%%A=%%B") else set "EXEC_CMDS=%%A=%%B"
+  )
+)
+
+if not defined EXEC_CMDS (
+  echo ERROR: No console variables were loaded from "%PROFILE%".
+  exit /b 1
+)
+
 echo Starting Everward Emergency / Minimum Mode...
-"%UE_EDITOR%" "%PROJECT%" -game -windowed -ResX=960 -ResY=540 -ExecCmds="t.MaxFPS 30,r.ScreenPercentage 50,sg.ViewDistanceQuality 0,sg.AntiAliasingQuality 0,sg.ShadowQuality 0,sg.GlobalIlluminationQuality 0,sg.ReflectionQuality 0,sg.PostProcessQuality 0,sg.TextureQuality 0,sg.EffectsQuality 0,sg.FoliageQuality 0,sg.ShadingQuality 0,r.Streaming.PoolSize 256,r.Streaming.LimitPoolSizeToVRAM 1,r.VolumetricFog 0,r.MotionBlurQuality 0,r.BloomQuality 0,r.DepthOfFieldQuality 0,r.LensFlareQuality 0"
+echo Profile: %PROFILE%
+"%UE_EDITOR%" "%PROJECT%" -game -windowed -ResX=960 -ResY=540 -ExecCmds="%EXEC_CMDS%"
 
 endlocal
