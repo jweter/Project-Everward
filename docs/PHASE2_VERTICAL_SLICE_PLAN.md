@@ -462,9 +462,32 @@ Blueprint-visible result struct rather than inventing a second one, and both
 fail closed with no registered planetary body. See `PROJECT_STATUS.md`'s
 "Surface hover command wiring" section and
 `PHASE2_SURFACE_HOVER_COMMAND_TEST.md`. **Status: implemented, Product
-Reality pending.** No key binding, HUD row, or engage/cancel controller loop
-exists yet — unlike controlled descent, hover has not had its own
-player-facing loop pass.
+Reality pending.**
+
+The player-facing engage/cancel loop this section previously named as the
+next step now also exists, following controlled descent's exact
+controller-loop precedent: `V` toggles **controlled hover**, an
+altitude-hold velocity *governor* rather than a destination autopilot --
+each fixed step it feeds the probe's own current velocity back through
+`GetControlledHoverVelocityCommand()`/
+`CommandSetControlledHoverVelocityMetersPerSecond()` and re-issues the
+constrained result, so ordinary WASDQE trim still steers laterally while
+altitude is held/corrected toward the configured target. It fails closed
+with a rejection message when no planetary body is registered, is mutually
+exclusive with José, controlled descent, and mining auto-approach (engaging
+one releases the other three), and any manual translation or `SPACE`
+immediately releases it. A persistent HUD readout mirrors controlled
+descent's discoverability line. See `EverwardPlayerControllerHover.cpp` and
+the updated `PHASE2_SURFACE_HOVER_COMMAND_TEST.md`.
+
+**Status: implemented, Product Reality pending.** No dedicated Unreal scene
+with a registered planetary body exists yet to exercise this near a real
+surface in PIE, and no Unreal Editor/UBT build was available in this
+sandbox to compile-verify the controller changes; they follow the exact
+`EverwardPlayerControllerDescent.cpp` toggle/advance/cancel shape already
+compiling in that file. The next local Unreal Product Reality pass should
+confirm the project still compiles under UBT and exercise `V` near a
+registered planetary body before relying on this further.
 
 Prove the same probe can operate near a physical surface:
 

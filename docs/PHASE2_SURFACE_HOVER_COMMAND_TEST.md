@@ -57,10 +57,42 @@ the same way the controlled-descent command wiring did.
   ("no planetary body registered") rather than silently falling back to an
   unconstrained raw velocity command.
 - No key binding, HUD row, or controller state machine was added in this
-  pass. Unlike controlled descent (whose command-wiring pass was followed
-  by a dedicated player-facing engage/cancel loop pass), hover's player
-  loop remains later work — this closes only the command-shaping wiring
-  gap `PHASE2_VERTICAL_SLICE_PLAN.md` named as the next concrete step.
+  pass — this closes the command-shaping wiring gap
+  `PHASE2_VERTICAL_SLICE_PLAN.md` named as the next concrete step, not the
+  full player-facing hover-mode loop. A follow-on pass (see "Player-facing
+  controlled-hover loop" below) added that engage/cancel loop following
+  controlled descent's exact precedent.
+
+## Player-facing controlled-hover loop
+
+A follow-on pass makes the command surface above reachable from ordinary
+play, the same way `EverwardPlayerControllerDescent.cpp` made
+`GetControlledDescentVelocityCommand()` reachable via descent's engage/cancel
+loop:
+
+- `V` toggles `AEverwardPlayerController::ToggleControlledHover()`
+  (`EverwardPlayerControllerHover.cpp`, new). Engaging previews
+  `GetControlledHoverVelocityCommand()` with the probe's current velocity
+  and rejects with an on-screen message when no planetary body is
+  registered (`bHasResult=false`), rather than engaging a session with
+  nothing to hold altitude against.
+- Like controlled descent, hover is a **velocity governor**, not a
+  destination autopilot: `AdvanceControlledHover()` re-reads the probe's own
+  live `GetProbeTelemetry().VelocityMetersPerSecond` every fixed step
+  (rather than commanding a fixed direction) and re-issues it through
+  `CommandSetControlledHoverVelocityMetersPerSecond()`, so ordinary WASDQE
+  translation still steers laterally while this only corrects the radial
+  component toward the configured target altitude. A rejected command (e.g.
+  the planetary body is cleared mid-session) cancels the mode with an
+  on-screen reason.
+- Controlled hover, controlled descent, José, and mining auto-approach are
+  mutually exclusive: engaging any one of the four releases the other
+  three, matching the exclusivity the existing three already had. Any
+  manual translation input or `SPACE` immediately releases controlled
+  hover, the same as descent and José.
+- A persistent `CONTROLLED HOVER` HUD readout mirrors the `CONTROLLED
+  DESCENT`/`JOSÉ TAKE THE WHEEL` discoverability lines, showing
+  engaged/disengaged state and the `V` binding.
 
 ## CI-verifiable acceptance
 
@@ -82,16 +114,33 @@ the same way the controlled-descent command wiring did.
   `FEverwardControlledDescentCommand` rather than a second struct; and that
   this status document's method names are reflected in the vertical-slice
   plan and project-status record.
+- `tools/test_controlled_hover_player_loop_surface.py` (new) confirms the
+  player-facing loop above is actually wired rather than merely declared:
+  `EverwardPlayerController.h` declares `ToggleControlledHover`/
+  `AdvanceControlledHover`/`CancelControlledHover` plus the tunable
+  envelope/hover-profile `UPROPERTY`s; `EverwardPlayerControllerHover.cpp`
+  calls `GetControlledHoverVelocityCommand`/
+  `CommandSetControlledHoverVelocityMetersPerSecond` with the probe's own
+  live telemetry velocity (not a hardcoded direction) and reuses every
+  tunable rather than stranding it, with no `FMath::Clamp`/
+  `SetActorLocation`/`Teleport` shortcut of its own;
+  `EverwardPlayerControllerInteractionTick.cpp` binds `V`, advances the mode
+  every tick, releases it on manual translation/`SPACE`, and keeps it
+  mutually exclusive with José/controlled descent/mining auto-approach; and
+  `EverwardPlayerControllerDescent.cpp`/`EverwardPlayerControllerAutopilot.cpp`
+  release controlled hover when descent/José engage.
 
 No Unreal Editor/UBT build was available in this sandbox to compile-verify
-`ProbeSimulationAdapter.h` or `ProbeSurfaceDescentBridge.cpp`. The new
-functions follow the exact `Core == nullptr` guard,
-`RecordCommandResult`/try-catch-`std::exception` rejection pattern, and
-read-only-query struct-return shape already compiling in the same file's
-`GetControlledDescentVelocityCommand()`/
-`CommandSetControlledDescentVelocityMetersPerSecond()`. The next local
-Unreal Product Reality pass should specifically confirm the project still
-compiles under UBT before relying on this further.
+`ProbeSimulationAdapter.h`, `ProbeSurfaceDescentBridge.cpp`, or the
+`EverwardPlayerController*` changes. The bridge file follows the exact
+`Core == nullptr` guard, `RecordCommandResult`/try-catch-`std::exception`
+rejection pattern, and read-only-query struct-return shape already
+compiling in the same file's `GetControlledDescentVelocityCommand()`/
+`CommandSetControlledDescentVelocityMetersPerSecond()`; the controller
+changes follow the exact toggle/advance/cancel shape already compiling in
+`EverwardPlayerControllerDescent.cpp`. The next local Unreal Product
+Reality pass should specifically confirm the project still compiles under
+UBT before relying on this further.
 
 ## Local Unreal Product Reality acceptance
 
@@ -119,22 +168,34 @@ compiles under UBT before relying on this further.
    any other existing command.
 8. Record any discrepancy (wrong clamping, a mutation despite no registered
    body, or a build/compile failure) as Product Reality evidence.
+9. With a registered planetary body, press `V` and confirm the `CONTROLLED
+   HOVER` HUD readout switches to `ENGAGED`, the probe's altitude visibly
+   settles toward the configured target altitude while WASDQE translation
+   still steers it laterally, and pressing `SPACE` or any manual
+   translation immediately releases control back with the readout
+   reverting.
+10. Away from any registered planetary body, press `V` and confirm a clear
+    on-screen rejection rather than a silent no-op or a fabricated hover
+    envelope.
+11. With controlled descent already engaged, press `V` and confirm descent
+    releases and controlled hover engages (and vice versa: engage hover,
+    then press `C` and confirm the reverse); repeat with José (`Y`) and
+    mining auto-approach (`P`) engaged instead and confirm each releases
+    the same way.
 
 ## Explicitly not complete in this pass
 
-- No key binding, HUD row, or engage/cancel controller loop exists yet —
-  the query/command are reachable only from Blueprint or a temporary debug
-  binding, not from ordinary play. A follow-on pass should add this
-  following `EverwardPlayerControllerDescent.cpp`'s exact
-  toggle/advance/cancel shape.
 - No dedicated Unreal scene with a registered planetary body exists yet to
   actually exercise this near a real surface in PIE.
 - Slice 10's other minimum interactions (terrain avoidance/contact beyond
   Slice 9's existing surface-contact resolution, scan/manipulate a surface
   sample, departure back toward space) remain unattempted.
+- No HUD altitude/clearance readout beyond the engaged/disengaged line —
+  the player currently infers the hold from observed motion rather than a
+  numeric altitude row.
 
 ## Status
 
-Hover command shaping is now wired into the adapter boundary; the
-player-facing engage/cancel loop and Product Reality evidence both remain
-pending. Does not by itself advance Slice 10's completion gate.
+Command shaping and the player-facing engage/cancel loop are both
+implemented; Product Reality pending. Does not by itself advance Slice 10's
+completion gate.

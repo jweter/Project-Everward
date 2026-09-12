@@ -43,6 +43,7 @@ void AEverwardPlayerController::ToggleJoseTakeTheWheel()
     }
 
     CancelControlledDescent(false, false);
+    CancelControlledHover(false, false);
     bAutoApproachMiningTarget = false;
     bJoseAutopilotEngaged = true;
     JoseDestinationTargetId = Target.TargetId;
