@@ -79,11 +79,12 @@ def _render_component_card(name: Any, raw: Any, report_commit: str) -> str:
         raise ValueError(f"invalid component status: {status}")
     scenario = _required(raw, "scenario")
     timestamp = _required(raw, "timestamp")
-    component_commit = str(raw.get("commit", report_commit)).strip()
-    if not component_commit:
-        raise ValueError("component commit must not be empty")
+    component_commit = _required(raw, "commit") if "commit" in raw else report_commit
     detail = str(raw.get("detail", "No additional deterministic evidence supplied.")).strip()
-    debt = str(raw.get("product_reality_debt", "None recorded for this component.")).strip()
+    if status == "PRODUCT REALITY REQUIRED":
+        debt = _required(raw, "product_reality_debt")
+    else:
+        debt = str(raw.get("product_reality_debt", "None recorded for this component.")).strip()
     return (
         '<article class="card">'
         f"<h3>{escape(str(name))}</h3>"
