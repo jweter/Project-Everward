@@ -775,6 +775,70 @@ void test_distinct_probe_ids_can_share_one_campaign_save() {
     assert(parsed.probes.at(1).probe.probe_id == "EV-0002");
 }
 
+void test_probe_lineage_records_round_trip() {
+    using everward::simulation::ProbeLineageRecord;
+
+    ProbeSaveData first =
+        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    ProbeSaveData second = first;
+    second.probe.probe_id = "EV-0002";
+    second.probe.generation = 2;
+
+    SaveGameV1 source{1, 99, 1234, 1, {first, second}};
+    source.lineages = {
+        {"EV-0001", "prime", "", 1},
+        {"EV-0002", "prime", "EV-0001", 2},
+    };
+
+    const SaveGameV1 parsed =
+        deserialize_save_game(serialize_save_game(source));
+
+    assert(parsed.lineages.size() == 2);
+    assert(parsed.lineages.at(0).probe_id == "EV-0001");
+    assert(parsed.lineages.at(0).lineage_id == "prime");
+    assert(parsed.lineages.at(0).parent_probe_id.empty());
+    assert(parsed.lineages.at(0).generation == 1);
+    assert(parsed.lineages.at(1).probe_id == "EV-0002");
+    assert(parsed.lineages.at(1).parent_probe_id == "EV-0001");
+    assert(parsed.lineages.at(1).generation == 2);
+}
+
+void test_legacy_save_without_lineages_field_infers_empty() {
+    const ProbeSaveData data =
+        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    const JsonValue full = everward::simulation::save_game_to_json(SaveGameV1{1, 0, 1234, 1, {data}});
+    assert(full.require("lineages").as_array().empty());
+
+    // This build's own writer always emits the key; a save missing the key
+    // entirely (captured before lineage records existed) must still parse
+    // rather than throwing on a missing field.
+    JsonValue without_field = JsonValue::make_object();
+    for (const auto& [key, field] : full.as_object()) {
+        if (key != "lineages") {
+            without_field.set(key, field);
+        }
+    }
+
+    const SaveGameV1 parsed = everward::simulation::save_game_from_json(without_field);
+    assert(parsed.lineages.empty());
+}
+
+void test_lineage_referencing_unpersisted_probe_fails_closed() {
+    const ProbeSaveData data =
+        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    SaveGameV1 source{1, 0, 1234, 1, {data}};
+    source.lineages = {{"EV-0002", "prime", "", 1}};
+
+    const std::string json_text = serialize_save_game(source);
+    bool threw = false;
+    try {
+        (void)deserialize_save_game(json_text);
+    } catch (const std::runtime_error& error) {
+        threw = std::string(error.what()).find("unknown persisted probe_id") != std::string::npos;
+    }
+    assert(threw);
+}
+
 } // namespace
 
 int main() {
@@ -806,6 +870,9 @@ int main() {
     test_empty_persisted_probe_id_fails_closed();
     test_duplicate_persisted_probe_ids_fail_closed();
     test_distinct_probe_ids_can_share_one_campaign_save();
+    test_probe_lineage_records_round_trip();
+    test_legacy_save_without_lineages_field_infers_empty();
+    test_lineage_referencing_unpersisted_probe_fails_closed();
 
     std::puts("save_data_tests: all tests passed");
     return 0;

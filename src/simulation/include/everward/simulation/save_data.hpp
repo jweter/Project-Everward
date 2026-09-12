@@ -22,6 +22,7 @@
 #include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/json_value.hpp"
 #include "everward/simulation/manipulator.hpp"
+#include "everward/simulation/probe_lineage.hpp"
 #include "everward/simulation/software_policy.hpp"
 
 #include <cstdint>
@@ -73,6 +74,16 @@ struct SaveGameV1 {
     std::int64_t universe_seed{0};
     int generation_algorithm_version{1};
     std::vector<ProbeSaveData> probes{};
+    // Additive v1 field: docs/SAVE_FORMAT.md's "parent/successor lineage
+    // records" category. probe_lineage.hpp's validator already existed
+    // data-only (no manufacturing/evolution rules) before this field did;
+    // persisting it here only records lineage facts an authoritative
+    // successor mechanic has already created, matching this field's own
+    // fail-closed validation against the save's persisted probe_ids in
+    // save_game_from_json below. Absent entirely on every save captured
+    // before this field existed, read back as empty rather than requiring a
+    // schema migration -- matching material_inventory_kg's precedent above.
+    std::vector<ProbeLineageRecord> lineages{};
 };
 
 namespace detail {
@@ -452,6 +463,29 @@ namespace detail {
     return integrity;
 }
 
+[[nodiscard]] inline JsonValue lineage_record_to_json(const ProbeLineageRecord& record) {
+    JsonValue object = JsonValue::make_object();
+    object.set("probe_id", JsonValue(record.probe_id));
+    object.set("lineage_id", JsonValue(record.lineage_id));
+    object.set("parent_probe_id", JsonValue(record.parent_probe_id));
+    object.set("generation", JsonValue(static_cast<std::int64_t>(record.generation)));
+    return object;
+}
+
+[[nodiscard]] inline ProbeLineageRecord lineage_record_from_json(const JsonValue& value) {
+    ProbeLineageRecord record;
+    record.probe_id = value.require("probe_id").as_string();
+    record.lineage_id = value.require("lineage_id").as_string();
+    record.parent_probe_id = value.require("parent_probe_id").as_string();
+    const std::int64_t generation = value.require("generation").as_int64();
+    if (generation < std::numeric_limits<int>::min() ||
+        generation > std::numeric_limits<int>::max()) {
+        throw std::runtime_error("lineage generation out of range for a 32-bit counter");
+    }
+    record.generation = static_cast<int>(generation);
+    return record;
+}
+
 } // namespace detail
 
 [[nodiscard]] inline JsonValue probe_save_data_to_json(const ProbeSaveData& data) {
@@ -519,6 +553,11 @@ namespace detail {
         probes.push_back(probe_save_data_to_json(probe));
     }
     object.set("probes", std::move(probes));
+    JsonValue lineages = JsonValue::make_array();
+    for (const auto& record : save.lineages) {
+        lineages.push_back(detail::lineage_record_to_json(record));
+    }
+    object.set("lineages", std::move(lineages));
     return object;
 }
 
@@ -556,6 +595,18 @@ namespace detail {
                 "duplicate persisted probe_id: " + probe.probe.probe_id);
         }
         save.probes.push_back(std::move(probe));
+    }
+
+    // Additive v1 field (see SaveGameV1's comment): absent entirely on a
+    // save captured before lineage records existed, read back as empty.
+    // Validated fail-closed against this same save's persisted probe_ids
+    // rather than trusted verbatim, since hand-edited JSON could otherwise
+    // reference a probe that was never actually persisted.
+    if (const JsonValue* lineages_value = value.find("lineages")) {
+        for (const auto& lineage_value : lineages_value->as_array()) {
+            save.lineages.push_back(detail::lineage_record_from_json(lineage_value));
+        }
+        validate_probe_lineages(save.lineages, probe_ids);
     }
     return save;
 }
