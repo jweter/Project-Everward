@@ -87,9 +87,13 @@ loop:
   on-screen reason.
 - Controlled hover, controlled descent, José, and mining auto-approach are
   mutually exclusive: engaging any one of the four releases the other
-  three, matching the exclusivity the existing three already had. Any
-  manual translation input or `SPACE` immediately releases controlled
-  hover, the same as descent and José.
+  three, matching the exclusivity the existing three already had. Unlike
+  descent/José, ordinary WASDQE translation does **not** release controlled
+  hover -- its entire purpose is preserving the player's tangential
+  translation request while only the radial component is governed toward
+  the target altitude, so canceling on the first translation keypress would
+  make lateral steering while hovering impossible. `V` (toggle) and `SPACE`
+  (full stop) remain the explicit releases.
 - A persistent `CONTROLLED HOVER` HUD readout mirrors the `CONTROLLED
   DESCENT`/`JOSÉ TAKE THE WHEEL` discoverability lines, showing
   engaged/disengaged state and the `V` binding.
@@ -125,8 +129,10 @@ loop:
   tunable rather than stranding it, with no `FMath::Clamp`/
   `SetActorLocation`/`Teleport` shortcut of its own;
   `EverwardPlayerControllerInteractionTick.cpp` binds `V`, advances the mode
-  every tick, releases it on manual translation/`SPACE`, and keeps it
-  mutually exclusive with José/controlled descent/mining auto-approach; and
+  every tick, releases it on `SPACE` (deliberately not on ordinary
+  translation, unlike José/descent -- see "Player-facing controlled-hover
+  loop" above), and keeps it mutually exclusive with José/controlled
+  descent/mining auto-approach; and
   `EverwardPlayerControllerDescent.cpp`/`EverwardPlayerControllerAutopilot.cpp`
   release controlled hover when descent/José engage.
 
@@ -170,10 +176,10 @@ UBT before relying on this further.
    body, or a build/compile failure) as Product Reality evidence.
 9. With a registered planetary body, press `V` and confirm the `CONTROLLED
    HOVER` HUD readout switches to `ENGAGED`, the probe's altitude visibly
-   settles toward the configured target altitude while WASDQE translation
-   still steers it laterally, and pressing `SPACE` or any manual
-   translation immediately releases control back with the readout
-   reverting.
+   settles toward the configured target altitude, and WASDQE translation
+   continues to steer it laterally without disengaging hover (unlike
+   descent/José); confirm pressing `SPACE` immediately releases control
+   back with the readout reverting.
 10. Away from any registered planetary body, press `V` and confirm a clear
     on-screen rejection rather than a silent no-op or a fabricated hover
     envelope.
