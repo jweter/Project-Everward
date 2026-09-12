@@ -43,6 +43,7 @@ class MobileProductRealityTests(unittest.TestCase):
                         "scenario": "manipulator-visual-v1",
                         "timestamp": "2026-09-12T22:00:00Z",
                         "detail": "deterministic state evidence is insufficient for visual alignment",
+                        "product_reality_debt": "Manipulator visual alignment requires Unreal acceptance",
                     },
                 },
             }
@@ -54,6 +55,44 @@ class MobileProductRealityTests(unittest.TestCase):
         self.assertIn("save-load-roundtrip-v1", html)
         self.assertIn("abc123", html)
         self.assertIn("Unreal F5/F6 flow still requires local acceptance", html)
+        self.assertIn("Manipulator visual alignment requires Unreal acceptance", html)
+
+    def test_component_card_rejects_explicit_invalid_commit_override(self) -> None:
+        for invalid in (None, True, [], {}):
+            with self.subTest(commit=invalid):
+                with self.assertRaisesRegex(ValueError, "(missing|invalid) required field: commit"):
+                    render_state_report(
+                        {
+                            "commit": "abc123",
+                            "scenario": "component-console",
+                            "seed": 42,
+                            "components": {
+                                "Simulation": {
+                                    "status": "PASS",
+                                    "scenario": "simulation-v1",
+                                    "timestamp": "2026-09-12T22:00:00Z",
+                                    "commit": invalid,
+                                }
+                            },
+                        }
+                    )
+
+    def test_product_reality_required_component_requires_debt(self) -> None:
+        with self.assertRaisesRegex(ValueError, "missing required field: product_reality_debt"):
+            render_state_report(
+                {
+                    "commit": "abc123",
+                    "scenario": "component-console",
+                    "seed": 42,
+                    "components": {
+                        "Manipulator": {
+                            "status": "PRODUCT REALITY REQUIRED",
+                            "scenario": "manipulator-visual-v1",
+                            "timestamp": "2026-09-12T22:00:00Z",
+                        }
+                    },
+                }
+            )
 
     def test_component_card_rejects_unknown_status(self) -> None:
         with self.assertRaisesRegex(ValueError, "invalid component status"):
