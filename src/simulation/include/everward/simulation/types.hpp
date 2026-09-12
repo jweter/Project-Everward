@@ -1,5 +1,7 @@
 #pragma once
 
+#include "everward/simulation/science_knowledge.hpp"
+
 #include <array>
 #include <cstdint>
 #include <map>
@@ -121,6 +123,16 @@ struct ProbeStateSnapshot {
     // save_data.hpp's material_inventory_kg deserialization for how a
     // pre-existing storage_used_kg is inferred into this breakdown.
     std::map<std::string, double> material_inventory_kg{};
+    // Slice 11 ("Science as gameplay") foundation: per-target accumulated
+    // knowledge from observation, keyed by target_id. science_knowledge.hpp
+    // is the engine-independent read/mutate model; SimulationCore's
+    // integrate_scan() is the sole authoritative accumulation point (see its
+    // observe_active_scan_progress()), the same way material_inventory_kg
+    // above is only ever mutated through add/consume_stored_material_kg().
+    // A std::map keeps save serialization deterministically ordered by
+    // target_id. Absent for any target never observed, and absent entirely
+    // on saves captured before this field existed (see save_data.hpp).
+    std::map<std::string, TargetKnowledgeState> target_knowledge{};
     bool can_scan{true};
     bool can_thrust{true};
     // Independent hardware-operational state for each power subsystem.

@@ -133,6 +133,44 @@ int main() {
         assert(scan_core.snapshot().is_scanning);
     }
 
+    // Slice 11 foundation: a completed active scan accumulates
+    // target_knowledge for the scanned id via observe_active_scan_progress(),
+    // proportional to elapsed real seconds against
+    // kNominalActiveScanConfidenceTimeConstantS (10.0), and leaves every
+    // other target's knowledge untouched.
+    {
+        SimulationCore knowledge_core;
+        knowledge_core.start_scan("asteroid-1", 2.0);
+        (void)knowledge_core.drain_events();
+
+        // No knowledge yet for a target that has never been observed.
+        assert(!knowledge_core.target_knowledge_state("asteroid-1").has_value());
+        assert(knowledge_core.target_knowledge().empty());
+
+        // Halfway through the scan: partial credit, still merely "observed".
+        knowledge_core.advance_wall_ticks(SimulationClock::TicksPerSecond / 2);
+        auto mid_knowledge = knowledge_core.target_knowledge_state("asteroid-1");
+        assert(mid_knowledge.has_value());
+        assert(mid_knowledge->level == everward::simulation::KnowledgeLevel::Observed);
+        assert(nearly_equal(mid_knowledge->active_scan_s, 0.5));
+        assert(nearly_equal(mid_knowledge->confidence, 0.05));
+        assert(nearly_equal(mid_knowledge->best_instrument_resolution, 1.0));
+        assert(mid_knowledge->classification.empty());
+
+        // Completing the full 2.0 s scan accumulates the remainder; no
+        // classification is ever fabricated by this foundation layer.
+        knowledge_core.advance_wall_ticks(
+            SimulationClock::TicksPerSecond + SimulationClock::TicksPerSecond / 2);
+        auto completed_knowledge = knowledge_core.target_knowledge_state("asteroid-1");
+        assert(completed_knowledge.has_value());
+        assert(nearly_equal(completed_knowledge->active_scan_s, 2.0));
+        assert(nearly_equal(completed_knowledge->confidence, 0.2));
+        assert(completed_knowledge->classification.empty());
+
+        // A different, never-scanned target still reports no knowledge.
+        assert(!knowledge_core.target_knowledge_state("asteroid-2").has_value());
+    }
+
     // ScanCommand: cancellation. cancel_scan() rejects when no scan is in
     // progress, and otherwise discards the active scan's target/progress
     // immediately, emits ScanCancelled exactly once, and leaves the probe

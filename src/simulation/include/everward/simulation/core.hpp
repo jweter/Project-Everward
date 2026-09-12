@@ -18,6 +18,18 @@ namespace everward::simulation {
 class SimulationCore {
 public:
     static constexpr double kCanonicalEv0001EnergyGenerationW = 75.0;
+    // Slice 11 foundation (observe_active_scan_progress() below): matches
+    // EverwardPlayerController.h's default Phase2ScanDurationSeconds, so one
+    // uninterrupted nominal-length active scan brings a target's knowledge
+    // confidence to full (1.0). A sensor-damage-elongated scan (see
+    // impact_damage.hpp's DamageAwareProbeRuntime::start_scan) still reaches
+    // the same confidence, it simply takes longer wall-clock time to do so,
+    // since duration is the only channel scan damage already degrades.
+    static constexpr double kNominalActiveScanConfidenceTimeConstantS = 10.0;
+    // Per-instrument resolving power beyond this nominal baseline is later
+    // work (Slice 11's "instrument-dependent resolution" bullet); this
+    // foundation records a fixed nominal value rather than inventing one.
+    static constexpr double kNominalInstrumentResolution = 1.0;
 
     SimulationCore() = default;
 
@@ -112,6 +124,25 @@ public:
         if (snapshot.is_scanning == snapshot.active_scan_target_id.empty()) {
             throw std::invalid_argument(
                 "is_scanning must agree with whether active_scan_target_id is set");
+        }
+        for (const auto& [target_id, knowledge] : snapshot.target_knowledge) {
+            if (target_id.empty() || knowledge.target_id != target_id) {
+                throw std::invalid_argument(
+                    "target_knowledge entry key must be a non-empty id matching its target_id");
+            }
+            if (!std::isfinite(knowledge.passive_observation_s) || knowledge.passive_observation_s < 0.0 ||
+                !std::isfinite(knowledge.active_scan_s) || knowledge.active_scan_s < 0.0) {
+                throw std::invalid_argument("target_knowledge observation durations must be finite and non-negative");
+            }
+            if (!std::isfinite(knowledge.confidence) ||
+                knowledge.confidence < 0.0 || knowledge.confidence > 1.0) {
+                throw std::invalid_argument("target_knowledge confidence must be finite and between 0 and 1");
+            }
+            if (!std::isfinite(knowledge.best_instrument_resolution) ||
+                knowledge.best_instrument_resolution < 0.0 || knowledge.best_instrument_resolution > 1.0) {
+                throw std::invalid_argument(
+                    "target_knowledge best_instrument_resolution must be finite and between 0 and 1");
+            }
         }
 
         snapshot.attitude_degrees.yaw = normalize_degrees(snapshot.attitude_degrees.yaw);
@@ -437,6 +468,24 @@ public:
         return probe_.material_inventory_kg;
     }
 
+    // Read-only per-target science knowledge accumulated by
+    // observe_active_scan_progress(). See ProbeStateSnapshot::target_knowledge.
+    [[nodiscard]] const std::map<std::string, TargetKnowledgeState>& target_knowledge() const noexcept {
+        return probe_.target_knowledge;
+    }
+
+    // Fails closed to std::nullopt for a target never observed, rather than
+    // fabricating an Unknown-level reading, matching this codebase's other
+    // registered-id lookups (e.g. selected_target_status()).
+    [[nodiscard]] std::optional<TargetKnowledgeState> target_knowledge_state(
+            const std::string& target_id) const {
+        const auto entry = probe_.target_knowledge.find(target_id);
+        if (entry == probe_.target_knowledge.end()) {
+            return std::nullopt;
+        }
+        return entry->second;
+    }
+
     void consume_stored_energy_j(double joules) {
         if (!std::isfinite(joules) || joules < 0.0) {
             throw std::invalid_argument("energy consumption must be finite and non-negative");
@@ -599,6 +648,8 @@ private:
             return;
         }
 
+        observe_active_scan_progress(seconds);
+
         probe_.scan_remaining_s -= seconds;
         if (probe_.scan_remaining_s <= 0.0) {
             const std::string completed_target = probe_.active_scan_target_id;
@@ -607,6 +658,29 @@ private:
             probe_.scan_remaining_s = 0.0;
             events_.push_back({clock_.tick(), DomainEventType::ScanCompleted, "scan complete: " + completed_target});
         }
+    }
+
+    // Slice 11 foundation: the sole authoritative point that mutates
+    // target_knowledge. Called every fixed tick an active scan is actually
+    // progressing (guarded by integrate_scan()'s is_scanning/can_scan check
+    // above), so a locked-out or cancelled scan accumulates nothing. See
+    // kNominalActiveScanConfidenceTimeConstantS's comment for why elongated
+    // (damage-degraded) scans still reach full confidence rather than a
+    // different ceiling.
+    void observe_active_scan_progress(double seconds) {
+        auto entry = probe_.target_knowledge.find(probe_.active_scan_target_id);
+        if (entry == probe_.target_knowledge.end()) {
+            entry = probe_.target_knowledge
+                        .emplace(probe_.active_scan_target_id,
+                                 make_unknown_target_knowledge(probe_.active_scan_target_id))
+                        .first;
+        }
+        ObservationEvidence evidence;
+        evidence.mode = ObservationMode::ActiveScan;
+        evidence.duration_s = seconds;
+        evidence.confidence_gain = std::min(1.0, seconds / kNominalActiveScanConfidenceTimeConstantS);
+        evidence.instrument_resolution = kNominalInstrumentResolution;
+        apply_observation(entry->second, evidence);
     }
 
     void integrate_energy_balance(double seconds) {

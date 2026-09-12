@@ -318,6 +318,46 @@ namespace detail {
     return policy;
 }
 
+[[nodiscard]] inline std::string knowledge_level_to_string(KnowledgeLevel level) {
+    switch (level) {
+        case KnowledgeLevel::Unknown: return "unknown";
+        case KnowledgeLevel::Observed: return "observed";
+        case KnowledgeLevel::Characterized: return "characterized";
+    }
+    throw std::invalid_argument("unknown KnowledgeLevel value");
+}
+
+[[nodiscard]] inline KnowledgeLevel knowledge_level_from_string(const std::string& value) {
+    if (value == "unknown") return KnowledgeLevel::Unknown;
+    if (value == "observed") return KnowledgeLevel::Observed;
+    if (value == "characterized") return KnowledgeLevel::Characterized;
+    throw std::runtime_error("unknown knowledge level in save data: " + value);
+}
+
+[[nodiscard]] inline JsonValue target_knowledge_state_to_json(const TargetKnowledgeState& state) {
+    JsonValue object = JsonValue::make_object();
+    object.set("target_id", JsonValue(state.target_id));
+    object.set("level", JsonValue(knowledge_level_to_string(state.level)));
+    object.set("passive_observation_s", JsonValue(state.passive_observation_s));
+    object.set("active_scan_s", JsonValue(state.active_scan_s));
+    object.set("confidence", JsonValue(state.confidence));
+    object.set("best_instrument_resolution", JsonValue(state.best_instrument_resolution));
+    object.set("classification", JsonValue(state.classification));
+    return object;
+}
+
+[[nodiscard]] inline TargetKnowledgeState target_knowledge_state_from_json(const JsonValue& value) {
+    TargetKnowledgeState state;
+    state.target_id = value.require("target_id").as_string();
+    state.level = knowledge_level_from_string(value.require("level").as_string());
+    state.passive_observation_s = value.require("passive_observation_s").as_double();
+    state.active_scan_s = value.require("active_scan_s").as_double();
+    state.confidence = value.require("confidence").as_double();
+    state.best_instrument_resolution = value.require("best_instrument_resolution").as_double();
+    state.classification = value.require("classification").as_string();
+    return state;
+}
+
 [[nodiscard]] inline JsonValue probe_state_to_json(const ProbeStateSnapshot& state) {
     JsonValue object = JsonValue::make_object();
     object.set("probe_id", JsonValue(state.probe_id));
@@ -354,6 +394,13 @@ namespace detail {
             inventory.set(material_id, JsonValue(kilograms));
         }
         object.set("material_inventory_kg", std::move(inventory));
+    }
+    {
+        JsonValue knowledge = JsonValue::make_object();
+        for (const auto& [target_id, target_state] : state.target_knowledge) {
+            knowledge.set(target_id, target_knowledge_state_to_json(target_state));
+        }
+        object.set("target_knowledge", std::move(knowledge));
     }
     object.set("can_scan", JsonValue(state.can_scan));
     object.set("can_thrust", JsonValue(state.can_thrust));
@@ -422,6 +469,14 @@ namespace detail {
         }
     } else if (state.storage_used_kg > 0.0) {
         state.material_inventory_kg["raw_regolith"] = state.storage_used_kg;
+    }
+    // Additive v1 field: absent entirely on any save captured before Slice
+    // 11's science-knowledge wiring existed, read back as an empty map
+    // (nothing was ever observed) rather than requiring a schema migration.
+    if (const JsonValue* knowledge = value.find("target_knowledge")) {
+        for (const auto& [target_id, target_state] : knowledge->as_object()) {
+            state.target_knowledge[target_id] = target_knowledge_state_from_json(target_state);
+        }
     }
     state.sensors_operational = value.require("sensors_operational").as_bool();
     state.propulsion_operational = value.require("propulsion_operational").as_bool();
