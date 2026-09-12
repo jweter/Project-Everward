@@ -28,6 +28,7 @@ Deliverables:
 - `TESTING_STRATEGY.md`
 - `SAVE_FORMAT.md`
 - `PERFORMANCE_BUDGETS.md`
+- `GRAPHICS_SCALABILITY_STANDARD.md`
 - `DECISION_LOG.md`
 - contribution/coding standards
 
@@ -79,6 +80,26 @@ Phase 2 target state remains one embodied machine with mass, energy, storage, se
 Player must be able to observe, scan, move, inspect systems, manage power, understand physical contact, and alter basic software policies.
 
 The Unreal layer presents authoritative simulation state and submits commands; it must never become the owner of mechanical truth. See ADR-0002, ADR-0012, `PHASE2_KICKOFF_SCAFFOLD.md`, `PHASE2_VERTICAL_SLICE_PLAN.md`, and `PROJECT_STATUS.md`.
+
+### Cross-phase graphics scalability and development-access requirement
+
+Beginning in Phase 2, Everward must support a deliberate presentation scalability path rather than treating current development hardware limits as a reason to reduce the game's long-term ambition.
+
+The canonical quality ladder is:
+
+`Emergency / Minimum -> Low -> Medium -> High -> Ultra / Cinematic -> Custom`
+
+All supported presets must expose the **full game**. Quality levels may change rendering cost, memory use, textures, shadows, lighting, reflections, volumetrics, post-processing, particles, decorative density, view distance, and presentation LODs, but they must not change authoritative simulation, physics, resources, AI, progression, saves, controls, hazards, interactions, or deterministic outcomes.
+
+The permanent rule is:
+
+> **Low-end hardware gets the whole game. High-end hardware gets the spectacle.**
+
+Issue #228 is the current implementation entry point: establish a Low-Spec Play Mode that allows meaningful Phase-2 gameplay on the current 16 GB/integrated-graphics development laptop, with Emergency / Minimum as a stronger fallback. Low must remain enjoyable and recognizably Everward, not merely bootable.
+
+Issue #216 complements this with an iPhone-readable deterministic/state Product Reality surface so subsystem correctness can often be inspected without loading the full Unreal development stack. Mobile evidence must not falsely clear Unreal-only rendering, camera, collision/game-feel, visual alignment, or performance acceptance.
+
+See `GRAPHICS_SCALABILITY_STANDARD.md`, `VISUAL_DIRECTION.md`, `PERFORMANCE_BUDGETS.md`, and `TESTING_STRATEGY.md`.
 
 **Gate:** simply existing as the probe is compelling.
 
@@ -234,7 +255,7 @@ This opening teaches the game through the player's own body: repairing Sensors t
 
 The starter zone must always contain a valid recovery chain. Constraint is desirable; an unrecoverable soft-lock is not.
 
-Visual quality should already communicate the intended cinematic scientific-realism identity; the vertical slice is not a temporary low-fidelity 2D interpretation of the final game.
+Visual quality should already communicate the intended cinematic scientific-realism identity; the vertical slice is not a temporary low-fidelity 2D interpretation of the final game. At the same time, the complete vertical-slice gameplay loop must remain playable at Low and the lowest supported preset. Lower settings may simplify presentation, but they may not remove mechanics, information, hazards, interactions, or required visual cues.
 
 **Gate:** the player can awaken damaged, rebuild their own body, discover the beginning of the `Fix_It` mystery, earn first departure, and continue into the broader Everward loop; ready for external playtesting.
 
@@ -288,6 +309,8 @@ Replacement must also evolve: later generations should be able to replace obsole
 Implement Serenity, Explorer, Voyager, Survivor, and Abyss. Difficulty changes resource pressure, environmental lethality, recovery, hostility, and long-term threat rather than merely enemy hit points.
 
 Difficulty may change repair cost, time, scarcity, automation quality, reserve margins, and consequences. The canonical opening must still respect the chosen mode's intended recoverability rules and avoid accidental impossible starts.
+
+Graphics quality is explicitly independent of difficulty. A player on Minimum graphics and a player on Ultra/Cinematic must face the same chosen difficulty semantics and authoritative universe rules.
 
 **Gate:** the same expedition feels meaningfully different across presets.
 
@@ -345,11 +368,15 @@ Required identity is complete: embodiment, scanning, resources, industry, self-r
 
 No missing feature should still be required to prove the fundamental game.
 
+Alpha must also demonstrate that the full gameplay loop remains available across the supported graphics ladder, with Low/Minimum using cheaper presentation rather than missing systems.
+
 ## Phase 22 — Visual Production
 
 Aggressively improve Unreal-based stars, planets, atmospheres, rings, particles, structures, probes, lighting, shaders, transitions, camera, HUD, repair/reconstruction/replacement feedback, and photo mode.
 
 Target the “wallpaper screenshot” standard.
+
+Visual production must mature all supported quality presets rather than optimizing only Ultra/Cinematic. Higher tiers add fidelity; lower tiers substitute cheaper readable effects while preserving the full game. The project should maintain data-driven Emergency / Minimum, Low, Medium, High, Ultra / Cinematic, and Custom profiles with clear memory/rendering budgets.
 
 ## Phase 23 — Audio Production
 
@@ -361,6 +388,8 @@ Scale interfaces from one probe to a vast lineage. Address readable telemetry, c
 
 Civilization-scale UX must support hierarchy navigation, search/filtering, task groups, doctrine editing, stockpile and throughput views, bottleneck visualization, maintenance/recycling queues, alert aggregation, and drill-down from system-level problems to individual machines when information is available.
 
+Critical HUD/interaction information must remain readable across every supported graphics preset; presentation scaling may not hide information required to play.
+
 ## Phase 25 — Optimization
 
 Focus on the true scaling problem: simulation scale × persistence × time acceleration.
@@ -369,15 +398,21 @@ Optimize inactive-region simulation, event aggregation, distant agents, determin
 
 Simulation LOD is a required architectural mechanism for the no-arbitrary-cap doctrine. The engine may reduce update fidelity with distance/relevance, but it should preserve meaningful entity identity, material state, history, and consequential outcomes.
 
+Optimization must also validate the full graphics ladder on representative hardware. Measure peak RAM, shared/graphics memory, startup/load time, frame time, and visual readability by preset. Performance gains obtained by disabling required simulation, physics, resources, AI, interactions, or information are invalid. Preset-equivalence tests should prove that Low/Minimum and Ultra/Cinematic produce the same authoritative mechanical outcomes for the same deterministic scenario.
+
 ## Phase 26 — Beta
 
 Focus on balancing, defects, performance, onboarding, save migration, content distribution, procedural quality, recovery-path validation, replacement/recycling validation, and difficulty validation. Avoid major new systems.
+
+Beta must include quality-preset compatibility and save interchange testing: a campaign must remain mechanically identical when moving between supported graphics presets.
 
 ## Phase 27 — Steam Demo
 
 Polish the canonical opening: damaged awakening, initial survival power, physically reachable mining, staged Self Repair, capability-by-capability recovery, `Fix_It` mystery seeding, full departure readiness, first lift-off, scanning, broader mining/industrial bootstrap, first meaningful component replacement, first successor, and first departure toward the next major destination.
 
 The demo must communicate the actual fantasy: **you wake as a damaged machine, discover that a forgotten `Fix_It` process kept you alive, rebuild and then surpass your original design, and use that restored/evolving body to begin an interstellar lineage.** It must not merely showcase technology.
+
+The demo should expose the supported quality presets and preserve the complete demo experience at the lowest supported tier.
 
 ## Phase 28 — Release Decision
 
@@ -388,6 +423,8 @@ Choose full 1.0 versus Early Access based on evidence. Do not commit prematurely
 A credible 1.0 supports hundreds of hours and delivers a complete version of:
 
 > Become an increasingly powerful immortal machine intelligence and explore an effectively unending universe.
+
+A credible 1.0 also preserves that full game across the supported graphics range: hardware changes visual fidelity, not access to Everward's systems or universe.
 
 ## Post-1.0 possibilities
 

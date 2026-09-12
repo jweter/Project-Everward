@@ -92,6 +92,22 @@ Ancestry must remain persistent. No matter how advanced a descendant becomes, it
 
 See `GENERATION_ORIGIN_AND_EVOLUTION.md` for the full doctrine and implementation consequences.
 
+## 10. The Full Game Exists at Every Graphics Level
+
+Everward's quality presets may change presentation cost, but they must not change the game itself.
+
+A player on **Emergency / Minimum** or **Low** must retain the same mechanics, progression, simulation, saves, interactions, information, objectives, hazards, and universe state as a player on **Ultra / Cinematic**. Lower settings should replace expensive effects with cheaper readable representations rather than remove gameplay cues or systems.
+
+This is a permanent product rule:
+
+> **Low-end hardware gets the whole game. High-end hardware gets the spectacle.**
+
+Graphics scaling must therefore remain presentation-only. It may affect render scale, textures, shadows, lighting, reflections, post-processing, particles, volumetrics, decorative density, view distance, presentation LODs, and frame-rate policy. It must not alter simulation frequency, physics rules, resource accounting, mining yield, tractor behavior, damage, AI, progression, save semantics, gameplay detection ranges, or deterministic outcomes.
+
+Save compatibility must be independent of quality preset. Critical HUD and interaction information must remain readable at every supported level. Where an expensive visual cue is removed, a cheaper equivalent must preserve the player's ability to understand what is happening and respond correctly.
+
+See `GRAPHICS_SCALABILITY_STANDARD.md` for the canonical preset, memory, testing, and low-spec development requirements.
+
 ## Design test
 
 Before adding a major feature, ask:
@@ -106,3 +122,4 @@ Before adding a major feature, ask:
 8. Can direct control and automation use the same authoritative command path?
 9. Does progression unlock genuinely new perception, reasoning, or action instead of only larger scalar bonuses?
 10. Does the design preserve the contrast between a clumsy Generation 1 and potentially extraordinary far-future descendants?
+11. Does it remain fully playable and mechanically equivalent from the lowest supported graphics preset through Ultra/Cinematic?
