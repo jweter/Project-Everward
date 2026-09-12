@@ -153,6 +153,30 @@ void test_hover_never_targets_below_minimum_clearance_and_limits_translation() {
     assert(command.tangential_rate_limited);
 }
 
+void test_hover_reports_limited_only_when_correction_is_actually_clamped() {
+    // Regression coverage: the returned "limited" flag must mean the
+    // proportional altitude correction was actually clamped to
+    // max_vertical_correction_speed_mps, not merely that a nonzero
+    // correction was applied -- the latter would be true almost anywhere
+    // off the exact target altitude and would make the command path's
+    // "(altitude correction limited)" feedback misleading.
+    const SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const ControlledDescentEnvelope envelope{5.0, 3.0, 0.0};
+    const SurfaceHoverProfile hover{5.0, 0.5, 2.0};
+
+    // 2 m below target: the proportional correction (1.0 m/s) stays well
+    // inside the 2.0 m/s cap, so this is an active but unclamped correction.
+    const auto unclamped = constrain_surface_hover_velocity({103.0, 0.0, 0.0}, {}, body, envelope, hover);
+    assert(nearly_equal(unclamped.velocity_mps.x, 1.0));
+    assert(!unclamped.descent_rate_limited);
+
+    // 11 m below target: the proportional correction (8.0 m/s) exceeds the
+    // 2.0 m/s cap, so this is actually clamped.
+    const auto clamped = constrain_surface_hover_velocity({89.0, 0.0, 0.0}, {}, body, envelope, hover);
+    assert(nearly_equal(clamped.velocity_mps.x, 2.0));
+    assert(clamped.descent_rate_limited);
+}
+
 void test_controlled_hover_command_fails_closed_with_no_registered_body() {
     const std::optional<SphericalPlanetaryBody> no_body;
     const auto command = controlled_hover_velocity_command({105.0, 0.0, 0.0}, {}, no_body);
@@ -173,6 +197,7 @@ int main() {
     test_controlled_descent_command_matches_direct_call_with_registered_body();
     test_hover_corrects_toward_target_altitude_and_preserves_translation();
     test_hover_never_targets_below_minimum_clearance_and_limits_translation();
+    test_hover_reports_limited_only_when_correction_is_actually_clamped();
     test_controlled_hover_command_fails_closed_with_no_registered_body();
     std::puts("surface_descent_guidance_tests: all tests passed");
     return 0;

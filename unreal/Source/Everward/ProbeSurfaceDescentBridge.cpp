@@ -26,6 +26,18 @@ everward::simulation::AltitudeAwareDescentProfile MakeProfile(
     Profile.touchdown_descent_speed_mps = TouchdownDescentSpeedMetersPerSecond;
     return Profile;
 }
+
+everward::simulation::SurfaceHoverProfile MakeHoverProfile(
+    double TargetAltitudeMeters,
+    double AltitudeGainPerSecond,
+    double MaxVerticalCorrectionSpeedMetersPerSecond)
+{
+    everward::simulation::SurfaceHoverProfile Profile;
+    Profile.target_altitude_m = TargetAltitudeMeters;
+    Profile.altitude_gain_per_second = AltitudeGainPerSecond;
+    Profile.max_vertical_correction_speed_mps = MaxVerticalCorrectionSpeedMetersPerSecond;
+    return Profile;
+}
 } // namespace
 
 // docs/PHASE2_VERTICAL_SLICE_PLAN.md's Slice 10 status named this exact gap:
@@ -123,6 +135,104 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSetControlledDescent
             FString::Printf(TEXT("controlled descent velocity accepted: [%.2f, %.2f, %.2f] m/s%s%s"),
                 Command->velocity_mps.x, Command->velocity_mps.y, Command->velocity_mps.z,
                 Command->descent_rate_limited ? TEXT(" (descent rate limited)") : TEXT(""),
+                Command->tangential_rate_limited ? TEXT(" (tangential rate limited)") : TEXT("")));
+    }
+    catch (const std::exception& Error)
+    {
+        return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what()));
+    }
+}
+
+// Wires surface_descent_guidance.hpp's controlled_hover_velocity_command()
+// the same way GetControlledDescentVelocityCommand() wires its descent
+// counterpart: a read-only query over Core's live pose and registered
+// planetary body plus the caller's tunable envelope/hover parameters.
+// bHasResult is false with no registered planetary body, matching the
+// existing descent query's fail-closed contract rather than fabricating a
+// hover target for deep space.
+FEverwardControlledDescentCommand UProbeSimulationAdapter::GetControlledHoverVelocityCommand(
+    FVector RequestedVelocityMetersPerSecond,
+    double MaxTangentialSpeedMetersPerSecond,
+    double MinimumClearanceMeters,
+    double TargetAltitudeMeters,
+    double AltitudeGainPerSecond,
+    double MaxVerticalCorrectionSpeedMetersPerSecond) const
+{
+    FEverwardControlledDescentCommand Result;
+    if (Core == nullptr)
+    {
+        return Result;
+    }
+
+    const auto Envelope = MakeEnvelope(0.0, MaxTangentialSpeedMetersPerSecond, MinimumClearanceMeters);
+    const auto Hover = MakeHoverProfile(
+        TargetAltitudeMeters, AltitudeGainPerSecond, MaxVerticalCorrectionSpeedMetersPerSecond);
+
+    const auto Command = everward::simulation::controlled_hover_velocity_command(
+        Core->snapshot().position_m,
+        {RequestedVelocityMetersPerSecond.X, RequestedVelocityMetersPerSecond.Y, RequestedVelocityMetersPerSecond.Z},
+        Core->planetary_body(),
+        Envelope,
+        Hover);
+    if (!Command.has_value())
+    {
+        return Result;
+    }
+
+    Result.bHasResult = true;
+    Result.CommandVelocityMetersPerSecond = FVector(
+        Command->velocity_mps.x, Command->velocity_mps.y, Command->velocity_mps.z);
+    Result.bDescentRateLimited = Command->descent_rate_limited;
+    Result.bTangentialRateLimited = Command->tangential_rate_limited;
+    return Result;
+}
+
+// Computes the same constrained hover command as
+// GetControlledHoverVelocityCommand() and, unlike that read-only query,
+// actually issues it through the exact same Core->set_velocity_mps()
+// boundary CommandSetControlledDescentVelocityMetersPerSecond() already
+// uses -- no second velocity-mutation path. Fails closed (rejected, no
+// mutation) whenever no planetary body is registered.
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSetControlledHoverVelocityMetersPerSecond(
+    FVector RequestedVelocityMetersPerSecond,
+    double MaxTangentialSpeedMetersPerSecond,
+    double MinimumClearanceMeters,
+    double TargetAltitudeMeters,
+    double AltitudeGainPerSecond,
+    double MaxVerticalCorrectionSpeedMetersPerSecond)
+{
+    const FName CommandId(TEXT("set_controlled_hover_velocity"));
+    if (Core == nullptr)
+    {
+        return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    }
+    if (!Core->planetary_body().has_value())
+    {
+        return RecordCommandResult(CommandId, false, TEXT("no planetary body registered"));
+    }
+
+    const auto Envelope = MakeEnvelope(0.0, MaxTangentialSpeedMetersPerSecond, MinimumClearanceMeters);
+    const auto Hover = MakeHoverProfile(
+        TargetAltitudeMeters, AltitudeGainPerSecond, MaxVerticalCorrectionSpeedMetersPerSecond);
+
+    const auto Command = everward::simulation::controlled_hover_velocity_command(
+        Core->snapshot().position_m,
+        {RequestedVelocityMetersPerSecond.X, RequestedVelocityMetersPerSecond.Y, RequestedVelocityMetersPerSecond.Z},
+        Core->planetary_body(),
+        Envelope,
+        Hover);
+    if (!Command.has_value())
+    {
+        return RecordCommandResult(CommandId, false, TEXT("no planetary body registered"));
+    }
+
+    try
+    {
+        Core->set_velocity_mps(Command->velocity_mps);
+        return RecordCommandResult(CommandId, true,
+            FString::Printf(TEXT("controlled hover velocity accepted: [%.2f, %.2f, %.2f] m/s%s%s"),
+                Command->velocity_mps.x, Command->velocity_mps.y, Command->velocity_mps.z,
+                Command->descent_rate_limited ? TEXT(" (altitude correction limited)") : TEXT(""),
                 Command->tangential_rate_limited ? TEXT(" (tangential rate limited)") : TEXT("")));
     }
     catch (const std::exception& Error)
