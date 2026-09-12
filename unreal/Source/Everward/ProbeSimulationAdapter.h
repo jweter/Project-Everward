@@ -303,6 +303,10 @@ struct EVERWARD_API FEverwardJoseGuidanceCommand
 // bHasResult is false whenever no planetary body is registered -- this
 // never fabricates a descent envelope for deep space, mirroring
 // FEverwardJoseGuidanceCommand's DestinationNotFound fail-closed contract.
+// Also reused by GetControlledHoverVelocityCommand()/
+// CommandSetControlledHoverVelocityMetersPerSecond(): both queries return the
+// same shape (a constrained velocity plus which axis, if any, was clamped),
+// so no second Blueprint-visible result struct is introduced for hover.
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardControlledDescentCommand
 {
@@ -362,6 +366,13 @@ public:
         double MinimumClearanceMeters,
         double FullSpeedAltitudeMeters,
         double TouchdownDescentSpeedMetersPerSecond) const;
+    UFUNCTION(BlueprintPure, Category="Everward|Descent") FEverwardControlledDescentCommand GetControlledHoverVelocityCommand(
+        FVector RequestedVelocityMetersPerSecond,
+        double MaxTangentialSpeedMetersPerSecond,
+        double MinimumClearanceMeters,
+        double TargetAltitudeMeters,
+        double AltitudeGainPerSecond,
+        double MaxVerticalCorrectionSpeedMetersPerSecond) const;
     UFUNCTION(BlueprintPure, Category="Everward|Command") FEverwardProbeCommandResult GetLastCommandResult() const;
     UFUNCTION(BlueprintPure, Category="Everward|Automation") FEverwardAutomationNotice GetLastAutomationNotice() const;
     UFUNCTION(BlueprintPure, Category="Everward|Scan") FEverwardScanLifecycleNotice GetLastScanLifecycleNotice() const;
@@ -374,6 +385,13 @@ public:
         double MinimumClearanceMeters,
         double FullSpeedAltitudeMeters,
         double TouchdownDescentSpeedMetersPerSecond);
+    UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandSetControlledHoverVelocityMetersPerSecond(
+        FVector RequestedVelocityMetersPerSecond,
+        double MaxTangentialSpeedMetersPerSecond,
+        double MinimumClearanceMeters,
+        double TargetAltitudeMeters,
+        double AltitudeGainPerSecond,
+        double MaxVerticalCorrectionSpeedMetersPerSecond);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandAdjustLocalVelocityMetersPerSecond(FVector DeltaLocalVelocityMetersPerSecond);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandAdjustAttitudeDegrees(FRotator DeltaAttitudeDegrees);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandStartScan(const FString& TargetId, double DurationSeconds);

@@ -444,15 +444,27 @@ confirm the project still compiles under UBT and exercise `C` near a
 registered planetary body before relying on this further.
 
 A read-only math foundation for this section's "stable hover/translation"
-bullet has since landed: `constrain_surface_hover_velocity()`/
+bullet landed first: `constrain_surface_hover_velocity()`/
 `controlled_hover_velocity_command()` in `surface_descent_guidance.hpp`
 shape a body-relative radial correction toward a target altitude while
 preserving the caller's tangential translation request, reusing the exact
 decomposition/clamping conventions `constrain_surface_approach_velocity()`
-already established. See `PROJECT_STATUS.md`'s "Surface hover guidance —
-read-only math foundation" section. **Status: math foundation only, not yet
-wired** to an authoritative command, adapter accessor, HUD row, or input
-binding.
+already established.
+
+That math is now wired into an authoritative command, following the exact
+`GetControlledDescentVelocityCommand()`/
+`CommandSetControlledDescentVelocityMetersPerSecond()` precedent:
+`UProbeSimulationAdapter::GetControlledHoverVelocityCommand()` (read-only
+query) and `CommandSetControlledHoverVelocityMetersPerSecond()` (applies the
+constrained velocity through the existing `Core->set_velocity_mps()`
+boundary) both reuse the same `FEverwardControlledDescentCommand`
+Blueprint-visible result struct rather than inventing a second one, and both
+fail closed with no registered planetary body. See `PROJECT_STATUS.md`'s
+"Surface hover command wiring" section and
+`PHASE2_SURFACE_HOVER_COMMAND_TEST.md`. **Status: implemented, Product
+Reality pending.** No key binding, HUD row, or engage/cancel controller loop
+exists yet — unlike controlled descent, hover has not had its own
+player-facing loop pass.
 
 Prove the same probe can operate near a physical surface:
 
