@@ -147,9 +147,19 @@ struct SurfaceHoverProfile {
         - altitude_above_reference_surface(position_m, body);
     const double max_correction_mps = std::fabs(hover.max_vertical_correction_speed_mps);
     const double correction_gain = std::max(0.0, hover.altitude_gain_per_second);
+    const double desired_radial_speed_mps = altitude_error_m * correction_gain;
     const double radial_speed_mps = std::clamp(
-        altitude_error_m * correction_gain, -max_correction_mps, max_correction_mps
+        desired_radial_speed_mps, -max_correction_mps, max_correction_mps
     );
+    // Whether the proportional altitude correction was actually clamped to
+    // max_vertical_correction_speed_mps -- not merely whether a correction
+    // was applied at all, which would be true almost anywhere off the exact
+    // target altitude. Matches constrain_surface_approach_velocity()'s
+    // descent_rate_limited semantics (compares the requested value against
+    // its post-clamp result), so a caller reading "limited" can rely on the
+    // same meaning for both descent and hover.
+    const bool vertical_correction_limited =
+        std::fabs(radial_speed_mps - desired_radial_speed_mps) > 1e-12;
 
     const Vector3d constrained_relative{
         up.x * radial_speed_mps + tangential_velocity_mps.x,
@@ -162,7 +172,7 @@ struct SurfaceHoverProfile {
             body.velocity_mps.y + constrained_relative.y,
             body.velocity_mps.z + constrained_relative.z,
         },
-        std::fabs(radial_speed_mps - planetary_dot(relative, up)) > 1e-12,
+        vertical_correction_limited,
         tangential_rate_limited,
     };
 }
