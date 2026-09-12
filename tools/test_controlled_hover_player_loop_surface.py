@@ -50,12 +50,22 @@ class ControlledHoverPlayerLoopSurfaceTests(unittest.TestCase):
         self.assertNotIn("SetActorLocation", self.hover_cpp)
         self.assertNotIn("Teleport", self.hover_cpp)
 
-    def test_v_engages_and_manual_translation_releases_controlled_hover(self) -> None:
+    def test_v_and_space_engage_and_release_controlled_hover(self) -> None:
         self.assertIn("WasInputKeyJustPressed(EKeys::V)", self.tick_cpp)
         self.assertIn("ToggleControlledHover", self.tick_cpp)
         self.assertIn("AdvanceControlledHover(DeltaSeconds)", self.tick_cpp)
-        self.assertIn("bManualTranslationRequested && bControlledHoverEngaged", self.tick_cpp)
+        self.assertIn(
+            "WasInputKeyJustPressed(EKeys::SpaceBar) && bControlledHoverEngaged", self.tick_cpp
+        )
         self.assertIn("CancelControlledHover(false, true)", self.tick_cpp)
+
+    def test_ordinary_translation_does_not_cancel_hover(self) -> None:
+        # Unlike José/descent, hover's entire purpose is preserving the
+        # player's tangential translation request while only the radial
+        # component is governed toward the target altitude -- so ordinary
+        # WASDQE trim must not disengage it, or lateral steering while
+        # hovering would be impossible. Only V/SPACE release it.
+        self.assertNotIn("bManualTranslationRequested && bControlledHoverEngaged", self.tick_cpp)
 
     def test_controlled_hover_does_not_compete_with_jose_descent_or_mining_auto_approach(self) -> None:
         self.assertIn("CancelControlledHover(false, false);", self.autopilot_cpp)

@@ -853,8 +853,11 @@ own precedent:
   toward the configured target altitude; `CancelControlledHover()` mirrors
   `CancelControlledDescent()`'s stop-velocity/message shape exactly;
 - `V` engages/cancels controlled hover (`EverwardPlayerControllerInteractionTick.cpp`);
-  any manual translation or `SPACE` immediately releases it, matching José
-  and controlled descent;
+  `SPACE` immediately releases it, but -- unlike José and controlled
+  descent -- ordinary WASDQE translation deliberately does **not**, since
+  hover's entire purpose is preserving the player's tangential translation
+  request while only the radial component is governed toward the target
+  altitude;
 - controlled hover, controlled descent, José, and mining auto-approach are
   now mutually exclusive as a group of four: engaging any one releases the
   other three (`ToggleControlledDescent()`/`ToggleJoseTakeTheWheel()` each
@@ -872,8 +875,9 @@ controller declares the engage/advance/cancel loop and every tunable
 `UPROPERTY` actually reaches the command; that the loop governs live
 velocity through the existing telemetry/command boundaries rather than a
 hardcoded direction or a `SetActorLocation`/`Teleport` shortcut; that `V`
-engages and manual translation/`SPACE` releases it; that it fails closed
-with no registered planetary body; that the HUD readout is discoverable;
+and `SPACE` engage/release it while ordinary translation deliberately does
+not; that it fails closed with no registered planetary body; that the HUD
+readout is discoverable;
 and that the four-way mutual exclusivity with José/controlled
 descent/mining auto-approach is wired in both directions. All 154
 `tools/test_phase2*.py`-pattern and related source-contract suites

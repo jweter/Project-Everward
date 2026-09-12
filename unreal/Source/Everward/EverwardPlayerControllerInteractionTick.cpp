@@ -83,10 +83,12 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
     {
         CancelControlledDescent(false, true);
     }
-    if (bManualTranslationRequested && bControlledHoverEngaged)
-    {
-        CancelControlledHover(false, true);
-    }
+    // Unlike José/descent, hover's whole purpose is preserving the player's
+    // tangential translation request while the radial component is governed
+    // toward the target altitude (constrain_surface_hover_velocity() already
+    // does exactly this) -- so ordinary WASDQE trim must NOT cancel hover,
+    // or lateral steering while hovering would be impossible. `V`/`SPACE`
+    // remain the only explicit releases.
     if (WasInputKeyJustPressed(EKeys::SpaceBar) && bJoseAutopilotEngaged)
     {
         CancelJoseTakeTheWheel(false, true);
