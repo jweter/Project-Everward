@@ -475,8 +475,11 @@ constrained result, so ordinary WASDQE trim still steers laterally while
 altitude is held/corrected toward the configured target. It fails closed
 with a rejection message when no planetary body is registered, is mutually
 exclusive with José, controlled descent, and mining auto-approach (engaging
-one releases the other three), and any manual translation or `SPACE`
-immediately releases it. A persistent HUD readout mirrors controlled
+one releases the other three). Unlike José/descent, ordinary WASDQE
+translation does **not** release controlled hover -- preserving the
+player's tangential translation request while only the radial component is
+governed is hover's entire purpose, so `V` (toggle) and `SPACE` (full stop)
+are the only explicit releases. A persistent HUD readout mirrors controlled
 descent's discoverability line. See `EverwardPlayerControllerHover.cpp` and
 the updated `PHASE2_SURFACE_HOVER_COMMAND_TEST.md`.
 
