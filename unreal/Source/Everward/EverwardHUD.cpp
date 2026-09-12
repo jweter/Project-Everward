@@ -304,6 +304,7 @@ void AEverwardHUD::DrawHUD()
     const TArray<FEverwardProbeCapability> Capabilities = Adapter->GetInstalledCapabilities();
     const TArray<FEverwardManipulatorArmState> ManipulatorArms = Adapter->GetManipulatorArmStates();
     const FEverwardTargetSelectionStatus TargetSelection = Adapter->GetSelectedTargetStatus();
+    const FEverwardTargetKnowledgeStatus TargetKnowledge = Adapter->GetSelectedTargetKnowledgeStatus();
     const FEverwardSoftwarePolicyStatus PolicyStatus = Adapter->GetSoftwarePolicyStatus();
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
     const FEverwardAutomationNotice AutomationNotice = Adapter->GetLastAutomationNotice();
@@ -352,7 +353,7 @@ void AEverwardHUD::DrawHUD()
     const FLinearColor MutedColor(0.64f, 0.75f, 0.80f, 1.0f);
     const FLinearColor AlertColor(1.0f, 0.36f, 0.18f, 1.0f);
 
-    const float TelemetryHeight = S(62.0f) + LineHeight * 9.0f;
+    const float TelemetryHeight = S(62.0f) + LineHeight * 10.0f;
     const float TelemetryY = Canvas->ClipY - Margin - TelemetryHeight;
     DrawRect(PanelColor, Margin, TelemetryY, PanelWidth, TelemetryHeight);
     DrawText(
@@ -424,6 +425,23 @@ void AEverwardHUD::DrawHUD()
             ReadableTextScale(HudScale, 0.94f),
             false);
     }
+
+    // Slice 11 ("Science as gameplay") foundation: read-only knowledge
+    // reading for whatever TARGET currently reports selected, immediately
+    // below the arm status rows. A muted prompt distinguishes "nothing
+    // selected" from "selected but not yet observed" rather than collapsing
+    // both into the same silence the TARGET row already avoids.
+    DrawText(
+        TargetSelection.bHasSelection
+            ? (TargetKnowledge.bHasKnowledge
+                ? FString::Printf(TEXT("KNOWLEDGE  %s // %.0f%% CONFIDENCE"),
+                    TargetKnowledge.Level == EEverwardKnowledgeLevel::Characterized ? TEXT("CHARACTERIZED") : TEXT("OBSERVED"),
+                    TargetKnowledge.Confidence * 100.0)
+                : FString(TEXT("KNOWLEDGE  NOT YET OBSERVED")))
+            : FString(TEXT("KNOWLEDGE  NO TARGET SELECTED")),
+        TargetKnowledge.bHasKnowledge ? TextColor : MutedColor,
+        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (7.0f + ManipulatorArms.Num()),
+        HudFont, ReadableTextScale(HudScale, 0.94f), false);
 
     // Dedicated manipulator HUD page (Slice 6 joint-articulation follow-up).
     // Rendered above the compact telemetry panel so it never overlaps the

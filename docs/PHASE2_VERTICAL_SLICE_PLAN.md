@@ -454,6 +454,15 @@ Prove the same probe can operate near a physical surface:
 
 ### Slice 11 — Science as gameplay
 
+**Status:** the engine-independent foundation module (`science_knowledge.hpp`:
+`TargetKnowledgeState`, `apply_observation()`) is now wired into
+`SimulationCore`'s existing scan lifecycle, persisted through save/load as
+an additive field, and surfaced as a read-only `KNOWLEDGE` telemetry row
+(see `PROJECT_STATUS.md`'s "Science knowledge foundation wired into the
+scan lifecycle" section and `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`). Knowledge
+only ever reaches "observed", never "characterized" — every bullet below
+past "active scan" remains unimplemented.
+
 Scanning must evolve from a countdown into increasing knowledge:
 
 - unknown target state;

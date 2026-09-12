@@ -215,6 +215,34 @@ struct EVERWARD_API FEverwardTargetSelectionStatus
     UPROPERTY(BlueprintReadOnly, Category="Everward|Target") EEverwardApproachMotion ApproachMotion = EEverwardApproachMotion::HoldingRange;
 };
 
+// Slice 11 ("Science as gameplay") foundation: unknown -> observed ->
+// characterized, matching everward::simulation::KnowledgeLevel exactly.
+// Composition/material classification (the "characterized" driver) remains
+// later work; this foundation only ever reaches Observed today.
+UENUM(BlueprintType)
+enum class EEverwardKnowledgeLevel : uint8
+{
+    Unknown UMETA(DisplayName="Unknown"),
+    Observed UMETA(DisplayName="Observed"),
+    Characterized UMETA(DisplayName="Characterized")
+};
+
+// Read-only mirror of everward::simulation::TargetKnowledgeState for
+// whichever target GetSelectedTargetStatus() currently reports selected.
+// bHasKnowledge is false with no selection or a selection never yet
+// observed, matching FEverwardTargetSelectionStatus's own fail-closed
+// contract rather than fabricating an Unknown-level reading.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardTargetKnowledgeStatus
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target") bool bHasKnowledge = false;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target") EEverwardKnowledgeLevel Level = EEverwardKnowledgeLevel::Unknown;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target") double Confidence = 0.0;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target") double ActiveScanSeconds = 0.0;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target") FString Classification;
+};
+
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardTractorFieldStatus
 {
@@ -318,6 +346,7 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Manipulator") FEverwardManipulatorReachStatus GetManipulatorReachStatus(EEverwardManipulatorArmId ArmId) const;
     UFUNCTION(BlueprintPure, Category="Everward|Mining") FEverwardMiningStatus GetMiningStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;
+    UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetKnowledgeStatus GetSelectedTargetKnowledgeStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Tractor") FEverwardTractorFieldStatus GetTractorFieldStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") bool GetStaticBodyPositionMeters(const FString& BodyId, FVector& OutPositionMeters) const;
     UFUNCTION(BlueprintPure, Category="Everward|Autopilot") FEverwardJoseGuidanceCommand GetJoseGuidanceCommand(

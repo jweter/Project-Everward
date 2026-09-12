@@ -127,6 +127,22 @@ void test_round_trip_preserves_full_probe_state() {
         assert(got.material_inventory_kg.contains(material_id));
         assert(nearly_equal(got.material_inventory_kg.at(material_id), kilograms));
     }
+    // Slice 11 foundation: build_representative_runtime()'s start_scan("rock", 10.0)
+    // followed by a 2 s advance already populates target_knowledge for "rock"
+    // via observe_active_scan_progress(); round trip must preserve it exactly.
+    assert(!want.target_knowledge.empty());
+    assert(got.target_knowledge.size() == want.target_knowledge.size());
+    for (const auto& [target_id, target_state] : want.target_knowledge) {
+        assert(got.target_knowledge.contains(target_id));
+        const auto& got_state = got.target_knowledge.at(target_id);
+        assert(got_state.target_id == target_state.target_id);
+        assert(got_state.level == target_state.level);
+        assert(nearly_equal(got_state.passive_observation_s, target_state.passive_observation_s));
+        assert(nearly_equal(got_state.active_scan_s, target_state.active_scan_s));
+        assert(nearly_equal(got_state.confidence, target_state.confidence));
+        assert(nearly_equal(got_state.best_instrument_resolution, target_state.best_instrument_resolution));
+        assert(got_state.classification == target_state.classification);
+    }
     assert(got.can_scan == want.can_scan);
     assert(got.can_thrust == want.can_thrust);
     assert(got.sensors_operational == want.sensors_operational);
@@ -620,6 +636,31 @@ void test_restore_rejects_inconsistent_snapshot() {
         threw_inventory_entry = true;
     }
     assert(threw_inventory_entry);
+
+    ProbeStateSnapshot bad_knowledge_key = DamageAwareProbeRuntime::make_canonical_ev0001().snapshot();
+    bad_knowledge_key.target_knowledge["rock"] =
+        everward::simulation::make_unknown_target_knowledge("a-different-id");
+    bool threw_knowledge_key = false;
+    try {
+        (void)SimulationCore::restore_from_snapshot(bad_knowledge_key, 0);
+    } catch (const std::invalid_argument&) {
+        threw_knowledge_key = true;
+    }
+    assert(threw_knowledge_key);
+
+    ProbeStateSnapshot bad_knowledge_confidence = DamageAwareProbeRuntime::make_canonical_ev0001().snapshot();
+    {
+        auto rock_knowledge = everward::simulation::make_unknown_target_knowledge("rock");
+        rock_knowledge.confidence = 1.5;
+        bad_knowledge_confidence.target_knowledge["rock"] = rock_knowledge;
+    }
+    bool threw_knowledge_confidence = false;
+    try {
+        (void)SimulationCore::restore_from_snapshot(bad_knowledge_confidence, 0);
+    } catch (const std::invalid_argument&) {
+        threw_knowledge_confidence = true;
+    }
+    assert(threw_knowledge_confidence);
 }
 
 void test_legacy_save_without_material_inventory_infers_single_entry() {
@@ -687,6 +728,31 @@ void test_legacy_save_without_planetary_body_field_infers_no_body() {
 
     const ProbeSaveData restored_from_null = probe_save_data_from_json(full);
     assert(!restored_from_null.planetary_body.has_value());
+}
+
+void test_legacy_save_without_target_knowledge_infers_empty() {
+    using everward::simulation::detail::probe_state_from_json;
+    using everward::simulation::detail::probe_state_to_json;
+
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+    runtime.start_scan("rock", 10.0);
+    runtime.advance_wall_ticks(1'000'000); // 1 s: target_knowledge["rock"] now populated.
+    assert(!runtime.target_knowledge().empty());
+
+    const JsonValue full = probe_state_to_json(runtime.snapshot());
+    JsonValue without_knowledge = JsonValue::make_object();
+    for (const auto& [key, field] : full.as_object()) {
+        if (key != "target_knowledge") {
+            without_knowledge.set(key, field);
+        }
+    }
+
+    // Unlike material_inventory_kg (which must sum to storage_used_kg), an
+    // absent target_knowledge field has one unambiguous reading: nothing was
+    // ever observed. No inference beyond an empty map is required.
+    const ProbeStateSnapshot restored = probe_state_from_json(without_knowledge);
+    assert(restored.target_knowledge.empty());
+    (void)SimulationCore::restore_from_snapshot(restored, 0);
 }
 
 void test_world_identity_round_trips_losslessly() {
@@ -863,6 +929,7 @@ int main() {
     test_manipulator_arm_out_of_range_angle_fails_closed();
     test_restore_rejects_inconsistent_snapshot();
     test_legacy_save_without_material_inventory_infers_single_entry();
+    test_legacy_save_without_target_knowledge_infers_empty();
     test_legacy_save_without_planetary_body_field_infers_no_body();
     test_world_identity_round_trips_losslessly();
     test_missing_world_identity_fails_closed();

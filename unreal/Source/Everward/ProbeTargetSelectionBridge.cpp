@@ -37,6 +37,51 @@ FEverwardTargetSelectionStatus UProbeSimulationAdapter::GetSelectedTargetStatus(
     return Status;
 }
 
+FEverwardTargetKnowledgeStatus UProbeSimulationAdapter::GetSelectedTargetKnowledgeStatus() const
+{
+    // Slice 11 foundation: read-only, recomputed live every call from Core's
+    // authoritative target_knowledge (accumulated by SimulationCore's
+    // observe_active_scan_progress()), over whichever target
+    // GetSelectedTargetStatus() already reports selected -- no second
+    // notion of "which target" is introduced.
+    FEverwardTargetKnowledgeStatus Status;
+    if (Core == nullptr)
+    {
+        return Status;
+    }
+
+    const everward::simulation::TargetSelectionStatus Selection = Core->selected_target_status();
+    if (!Selection.has_selection)
+    {
+        return Status;
+    }
+
+    const auto Knowledge = Core->target_knowledge_state(Selection.body_id);
+    if (!Knowledge.has_value())
+    {
+        return Status;
+    }
+
+    Status.bHasKnowledge = true;
+    switch (Knowledge->level)
+    {
+        case everward::simulation::KnowledgeLevel::Characterized:
+            Status.Level = EEverwardKnowledgeLevel::Characterized;
+            break;
+        case everward::simulation::KnowledgeLevel::Observed:
+            Status.Level = EEverwardKnowledgeLevel::Observed;
+            break;
+        case everward::simulation::KnowledgeLevel::Unknown:
+        default:
+            Status.Level = EEverwardKnowledgeLevel::Unknown;
+            break;
+    }
+    Status.Confidence = Knowledge->confidence;
+    Status.ActiveScanSeconds = Knowledge->active_scan_s;
+    Status.Classification = UTF8_TO_TCHAR(Knowledge->classification.c_str());
+    return Status;
+}
+
 bool UProbeSimulationAdapter::GetStaticBodyPositionMeters(const FString& BodyId, FVector& OutPositionMeters) const
 {
     if (Core == nullptr)

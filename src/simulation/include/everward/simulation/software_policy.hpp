@@ -219,6 +219,13 @@ public:
     [[nodiscard]] const std::map<std::string, double>& material_inventory_kg() const noexcept {
         return core_.material_inventory_kg();
     }
+    [[nodiscard]] const std::map<std::string, TargetKnowledgeState>& target_knowledge() const noexcept {
+        return core_.target_knowledge();
+    }
+    [[nodiscard]] std::optional<TargetKnowledgeState> target_knowledge_state(
+            const std::string& target_id) const {
+        return core_.target_knowledge_state(target_id);
+    }
     void consume_stored_energy_j(double joules) { core_.consume_stored_energy_j(joules); }
 
     void install_policy(SoftwarePolicy policy) {
