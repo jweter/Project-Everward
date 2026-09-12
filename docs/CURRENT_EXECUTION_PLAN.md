@@ -12,6 +12,8 @@ The canonical damaged-awakening, staged self-repair, and starter-zone departure 
 
 The canonical smart-navigation/accessibility contract is defined in [`JOSE_TAKE_THE_WHEEL.md`](JOSE_TAKE_THE_WHEEL.md). **José Take the Wheel** is the probe's friendly general-purpose autopilot: the player chooses a destination, delegates point-to-point navigation, and can immediately reclaim manual control. Navigation automation must continue to use authoritative movement/physics rather than teleportation or presentation-only motion.
 
+The canonical graphics scalability contract is defined in [`GRAPHICS_SCALABILITY_STANDARD.md`](GRAPHICS_SCALABILITY_STANDARD.md). Everward must preserve full-game mechanical parity from Emergency / Minimum through Ultra / Cinematic: lower settings reduce presentation cost, never gameplay scope.
+
 ## Selection rule
 
 When choosing the next Everward development task:
@@ -25,6 +27,22 @@ When choosing the next Everward development task:
 7. do not jump to later phases merely because a later task is easier to implement in isolation.
 
 Parallel-safe work may merge after green portable CI only when it does not assume, hide, or alter the behavior still awaiting Product Reality, remains reversible, preserves the simulation/adapter ownership boundary, and is explicitly recorded as **implemented, Product Reality pending**. It does not complete the slice or advance a phase/release gate.
+
+## Current development-access priority
+
+Current Product Reality is materially constrained by the development laptop's memory ceiling. This is now a first-class development-access problem rather than an instruction to lower Everward's final visual ambition.
+
+Issue #228 should establish an opt-in **Low-Spec Play Mode** and an **Emergency / Minimum** fallback that allow the current game to load and remain playable on a 16 GB RAM / integrated-graphics development machine. The normal Low target should preserve enough visual identity to enjoy the game, not merely make the Unreal process boot.
+
+The supported long-term presentation ladder is:
+
+`Emergency / Minimum -> Low -> Medium -> High -> Ultra / Cinematic -> Custom`
+
+All presets must expose the same mechanics, progression, saves, interactions, deterministic simulation, hazards, controls, HUD information, and universe state. Graphics quality is presentation only. Expensive cues must degrade to cheaper readable equivalents rather than disappear.
+
+Issue #216 complements this by providing an iPhone-readable Product Reality/evidence surface for deterministic state and subsystem checks. The phone may confirm authoritative simulation/state behavior, but it must not falsely clear Unreal-only rendering, collision feel, camera, visual alignment, or performance acceptance.
+
+This development-access work is a cross-cutting enabler and may be selected ahead of a later gameplay sub-slice when RAM exhaustion prevents the human Product Reality loop from running at all.
 
 ## Current near-term sequence
 
