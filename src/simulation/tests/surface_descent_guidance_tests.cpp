@@ -11,9 +11,12 @@ namespace {
 using everward::simulation::AltitudeAwareDescentProfile;
 using everward::simulation::ControlledDescentEnvelope;
 using everward::simulation::SphericalPlanetaryBody;
+using everward::simulation::SurfaceHoverProfile;
 using everward::simulation::altitude_limited_descent_speed_mps;
 using everward::simulation::constrain_surface_approach_velocity;
+using everward::simulation::constrain_surface_hover_velocity;
 using everward::simulation::controlled_descent_velocity_command;
+using everward::simulation::controlled_hover_velocity_command;
 
 bool nearly_equal(double a, double b, double epsilon = 1e-6) {
     return std::fabs(a - b) <= epsilon;
@@ -121,6 +124,41 @@ void test_controlled_descent_command_matches_direct_call_with_registered_body() 
     assert(nearly_equal(wrapped->velocity_mps.z, direct.velocity_mps.z));
 }
 
+void test_hover_corrects_toward_target_altitude_and_preserves_translation() {
+    const SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const ControlledDescentEnvelope envelope{5.0, 3.0, 2.0};
+    const SurfaceHoverProfile hover{5.0, 0.5, 2.0};
+
+    const auto below = constrain_surface_hover_velocity({103.0, 0.0, 0.0}, {-4.0, 1.5, 0.0}, body, envelope, hover);
+    assert(nearly_equal(below.velocity_mps.x, 1.0));
+    assert(nearly_equal(below.velocity_mps.y, 1.5));
+
+    const auto above = constrain_surface_hover_velocity({109.0, 0.0, 0.0}, {4.0, 1.5, 0.0}, body, envelope, hover);
+    assert(nearly_equal(above.velocity_mps.x, -2.0));
+    assert(nearly_equal(above.velocity_mps.y, 1.5));
+
+    const auto at_target = constrain_surface_hover_velocity({105.0, 0.0, 0.0}, {1.0, 1.5, 0.0}, body, envelope, hover);
+    assert(nearly_equal(at_target.velocity_mps.x, 0.0));
+    assert(nearly_equal(at_target.velocity_mps.y, 1.5));
+}
+
+void test_hover_never_targets_below_minimum_clearance_and_limits_translation() {
+    const SphericalPlanetaryBody body{"moon", {}, 100.0, {}};
+    const ControlledDescentEnvelope envelope{5.0, 2.0, 4.0};
+    const SurfaceHoverProfile hover{1.0, 1.0, 3.0};
+    const auto command = constrain_surface_hover_velocity({104.0, 0.0, 0.0}, {-5.0, 3.0, 4.0}, body, envelope, hover);
+    assert(nearly_equal(command.velocity_mps.x, 0.0));
+    assert(nearly_equal(command.velocity_mps.y, 1.2));
+    assert(nearly_equal(command.velocity_mps.z, 1.6));
+    assert(command.tangential_rate_limited);
+}
+
+void test_controlled_hover_command_fails_closed_with_no_registered_body() {
+    const std::optional<SphericalPlanetaryBody> no_body;
+    const auto command = controlled_hover_velocity_command({105.0, 0.0, 0.0}, {}, no_body);
+    assert(!command.has_value());
+}
+
 } // namespace
 
 int main() {
@@ -133,6 +171,9 @@ int main() {
     test_profile_never_increases_envelope_descent_limit();
     test_controlled_descent_command_fails_closed_with_no_registered_body();
     test_controlled_descent_command_matches_direct_call_with_registered_body();
+    test_hover_corrects_toward_target_altitude_and_preserves_translation();
+    test_hover_never_targets_below_minimum_clearance_and_limits_translation();
+    test_controlled_hover_command_fails_closed_with_no_registered_body();
     std::puts("surface_descent_guidance_tests: all tests passed");
     return 0;
 }

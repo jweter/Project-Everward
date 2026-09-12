@@ -760,6 +760,46 @@ those files. The next local Unreal Product Reality pass should specifically
 confirm the project still compiles under UBT and that the new row does not
 clip against the panel background or the manipulator page drawn above it.
 
+### Surface hover guidance — read-only math foundation (Slice 10)
+
+`PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 10 names "stable hover/translation if
+hardware permits" as the next player-visible result past the already-wired
+controlled-descent engage/cancel loop (#226). This pass lands only the
+engine-independent math foundation, following the same incremental pattern
+target selection, manipulator reach, and manipulator move each used before
+their own runtime/adapter wiring landed separately:
+
+- `surface_descent_guidance.hpp` gains `SurfaceHoverProfile` and
+  `constrain_surface_hover_velocity()`, which decomposes a requested
+  velocity into the body-relative radial and tangential components
+  `constrain_surface_approach_velocity()` already establishes, then
+  replaces only the radial component with a proportional correction toward
+  `hover.target_altitude_m` (clamped to `max_vertical_correction_speed_mps`,
+  and never targeting below the existing `ControlledDescentEnvelope`'s own
+  `minimum_clearance_m`) while clamping tangential speed to the same
+  envelope's `max_tangential_speed_mps` exactly as descent already does —
+  no second velocity-decomposition or clamping convention invented;
+- `controlled_hover_velocity_command()` mirrors
+  `controlled_descent_velocity_command()`'s fail-closed
+  `std::optional<SphericalPlanetaryBody>` convenience overload, returning
+  `std::nullopt` with no registered planetary body rather than fabricating a
+  hover target.
+
+This does not yet expose a command, adapter accessor, HUD row, or input
+binding — nothing outside this module's own tests calls it yet, exactly like
+`science_knowledge.hpp` and `manipulator_move.hpp`'s `grasped_target_position()`
+before their own wiring passes.
+
+**Status: math foundation only, not yet wired.** New coverage in
+`surface_descent_guidance_tests.cpp`: hover correction below/above/at the
+target altitude while preserving the requested tangential velocity, the
+minimum-clearance floor combined with tangential rate limiting, and the
+fail-closed no-registered-body case. All 29 `src/simulation` ctest suites and
+all 160 `tools/test_phase2*.py` source-contract tests pass. The next pass
+should wire `controlled_hover_velocity_command()` into an authoritative
+`UProbeSimulationAdapter` command/HUD readout and an input binding, following
+`EverwardPlayerControllerDescent.cpp`'s exact toggle/advance/cancel shape.
+
 ### Human-readable HUD and dedicated controls reference
 
 The user-provided 2026-08-30 current-build captures confirm the prior HUD is a
