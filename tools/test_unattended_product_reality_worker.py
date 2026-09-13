@@ -76,12 +76,15 @@ class UnattendedProductRealityWorkerTests(unittest.TestCase):
     def test_registration_script_is_idle_current_user_and_noninteractive(self) -> None:
         text = REGISTER_PATH.read_text(encoding="utf-8")
         self.assertIn('"Everward Unattended Product Reality"', text)
-        self.assertIn("/SC ONIDLE", text)
-        self.assertIn("/I 10", text)
-        self.assertIn("/RL LIMITED", text)
+        self.assertIn("<IdleTrigger>", text)
+        self.assertIn("<Duration>PT10M</Duration>", text)
+        self.assertIn("<LogonType>InteractiveToken</LogonType>", text)
+        self.assertIn("<RunLevel>LeastPrivilege</RunLevel>", text)
+        self.assertIn("/XML $TaskXmlPath", text)
         self.assertIn("/F", text)
         self.assertIn("/Delete", text)
         self.assertIn("EVERWARD_DISABLE_UNATTENDED_WORKER", text)
+        self.assertNotIn("/TR $Action", text)
         self.assertNotIn("pause", text.lower())
 
     def test_worker_uses_foundation_green_commit_full_preflight_and_ubt_without_editor_launch(self) -> None:
