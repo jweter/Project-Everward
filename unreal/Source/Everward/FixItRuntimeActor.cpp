@@ -115,6 +115,9 @@ void AFixItRuntimeActor::Tick(float DeltaSeconds)
         StepAccumulatorSeconds -= FixedFixItStepSeconds;
     }
 
+    CompletionDisplaySecondsRemaining =
+        FMath::Max(0.0, CompletionDisplaySecondsRemaining - static_cast<double>(DeltaSeconds));
+
     RefreshStatusSummary();
 
     // First playable presentation surface. Simulation truth stays in the
@@ -158,6 +161,8 @@ void AFixItRuntimeActor::BindToCurrentProbe()
         ActiveStage = TEXT("DIAGNOSE");
         ActiveSubsystem = TEXT("NONE");
         ActiveReason.Reset();
+        LastCompletionSummary.Reset();
+        CompletionDisplaySecondsRemaining = 0.0;
 
         if (!bSeededDamagedAwakening && HasCanonicalUndamagedIntegrity(*BoundCore))
         {
@@ -213,15 +218,16 @@ void AFixItRuntimeActor::AdvanceFixIt(double DeltaSeconds)
         {
             bRepairRunning = false;
             bWaitingForResources = false;
-            RecordFixItEvent(
-                TEXT("fix_it_repair_completed"),
-                FString::Printf(
-                    TEXT("%s restored to %.0f%%; consumed %.2f kg (%s) and %.0f J."),
-                    *ActiveSubsystem,
-                    Status.decision.has_value() ? Status.decision->target_integrity * 100.0 : 0.0,
-                    Status.material_consumed_kg,
-                    *FormatFixItMaterialBreakdown(Status.material_consumed_breakdown_kg),
-                    Status.energy_consumed_j));
+            const FString CompletionDetail = FString::Printf(
+                TEXT("%s restored to %.0f%%; consumed %.2f kg (%s) and %.0f J."),
+                *ActiveSubsystem,
+                Status.decision.has_value() ? Status.decision->target_integrity * 100.0 : 0.0,
+                Status.material_consumed_kg,
+                *FormatFixItMaterialBreakdown(Status.material_consumed_breakdown_kg),
+                Status.energy_consumed_j);
+            RecordFixItEvent(TEXT("fix_it_repair_completed"), CompletionDetail);
+            LastCompletionSummary = CompletionDetail;
+            CompletionDisplaySecondsRemaining = FixItCompletionDisplaySeconds;
         }
         else if (Status.state == everward::simulation::FixItExecutionState::Interrupted)
         {
@@ -240,13 +246,14 @@ void AFixItRuntimeActor::AdvanceFixIt(double DeltaSeconds)
         {
             bReplacementRunning = false;
             bWaitingForResources = false;
-            RecordFixItEvent(
-                TEXT("fix_it_replacement_completed"),
-                FString::Printf(
-                    TEXT("%s replacement fabricated and installed; consumed %.2f kg (%s)."),
-                    *ActiveSubsystem,
-                    Status.material_consumed_kg,
-                    *FormatFixItMaterialBreakdown(Status.material_consumed_breakdown_kg)));
+            const FString CompletionDetail = FString::Printf(
+                TEXT("%s replacement fabricated and installed; consumed %.2f kg (%s)."),
+                *ActiveSubsystem,
+                Status.material_consumed_kg,
+                *FormatFixItMaterialBreakdown(Status.material_consumed_breakdown_kg));
+            RecordFixItEvent(TEXT("fix_it_replacement_completed"), CompletionDetail);
+            LastCompletionSummary = CompletionDetail;
+            CompletionDisplaySecondsRemaining = FixItCompletionDisplaySeconds;
         }
         else if (Status.state == everward::simulation::FixItExecutionState::Interrupted)
         {
@@ -378,6 +385,19 @@ void AFixItRuntimeActor::RefreshStatusSummary()
                 *ActiveReason);
             return;
         }
+    }
+
+    // Neither running nor waiting: a repair/replacement just completed this
+    // frame (or very recently) and ReplanOrStart() has not yet chosen the
+    // next decision. Hold the completion detail -- including which stored
+    // material(s) it consumed -- on screen for a few seconds instead of
+    // falling straight through to the generic stage/reason line below, which
+    // would otherwise make the material breakdown visible only in the
+    // recorded playtest event, never to the player actually watching Fix_It.
+    if (CompletionDisplaySecondsRemaining > 0.0 && !LastCompletionSummary.IsEmpty())
+    {
+        StatusSummary = FString::Printf(TEXT("FIX_IT // %s"), *LastCompletionSummary);
+        return;
     }
 
     StatusSummary = FString::Printf(
