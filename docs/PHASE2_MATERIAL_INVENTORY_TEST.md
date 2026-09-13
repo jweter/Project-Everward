@@ -94,7 +94,12 @@ drawn above it.
 - No inventory management (dropping, transferring, or selling material) --
   this is read-only telemetry over an existing authoritative number.
 - No material-specific repair/Fix_It consumption; `consume_stored_material_kg()`
-  remains material-agnostic.
+  still depletes in deterministic ascending-`material_id` order rather than
+  Fix_It selecting a preferred material. It now returns which material_id(s)
+  it actually depleted and how many kilograms came from each, so Fix_It's
+  `FixItExecutionStatus::material_consumed_breakdown_kg` and the in-editor
+  Fix_It status messages report which stored material a repair/replacement
+  drew from -- see `PHASE2_FIX_IT_PLAYABLE_TEST.md`.
 - No dedicated inventory HUD page; only the single compact `INVENTORY` row
   on the existing always-visible panel, matching a long list of materials
   only up to the panel's fixed line width before truncating.

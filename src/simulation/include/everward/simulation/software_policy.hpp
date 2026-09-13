@@ -215,7 +215,9 @@ public:
     void add_stored_material_kg(double kilograms, std::string material_id = "raw_regolith") {
         core_.add_stored_material_kg(kilograms, std::move(material_id));
     }
-    void consume_stored_material_kg(double kilograms) { core_.consume_stored_material_kg(kilograms); }
+    std::map<std::string, double> consume_stored_material_kg(double kilograms) {
+        return core_.consume_stored_material_kg(kilograms);
+    }
     [[nodiscard]] const std::map<std::string, double>& material_inventory_kg() const noexcept {
         return core_.material_inventory_kg();
     }

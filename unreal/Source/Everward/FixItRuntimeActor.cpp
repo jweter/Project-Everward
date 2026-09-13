@@ -9,6 +9,8 @@
 #include "everward/simulation/fix_it.hpp"
 
 #include <limits>
+#include <map>
+#include <string>
 
 namespace
 {
@@ -44,6 +46,29 @@ bool HasCanonicalUndamagedIntegrity(const everward::simulation::DamageAwareProbe
            Integrity.propulsion >= 0.999 &&
            Integrity.computation >= 0.999 &&
            Integrity.thermal >= 0.999;
+}
+
+// Renders which stored material_id(s) a completed repair/replacement
+// actually drew from, e.g. "raw_regolith 4.20 kg" or, when more than one
+// material was depleted, "raw_regolith 3.00 kg, iron_bearing_silicate_regolith 1.20 kg".
+// Fix_It still does not choose a preferred material -- this only reports
+// what the existing deterministic ascending-id depletion order consumed.
+FString FormatFixItMaterialBreakdown(const std::map<std::string, double>& BreakdownKg)
+{
+    if (BreakdownKg.empty())
+    {
+        return TEXT("none");
+    }
+    FString Result;
+    for (const auto& [MaterialId, Kilograms] : BreakdownKg)
+    {
+        if (!Result.IsEmpty())
+        {
+            Result += TEXT(", ");
+        }
+        Result += FString::Printf(TEXT("%s %.2f kg"), UTF8_TO_TCHAR(MaterialId.c_str()), Kilograms);
+    }
+    return Result;
 }
 }
 
@@ -191,10 +216,11 @@ void AFixItRuntimeActor::AdvanceFixIt(double DeltaSeconds)
             RecordFixItEvent(
                 TEXT("fix_it_repair_completed"),
                 FString::Printf(
-                    TEXT("%s restored to %.0f%%; consumed %.2f kg and %.0f J."),
+                    TEXT("%s restored to %.0f%%; consumed %.2f kg (%s) and %.0f J."),
                     *ActiveSubsystem,
                     Status.decision.has_value() ? Status.decision->target_integrity * 100.0 : 0.0,
                     Status.material_consumed_kg,
+                    *FormatFixItMaterialBreakdown(Status.material_consumed_breakdown_kg),
                     Status.energy_consumed_j));
         }
         else if (Status.state == everward::simulation::FixItExecutionState::Interrupted)
@@ -216,7 +242,11 @@ void AFixItRuntimeActor::AdvanceFixIt(double DeltaSeconds)
             bWaitingForResources = false;
             RecordFixItEvent(
                 TEXT("fix_it_replacement_completed"),
-                FString::Printf(TEXT("%s replacement fabricated and installed."), *ActiveSubsystem));
+                FString::Printf(
+                    TEXT("%s replacement fabricated and installed; consumed %.2f kg (%s)."),
+                    *ActiveSubsystem,
+                    Status.material_consumed_kg,
+                    *FormatFixItMaterialBreakdown(Status.material_consumed_breakdown_kg)));
         }
         else if (Status.state == everward::simulation::FixItExecutionState::Interrupted)
         {
