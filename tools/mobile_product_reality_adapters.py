@@ -40,6 +40,16 @@ def adapt_mining_storage_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]
     )
 
 
+def adapt_repair_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape authoritative Fix_It repair evidence for the mobile renderer."""
+
+    return _adapt_authoritative_evidence(
+        evidence,
+        component_name="Fix_It Repair",
+        default_label="Repair capability recovery",
+    )
+
+
 def _adapt_authoritative_evidence(
     evidence: Mapping[str, Any], *, component_name: str, default_label: str
 ) -> dict[str, Any]:
