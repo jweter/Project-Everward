@@ -508,9 +508,22 @@ Prove the same probe can operate near a physical surface:
 `SimulationCore`'s existing scan lifecycle, persisted through save/load as
 an additive field, and surfaced as a read-only `KNOWLEDGE` telemetry row
 (see `PROJECT_STATUS.md`'s "Science knowledge foundation wired into the
-scan lifecycle" section and `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`). Knowledge
-only ever reaches "observed", never "characterized" — every bullet below
-past "active scan" remains unimplemented.
+scan lifecycle" section and `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`). Target
+classification/composition estimates are now also implemented: a registered
+`StaticSphereBody`'s ground-truth `material_id` (empty for plain reference
+bodies with no known composition) is revealed once an active scan's
+confidence reaches full (1.0), through
+`ProbeRuntime::reveal_full_confidence_target_classifications()` and the new
+`SimulationCore::set_target_classification()` sole mutation point, also
+persisted as part of the existing additive `material_id`/`target_knowledge`
+save fields and surfaced through the existing `KNOWLEDGE` row (see
+"Target composition/classification reveal" in `PROJECT_STATUS.md` and the
+updated `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`). **Status: implemented, Product
+Reality pending.** Confidence/uncertainty and instrument-dependent
+resolution already existed as read-only fields on `TargetKnowledgeState`
+before this pass; repeated/longer observations improving knowledge beyond a
+single confidence ramp, persistent discoveries, and discoveries enabling
+decisions rather than merely filling a codex remain unimplemented.
 
 Scanning must evolve from a countdown into increasing knowledge:
 

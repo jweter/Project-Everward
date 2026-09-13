@@ -494,6 +494,28 @@ public:
         return entry->second;
     }
 
+    // Sole authoritative mutation point for revealing a target's composition
+    // classification. This never runs on its own timer inside
+    // observe_active_scan_progress() -- that method (see its own comment)
+    // deliberately never fabricates a classification from elapsed time
+    // alone. A caller that actually knows the scanned id's ground-truth
+    // material (e.g. ProbeRuntime, which owns the registered static body
+    // list) calls this once it judges the accumulated scan confidence
+    // sufficient. Fails closed (no mutation) for a target never observed or
+    // an empty material_id, so a plain reference body with no known
+    // composition can never be spuriously "characterized".
+    void set_target_classification(const std::string& target_id, const std::string& material_id) {
+        if (material_id.empty()) {
+            return;
+        }
+        const auto entry = probe_.target_knowledge.find(target_id);
+        if (entry == probe_.target_knowledge.end()) {
+            return;
+        }
+        entry->second.classification = material_id;
+        entry->second.level = KnowledgeLevel::Characterized;
+    }
+
     void consume_stored_energy_j(double joules) {
         if (!std::isfinite(joules) || joules < 0.0) {
             throw std::invalid_argument("energy consumption must be finite and non-negative");

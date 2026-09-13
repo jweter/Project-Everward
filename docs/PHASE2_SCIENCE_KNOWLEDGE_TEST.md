@@ -11,8 +11,10 @@ engine-independent module (`TargetKnowledgeState`, `apply_observation()`),
 but until this pass nothing outside its own tests ever called it — not
 `SimulationCore`, not the Unreal adapter, not save/load.
 
-This pass wires that foundation into the existing scan lifecycle and
-nothing further:
+This pass wires that foundation into the existing scan lifecycle. A later
+pass (see "Target composition/classification reveal" below) closed the
+"no classification is ever produced" gap this section originally described;
+the wiring chain below is otherwise unchanged:
 
 `SimulationCore::integrate_scan()` (existing, unchanged trigger) ->
 observe_active_scan_progress() (new, in core.hpp) ->
@@ -33,10 +35,7 @@ uninterrupted nominal-length scan brings a target's confidence to full
 already stretches `duration_s` by `1 / effectiveness`) still reaches the
 same confidence — it simply takes longer wall-clock time to do so, since
 duration is the only channel scan damage already degrades; this pass does
-not add a second, competing degradation model. No classification or
-composition estimate is ever produced by this foundation: `KnowledgeLevel`
-only ever reaches `Observed`, never `Characterized`, since nothing yet
-supplies `ObservationEvidence::classification`. Passive observation
+not add a second, competing degradation model. Passive observation
 (`ObservationMode::Passive`) is supported by `science_knowledge.hpp` but has
 no trigger anywhere in the simulation yet.
 
@@ -45,6 +44,44 @@ manipulator reach telemetry did: it reads/mutates only its own new state
 behind the existing scan-lifecycle boundary, introduces no new player
 command, and does not assume any still-pending contact/collision/damage
 Product Reality is correct.
+
+## Target composition/classification reveal
+
+A follow-on pass closes the "no classification or composition estimate is
+ever produced" gap this document originally described, keeping the exact
+same layering discipline `SimulationCore` never fabricating a reading on
+its own:
+
+- `StaticSphereBody` (`types.hpp`) gains an optional `material_id`, the
+  registered body's own ground-truth composition (empty for a plain
+  reference target with no known composition, e.g. `REF-002`/`REF-003`);
+  round-tripped through save/load as an additive field the same way
+  `target_knowledge`/`material_inventory_kg` already are;
+- `SimulationCore::set_target_classification(target_id, material_id)` is
+  the sole new mutation point that can move a target from `Observed` to
+  `Characterized`. It fails closed (no mutation) for a target never
+  observed or an empty `material_id` — `observe_active_scan_progress()`
+  itself is completely unchanged and still never supplies
+  `ObservationEvidence::classification` on its own;
+- `ProbeRuntime::reveal_full_confidence_target_classifications()` (called
+  from `advance_wall_ticks()`, after `evaluate_policy()`) is the one place
+  that actually has both pieces of information `SimulationCore` lacks: the
+  registered `static_bodies_` list and its `material_id`s. Once a
+  registered body's `target_knowledge_state()` confidence has reached full
+  (1.0) and it is not already `Characterized`, it calls
+  `set_target_classification()` with that body's `material_id`;
+- the Unreal-side `SCAN-001` bootstrap target is registered with
+  `material_id = "iron_bearing_silicate_regolith"` — the exact same literal
+  `ProbeMiningBridge.cpp`'s `MakeBootstrapDeposit()` already uses — so a
+  fully-confident science scan reports the same composition mining later
+  actually extracts, rather than a second invented reading. The two
+  additional reference targets remain composition-less by design;
+- `FEverwardTargetKnowledgeStatus::Classification` (already declared, unused
+  before this pass) is populated exactly as before by
+  `GetSelectedTargetKnowledgeStatus()` — no adapter change was needed there
+  — and the `KNOWLEDGE` row now shows it once `Characterized`:
+  `KNOWLEDGE  CHARACTERIZED // iron_bearing_silicate_regolith` in place of a
+  now-constant, uninformative 100% confidence readout.
 
 ## Behavior
 
@@ -61,6 +98,13 @@ Product Reality is correct.
   CONFIDENCE", climbing toward 100% as scanning continues and persisting
   (not resetting) across scan cancellation/restart or target
   reselection/deselection and reselection.
+- Once that scan's confidence actually reaches 100% on a registered body
+  with a known composition (currently only `SCAN-001`), the row switches to
+  "KNOWLEDGE CHARACTERIZED // iron_bearing_silicate_regolith" instead of a
+  now-constant 100% confidence readout, and stays that way afterward. A
+  plain reference target with no known composition (`REF-002`/`REF-003`)
+  still only ever reaches "OBSERVED // 100% CONFIDENCE", never
+  "CHARACTERIZED", even at full confidence.
 - No new input binding was added or is required: the row only extends the
   existing always-visible panel and target-selection/scan surfaces.
 
@@ -71,23 +115,38 @@ Product Reality is correct.
   target before it is ever scanned; a half-completed scan records partial
   `active_scan_s`/`confidence` at `Observed` level with no classification;
   completing the scan accumulates the remainder; an unrelated target's
-  knowledge is untouched.
+  knowledge is untouched. It also covers `set_target_classification()`
+  directly: a no-op on a never-observed target or an empty `material_id`,
+  and moving an already-observed target to `Characterized` otherwise,
+  leaving unrelated targets untouched.
+- `src/simulation/tests/software_policy_tests.cpp` covers
+  `reveal_full_confidence_target_classifications()` end to end through
+  `ProbeRuntime`: a registered body with a `material_id`, scanned to full
+  confidence, is `Characterized` with that exact material; a registered
+  body with no `material_id`, scanned to the same full confidence, stays
+  `Observed`; and a scan target that is not a registered body at all is
+  likewise never fabricated a classification.
 - `src/simulation/tests/save_data_tests.cpp` covers round-tripping
   `target_knowledge` byte-for-byte through save/load (exercised
   incidentally by `build_representative_runtime()`'s existing
   `start_scan`/`advance_wall_ticks` calls), `restore_from_snapshot()`
   rejecting a mismatched key/target_id pair and an out-of-range confidence,
-  and a legacy save captured before this field existed inferring an empty
-  map rather than throwing.
+  a legacy save captured before this field existed inferring an empty map
+  rather than throwing, a registered body's `material_id` round-tripping
+  through save/load, and a legacy static body JSON object missing the
+  `material_id` key inferring "no known composition" rather than throwing.
 - `tools/test_phase2_science_knowledge_surface.py` confirms the wiring
   chain end to end: `ProbeStateSnapshot` owns `target_knowledge`;
   `SimulationCore` accumulates it only through the scan lifecycle and
   exposes fail-closed read accessors; `ProbeRuntime`/`DamageAwareProbeRuntime`
-  forward without duplicating state; `save_data.hpp` persists it as an
-  additive field; the Unreal adapter exposes a read-only status struct
-  reusing the existing target-selection result; and the HUD renders the new
-  row by extending the telemetry panel's height rather than overlapping the
-  rows already below it.
+  forward without duplicating state; `save_data.hpp` persists it (and the
+  new `material_id`) as additive fields; the Unreal adapter exposes a
+  read-only status struct reusing the existing target-selection result;
+  `ProbeSimulationAdapter.cpp` registers the bootstrap target's real mining
+  material rather than a second invented one; and the HUD renders the new
+  row (and, since this pass, the classification once `Characterized`) by
+  extending the telemetry panel's height rather than overlapping the rows
+  already below it.
 
 No Unreal Editor/UBT build was available in this sandbox to compile-verify
 `ProbeSimulationAdapter.h`/`.cpp` or `EverwardHUD.cpp`. The adapter change
@@ -119,16 +178,30 @@ panel's background or the manipulator page drawn above it.
 6. Deselect the target (retreat past selection range, then `T`) and
    reselect it; confirm the row still reports the previously accumulated
    confidence rather than a fresh "NOT YET OBSERVED" prompt.
-7. Confirm this pass has not changed scan start/cancel/complete, target
-   selection/cycling, manipulator, mining, contact, or damage behavior.
-8. Record any discrepancy (row overlapping other panel content, confidence
-   resetting unexpectedly, a stale reading after reselection, or a
-   build/compile failure) as Product Reality evidence.
+7. Continue scanning `SCAN-001` until confidence reaches 100% and confirm
+   the row switches to "KNOWLEDGE CHARACTERIZED //
+   iron_bearing_silicate_regolith" and stays that way even after cancelling
+   the scan, deselecting, or reselecting the target.
+8. Cycle (`T`) to one of the two plain reference targets, scan it to 100%
+   confidence the same way, and confirm it reads "KNOWLEDGE OBSERVED //
+   100% CONFIDENCE" — never "CHARACTERIZED" — since it has no known
+   composition.
+9. Confirm this pass has not changed scan start/cancel/complete, target
+   selection/cycling, manipulator, mining, contact, or damage behavior, and
+   that mining `SCAN-001` still reports the same
+   `iron_bearing_silicate_regolith` material id the new KNOWLEDGE row does.
+10. Record any discrepancy (row overlapping other panel content, confidence
+    resetting unexpectedly, a stale reading after reselection, a reference
+    target wrongly characterizing, a mismatched material id between mining
+    and science, or a build/compile failure) as Product Reality evidence.
 
 ## Explicitly not complete in this pass
 
-- No classification or composition/material estimate is ever produced;
-  `KnowledgeLevel` only ever reaches `Observed`.
+- Only one registered body (`SCAN-001`) has a known `material_id` today; a
+  real composition/material *estimate* (uncertainty, partial/incorrect
+  readings, multiple possible materials) does not exist — classification is
+  a single deterministic ground-truth reveal gated on full confidence, not
+  a modeled estimation process.
 - No passive-observation trigger exists anywhere in the simulation yet,
   though `science_knowledge.hpp` already supports the mode.
 - No persistent "discoveries" list, codex, or decision-enabling gameplay

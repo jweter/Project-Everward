@@ -18,6 +18,7 @@
 #include <limits>
 #include <stdexcept>
 
+using everward::simulation::KnowledgeLevel;
 using everward::simulation::SimulationClock;
 using everward::simulation::SimulationCore;
 using everward::simulation::SphericalPlanetaryBody;
@@ -169,6 +170,44 @@ int main() {
 
         // A different, never-scanned target still reports no knowledge.
         assert(!knowledge_core.target_knowledge_state("asteroid-2").has_value());
+    }
+
+    // Slice 11 composition/classification: set_target_classification() is
+    // the sole mutation point that reveals a target's material identity. It
+    // fails closed rather than fabricating a reading in every case where the
+    // caller does not actually have both an observed target and a known
+    // material.
+    {
+        SimulationCore classification_core;
+
+        // No-op: the target has never been observed at all.
+        classification_core.set_target_classification("asteroid-1", "iron_bearing_silicate_regolith");
+        assert(!classification_core.target_knowledge_state("asteroid-1").has_value());
+
+        classification_core.start_scan("asteroid-1", 5.0);
+        (void)classification_core.drain_events();
+        classification_core.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        auto observed = classification_core.target_knowledge_state("asteroid-1");
+        assert(observed.has_value());
+        assert(observed->level == KnowledgeLevel::Observed);
+        assert(observed->classification.empty());
+
+        // No-op: an empty material_id must never characterize a target,
+        // matching a plain reference body with no known composition.
+        classification_core.set_target_classification("asteroid-1", "");
+        auto still_observed = classification_core.target_knowledge_state("asteroid-1");
+        assert(still_observed->level == KnowledgeLevel::Observed);
+        assert(still_observed->classification.empty());
+
+        // A known material_id on an already-observed target characterizes it.
+        classification_core.set_target_classification("asteroid-1", "iron_bearing_silicate_regolith");
+        auto characterized = classification_core.target_knowledge_state("asteroid-1");
+        assert(characterized.has_value());
+        assert(characterized->level == KnowledgeLevel::Characterized);
+        assert(characterized->classification == "iron_bearing_silicate_regolith");
+
+        // Leaves every other target's knowledge untouched.
+        assert(!classification_core.target_knowledge_state("asteroid-2").has_value());
     }
 
     // ScanCommand: cancellation. cancel_scan() rejects when no scan is in

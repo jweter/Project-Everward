@@ -10,10 +10,14 @@ class Phase2ScienceKnowledgeSurfaceTests(unittest.TestCase):
     """Slice 11 ("Science as gameplay") foundation wiring: scanning
     accumulates per-target TargetKnowledgeState (science_knowledge.hpp)
     through the existing scan lifecycle rather than a countdown that
-    discards its own result. Read-only for the HUD/adapter surface --
-    classification/composition estimates remain later work, matching the
-    other partial-slice foundations in this codebase (see
-    test_phase2_manipulator_reach_surface.py, test_phase2_target_selection_surface.py)."""
+    discards its own result. Composition/material classification is now
+    wired end to end: a registered StaticSphereBody's ground-truth
+    material_id is revealed once an active scan's confidence reaches full
+    (1.0), through ProbeRuntime::reveal_full_confidence_target_
+    classifications() and SimulationCore::set_target_classification() --
+    see test_phase2_manipulator_reach_surface.py,
+    test_phase2_target_selection_surface.py for the same partial-slice
+    foundation pattern."""
 
     def setUp(self) -> None:
         self.types_hpp = (SIM / "types.hpp").read_text(encoding="utf-8")
@@ -22,6 +26,7 @@ class Phase2ScienceKnowledgeSurfaceTests(unittest.TestCase):
         self.impact_damage = (SIM / "impact_damage.hpp").read_text(encoding="utf-8")
         self.save_data = (SIM / "save_data.hpp").read_text(encoding="utf-8")
         self.adapter_h = (SOURCE / "ProbeSimulationAdapter.h").read_text(encoding="utf-8")
+        self.adapter_cpp = (SOURCE / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
         self.bridge_cpp = (SOURCE / "ProbeTargetSelectionBridge.cpp").read_text(encoding="utf-8")
         self.hud_cpp = (SOURCE / "EverwardHUD.cpp").read_text(encoding="utf-8")
 
@@ -79,6 +84,41 @@ class Phase2ScienceKnowledgeSurfaceTests(unittest.TestCase):
         # KNOWLEDGE afterward and bumped this to 11.0f -- see
         # test_phase2_material_inventory_surface.py.
         self.assertIn("LineHeight * 11.0f", self.hud_cpp)
+
+    def test_static_sphere_body_carries_optional_ground_truth_material_id(self) -> None:
+        self.assertIn("std::string material_id{};", self.types_hpp)
+
+    def test_core_exposes_a_sole_explicit_classification_mutation_point(self) -> None:
+        self.assertIn(
+            "void set_target_classification(const std::string& target_id, const std::string& material_id)",
+            self.core_hpp,
+        )
+        # observe_active_scan_progress() itself must still never fabricate a
+        # classification from elapsed time alone -- only the explicit mutator
+        # above may set one.
+        self.assertNotIn("evidence.classification =", self.core_hpp)
+
+    def test_probe_runtime_reveals_classification_from_registered_body_material(self) -> None:
+        self.assertIn(
+            "void reveal_full_confidence_target_classifications()",
+            self.software_policy,
+        )
+        self.assertIn("core_.set_target_classification(body.body_id, body.material_id)", self.software_policy)
+        # Actually wired into the tick, not merely present alongside it.
+        self.assertIn("reveal_full_confidence_target_classifications();", self.software_policy)
+
+    def test_save_data_round_trips_material_id_as_an_additive_field(self) -> None:
+        self.assertIn('object.set("material_id", JsonValue(body.material_id));', self.save_data)
+        self.assertIn('value.find("material_id")', self.save_data)
+
+    def test_bootstrap_scan_target_registers_its_real_mining_material(self) -> None:
+        # Reuses ProbeMiningBridge.cpp's exact material_id literal rather
+        # than inventing a second composition reading for the same body.
+        self.assertIn('"iron_bearing_silicate_regolith",', self.adapter_cpp)
+
+    def test_hud_knowledge_row_shows_the_revealed_classification(self) -> None:
+        self.assertIn("TargetKnowledgeLine(", self.hud_cpp)
+        self.assertIn("TargetKnowledge.Classification", self.hud_cpp)
 
 
 if __name__ == "__main__":
