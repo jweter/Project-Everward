@@ -101,6 +101,7 @@ public:
         resolve_static_contacts(start_position);
         resolve_planetary_surface_contact(start_position);
         evaluate_policy();
+        reveal_full_confidence_target_classifications();
     }
 
     // Slice 9 foundation: forwards straight to SimulationCore, the sole
@@ -588,6 +589,34 @@ private:
 
             if (!policy_executor_available()) {
                 break;
+            }
+        }
+    }
+
+    // Slice 11 composition/classification: SimulationCore's target_knowledge
+    // deliberately never fabricates a classification on its own (see
+    // observe_active_scan_progress()'s comment) because it has no notion of
+    // registered physical bodies or their ground-truth composition -- only
+    // ProbeRuntime owns static_bodies_. This is the one place that closes
+    // that gap: once a target's accumulated active-scan confidence has
+    // actually reached full (1.0), and the same-id registered body carries a
+    // known material_id, the real composition is revealed through
+    // SimulationCore::set_target_classification(), the sole mutation point
+    // for that field. A plain reference body with an empty material_id (or
+    // any id with no matching registered body at all) is left exactly as
+    // Core already reported it -- Observed, never a fabricated
+    // Characterized reading.
+    void reveal_full_confidence_target_classifications() {
+        for (const StaticSphereBody& body : static_bodies_) {
+            if (body.material_id.empty()) {
+                continue;
+            }
+            const auto knowledge = core_.target_knowledge_state(body.body_id);
+            if (!knowledge.has_value() || knowledge->level == KnowledgeLevel::Characterized) {
+                continue;
+            }
+            if (knowledge->confidence >= 1.0) {
+                core_.set_target_classification(body.body_id, body.material_id);
             }
         }
     }

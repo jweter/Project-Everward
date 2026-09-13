@@ -29,6 +29,12 @@ struct StaticSphereBody {
     std::string body_id;
     Vector3d center_m{};
     double radius_m{1.0};
+    // Ground-truth material composition, if this body actually has a known
+    // one (e.g. a mineable deposit). Empty for plain reference/navigation
+    // bodies with no composition of interest. This is read-only ground truth
+    // the science-knowledge layer may reveal once a scan earns it -- it is
+    // never itself a statement of what the player currently knows.
+    std::string material_id{};
 };
 
 // Authoritative local-space contact samples for the Prime Generation-1 body.

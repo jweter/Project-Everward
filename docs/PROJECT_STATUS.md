@@ -838,6 +838,66 @@ those files. The next local Unreal Product Reality pass should specifically
 confirm the project still compiles under UBT and that the new row does not
 clip against the panel background or the manipulator page drawn above it.
 
+### Target composition/classification reveal (Slice 11 follow-up)
+
+The previous section's own gap list named this exactly: `KnowledgeLevel`
+only ever reached `Observed`, since nothing supplied
+`ObservationEvidence::classification`. `SimulationCore` deliberately still
+never fabricates one on its own -- it has no notion of registered physical
+bodies at all, only `ProbeRuntime` does. This pass closes the gap without
+weakening that boundary:
+
+- `StaticSphereBody` (`types.hpp`) gains an optional `material_id`: a
+  registered body's own ground-truth composition, empty by default (a plain
+  reference target such as `REF-002`/`REF-003` has none) and round-tripped
+  through save/load as an additive field exactly like
+  `target_knowledge`/`material_inventory_kg`;
+- `SimulationCore::set_target_classification(target_id, material_id)` is
+  the sole new mutation point able to move a target from `Observed` to
+  `Characterized`; it fails closed (no mutation) for a target never
+  observed or an empty `material_id`, so a plain reference body can never
+  be spuriously characterized;
+- `ProbeRuntime::reveal_full_confidence_target_classifications()` (called
+  from `advance_wall_ticks()` after `evaluate_policy()`) is the one place
+  that actually holds both pieces of information `SimulationCore` lacks:
+  for every registered body with a known `material_id`, once its
+  `target_knowledge_state()` confidence has reached full (1.0) and it is
+  not already `Characterized`, it reveals that exact composition through
+  `set_target_classification()` -- `DamageAwareProbeRuntime` gets this for
+  free since its `advance_wall_ticks()` delegates straight through;
+- the Unreal-side `SCAN-001` bootstrap target is now registered with
+  `material_id = "iron_bearing_silicate_regolith"`, the exact literal
+  `ProbeMiningBridge.cpp`'s `MakeBootstrapDeposit()` already uses, so a
+  fully-confident science scan reports the same composition mining later
+  actually extracts rather than a second invented reading; the two
+  additional reference targets remain composition-less by design;
+- `FEverwardTargetKnowledgeStatus::Classification` was already declared but
+  unused by the HUD; the `KNOWLEDGE` row now reads
+  `CHARACTERIZED // <material_id>` in place of a now-constant, uninformative
+  100% confidence readout once a target is actually characterized.
+
+**Status: implemented, Product Reality pending.** New coverage in
+`simulation_core_tests.cpp` (`set_target_classification()`'s fail-closed and
+success cases), `software_policy_tests.cpp`
+(`reveal_full_confidence_target_classifications()` end to end: a body with a
+known material characterizes at full confidence, a body with none stays
+Observed at the same full confidence, and a non-registered scan target is
+never fabricated a classification), `save_data_tests.cpp` (a registered
+body's `material_id` round-trips, and a legacy static-body JSON object
+missing the key infers "no known composition"), and
+`tools/test_phase2_science_knowledge_surface.py` (the new mutation point,
+the reveal wiring, the save round trip, the bootstrap registration, and the
+HUD line all actually wired together). All 29 `src/simulation` ctest suites
+and all 170 `tools/test_phase2*.py` source-contract tests pass. No Unreal
+Editor/UBT build was available in this sandbox to compile-verify
+`ProbeSimulationAdapter.cpp` or `EverwardHUD.cpp`; the changes follow the
+exact aggregate-init and HUD-row patterns already compiling elsewhere in
+those files. See the updated `PHASE2_SCIENCE_KNOWLEDGE_TEST.md` local
+acceptance steps 7-10. This does not by itself close Slice 11: composition
+estimation (uncertainty, partial/incorrect readings) rather than a single
+deterministic ground-truth reveal, passive observation, and persistent
+discoveries remain unimplemented.
+
 ### Surface hover guidance — read-only math foundation (Slice 10)
 
 `PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 10 names "stable hover/translation if
@@ -1289,7 +1349,7 @@ Everward continues to preserve:
 - Slice 9 planetary gravity and swept surface-contact: an optional registered spherical planetary body now actually affects the authoritative tick (gravitational acceleration each fixed step, tunneling-safe surface contact resolved through the same mutation point static-body contact uses), strictly opt-in so every existing deep-space scenario is unaffected, round-tripped through save/load as an additive v1 field (implemented, Product Reality pending; probe still treated as a point rather than the compound hull against the surface, does not yet compose with a static body in the same tick, and no Unreal scene/telemetry exists — see "Planetary gravity and surface contact wired into the authoritative tick" above).
 - Slice 10 controlled-descent command wiring: `controlled_descent_velocity_command()` fails closed to no result with no registered planetary body and otherwise constrains a requested velocity to the registered body's `ControlledDescentEnvelope`, exposed through `UProbeSimulationAdapter::GetControlledDescentVelocityCommand()` (read-only query) and `CommandSetControlledDescentVelocityMetersPerSecond()` (applies through the existing `set_velocity_mps()` boundary), mirroring the José-autopilot read-only-query pattern; a follow-on pass (#226) added the player-facing `C` engage/cancel loop, HUD readout, and José/mining-auto-approach exclusivity, so this is now reachable from ordinary play (implemented, Product Reality pending; no Unreal scene with a registered planetary body exists yet to exercise it in PIE — see "Controlled-descent command wiring (Slice 10)" above and `PHASE2_SURFACE_DESCENT_COMMAND_TEST.md`).
 - Slice 10 surface hover command wiring and player loop: `controlled_hover_velocity_command()` is exposed through `UProbeSimulationAdapter::GetControlledHoverVelocityCommand()` (read-only query) and `CommandSetControlledHoverVelocityMetersPerSecond()` (applies through the same `set_velocity_mps()` boundary), reusing the existing `FEverwardControlledDescentCommand` result struct and the exact descent-command wiring shape; a follow-on pass added the player-facing `V` engage/cancel loop, HUD readout, and four-way exclusivity with José/controlled descent/mining auto-approach, so this is now reachable from ordinary play (implemented, Product Reality pending; no Unreal scene with a registered planetary body exists yet to exercise it in PIE — see "Surface hover command wiring" and "Surface hover engage/cancel loop (Slice 10)" below). A post-merge correctness pass (issue #235) fixed two Codex review findings: translation trim no longer disengages hover (#236, merged), and the altitude correction is now re-applied once per elapsed authoritative fixed step from inside `UProbeSimulationAdapter::TickComponent()`'s own accumulator loop via `AdvanceControlledHoverGovernorFixedStep()` rather than once per render frame from the player controller's `Tick()`, so its cadence tracks the deterministic tick sequence instead of frame rate (see `PHASE2_SURFACE_HOVER_COMMAND_TEST.md` and the `controlled-hover-render-cadence-dependent-correction` regression-memory entry). A follow-on pass (issue #239) closed the residual gap that entry named: controlled descent's velocity cap and José's guidance/arrival decision are now re-evaluated the same way, from `AdvanceControlledDescentGovernorFixedStep()`/`AdvanceJoseAutopilotGovernorFixedStep()` inside the same fixed-step loop, rather than once per render frame from `AEverwardPlayerController::Tick()` (see the `controlled-descent-jose-render-cadence-dependent-correction` regression-memory entry); no player-facing behavior, tuning value, or message text changed.
-- Slice 11 science-knowledge foundation: `science_knowledge.hpp`'s `TargetKnowledgeState`/`apply_observation()` are now wired into `SimulationCore::integrate_scan()`'s existing per-tick scan progress, persisted as an additive `target_knowledge` save field, and surfaced read-only through `UProbeSimulationAdapter::GetSelectedTargetKnowledgeStatus()` and a new telemetry-panel `KNOWLEDGE` row for whichever target is currently selected (implemented, Product Reality pending; no classification/composition estimate, passive-observation trigger, or discoveries HUD yet — see "Science knowledge foundation wired into the scan lifecycle (Slice 11)" above and `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`).
+- Slice 11 science-knowledge foundation: `science_knowledge.hpp`'s `TargetKnowledgeState`/`apply_observation()` are now wired into `SimulationCore::integrate_scan()`'s existing per-tick scan progress, persisted as an additive `target_knowledge` save field, and surfaced read-only through `UProbeSimulationAdapter::GetSelectedTargetKnowledgeStatus()` and a new telemetry-panel `KNOWLEDGE` row for whichever target is currently selected (implemented, Product Reality pending; see "Science knowledge foundation wired into the scan lifecycle (Slice 11)" above and `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`). A follow-on pass closed the classification/composition-estimate gap this bullet previously named: a registered `StaticSphereBody`'s optional ground-truth `material_id` (only `SCAN-001` has one today, matching mining's own material) is revealed through `ProbeRuntime::reveal_full_confidence_target_classifications()`/`SimulationCore::set_target_classification()` once a scan's confidence reaches full, surfaced as `KNOWLEDGE  CHARACTERIZED // <material_id>` (implemented, Product Reality pending; no passive-observation trigger, composition *estimation* with uncertainty, or discoveries HUD yet — see "Target composition/classification reveal (Slice 11 follow-up)" above).
 
 ## Exact next local UE 5.8 Product Reality pass
 
@@ -1325,7 +1385,7 @@ HUD before attempting later mining/contact acceptance.
 23. immediately after grasping `SCAN-001`, press `F` to release without articulating the arm and confirm it is rejected (`HOLDING` stays, global feedback reports the target would collide with the probe hull); articulate the holding arm's shoulder/elbow outward and away from the hull, release again, and confirm it now succeeds; re-grasp, move back near the hull boundary, and confirm the accept/reject boundary tracks the mesh's visible position rather than flickering or lagging; with a second registered reference target present, articulate the holding arm so the held target overlaps that other body and confirm release is rejected the same way, then move clear and confirm it succeeds (`PHASE2_MANIPULATOR_RELEASE_TEST.md`);
 24. grasp `SCAN-001` and articulate the holding arm to carry it a few meters from its original spawn point; confirm a mining attempt (`G`) now reasons about the tool's distance to the *carried* position -- e.g. positioning near the original spawn point rejects mining as out of reach even though that is where the deposit used to be, and positioning near the carried location instead allows mining to succeed there (`PHASE2_SCAN_TO_MINING_TEST.md`'s "Mining tracks a carried target's live position" section);
 25. change position/attitude/power allocation and manipulator state away from defaults, press `F5`, then continue playing so state changes further, then press `F6` and confirm the probe visibly snaps back to the saved state with a "probe state loaded" banner; delete/rename the save file and press `F6` again to confirm a clear "no save file found" rejection rather than a crash (`PHASE2_SAVE_LOAD_UI_TEST.md`).
-26. with no target selected, confirm the telemetry panel's `KNOWLEDGE` row reads "NO TARGET SELECTED" and the panel's background still fully contains every row with no clipping; press `T` and confirm it switches to "NOT YET OBSERVED"; start a scan and confirm it climbs live to "OBSERVED // *X*% CONFIDENCE"; cancel the scan partway through and confirm the confidence is retained rather than resetting, then restart and confirm it continues climbing; deselect and reselect the target and confirm the accumulated confidence is still reported rather than a fresh "NOT YET OBSERVED" prompt (`PHASE2_SCIENCE_KNOWLEDGE_TEST.md`).
+26. with no target selected, confirm the telemetry panel's `KNOWLEDGE` row reads "NO TARGET SELECTED" and the panel's background still fully contains every row with no clipping; press `T` and confirm it switches to "NOT YET OBSERVED"; start a scan and confirm it climbs live to "OBSERVED // *X*% CONFIDENCE"; cancel the scan partway through and confirm the confidence is retained rather than resetting, then restart and confirm it continues climbing; deselect and reselect the target and confirm the accumulated confidence is still reported rather than a fresh "NOT YET OBSERVED" prompt; continue scanning `SCAN-001` to 100% confidence and confirm the row switches to "CHARACTERIZED // iron_bearing_silicate_regolith" and stays that way afterward, then cycle (`T`) to a plain reference target, scan it to 100% confidence too, and confirm it stays "OBSERVED // 100% CONFIDENCE" rather than ever characterizing (`PHASE2_SCIENCE_KNOWLEDGE_TEST.md`).
 27. confirm the telemetry panel's new `INVENTORY` row (directly below `KNOWLEDGE`) reads "EMPTY" before anything has been mined and the panel background still fully contains every row with no clipping; mine the registered physical target (`G`) until at least one extraction cycle completes, and confirm the row switches to a live reading of the mined material's id and kilograms that agrees with the mining status widget's recovered mass and the `STORAGE` row's aggregate kilograms (`PHASE2_MATERIAL_INVENTORY_TEST.md`).
 
 A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
@@ -1338,7 +1398,7 @@ Priority order:
 2. repair any failed orientation, subsystem, contact, or damage behavior before building on it;
 3. **Slice 6 — articulated manipulator arms**: mechanics, joint-articulation HUD, visible geometry, and arm/body + arm/environment collision are all now implemented (every arm mesh still has `ECollisionEnabled::NoCollision`, but a self- or environment-intersecting pose is unreachable in the authoritative `ManipulatorRig` regardless) — Slice 6 is not complete until the local Product Reality pass above is recorded across its three test scripts plus the new collision behavior (step 15);
 4. **Slice 7 — object selection and physical interaction**: nearest-target selection, range/closing-speed telemetry, nearest→farthest target cycling, a visual selection indicator on the target's own mesh, manipulator reach telemetry ("align a manipulator"), manipulator grasp/release ("grasp or dock with a simple object"), manipulator move (a held target's registered position and its Unreal-side mesh/label now follow the holding arm's wrist), release-with-consequence (releasing now fails closed rather than embedding the held body in the probe's own hull or any other registered body), and approach-motion labeling (the `TARGET` row now reads `CLOSING`/`OPENING`/`HOLDING RANGE` instead of always `CLOSING`) are implemented (Product Reality pending, step 16/17/18/21/22/23/new-4-6 below); approach itself remains existing manual translation — no assisted-approach or auto-braking mechanic exists, and the slice's completion gate remains the accumulated local Product Reality pass above, not the presence of this code;
-5. **Slice 11 — science as gameplay**: the foundation module is now wired into the scan lifecycle (per-tick knowledge accumulation, additive save persistence, and a read-only `KNOWLEDGE` telemetry row) (Product Reality pending, step 26 above); classification/composition estimates, a passive-observation trigger, and persistent discoveries remain later work;
+5. **Slice 11 — science as gameplay**: the foundation module is now wired into the scan lifecycle (per-tick knowledge accumulation, additive save persistence, and a read-only `KNOWLEDGE` telemetry row), and a follow-on pass reveals a registered target's known composition once a scan reaches full confidence (Product Reality pending, step 26 above); composition *estimation* with uncertainty (as opposed to a single deterministic ground-truth reveal), a passive-observation trigger, and persistent discoveries remain later work;
 6. keep later planetary/resource/fabrication/repair slices aligned with the canonical damaged-awakening sequence.
 
 While local Product Reality is unavailable, only work that satisfies the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md` may merge. **Unavailability of the laptop/Unreal acceptance environment is not a stop condition for the project.** Scheduled development must immediately select and advance the highest-value eligible parallel-safe P4/P5 slice instead of reporting Everward as waiting. Park only the dependent acceptance lane, keep its Product Reality debt visible, and continue deterministic implementation that does not assume unverified contact/damage behavior is correct. Everward may be classified project-wide BLOCKED/PARKED only when authoritative roadmap/dependency evidence proves no parallel-safe eligible work remains.

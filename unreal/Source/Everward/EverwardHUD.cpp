@@ -91,6 +91,30 @@ FString MaterialInventoryLine(const TArray<FEverwardMaterialInventoryEntry>& Inv
     return FString::Printf(TEXT("INVENTORY  %s"), *Joined);
 }
 
+// Slice 11 ("Science as gameplay"): the KNOWLEDGE row's own label already
+// distinguishes Characterized from Observed; once Characterized actually
+// carries a real Classification (composition reveal wired end to end
+// through ProbeRuntime::reveal_full_confidence_target_classifications()),
+// show it rather than leaving the player to infer it only exists.
+FString TargetKnowledgeLine(
+    const FEverwardTargetSelectionStatus& TargetSelection,
+    const FEverwardTargetKnowledgeStatus& TargetKnowledge)
+{
+    if (!TargetSelection.bHasSelection)
+    {
+        return TEXT("KNOWLEDGE  NO TARGET SELECTED");
+    }
+    if (!TargetKnowledge.bHasKnowledge)
+    {
+        return TEXT("KNOWLEDGE  NOT YET OBSERVED");
+    }
+    if (TargetKnowledge.Level == EEverwardKnowledgeLevel::Characterized)
+    {
+        return FString::Printf(TEXT("KNOWLEDGE  CHARACTERIZED // %s"), *TargetKnowledge.Classification);
+    }
+    return FString::Printf(TEXT("KNOWLEDGE  OBSERVED // %.0f%% CONFIDENCE"), TargetKnowledge.Confidence * 100.0);
+}
+
 FString CapabilityState(const FEverwardProbeCapability& Capability)
 {
     if (!Capability.bOperational)
@@ -456,13 +480,7 @@ void AEverwardHUD::DrawHUD()
     // selected" from "selected but not yet observed" rather than collapsing
     // both into the same silence the TARGET row already avoids.
     DrawText(
-        TargetSelection.bHasSelection
-            ? (TargetKnowledge.bHasKnowledge
-                ? FString::Printf(TEXT("KNOWLEDGE  %s // %.0f%% CONFIDENCE"),
-                    TargetKnowledge.Level == EEverwardKnowledgeLevel::Characterized ? TEXT("CHARACTERIZED") : TEXT("OBSERVED"),
-                    TargetKnowledge.Confidence * 100.0)
-                : FString(TEXT("KNOWLEDGE  NOT YET OBSERVED")))
-            : FString(TEXT("KNOWLEDGE  NO TARGET SELECTED")),
+        TargetKnowledgeLine(TargetSelection, TargetKnowledge),
         TargetKnowledge.bHasKnowledge ? TextColor : MutedColor,
         Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (7.0f + ManipulatorArms.Num()),
         HudFont, ReadableTextScale(HudScale, 0.94f), false);

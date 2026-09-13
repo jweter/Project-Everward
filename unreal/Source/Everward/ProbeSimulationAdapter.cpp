@@ -193,6 +193,9 @@ void UProbeSimulationAdapter::BeginPlay()
     // Register the same sphere rendered by the temporary Phase-2 environment.
     // The runtime, not Unreal collision response, decides whether EV-0001 can
     // pass through it. Slice 4 then derives damage from that contact truth.
+    // material_id matches ProbeMiningBridge.cpp's MakeBootstrapDeposit() exactly,
+    // so a fully-confident science scan reports the same composition mining
+    // later actually extracts, rather than a second invented reading.
     Core->add_static_sphere_body({
         std::string(TCHAR_TO_UTF8(AEverwardPhase2TestEnvironment::BootstrapScanTargetId)),
         {
@@ -201,6 +204,7 @@ void UProbeSimulationAdapter::BeginPlay()
             AEverwardPhase2TestEnvironment::BootstrapBodyCenterZMeters,
         },
         AEverwardPhase2TestEnvironment::BootstrapBodyRadiusMeters,
+        "iron_bearing_silicate_regolith",
     });
 
     // Slice 8 (partial): register the environment's two additional reference

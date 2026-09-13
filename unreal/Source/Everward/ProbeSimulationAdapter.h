@@ -217,8 +217,13 @@ struct EVERWARD_API FEverwardTargetSelectionStatus
 
 // Slice 11 ("Science as gameplay") foundation: unknown -> observed ->
 // characterized, matching everward::simulation::KnowledgeLevel exactly.
-// Composition/material classification (the "characterized" driver) remains
-// later work; this foundation only ever reaches Observed today.
+// Composition/material classification (the "characterized" driver) is now
+// wired end to end: ProbeRuntime::reveal_full_confidence_target_
+// classifications() reveals a registered body's known material_id once an
+// active scan's confidence reaches 1.0, reported below via Classification.
+// A registered body with no known material_id (a plain reference target)
+// still only ever reaches Observed, matching the read-only per-target
+// telemetry surfaced through FEverwardTargetKnowledgeStatus below.
 UENUM(BlueprintType)
 enum class EEverwardKnowledgeLevel : uint8
 {

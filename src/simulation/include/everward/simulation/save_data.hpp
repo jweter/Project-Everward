@@ -198,6 +198,7 @@ namespace detail {
     object.set("body_id", JsonValue(body.body_id));
     object.set("center_m", vector3d_to_json(body.center_m));
     object.set("radius_m", JsonValue(body.radius_m));
+    object.set("material_id", JsonValue(body.material_id));
     return object;
 }
 
@@ -206,6 +207,13 @@ namespace detail {
     body.body_id = value.require("body_id").as_string();
     body.center_m = vector3d_from_json(value.require("center_m"));
     body.radius_m = value.require("radius_m").as_double();
+    // Additive v1 field: a save captured before Slice 11's composition
+    // classification existed has no entry for it. Absence reads back as "no
+    // known composition" (empty), the same reading a plain reference body
+    // with no material_id has always had -- no schema migration required.
+    if (const JsonValue* material_id = value.find("material_id")) {
+        body.material_id = material_id->as_string();
+    }
     return body;
 }
 

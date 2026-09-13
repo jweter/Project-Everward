@@ -11,6 +11,7 @@
 using everward::simulation::ApproachMotionState;
 using everward::simulation::DomainEvent;
 using everward::simulation::DomainEventType;
+using everward::simulation::KnowledgeLevel;
 using everward::simulation::PolicyActionKind;
 using everward::simulation::PolicyConditionKind;
 using everward::simulation::PowerSubsystem;
@@ -327,6 +328,57 @@ int main() {
 
         runtime.clear_planetary_body();
         assert(!runtime.planetary_body().has_value());
+    }
+
+    // Slice 11 composition/classification: reveal_full_confidence_target_
+    // classifications() closes the gap SimulationCore deliberately leaves
+    // open (it has no notion of registered bodies). A fully-confident active
+    // scan of a registered body with a known material_id reveals that exact
+    // composition; the same fully-confident scan of a body with no known
+    // material_id (a plain reference target) never fabricates one.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(
+            StaticSphereBody{"asteroid-a", {50.0, 0.0, 0.0}, 2.0, "iron_bearing_silicate_regolith"});
+        runtime.add_static_sphere_body(StaticSphereBody{"ref-b", {-50.0, 0.0, 0.0}, 2.0});
+        runtime.allocate_power(PowerSubsystem::Sensors, 100.0);
+
+        // Long scan duration so 10 confidence-saturating seconds land well
+        // before the scan itself would auto-complete and clear the target.
+        runtime.start_scan("asteroid-a", 20.0);
+        (void)runtime.drain_events();
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+
+        auto asteroid_knowledge = runtime.target_knowledge_state("asteroid-a");
+        assert(asteroid_knowledge.has_value());
+        assert(nearly_equal_local(asteroid_knowledge->confidence, 1.0));
+        assert(asteroid_knowledge->level == KnowledgeLevel::Characterized);
+        assert(asteroid_knowledge->classification == "iron_bearing_silicate_regolith");
+
+        runtime.cancel_scan();
+        (void)runtime.drain_events();
+
+        runtime.start_scan("ref-b", 20.0);
+        (void)runtime.drain_events();
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+
+        auto ref_knowledge = runtime.target_knowledge_state("ref-b");
+        assert(ref_knowledge.has_value());
+        assert(nearly_equal_local(ref_knowledge->confidence, 1.0));
+        assert(ref_knowledge->level == KnowledgeLevel::Observed);
+        assert(ref_knowledge->classification.empty());
+
+        // A scan target that is not a registered physical body at all is
+        // likewise never fabricated a classification.
+        runtime.cancel_scan();
+        (void)runtime.drain_events();
+        runtime.start_scan("unregistered-target", 20.0);
+        (void)runtime.drain_events();
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        auto unregistered_knowledge = runtime.target_knowledge_state("unregistered-target");
+        assert(unregistered_knowledge.has_value());
+        assert(unregistered_knowledge->level == KnowledgeLevel::Observed);
+        assert(unregistered_knowledge->classification.empty());
     }
 
     std::cout << "Generation-1 software policy tests passed\n";
