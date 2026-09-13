@@ -14,9 +14,15 @@ class UnattendedProductRealityReportingTests(unittest.TestCase):
     def test_registration_uses_reporting_wrapper_and_idle_task(self) -> None:
         source = REGISTER.read_text(encoding="utf-8")
         self.assertIn("run_unattended_product_reality.ps1", source)
-        self.assertIn("/SC ONIDLE", source)
-        self.assertIn("/I 10", source)
-        self.assertIn("/RL LIMITED", source)
+        self.assertIn("/XML $TaskXmlPath", source)
+        self.assertIn("<IdleTrigger>", source)
+        self.assertIn("<Duration>PT10M</Duration>", source)
+        self.assertIn("<RunLevel>LeastPrivilege</RunLevel>", source)
+        self.assertIn("<Command>powershell.exe</Command>", source)
+        self.assertIn("<Arguments>$EscapedArguments</Arguments>", source)
+        self.assertIn("<WorkingDirectory>$EscapedRepoRoot</WorkingDirectory>", source)
+        self.assertIn("/Query /TN $TaskName", source)
+        self.assertNotIn("/TR $Action", source)
         self.assertIn("issue #243", source)
 
     def test_runner_keeps_publication_separate_from_test_truth(self) -> None:
