@@ -706,6 +706,37 @@ identity is actually wired from deposit through to storage). All 26
 `src/simulation` ctest suites and all 154 `tools/test_phase2*.py`
 source-contract tests pass.
 
+### Material inventory HUD readout (Slice 12 foundation follow-up)
+
+The gap the previous section explicitly named -- "no inventory HUD/readout
+consumes the breakdown yet" -- is now closed with a read-only row and nothing
+further: `UProbeSimulationAdapter::GetStoredMaterialInventory()` (new
+`ProbeMiningBridge.cpp` accessor) reads `Core->material_inventory_kg()`
+directly and returns it as a new `FEverwardMaterialInventoryEntry` array, and
+the always-visible telemetry panel gains an `INVENTORY` row directly below
+`KNOWLEDGE`, reading a muted "EMPTY" prompt with nothing stored or each
+material id and kilograms once mining has credited storage. No new
+authoritative state, save field, mutation point, or player command was
+added -- `material_inventory_kg()` itself is unchanged.
+
+**Status: implemented, Product Reality pending.** New
+`tools/test_phase2_material_inventory_surface.py` confirms the adapter
+struct/accessor exist, the bridge reads `Core->material_inventory_kg()`
+without inventing a second breakdown and fails closed to an empty array with
+no live simulation core, and the HUD extends `TelemetryHeight` from 10 to 11
+lines rather than overlapping the manipulator panel drawn above it (the
+existing `tools/test_phase2_science_knowledge_surface.py` row-budget
+assertion was updated to match). All 281 `tools/test_*.py` source-contract
+tests and the full canonical preflight pass at this exact head. No Unreal
+Editor/UBT build was available in this sandbox to compile-verify
+`ProbeSimulationAdapter.h`/`ProbeMiningBridge.cpp`/`EverwardHUD.cpp`; the
+change follows the exact accessor/panel-row patterns already compiling
+elsewhere in those files (`GetSelectedTargetKnowledgeStatus()`, the
+`KNOWLEDGE` row). See `PHASE2_MATERIAL_INVENTORY_TEST.md`. The next local
+Unreal Product Reality pass should specifically confirm the project still
+compiles under UBT and that the new row does not clip against the panel
+background or the manipulator page drawn above it.
+
 ### Science knowledge foundation wired into the scan lifecycle (Slice 11)
 
 Issue #215 landed `science_knowledge.hpp` (`TargetKnowledgeState`,
@@ -1204,7 +1235,7 @@ Everward continues to preserve:
 - manipulator move: a currently grasped target's registered position now follows the holding arm's wrist every fixed step through a single authoritative mutation point (`update_static_sphere_body_position()`), with the Unreal-side scan-target mesh/label mirroring that same position each tick (Slice 7 "move"; implemented, Product Reality pending);
 - manipulator release-with-consequence: releasing (`F`) now fails closed instead of embedding the held body in the probe's own hull or any other currently registered physical body, gated by the same five-sphere `ProbeCompoundCollisionEnvelope` the arm/hull and swept-contact guards already use plus a matching sphere-overlap test against the registered-body list (Slice 7 "release"; implemented, Product Reality pending; any place/hand-off-into-storage mechanic or released-object velocity/momentum still has no consequence);
 - mining reads a carried target's live registered position rather than its spawn-time position, so a `SCAN-001` grasped and moved by a manipulator arm is mined (or correctly rejected as out of reach) at its actual current location instead of a stale one (Slice 7 follow-up; implemented, Product Reality pending);
-- per-material storage identity: `storage_used_kg` now has an authoritative `material_inventory_kg` breakdown by `material_id`, credited by mining and depleted deterministically by generic consumption, with save/load round-tripping it as an additive v1 field (Slice 12 foundation; implemented, Product Reality pending; no inventory HUD readout or material-specific repair consumption yet);
+- per-material storage identity: `storage_used_kg` now has an authoritative `material_inventory_kg` breakdown by `material_id`, credited by mining and depleted deterministically by generic consumption, with save/load round-tripping it as an additive v1 field, and now surfaced read-only through `UProbeSimulationAdapter::GetStoredMaterialInventory()` and an `INVENTORY` telemetry-panel row below `KNOWLEDGE` (Slice 12 foundation; implemented, Product Reality pending; no dedicated inventory HUD page or material-specific repair consumption yet — see "Material inventory HUD readout" above and `PHASE2_MATERIAL_INVENTORY_TEST.md`);
 - José Take the Wheel Phase-2 autopilot: destination-locking onto the existing target-selection system, `Y` engage/cancel, progressive approach-speed shaping toward a configurable cruise speed, arrival at a fixed surface stand-off, and immediate manual-translation/`SPACE` takeover, with the underlying guidance-law decision now engine-independent and ctest-covered (`jose_autopilot.hpp`) behind `UProbeSimulationAdapter::GetJoseGuidanceCommand()` rather than computed in Unreal C++ (implemented, Product Reality pending; no orbital/obstacle-avoidance/route-planning navigation yet — see `docs/JOSE_TAKE_THE_WHEEL.md`);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending — see "Save/load Unreal UI wiring" above); the schema already supports a multi-probe campaign (`SaveGameV1.probes`, unique/non-empty `probe_id` enforced) and an ordered vN -> vN+1 migration framework (empty registry today since v1 is the first schema), and, additively, a top-level `lineages` list persisting `probe_lineage.hpp`'s data-only `probe_id`/`lineage_id`/`parent_probe_id`/`generation` records, fail-closed validated against this same save's persisted probe IDs (see `docs/SAVE_FORMAT.md`) — no authoritative successor/generation-change mechanic exists yet to ever populate more than a single root lineage record, so this is schema-only persistence, not Slice-advancing gameplay;
@@ -1248,6 +1279,7 @@ HUD before attempting later mining/contact acceptance.
 24. grasp `SCAN-001` and articulate the holding arm to carry it a few meters from its original spawn point; confirm a mining attempt (`G`) now reasons about the tool's distance to the *carried* position -- e.g. positioning near the original spawn point rejects mining as out of reach even though that is where the deposit used to be, and positioning near the carried location instead allows mining to succeed there (`PHASE2_SCAN_TO_MINING_TEST.md`'s "Mining tracks a carried target's live position" section);
 25. change position/attitude/power allocation and manipulator state away from defaults, press `F5`, then continue playing so state changes further, then press `F6` and confirm the probe visibly snaps back to the saved state with a "probe state loaded" banner; delete/rename the save file and press `F6` again to confirm a clear "no save file found" rejection rather than a crash (`PHASE2_SAVE_LOAD_UI_TEST.md`).
 26. with no target selected, confirm the telemetry panel's `KNOWLEDGE` row reads "NO TARGET SELECTED" and the panel's background still fully contains every row with no clipping; press `T` and confirm it switches to "NOT YET OBSERVED"; start a scan and confirm it climbs live to "OBSERVED // *X*% CONFIDENCE"; cancel the scan partway through and confirm the confidence is retained rather than resetting, then restart and confirm it continues climbing; deselect and reselect the target and confirm the accumulated confidence is still reported rather than a fresh "NOT YET OBSERVED" prompt (`PHASE2_SCIENCE_KNOWLEDGE_TEST.md`).
+27. confirm the telemetry panel's new `INVENTORY` row (directly below `KNOWLEDGE`) reads "EMPTY" before anything has been mined and the panel background still fully contains every row with no clipping; mine the registered physical target (`G`) until at least one extraction cycle completes, and confirm the row switches to a live reading of the mined material's id and kilograms that agrees with the mining status widget's recovered mass and the `STORAGE` row's aggregate kilograms (`PHASE2_MATERIAL_INVENTORY_TEST.md`).
 
 A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
 

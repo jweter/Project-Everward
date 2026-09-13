@@ -68,6 +68,29 @@ FString PercentString(double Value, double Capacity)
     return FString::Printf(TEXT("%.0f%%"), FMath::Clamp(Value / Capacity, 0.0, 1.0) * 100.0);
 }
 
+// Slice 12 foundation follow-up: the STORAGE row's single aggregate
+// kilogram figure cannot show *what* is stored. Entries are already
+// ascending-material_id ordered by GetStoredMaterialInventory() (Core's
+// std::map iteration order), so this never reorders them itself.
+FString MaterialInventoryLine(const TArray<FEverwardMaterialInventoryEntry>& Inventory)
+{
+    if (Inventory.IsEmpty())
+    {
+        return TEXT("INVENTORY  EMPTY");
+    }
+
+    FString Joined;
+    for (int32 Index = 0; Index < Inventory.Num(); ++Index)
+    {
+        if (Index > 0)
+        {
+            Joined += TEXT(", ");
+        }
+        Joined += FString::Printf(TEXT("%s %.1f KG"), *Inventory[Index].MaterialId, Inventory[Index].Kilograms);
+    }
+    return FString::Printf(TEXT("INVENTORY  %s"), *Joined);
+}
+
 FString CapabilityState(const FEverwardProbeCapability& Capability)
 {
     if (!Capability.bOperational)
@@ -305,6 +328,7 @@ void AEverwardHUD::DrawHUD()
     const TArray<FEverwardManipulatorArmState> ManipulatorArms = Adapter->GetManipulatorArmStates();
     const FEverwardTargetSelectionStatus TargetSelection = Adapter->GetSelectedTargetStatus();
     const FEverwardTargetKnowledgeStatus TargetKnowledge = Adapter->GetSelectedTargetKnowledgeStatus();
+    const TArray<FEverwardMaterialInventoryEntry> MaterialInventory = Adapter->GetStoredMaterialInventory();
     const FEverwardSoftwarePolicyStatus PolicyStatus = Adapter->GetSoftwarePolicyStatus();
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
     const FEverwardAutomationNotice AutomationNotice = Adapter->GetLastAutomationNotice();
@@ -353,7 +377,7 @@ void AEverwardHUD::DrawHUD()
     const FLinearColor MutedColor(0.64f, 0.75f, 0.80f, 1.0f);
     const FLinearColor AlertColor(1.0f, 0.36f, 0.18f, 1.0f);
 
-    const float TelemetryHeight = S(62.0f) + LineHeight * 10.0f;
+    const float TelemetryHeight = S(62.0f) + LineHeight * 11.0f;
     const float TelemetryY = Canvas->ClipY - Margin - TelemetryHeight;
     DrawRect(PanelColor, Margin, TelemetryY, PanelWidth, TelemetryHeight);
     DrawText(
@@ -441,6 +465,14 @@ void AEverwardHUD::DrawHUD()
             : FString(TEXT("KNOWLEDGE  NO TARGET SELECTED")),
         TargetKnowledge.bHasKnowledge ? TextColor : MutedColor,
         Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (7.0f + ManipulatorArms.Num()),
+        HudFont, ReadableTextScale(HudScale, 0.94f), false);
+
+    // Slice 12 foundation follow-up: per-material breakdown of the STORAGE
+    // row's aggregate kilogram figure, immediately below the KNOWLEDGE row.
+    DrawText(
+        TruncatedPanelLine(MaterialInventoryLine(MaterialInventory)),
+        MaterialInventory.IsEmpty() ? MutedColor : TextColor,
+        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (8.0f + ManipulatorArms.Num()),
         HudFont, ReadableTextScale(HudScale, 0.94f), false);
 
     // Dedicated manipulator HUD page (Slice 6 joint-articulation follow-up).

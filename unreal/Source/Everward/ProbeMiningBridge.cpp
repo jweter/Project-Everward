@@ -79,6 +79,31 @@ FEverwardMiningStatus UProbeSimulationAdapter::GetMiningStatus() const
     return Status;
 }
 
+TArray<FEverwardMaterialInventoryEntry> UProbeSimulationAdapter::GetStoredMaterialInventory() const
+{
+    // Slice 12 foundation follow-up: read-only, recomputed live every call
+    // from Core's authoritative material_inventory_kg breakdown (credited by
+    // add_stored_material_kg above and depleted deterministically in
+    // ascending material_id order by consume_stored_material_kg) -- the same
+    // per-material identity the STORAGE row's aggregate storage_used_kg
+    // number cannot show. std::map already iterates in ascending
+    // material_id order, so this is deterministic without an explicit sort.
+    TArray<FEverwardMaterialInventoryEntry> Inventory;
+    if (Core == nullptr)
+    {
+        return Inventory;
+    }
+
+    for (const auto& [MaterialId, Kilograms] : Core->material_inventory_kg())
+    {
+        FEverwardMaterialInventoryEntry Entry;
+        Entry.MaterialId = UTF8_TO_TCHAR(MaterialId.c_str());
+        Entry.Kilograms = Kilograms;
+        Inventory.Add(Entry);
+    }
+    return Inventory;
+}
+
 FEverwardProbeCommandResult UProbeSimulationAdapter::CommandMineBootstrapTarget()
 {
     const FName CommandId(TEXT("mine_bootstrap_target"));

@@ -243,6 +243,20 @@ struct EVERWARD_API FEverwardTargetKnowledgeStatus
     UPROPERTY(BlueprintReadOnly, Category="Everward|Target") FString Classification;
 };
 
+// Slice 12 foundation follow-up: read-only mirror of one
+// everward::simulation::ProbeStateSnapshot::material_inventory_kg entry.
+// Core already enforces that the sum of these entries equals
+// storage_used_kg (the STORAGE row's own source), so this never duplicates
+// or fabricates mass -- it only exposes the existing breakdown by material
+// identity that the STORAGE row's single aggregate number cannot show.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardMaterialInventoryEntry
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry") FString MaterialId;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry") double Kilograms = 0.0;
+};
+
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardTractorFieldStatus
 {
@@ -384,6 +398,7 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Manipulator") TArray<FEverwardManipulatorArmState> GetManipulatorArmStates() const;
     UFUNCTION(BlueprintPure, Category="Everward|Manipulator") FEverwardManipulatorReachStatus GetManipulatorReachStatus(EEverwardManipulatorArmId ArmId) const;
     UFUNCTION(BlueprintPure, Category="Everward|Mining") FEverwardMiningStatus GetMiningStatus() const;
+    UFUNCTION(BlueprintPure, Category="Everward|Telemetry") TArray<FEverwardMaterialInventoryEntry> GetStoredMaterialInventory() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetKnowledgeStatus GetSelectedTargetKnowledgeStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Tractor") FEverwardTractorFieldStatus GetTractorFieldStatus() const;
