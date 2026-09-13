@@ -171,7 +171,7 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
         )
 
         card = adapted["components"]["Collision/Damage"]
-        self.assertEqual(card["status"], "PRODUCT REALITY_REQUIRED")
+        self.assertEqual(card["status"], "PRODUCT_REALITY_REQUIRED")
         self.assertEqual(
             card["product_reality_debt"],
             "Unreal collision feel and damage presentation",
