@@ -7,6 +7,7 @@ from mobile_product_reality_adapters import (
     adapt_mining_storage_evidence,
     adapt_persistence_evidence,
     adapt_repair_evidence,
+    adapt_scanner_target_evidence,
     adapt_tractor_field_evidence,
 )
 
@@ -118,6 +119,35 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
         self.assertIn("Tractor Field", html)
         self.assertIn("tractor coupled", html)
         self.assertIn("stronger probe acceleration", html)
+
+    def test_scanner_adapter_renders_authoritative_target_classification_evidence(self) -> None:
+        adapted = adapt_scanner_target_evidence(
+            {
+                "commit": COMMIT,
+                "scenario": "scanner-target-classification-v1",
+                "timestamp": "2026-09-13T18:00:00Z",
+                "status": "PRODUCT_REALITY_REQUIRED",
+                "detail": "Simulation authority supplied full-confidence target composition and classification.",
+                "product_reality_debt": "Unreal scan presentation readability",
+                "events": [
+                    {
+                        "at": "scan 100%",
+                        "event": "target classification revealed",
+                        "detail": "Composition and classification came from authoritative scan state.",
+                    }
+                ],
+            }
+        )
+
+        card = adapted["components"]["Scanner/Target"]
+        self.assertEqual(card["status"], "PRODUCT_REALITY_REQUIRED")
+        self.assertEqual(card["product_reality_debt"], "Unreal scan presentation readability")
+        html = render_state_report(
+            _renderable_report(adapted, "scanner-target-classification-v1")
+        )
+        self.assertIn("Scanner/Target", html)
+        self.assertIn("target classification revealed", html)
+        self.assertIn("Unreal scan presentation readability", html)
 
     def test_adapter_accepts_and_renders_canonical_unattended_worker_review_statuses(self) -> None:
         for status in ("REVIEW_REQUIRED", "ENVIRONMENT_FAILURE"):
