@@ -7,6 +7,7 @@ from mobile_product_reality_adapters import (
     adapt_mining_storage_evidence,
     adapt_persistence_evidence,
     adapt_repair_evidence,
+    adapt_tractor_field_evidence,
 )
 
 
@@ -92,6 +93,31 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
         self.assertIn("Fix_It Repair", html)
         self.assertIn("repair material consumed", html)
         self.assertIn("required capability restored", html)
+
+    def test_tractor_adapter_renders_authoritative_coupling_evidence(self) -> None:
+        adapted = adapt_tractor_field_evidence(
+            {
+                "commit": COMMIT,
+                "scenario": "tractor-heavy-target-v1",
+                "timestamp": "2026-09-13T16:00:00Z",
+                "status": "PASS",
+                "detail": "Simulation authority reported equal-and-opposite tractor coupling.",
+                "events": [
+                    {
+                        "at": "tick 80",
+                        "event": "tractor coupled",
+                        "detail": "Heavier target caused stronger probe acceleration toward target.",
+                    }
+                ],
+            }
+        )
+
+        card = adapted["components"]["Tractor Field"]
+        self.assertEqual(card["status"], "PASS")
+        html = render_state_report(_renderable_report(adapted, "tractor-heavy-target-v1"))
+        self.assertIn("Tractor Field", html)
+        self.assertIn("tractor coupled", html)
+        self.assertIn("stronger probe acceleration", html)
 
     def test_adapter_accepts_and_renders_canonical_unattended_worker_review_statuses(self) -> None:
         for status in ("REVIEW_REQUIRED", "ENVIRONMENT_FAILURE"):
