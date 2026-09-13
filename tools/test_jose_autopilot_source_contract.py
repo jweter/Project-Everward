@@ -30,10 +30,50 @@ class JoseAutopilotSourceContractTests(unittest.TestCase):
     def test_autopilot_uses_existing_authoritative_target_and_velocity_boundaries(self) -> None:
         self.assertIn("GetSelectedTargetStatus", self.autopilot_cpp)
         self.assertIn("GetStaticBodyPositionMeters", self.autopilot_cpp)
-        self.assertIn("GetJoseGuidanceCommand", self.autopilot_cpp)
         self.assertIn("CommandSetVelocityMetersPerSecond", self.autopilot_cpp)
         self.assertNotIn("SetActorLocation", self.autopilot_cpp)
         self.assertNotIn("Teleport", self.autopilot_cpp)
+        # Issue #239: the controller only configures the destination/tunables
+        # via SetJoseAutopilotGovernorEngaged() here -- it no longer calls
+        # GetJoseGuidanceCommand() or issues the resulting velocity command
+        # itself, since doing so once per render frame made the guidance
+        # decision's cadence depend on frame rate rather than the
+        # simulation's tick sequence (the same defect #238 fixed for
+        # controlled hover).
+        self.assertIn("SetJoseAutopilotGovernorEngaged", self.autopilot_cpp)
+        self.assertNotIn("GetJoseGuidanceCommand", self.autopilot_cpp)
+
+    def test_autopilot_governor_correction_runs_once_per_fixed_step_not_per_frame(self) -> None:
+        # Issue #239 regression protection, mirroring
+        # test_controlled_hover_player_loop_surface.py's hover-side test: the
+        # guidance decision and velocity command must be re-evaluated from
+        # inside UProbeSimulationAdapter::TickComponent()'s own fixed-step
+        # accumulator loop -- not from APlayerController::Tick() once per
+        # render frame.
+        adapter_h = self.adapter_h
+        adapter_cpp = (SOURCE / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("void SetJoseAutopilotGovernorEngaged(", adapter_h)
+        self.assertIn("void AdvanceJoseAutopilotGovernorFixedStep();", adapter_h)
+        self.assertIn("GetJoseGuidanceCommand", self.target_bridge_cpp)
+        self.assertIn(
+            "void UProbeSimulationAdapter::AdvanceJoseAutopilotGovernorFixedStep()", self.target_bridge_cpp
+        )
+
+        tick_component_start = adapter_cpp.index("::TickComponent(")
+        sync_call = adapter_cpp.index("SyncOwnerTransformFromSimulation();", tick_component_start)
+        tick_component_body = adapter_cpp[tick_component_start:sync_call]
+        self.assertIn("Core->advance_wall_ticks", tick_component_body)
+        self.assertIn("AdvanceJoseAutopilotGovernorFixedStep();", tick_component_body)
+        # The correction call must land after Core has advanced, so it reads
+        # the freshly-stepped pose rather than a stale one.
+        self.assertLess(
+            tick_component_body.index("Core->advance_wall_ticks"),
+            tick_component_body.index("AdvanceJoseAutopilotGovernorFixedStep();"),
+        )
+
+    def test_cancel_jose_stops_the_fixed_step_governor_immediately(self) -> None:
+        self.assertIn("SetJoseAutopilotGovernorEngaged(false", self.autopilot_cpp)
 
     def test_guidance_law_is_engine_independent_and_ctest_covered(self) -> None:
         # The approach-speed shaping and arrival decision must live in pure,

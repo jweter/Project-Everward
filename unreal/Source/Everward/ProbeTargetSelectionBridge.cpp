@@ -217,3 +217,99 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandClearTargetSelection
     Core->clear_target_selection();
     return RecordCommandResult(CommandId, true, TEXT("target selection cleared"));
 }
+
+// Issue #239: AdvanceJoseTakeTheWheel() previously computed guidance and
+// issued/cancelled the resulting velocity command directly from
+// AEverwardPlayerController::Tick(), once per render frame -- the same
+// render-cadence defect controlled hover had before #238. The controller
+// now only records the destination/tunables here; the guidance decision and
+// command are re-evaluated by AdvanceJoseAutopilotGovernorFixedStep() from
+// inside TickComponent()'s own fixed-step accumulator loop.
+void UProbeSimulationAdapter::SetJoseAutopilotGovernorEngaged(
+    bool bEngaged,
+    const FString& DestinationBodyId,
+    double CruiseSpeedMetersPerSecond,
+    double ArrivalSurfaceStandoffMeters,
+    double ArrivalToleranceMeters,
+    double ApproachGainPerSecond)
+{
+    bJoseAutopilotGovernorEngaged = bEngaged;
+    JoseAutopilotGovernorDestinationBodyId = DestinationBodyId;
+    JoseAutopilotGovernorCruiseSpeedMetersPerSecond = CruiseSpeedMetersPerSecond;
+    JoseAutopilotGovernorArrivalSurfaceStandoffMeters = ArrivalSurfaceStandoffMeters;
+    JoseAutopilotGovernorArrivalToleranceMeters = ArrivalToleranceMeters;
+    JoseAutopilotGovernorApproachGainPerSecond = ApproachGainPerSecond;
+}
+
+FEverwardJoseAutopilotGovernorNotice UProbeSimulationAdapter::GetJoseAutopilotGovernorNotice() const
+{
+    return LastJoseAutopilotGovernorNotice;
+}
+
+void UProbeSimulationAdapter::AdvanceJoseAutopilotGovernorFixedStep()
+{
+    if (!bJoseAutopilotGovernorEngaged)
+    {
+        return;
+    }
+
+    // The destination is tracked by id, not by a live handle: if the player
+    // changes/clears target selection mid-flight, José must release the
+    // wheel rather than keep steering toward a destination the player no
+    // longer has selected. This mirrors exactly what the controller used to
+    // check itself before every guidance call.
+    const FEverwardTargetSelectionStatus Target = GetSelectedTargetStatus();
+    if (!Target.bHasSelection || Target.TargetId != JoseAutopilotGovernorDestinationBodyId)
+    {
+        bJoseAutopilotGovernorEngaged = false;
+        LastJoseAutopilotGovernorNotice.Sequence = ++JoseAutopilotGovernorSequence;
+        LastJoseAutopilotGovernorNotice.StopReason = EEverwardJoseAutopilotStopReason::SelectionChanged;
+        LastJoseAutopilotGovernorNotice.DestinationId = JoseAutopilotGovernorDestinationBodyId;
+        LastJoseAutopilotGovernorNotice.Detail.Empty();
+        return;
+    }
+
+    const FEverwardJoseGuidanceCommand Guidance = GetJoseGuidanceCommand(
+        JoseAutopilotGovernorDestinationBodyId,
+        JoseAutopilotGovernorCruiseSpeedMetersPerSecond,
+        JoseAutopilotGovernorArrivalSurfaceStandoffMeters,
+        JoseAutopilotGovernorArrivalToleranceMeters,
+        JoseAutopilotGovernorApproachGainPerSecond);
+
+    EEverwardJoseAutopilotStopReason StopReason = EEverwardJoseAutopilotStopReason::None;
+    switch (Guidance.Outcome)
+    {
+        case EEverwardJoseGuidanceOutcome::DestinationNotFound:
+            StopReason = EEverwardJoseAutopilotStopReason::DestinationNotFound;
+            break;
+        case EEverwardJoseGuidanceOutcome::Arrived:
+            StopReason = EEverwardJoseAutopilotStopReason::Arrived;
+            break;
+        case EEverwardJoseGuidanceOutcome::DestinationUnresolved:
+            StopReason = EEverwardJoseAutopilotStopReason::DestinationUnresolved;
+            break;
+        case EEverwardJoseGuidanceOutcome::Continue:
+        default:
+            break;
+    }
+
+    if (StopReason != EEverwardJoseAutopilotStopReason::None)
+    {
+        bJoseAutopilotGovernorEngaged = false;
+        LastJoseAutopilotGovernorNotice.Sequence = ++JoseAutopilotGovernorSequence;
+        LastJoseAutopilotGovernorNotice.StopReason = StopReason;
+        LastJoseAutopilotGovernorNotice.DestinationId = JoseAutopilotGovernorDestinationBodyId;
+        LastJoseAutopilotGovernorNotice.Detail.Empty();
+        return;
+    }
+
+    const FEverwardProbeCommandResult Result = CommandSetVelocityMetersPerSecond(Guidance.CommandVelocityMetersPerSecond);
+    if (!Result.bAccepted)
+    {
+        bJoseAutopilotGovernorEngaged = false;
+        LastJoseAutopilotGovernorNotice.Sequence = ++JoseAutopilotGovernorSequence;
+        LastJoseAutopilotGovernorNotice.StopReason = EEverwardJoseAutopilotStopReason::CommandRejected;
+        LastJoseAutopilotGovernorNotice.DestinationId = JoseAutopilotGovernorDestinationBodyId;
+        LastJoseAutopilotGovernorNotice.Detail = Result.Detail;
+    }
+}

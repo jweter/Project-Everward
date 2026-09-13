@@ -297,3 +297,54 @@ void UProbeSimulationAdapter::AdvanceControlledHoverGovernorFixedStep()
         LastControlledHoverGovernorNotice.Detail = Result.Detail;
     }
 }
+
+// Issue #239: AdvanceControlledDescent() previously called
+// CommandSetControlledDescentVelocityMetersPerSecond() directly from
+// AEverwardPlayerController::Tick(), the same render-cadence defect fixed
+// for controlled hover by #238. The controller now only records the
+// governor's engaged state/tunables here; the correction itself is
+// re-applied by AdvanceControlledDescentGovernorFixedStep() from inside
+// TickComponent()'s own fixed-step accumulator loop.
+void UProbeSimulationAdapter::SetControlledDescentGovernorEngaged(
+    bool bEngaged,
+    double MaxDescentSpeedMetersPerSecond,
+    double MaxTangentialSpeedMetersPerSecond,
+    double MinimumClearanceMeters,
+    double FullSpeedAltitudeMeters,
+    double TouchdownDescentSpeedMetersPerSecond)
+{
+    bControlledDescentGovernorEngaged = bEngaged;
+    ControlledDescentGovernorMaxDescentSpeedMetersPerSecond = MaxDescentSpeedMetersPerSecond;
+    ControlledDescentGovernorMaxTangentialSpeedMetersPerSecond = MaxTangentialSpeedMetersPerSecond;
+    ControlledDescentGovernorMinimumClearanceMeters = MinimumClearanceMeters;
+    ControlledDescentGovernorFullSpeedAltitudeMeters = FullSpeedAltitudeMeters;
+    ControlledDescentGovernorTouchdownSpeedMetersPerSecond = TouchdownDescentSpeedMetersPerSecond;
+}
+
+FEverwardAutomationNotice UProbeSimulationAdapter::GetControlledDescentGovernorNotice() const
+{
+    return LastControlledDescentGovernorNotice;
+}
+
+void UProbeSimulationAdapter::AdvanceControlledDescentGovernorFixedStep()
+{
+    if (!bControlledDescentGovernorEngaged)
+    {
+        return;
+    }
+
+    const FEverwardProbeCommandResult Result = CommandSetControlledDescentVelocityMetersPerSecond(
+        GetProbeTelemetry().VelocityMetersPerSecond,
+        ControlledDescentGovernorMaxDescentSpeedMetersPerSecond,
+        ControlledDescentGovernorMaxTangentialSpeedMetersPerSecond,
+        ControlledDescentGovernorMinimumClearanceMeters,
+        ControlledDescentGovernorFullSpeedAltitudeMeters,
+        ControlledDescentGovernorTouchdownSpeedMetersPerSecond);
+    if (!Result.bAccepted)
+    {
+        bControlledDescentGovernorEngaged = false;
+        LastControlledDescentGovernorNotice.Sequence = ++ControlledDescentGovernorSequence;
+        LastControlledDescentGovernorNotice.bRejected = true;
+        LastControlledDescentGovernorNotice.Detail = Result.Detail;
+    }
+}

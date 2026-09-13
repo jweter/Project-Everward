@@ -40,14 +40,54 @@ class ControlledDescentPlayerLoopSurfaceTests(unittest.TestCase):
     def test_descent_loop_governs_live_velocity_through_existing_boundaries(self) -> None:
         # Controlled descent is a velocity governor, not a destination
         # autopilot: it must re-read the probe's own current velocity every
-        # step rather than commanding a fixed/hardcoded direction.
+        # step rather than commanding a fixed/hardcoded direction. Issue
+        # #239: the controller only configures the governor here -- it no
+        # longer issues CommandSetControlledDescentVelocityMetersPerSecond()
+        # itself, since doing so once per render frame made the correction
+        # cadence depend on frame rate rather than the simulation's tick
+        # sequence (the same defect #238 fixed for controlled hover).
         self.assertIn("GetProbeTelemetry().VelocityMetersPerSecond", self.descent_cpp)
         self.assertIn("GetControlledDescentVelocityCommand", self.descent_cpp)
-        self.assertIn("CommandSetControlledDescentVelocityMetersPerSecond", self.descent_cpp)
+        self.assertIn("SetControlledDescentGovernorEngaged", self.descent_cpp)
+        self.assertNotIn("CommandSetControlledDescentVelocityMetersPerSecond", self.descent_cpp)
         self.assertIn("CommandSetVelocityMetersPerSecond(FVector::ZeroVector)", self.descent_cpp)
         self.assertNotIn("FMath::Clamp", self.descent_cpp)
         self.assertNotIn("SetActorLocation", self.descent_cpp)
         self.assertNotIn("Teleport", self.descent_cpp)
+
+    def test_descent_governor_correction_runs_once_per_fixed_step_not_per_frame(self) -> None:
+        # Issue #239 regression protection, mirroring
+        # test_controlled_hover_player_loop_surface.py's hover-side test: the
+        # correction must be re-applied from inside
+        # UProbeSimulationAdapter::TickComponent()'s own fixed-step
+        # accumulator loop -- the same authoritative boundary
+        # Core->advance_wall_ticks()/Manipulators->advance() already use --
+        # not from APlayerController::Tick() once per render frame.
+        adapter_h = (SOURCE / "ProbeSimulationAdapter.h").read_text(encoding="utf-8")
+        adapter_cpp = (SOURCE / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
+        bridge_cpp = (SOURCE / "ProbeSurfaceDescentBridge.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("void SetControlledDescentGovernorEngaged(", adapter_h)
+        self.assertIn("void AdvanceControlledDescentGovernorFixedStep();", adapter_h)
+        self.assertIn("CommandSetControlledDescentVelocityMetersPerSecond", bridge_cpp)
+        self.assertIn(
+            "void UProbeSimulationAdapter::AdvanceControlledDescentGovernorFixedStep()", bridge_cpp
+        )
+
+        tick_component_start = adapter_cpp.index("::TickComponent(")
+        sync_call = adapter_cpp.index("SyncOwnerTransformFromSimulation();", tick_component_start)
+        tick_component_body = adapter_cpp[tick_component_start:sync_call]
+        self.assertIn("Core->advance_wall_ticks", tick_component_body)
+        self.assertIn("AdvanceControlledDescentGovernorFixedStep();", tick_component_body)
+        # The correction call must land after Core has advanced, so it reads
+        # the freshly-stepped altitude rather than a stale one.
+        self.assertLess(
+            tick_component_body.index("Core->advance_wall_ticks"),
+            tick_component_body.index("AdvanceControlledDescentGovernorFixedStep();"),
+        )
+
+    def test_cancel_descent_stops_the_fixed_step_governor_immediately(self) -> None:
+        self.assertIn("SetControlledDescentGovernorEngaged(false", self.descent_cpp)
 
     def test_c_engages_and_manual_translation_releases_controlled_descent(self) -> None:
         self.assertIn("WasInputKeyJustPressed(EKeys::C)", self.tick_cpp)
