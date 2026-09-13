@@ -20,6 +20,16 @@ class UnattendedSafetyRegressionTests(unittest.TestCase):
         self.assertIn("refusing unattended registration", source)
         self.assertIn("remote get-url origin", source)
 
+    def test_task_registration_does_not_pack_spaced_repo_path_into_schtasks_tr(self) -> None:
+        source = REGISTER.read_text(encoding="utf-8")
+        self.assertIn('"Everward Playtest"', source)
+        self.assertIn("Register from XML instead", source)
+        self.assertIn("ConvertTo-XmlText", source)
+        self.assertIn("<Arguments>$EscapedArguments</Arguments>", source)
+        self.assertIn("<WorkingDirectory>$EscapedRepoRoot</WorkingDirectory>", source)
+        self.assertIn("/XML $TaskXmlPath", source)
+        self.assertNotIn("/TR $Action", source)
+
     def test_one_click_setup_is_the_explicit_authorization_path(self) -> None:
         source = SETUP.read_text(encoding="utf-8")
         self.assertIn("-ConfirmDedicatedCheckout", source)
