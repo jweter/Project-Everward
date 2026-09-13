@@ -4,6 +4,7 @@ import unittest
 
 from mobile_product_reality import render_state_report
 from mobile_product_reality_adapters import (
+    adapt_collision_damage_evidence,
     adapt_mining_storage_evidence,
     adapt_persistence_evidence,
     adapt_repair_evidence,
@@ -148,6 +149,37 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
         self.assertIn("Scanner/Target", html)
         self.assertIn("target classification revealed", html)
         self.assertIn("Unreal scan presentation readability", html)
+
+    def test_collision_damage_adapter_renders_authoritative_impact_evidence(self) -> None:
+        adapted = adapt_collision_damage_evidence(
+            {
+                "commit": COMMIT,
+                "scenario": "collision-damage-v1",
+                "timestamp": "2026-09-13T19:00:00Z",
+                "status": "PRODUCT_REALITY_REQUIRED",
+                "detail": "Deterministic simulation reported impact severity and component integrity changes.",
+                "product_reality_debt": "Unreal collision feel and damage presentation",
+                "events": [
+                    {
+                        "at": "tick 310",
+                        "event": "impact damage applied",
+                        "detail": "Component consequence supplied by authoritative simulation evidence.",
+                    },
+                    {"at": "tick 311", "event": "subsystem capability updated"},
+                ],
+            }
+        )
+
+        card = adapted["components"]["Collision/Damage"]
+        self.assertEqual(card["status"], "PRODUCT REALITY_REQUIRED")
+        self.assertEqual(
+            card["product_reality_debt"],
+            "Unreal collision feel and damage presentation",
+        )
+        html = render_state_report(_renderable_report(adapted, "collision-damage-v1"))
+        self.assertIn("Collision/Damage", html)
+        self.assertIn("impact damage applied", html)
+        self.assertIn("Unreal collision feel and damage presentation", html)
 
     def test_adapter_accepts_and_renders_canonical_unattended_worker_review_statuses(self) -> None:
         for status in ("REVIEW_REQUIRED", "ENVIRONMENT_FAILURE"):
