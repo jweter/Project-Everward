@@ -70,6 +70,16 @@ def adapt_scanner_target_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]
     )
 
 
+def adapt_collision_damage_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape authoritative collision/damage evidence for the mobile renderer."""
+
+    return _adapt_authoritative_evidence(
+        evidence,
+        component_name="Collision/Damage",
+        default_label="Impact damage and subsystem consequences",
+    )
+
+
 def _adapt_authoritative_evidence(
     evidence: Mapping[str, Any], *, component_name: str, default_label: str
 ) -> dict[str, Any]:
