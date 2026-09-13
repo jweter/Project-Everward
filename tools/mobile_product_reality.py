@@ -25,6 +25,7 @@ def render_state_report(evidence: Mapping[str, Any]) -> str:
     final = evidence.get("final_state", {})
     invariants = evidence.get("invariants", {})
     components = evidence.get("components", {})
+    scenario_views = evidence.get("scenario_views", {})
     if not isinstance(initial, Mapping) or not isinstance(final, Mapping):
         raise ValueError("initial_state and final_state must be mappings")
     if not isinstance(invariants, Mapping):
@@ -33,6 +34,8 @@ def render_state_report(evidence: Mapping[str, Any]) -> str:
         raise ValueError("invariant results must be booleans")
     if not isinstance(components, Mapping):
         raise ValueError("components must be a mapping")
+    if not isinstance(scenario_views, Mapping):
+        raise ValueError("scenario_views must be a mapping")
 
     keys = sorted(set(initial) | set(final), key=str)
     rows = "".join(
@@ -53,6 +56,7 @@ def render_state_report(evidence: Mapping[str, Any]) -> str:
         if component_cards
         else ""
     )
+    scenario_section = _render_scenario_timeline_section(scenario_views)
     return f"""<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">
 <meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">
 <title>Everward Mobile State Review</title><style>
@@ -61,14 +65,78 @@ main{{max-width:760px;margin:auto}}section{{background:white;border-radius:14px;
 table{{width:100%;border-collapse:collapse}}th,td{{padding:8px;border-bottom:1px solid #ddd;text-align:left}}code{{overflow-wrap:anywhere}}
 .cards{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}}.card{{border:1px solid #ddd;border-radius:12px;padding:12px}}
 .card h3{{margin:0 0 8px}}.status{{font-weight:700}}details{{margin-top:8px}}details p{{margin:6px 0}}
+.scenario-picker{{display:grid;gap:8px}}select{{font:inherit;max-width:100%;padding:8px}}.timeline{{padding-left:22px}}.timeline li{{margin:10px 0}}
+.timeline p{{margin:4px 0 0}}[hidden]{{display:none!important}}
 </style></head><body><main><h1>Everward State Review</h1>
 <section><p><strong>Scenario:</strong> {escape(scenario)}</p><p><strong>Seed:</strong> {escape(seed)}</p>
 <p><strong>Commit:</strong> <code>{escape(commit)}</code></p></section>
+{scenario_section}
 {components_section}
 <section><h2>Deterministic state diff</h2><table><tr><th>Field</th><th>Initial</th><th>Final</th></tr>{rows}</table></section>
 <section><h2>Automated invariants</h2><ul>{checks}</ul></section>
 <section><strong>Human Product Reality:</strong> UNREVIEWED<p>Unreal rendering, game feel, HUD placement, collision feel, packaging, and performance remain separate engine acceptance debt.</p></section>
 </main></body></html>"""
+
+
+def _render_scenario_timeline_section(scenario_views: Mapping[str, Any]) -> str:
+    if not scenario_views:
+        return ""
+
+    options: list[str] = []
+    panels: list[str] = []
+    normalized_ids: set[str] = set()
+    for index, (scenario_id, raw) in enumerate(
+        sorted(scenario_views.items(), key=lambda item: str(item[0]))
+    ):
+        if not isinstance(raw, Mapping):
+            raise ValueError("scenario view entries must be mappings")
+        normalized_id = str(scenario_id).strip()
+        if not normalized_id:
+            raise ValueError("scenario view ids must not be empty")
+        if normalized_id in normalized_ids:
+            raise ValueError("scenario view ids must be unique after normalization")
+        normalized_ids.add(normalized_id)
+        label = str(raw.get("label", normalized_id)).strip()
+        if not label:
+            raise ValueError("scenario view labels must not be empty")
+        events = raw.get("events", [])
+        if not isinstance(events, list):
+            raise ValueError("scenario view events must be lists")
+
+        selected = " selected" if index == 0 else ""
+        hidden = "" if index == 0 else " hidden"
+        escaped_id = escape(normalized_id)
+        options.append(
+            f'<option value="{escaped_id}"{selected}>{escape(label)}</option>'
+        )
+        event_items = "".join(_render_timeline_event(event) for event in events)
+        if not event_items:
+            event_items = "<li>No deterministic events supplied.</li>"
+        panels.append(
+            f'<article class="scenario-panel" data-scenario="{escaped_id}"{hidden}>'
+            f"<h3>{escape(label)}</h3><ol class=\"timeline\">{event_items}</ol></article>"
+        )
+
+    return (
+        '<section><h2>Scenario timeline</h2><div class="scenario-picker">'
+        '<label for="scenario-selector"><strong>Inspect scenario</strong></label>'
+        f'<select id="scenario-selector">{"".join(options)}</select></div>'
+        f'{"".join(panels)}'
+        "<script>(function(){const selector=document.getElementById('scenario-selector');"
+        "if(!selector)return;const panels=document.querySelectorAll('.scenario-panel');"
+        "const show=function(){panels.forEach(function(panel){panel.hidden=panel.dataset.scenario!==selector.value;});};"
+        "selector.addEventListener('change',show);show();})();</script></section>"
+    )
+
+
+def _render_timeline_event(raw: Any) -> str:
+    if not isinstance(raw, Mapping):
+        raise ValueError("scenario timeline events must be mappings")
+    at = _required(raw, "at")
+    event = _required(raw, "event")
+    detail = str(raw.get("detail", "")).strip()
+    detail_html = f"<p>{escape(detail)}</p>" if detail else ""
+    return f"<li><strong>{escape(at)}</strong> — {escape(event)}{detail_html}</li>"
 
 
 def _render_component_card(name: Any, raw: Any, report_commit: str) -> str:
