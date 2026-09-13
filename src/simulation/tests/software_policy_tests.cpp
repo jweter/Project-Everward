@@ -16,7 +16,9 @@ using everward::simulation::PolicyActionKind;
 using everward::simulation::PolicyConditionKind;
 using everward::simulation::PowerSubsystem;
 using everward::simulation::ProbeRuntime;
+using everward::simulation::ProbeStateSnapshot;
 using everward::simulation::SimulationClock;
+using everward::simulation::SimulationCore;
 using everward::simulation::SoftwarePolicy;
 using everward::simulation::SoftwarePolicyRule;
 using everward::simulation::SphericalPlanetaryBody;
@@ -328,6 +330,93 @@ int main() {
 
         runtime.clear_planetary_body();
         assert(!runtime.planetary_body().has_value());
+    }
+
+    // Slice 9 composition: resolve_planetary_surface_contact()'s own comment
+    // used to claim composing a registered planetary body with a registered
+    // static body in the same tick was "not yet supported" because whichever
+    // sweep ran first might already have moved the probe. In fact both
+    // sweeps share the same true pre-tick start_position, and
+    // resolve_compound_contact's resolved probe root always lands exactly on
+    // the original straight-line segment (the sample offset cancels out of
+    // probe_root_at_contact), so a second sweep over the shortened
+    // [start, resolved_point] segment still finds any true earlier crossing.
+    // These three cases prove that composition rather than merely asserting
+    // it. A distant, irrelevant static body must not perturb a solo
+    // planetary-contact outcome.
+    // Each case below starts the probe already at altitude via
+    // restore_from_snapshot rather than an initial climb burst, so a rock
+    // registered near the moon's surface cannot itself be clipped on the way
+    // up before the actual descent under test even begins.
+    {
+        ProbeStateSnapshot start{};
+        start.position_m.z = 300.0;
+        ProbeRuntime runtime(SimulationCore::restore_from_snapshot(start, 0));
+
+        const SphericalPlanetaryBody moon{"test-moon", {0.0, 0.0, 0.0}, 100.0, {}, 0.0};
+        runtime.set_planetary_body(moon);
+        runtime.add_static_sphere_body(StaticSphereBody{"far-off-axis-rock", {0.0, 500.0, 0.0}, 5.0});
+
+        runtime.set_velocity_mps({0.0, 0.0, -400.0});
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
+
+        assert(nearly_equal_local(runtime.snapshot().position_m.z, 100.0));
+        assert(nearly_equal_local(runtime.snapshot().velocity_mps.z, 0.0));
+        assert(runtime.snapshot().last_contact_body_id == "test-moon");
+    }
+
+    // A static body sitting between the probe and the planetary surface must
+    // still win on its own merits: the probe stops at the nearer body and
+    // the planetary check must not override an outcome that never actually
+    // penetrates the reference surface.
+    {
+        ProbeStateSnapshot start{};
+        start.position_m.z = 300.0;
+        ProbeRuntime runtime(SimulationCore::restore_from_snapshot(start, 0));
+
+        const SphericalPlanetaryBody moon{"test-moon", {0.0, 0.0, 0.0}, 100.0, {}, 0.0};
+        runtime.set_planetary_body(moon);
+        // Combined radius against the central hull sample (local origin,
+        // 1.60 m) is 3.0 + 1.60 = 4.60 m, so the probe root stops at
+        // 150.0 + 4.60 = 154.6 m -- comfortably above the moon's surface.
+        runtime.add_static_sphere_body(StaticSphereBody{"near-rock", {0.0, 0.0, 150.0}, 3.0});
+
+        runtime.set_velocity_mps({0.0, 0.0, -400.0});
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
+
+        assert(nearly_equal_local(runtime.snapshot().position_m.z, 154.6));
+        assert(nearly_equal_local(runtime.snapshot().velocity_mps.z, 0.0));
+        assert(runtime.snapshot().last_contact_body_id == "near-rock");
+    }
+
+    // A static body registered beyond (below) the planetary surface must not
+    // let the probe tunnel through the planet to reach it: the static-only
+    // resolution alone would stop the probe at 50.0 + 4.60 = 54.6 m, inside
+    // the moon's 100 m reference surface. The planetary sweep must catch
+    // that remaining crossing on the shortened segment and win. Critically,
+    // the recorded contact speed must reflect the true ~400 m/s planetary
+    // impact, not 0 -- resolve_static_contacts already zeroed the probe's
+    // velocity against the (physically irrelevant) rock before the
+    // planetary check ever reads it, and DamageAwareProbeRuntime derives
+    // impact kinetic energy directly from last_contact_normal_speed_mps
+    // (see impact_damage.hpp), so a lost impact speed here would silently
+    // reclassify a catastrophic planetary impact as harmless contact.
+    {
+        ProbeStateSnapshot start{};
+        start.position_m.z = 300.0;
+        ProbeRuntime runtime(SimulationCore::restore_from_snapshot(start, 0));
+
+        const SphericalPlanetaryBody moon{"test-moon", {0.0, 0.0, 0.0}, 100.0, {}, 0.0};
+        runtime.set_planetary_body(moon);
+        runtime.add_static_sphere_body(StaticSphereBody{"embedded-rock", {0.0, 0.0, 50.0}, 3.0});
+
+        runtime.set_velocity_mps({0.0, 0.0, -400.0});
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
+
+        assert(nearly_equal_local(runtime.snapshot().position_m.z, 100.0));
+        assert(nearly_equal_local(runtime.snapshot().velocity_mps.z, 0.0));
+        assert(runtime.snapshot().last_contact_body_id == "test-moon");
+        assert(nearly_equal_local(runtime.snapshot().last_contact_normal_speed_mps, 400.0));
     }
 
     // Slice 11 composition/classification: reveal_full_confidence_target_

@@ -376,13 +376,46 @@ authoritative tick" section.
 
 **Explicitly not complete:** the probe is still treated as a single point at
 zero clearance against the reference surface rather than the five-sample
-compound hull static-body contact already uses; a registered planetary body
-and static bodies are not yet composed in the same tick; no Unreal scene,
-adapter telemetry, or player-visible altitude/orbital-context HUD exists
-yet; and no local Product Reality evidence has been recorded. This is
-parallel-safe deterministic simulation-core work behind the existing
-adapter boundary -- it does not depend on, and does not claim to complete,
-the still-pending Slice 3/4 contact/damage Product Reality evidence.
+compound hull static-body contact already uses; no Unreal scene, adapter
+telemetry, or player-visible altitude/orbital-context HUD exists yet; and no
+local Product Reality evidence has been recorded. This is parallel-safe
+deterministic simulation-core work behind the existing adapter boundary --
+it does not depend on, and does not claim to complete, the still-pending
+Slice 3/4 contact/damage Product Reality evidence.
+
+A follow-on pass closed a different named gap: a registered planetary body
+and static bodies are now proven to compose correctly in the same tick.
+`resolve_planetary_surface_contact()`'s own comment previously claimed this
+was unsupported because whichever sweep ran first might already have moved
+the probe; in fact both sweeps share the same true pre-tick
+`start_position`, and `resolve_compound_contact`'s resolved probe root
+always lands exactly on the original straight-line segment, so the
+planetary sweep still finds any true remaining crossing on the shortened
+segment even after a static-body contact has already moved the probe. Three
+new `software_policy_tests.cpp` cases prove this rather than merely
+asserting it: a distant unrelated static body does not perturb a solo
+planetary-contact outcome; a static body genuinely nearer than the
+planetary surface wins on its own merits; and a static body registered
+beyond (below) the planetary surface cannot be used to tunnel through the
+planet -- the planetary sweep still catches and wins that crossing.
+
+That third case surfaced a real correctness bug (caught by automated PR
+review on the new coverage, not self-discovered): `resolve_planetary_
+surface_contact()` was reading the probe's velocity from the *current*
+snapshot, which `resolve_static_contacts()` had already zeroed/deflected
+against the rock before the planetary sweep ever ran, even though the rock
+was not actually the true earliest contact. Since `DamageAwareProbeRuntime`
+derives impact kinetic energy directly from `last_contact_normal_speed_mps`
+(`impact_damage.hpp`), this could silently reclassify a catastrophic
+planetary impact as harmless contact. `advance_wall_ticks()` now captures
+the probe's velocity right after this tick's integration -- reflecting
+gravity/thrust, but before either contact resolution can touch it -- and
+threads it into `resolve_planetary_surface_contact()` explicitly, so a
+composed planetary impact still reports its true speed. The position sweep
+was unaffected and needed no change: it is collinear regardless of which
+velocity is used downstream. The embedded-rock test case now also asserts
+`last_contact_normal_speed_mps` equals the true incoming speed (400 m/s),
+not 0.
 
 Introduce a spherical body model rather than treating planets as flat levels.
 
