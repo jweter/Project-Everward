@@ -7,9 +7,10 @@ All coding, Codex, scheduled, and autonomous agents working in this repository m
 Before selecting or implementing substantial work, read:
 
 1. `docs/PROJECT_STATUS.md` — durable operational continuation record and Product Reality status.
-2. The current phase/vertical-slice plan and design documents referenced by `docs/PROJECT_STATUS.md`, especially `docs/PHASE2_VERTICAL_SLICE_PLAN.md` while Phase 2 is active.
-3. `docs/INDUSTRY_REALITY_CHECK.md` — the current repo-specific gap analysis versus commercial game-development expectations.
-4. Relevant playtest evidence, issues, PRs, tests, and architecture documents for the system being changed.
+2. `docs/UNATTENDED_VERIFICATION.md` — unattended-first verification policy; routine objective testing is machine-owned and Jeremy is optional milestone acceptance rather than a recurring Unreal test executor.
+3. The current phase/vertical-slice plan and design documents referenced by `docs/PROJECT_STATUS.md`, especially `docs/PHASE2_VERTICAL_SLICE_PLAN.md` while Phase 2 is active.
+4. `docs/INDUSTRY_REALITY_CHECK.md` — the current repo-specific gap analysis versus commercial game-development expectations.
+5. Relevant playtest evidence, issues, PRs, tests, and architecture documents for the system being changed.
 
 ## Authority and use of the reality check
 
@@ -18,9 +19,10 @@ Use this order when sources disagree:
 1. Verified current repository state: code, tests, CI, open PRs/issues, and actual Unreal/Product Reality evidence.
 2. Current project direction and phase plans referenced by `docs/PROJECT_STATUS.md`.
 3. `docs/PROJECT_STATUS.md` as the continuity record.
-4. `docs/INDUSTRY_REALITY_CHECK.md` as the industry-quality gap baseline.
-5. Other current design/architecture documents relevant to the task.
-6. Historical documents and conversation memory.
+4. `docs/UNATTENDED_VERIFICATION.md` for verification ownership and human-escalation behavior.
+5. `docs/INDUSTRY_REALITY_CHECK.md` as the industry-quality gap baseline.
+6. Other current design/architecture documents relevant to the task.
+7. Historical documents and conversation memory.
 
 `docs/INDUSTRY_REALITY_CHECK.md` does not override verified state or authorized game direction. It exists to prevent technically impressive infrastructure from being mistaken for a commercially ready game.
 
