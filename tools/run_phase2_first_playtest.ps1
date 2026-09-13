@@ -10,6 +10,23 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ProjectPath = Join-Path $RepoRoot "unreal\Everward.uproject"
 $TemplateHelper = Join-Path $PSScriptRoot "prepare_phase2_first_run_observation.py"
+$WorkerRegistration = Join-Path $PSScriptRoot "register_unattended_product_reality.ps1"
+
+# The normal laptop launcher already enters through this harness. Registering here
+# means one ordinary launch is enough to turn the dedicated checkout into an
+# unattended idle-time verification worker. Registration failure is deliberately
+# non-fatal to the manual playtest path and will be retried on a later launch.
+if (Test-Path $WorkerRegistration -PathType Leaf) {
+    try {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $WorkerRegistration -RepoRoot $RepoRoot
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Everward unattended worker registration returned exit code $LASTEXITCODE. Manual playtest will continue."
+        }
+    }
+    catch {
+        Write-Warning "Everward unattended worker registration failed: $($_.Exception.Message). Manual playtest will continue."
+    }
+}
 
 function Resolve-Unreal58Root {
     param([string]$ExplicitRoot)
