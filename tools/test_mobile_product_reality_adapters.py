@@ -5,6 +5,7 @@ import unittest
 from mobile_product_reality import render_state_report
 from mobile_product_reality_adapters import (
     adapt_collision_damage_evidence,
+    adapt_manipulator_evidence,
     adapt_mining_storage_evidence,
     adapt_persistence_evidence,
     adapt_repair_evidence,
@@ -149,6 +150,38 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
         self.assertIn("Scanner/Target", html)
         self.assertIn("target classification revealed", html)
         self.assertIn("Unreal scan presentation readability", html)
+
+    def test_manipulator_adapter_renders_authoritative_interaction_evidence(self) -> None:
+        adapted = adapt_manipulator_evidence(
+            {
+                "commit": COMMIT,
+                "scenario": "manipulator-grasp-move-v1",
+                "timestamp": "2026-09-13T20:00:00Z",
+                "status": "PRODUCT_REALITY_REQUIRED",
+                "detail": "Deterministic manipulator tests supplied deploy, reach, grasp, and move state.",
+                "product_reality_debt": "Unreal manipulator geometry, alignment, and control feel",
+                "events": [
+                    {
+                        "at": "tick 150",
+                        "event": "target grasped",
+                        "detail": "Grasp state supplied by authoritative manipulator runtime evidence.",
+                    },
+                    {"at": "tick 151", "event": "held target followed wrist state"},
+                ],
+            }
+        )
+
+        card = adapted["components"]["Manipulator"]
+        self.assertEqual(card["status"], "PRODUCT_REALITY_REQUIRED")
+        self.assertEqual(
+            card["product_reality_debt"],
+            "Unreal manipulator geometry, alignment, and control feel",
+        )
+        html = render_state_report(_renderable_report(adapted, "manipulator-grasp-move-v1"))
+        self.assertIn("Manipulator", html)
+        self.assertIn("target grasped", html)
+        self.assertIn("held target followed wrist state", html)
+        self.assertIn("Unreal manipulator geometry, alignment, and control feel", html)
 
     def test_collision_damage_adapter_renders_authoritative_impact_evidence(self) -> None:
         adapted = adapt_collision_damage_evidence(
