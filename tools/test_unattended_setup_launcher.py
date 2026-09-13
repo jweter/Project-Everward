@@ -15,10 +15,11 @@ class UnattendedSetupLauncherTests(unittest.TestCase):
         self.assertIn("foundation.yml/runs?branch=main&status=success&event=push", source)
         self.assertIn("git checkout --detach", source)
         self.assertIn("register_unattended_product_reality.ps1", source)
+        self.assertIn("-ConfirmDedicatedCheckout", source)
 
     def test_setup_configures_idle_reporting_without_launching_unreal(self) -> None:
         source = SETUP.read_text(encoding="utf-8")
-        self.assertIn("gh auth login --web", source)
+        self.assertIn("auth login --web", source)
         self.assertIn("issue #243", source)
         self.assertIn("10 minutes of Windows idle time", source)
         self.assertNotIn("UnrealEditor.exe", source)
