@@ -45,6 +45,14 @@ void AEverwardPlayerController::ToggleControlledHover()
     CancelControlledDescent(false, false);
     bAutoApproachMiningTarget = false;
     bControlledHoverEngaged = true;
+    LastSeenControlledHoverGovernorSequence = Adapter->GetControlledHoverGovernorNotice().Sequence;
+    Adapter->SetControlledHoverGovernorEngaged(
+        true,
+        ControlledHoverMaxTangentialSpeedMetersPerSecond,
+        ControlledHoverMinimumClearanceMeters,
+        ControlledHoverTargetAltitudeMeters,
+        ControlledHoverAltitudeGainPerSecond,
+        ControlledHoverMaxVerticalCorrectionSpeedMetersPerSecond);
     ShowHoverMessage(TEXT(
         "Controlled hover engaged // holding altitude near the surface // SPACE or manual thrust returns control"));
 }
@@ -66,22 +74,26 @@ void AEverwardPlayerController::AdvanceControlledHover(float DeltaSeconds)
 
     // Hover is a velocity governor like controlled descent, not a
     // destination autopilot: it re-shapes the probe's own current velocity
-    // every fixed step through the exact command
+    // through the exact command
     // surface_descent_guidance.hpp/GetControlledHoverVelocityCommand()
     // already established (docs/PHASE2_SURFACE_HOVER_COMMAND_TEST.md), so
     // ordinary WASDQE trim still steers laterally while this only corrects
-    // the radial component toward the configured target altitude.
-    const FEverwardProbeCommandResult Result = Adapter->CommandSetControlledHoverVelocityMetersPerSecond(
-        Adapter->GetProbeTelemetry().VelocityMetersPerSecond,
-        ControlledHoverMaxTangentialSpeedMetersPerSecond,
-        ControlledHoverMinimumClearanceMeters,
-        ControlledHoverTargetAltitudeMeters,
-        ControlledHoverAltitudeGainPerSecond,
-        ControlledHoverMaxVerticalCorrectionSpeedMetersPerSecond);
-    if (!Result.bAccepted)
+    // the radial component toward the configured target altitude. The
+    // correction itself is re-applied once per elapsed authoritative fixed
+    // step by UProbeSimulationAdapter::AdvanceControlledHoverGovernorFixedStep()
+    // -- called from inside TickComponent()'s own fixed-step accumulator loop
+    // -- rather than here once per render frame (issue #235 finding 2); this
+    // only detects a fixed-step rejection so the player-facing toggle/HUD
+    // state stays in sync.
+    const FEverwardAutomationNotice Notice = Adapter->GetControlledHoverGovernorNotice();
+    if (Notice.Sequence != LastSeenControlledHoverGovernorSequence)
     {
-        CancelControlledHover(false, false);
-        ShowHoverMessage(FString::Printf(TEXT("Controlled hover stopped: %s"), *Result.Detail), FColor::Orange);
+        LastSeenControlledHoverGovernorSequence = Notice.Sequence;
+        if (Notice.bRejected)
+        {
+            bControlledHoverEngaged = false;
+            ShowHoverMessage(FString::Printf(TEXT("Controlled hover stopped: %s"), *Notice.Detail), FColor::Orange);
+        }
     }
 }
 
@@ -90,9 +102,12 @@ void AEverwardPlayerController::CancelControlledHover(bool bStopVelocity, bool b
     const bool bWasEngaged = bControlledHoverEngaged;
     bControlledHoverEngaged = false;
 
-    if (bStopVelocity)
+    if (UProbeSimulationAdapter* Adapter = GetProbeAdapter())
     {
-        if (UProbeSimulationAdapter* Adapter = GetProbeAdapter())
+        // Stop the fixed-step correction immediately rather than leaving it
+        // engaged on the adapter until a rejection happens to occur.
+        Adapter->SetControlledHoverGovernorEngaged(false, 0.0, 0.0, 0.0, 0.0, 0.0);
+        if (bStopVelocity)
         {
             (void)Adapter->CommandSetVelocityMetersPerSecond(FVector::ZeroVector);
         }

@@ -99,6 +99,10 @@ private:
 
     bool bControlledDescentEngaged = false;
     bool bControlledHoverEngaged = false;
+    // Last UProbeSimulationAdapter::GetControlledHoverGovernorNotice()
+    // sequence this controller has already reacted to -- lets
+    // AdvanceControlledHover() detect a fixed-step rejection exactly once.
+    int64 LastSeenControlledHoverGovernorSequence = 0;
 
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double Phase2ScanDurationSeconds = 10.0;

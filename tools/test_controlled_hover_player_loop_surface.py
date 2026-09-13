@@ -40,15 +40,55 @@ class ControlledHoverPlayerLoopSurfaceTests(unittest.TestCase):
 
     def test_hover_loop_governs_live_velocity_through_existing_boundaries(self) -> None:
         # Controlled hover is a velocity governor, not a destination
-        # autopilot: it must re-read the probe's own current velocity every
-        # step rather than commanding a fixed/hardcoded direction.
+        # autopilot: it must re-read the probe's own current velocity rather
+        # than commanding a fixed/hardcoded direction. Issue #235 finding 2:
+        # the controller only configures the governor here -- it no longer
+        # issues CommandSetControlledHoverVelocityMetersPerSecond() itself,
+        # since doing so once per render frame made the correction cadence
+        # depend on frame rate rather than the simulation's tick sequence.
         self.assertIn("GetProbeTelemetry().VelocityMetersPerSecond", self.hover_cpp)
         self.assertIn("GetControlledHoverVelocityCommand", self.hover_cpp)
-        self.assertIn("CommandSetControlledHoverVelocityMetersPerSecond", self.hover_cpp)
+        self.assertIn("SetControlledHoverGovernorEngaged", self.hover_cpp)
+        self.assertNotIn("CommandSetControlledHoverVelocityMetersPerSecond", self.hover_cpp)
         self.assertIn("CommandSetVelocityMetersPerSecond(FVector::ZeroVector)", self.hover_cpp)
         self.assertNotIn("FMath::Clamp", self.hover_cpp)
         self.assertNotIn("SetActorLocation", self.hover_cpp)
         self.assertNotIn("Teleport", self.hover_cpp)
+
+    def test_hover_governor_correction_runs_once_per_fixed_step_not_per_frame(self) -> None:
+        # Issue #235 finding 2 regression protection: AdvanceControlledHover()
+        # was invoked from APlayerController::Tick(), so the authoritative
+        # correction ran once per render frame instead of once per
+        # accumulated simulation fixed step, making it render-cadence
+        # dependent. The correction must now be re-applied from inside
+        # UProbeSimulationAdapter::TickComponent()'s own fixed-step
+        # accumulator loop -- the same authoritative boundary
+        # Core->advance_wall_ticks()/Manipulators->advance() already use.
+        adapter_h = (SOURCE / "ProbeSimulationAdapter.h").read_text(encoding="utf-8")
+        adapter_cpp = (SOURCE / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
+        bridge_cpp = (SOURCE / "ProbeSurfaceDescentBridge.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("void SetControlledHoverGovernorEngaged(", adapter_h)
+        self.assertIn("void AdvanceControlledHoverGovernorFixedStep();", adapter_h)
+        self.assertIn("CommandSetControlledHoverVelocityMetersPerSecond", bridge_cpp)
+        self.assertIn(
+            "void UProbeSimulationAdapter::AdvanceControlledHoverGovernorFixedStep()", bridge_cpp
+        )
+
+        tick_component_start = adapter_cpp.index("::TickComponent(")
+        sync_call = adapter_cpp.index("SyncOwnerTransformFromSimulation();", tick_component_start)
+        tick_component_body = adapter_cpp[tick_component_start:sync_call]
+        self.assertIn("Core->advance_wall_ticks", tick_component_body)
+        self.assertIn("AdvanceControlledHoverGovernorFixedStep();", tick_component_body)
+        # The correction call must land after Core has advanced, so it reads
+        # the freshly-stepped altitude rather than a stale one.
+        self.assertLess(
+            tick_component_body.index("Core->advance_wall_ticks"),
+            tick_component_body.index("AdvanceControlledHoverGovernorFixedStep();"),
+        )
+
+    def test_cancel_hover_stops_the_fixed_step_governor_immediately(self) -> None:
+        self.assertIn("SetControlledHoverGovernorEngaged(false", self.hover_cpp)
 
     def test_v_and_space_engage_and_release_controlled_hover(self) -> None:
         self.assertIn("WasInputKeyJustPressed(EKeys::V)", self.tick_cpp)

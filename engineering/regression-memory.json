@@ -12,6 +12,17 @@
         "src/simulation/tests/save_data_tests.cpp"
       ],
       "residual_risk": "Future migration transforms can still misuse append-only set for other existing schema keys unless they follow the same replace-existing-field rule; schema migrations should review every modified existing key for replacement semantics."
+    },
+    {
+      "id": "controlled-hover-render-cadence-dependent-correction",
+      "symptom": "Issue #235 finding 2 (post-merge Codex review of PR #234): AEverwardPlayerController::AdvanceControlledHover() called CommandSetControlledHoverVelocityMetersPerSecond() directly from APlayerController::Tick(), once per render frame, even though the implementation/docs claimed a fixed-step velocity governor.",
+      "root_cause": "The authoritative fixed-step boundary lives in UProbeSimulationAdapter::TickComponent()'s own accumulator loop (Core->advance_wall_ticks()/Manipulators->advance()), which can run zero, one, or many iterations within a single render frame depending on frame rate. Applying the hover altitude correction once per render frame instead of once per elapsed fixed step made the resulting trajectory depend on frame rate rather than the deterministic tick sequence, violating the documented determinism invariant whenever multiple fixed steps landed in one low-framerate frame.",
+      "fix": "Moved the correction itself into UProbeSimulationAdapter::AdvanceControlledHoverGovernorFixedStep(), called once per elapsed fixed step from inside TickComponent()'s existing while loop, right after Core->advance_wall_ticks(). The player controller now only configures the governor (SetControlledHoverGovernorEngaged()) and polls a sequence-numbered GetControlledHoverGovernorNotice() once per frame purely to detect a fixed-step rejection and keep the toggle/HUD state in sync, following the same sequence-number change-detection pattern GetLastAutomationNotice() already established.",
+      "verification": "Full canonical preflight GREEN (control_plane, regression_memory, foundation, configure/build/test_simulation, tooling_tests, prototype_exit_gate, golden all PASS) on top of main commit e5392b7c345e2a39afd7d36c46e1f84783fd5385; all 29 src/simulation ctest suites passed; tools/test_controlled_hover_player_loop_surface.py updated and passing, including a new test asserting the correction call is issued from inside TickComponent()'s fixed-step loop after Core->advance_wall_ticks() rather than from the player controller.",
+      "regression_protection": [
+        "tools/test_controlled_hover_player_loop_surface.py"
+      ],
+      "residual_risk": "Controlled descent (AdvanceControlledDescent()) and Jose Take the Wheel (AdvanceJoseTakeTheWheel()) still apply their own velocity-governor/autopilot corrections from APlayerController::Tick() once per render frame rather than from the adapter's fixed-step loop, so they carry the same latent render-cadence dependency this fix removed from hover; no Unreal scene with a registered planetary body exists yet to exercise any of the three in PIE, so this remains implemented/Product-Reality-pending automated correctness rather than a PIE-verified fix."
     }
   ]
 }

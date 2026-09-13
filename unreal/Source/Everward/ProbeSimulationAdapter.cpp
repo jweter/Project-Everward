@@ -250,6 +250,13 @@ void UProbeSimulationAdapter::TickComponent(
     while (FixedStepAccumulatorSeconds >= FixedStepSeconds)
     {
         Core->advance_wall_ticks(FixedStepTicks);
+
+        // Issue #235 finding 2: re-apply any engaged controlled-hover
+        // correction once per elapsed fixed step, immediately after Core has
+        // actually advanced, rather than once per render frame -- see
+        // SetControlledHoverGovernorEngaged()'s comment.
+        AdvanceControlledHoverGovernorFixedStep();
+
         if (Manipulators != nullptr)
         {
             Manipulators->advance(FixedStepSeconds);

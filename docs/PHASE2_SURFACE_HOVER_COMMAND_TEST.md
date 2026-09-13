@@ -77,14 +77,31 @@ loop:
   registered (`bHasResult=false`), rather than engaging a session with
   nothing to hold altitude against.
 - Like controlled descent, hover is a **velocity governor**, not a
-  destination autopilot: `AdvanceControlledHover()` re-reads the probe's own
-  live `GetProbeTelemetry().VelocityMetersPerSecond` every fixed step
-  (rather than commanding a fixed direction) and re-issues it through
+  destination autopilot: it re-reads the probe's own live
+  `GetProbeTelemetry().VelocityMetersPerSecond` (rather than commanding a
+  fixed direction) and re-issues it through
   `CommandSetControlledHoverVelocityMetersPerSecond()`, so ordinary WASDQE
   translation still steers laterally while this only corrects the radial
   component toward the configured target altitude. A rejected command (e.g.
   the planetary body is cleared mid-session) cancels the mode with an
   on-screen reason.
+- **Issue #235 finding 2 correction:** this correction is re-applied once
+  per elapsed authoritative fixed step by
+  `UProbeSimulationAdapter::AdvanceControlledHoverGovernorFixedStep()`,
+  called from inside `TickComponent()`'s own fixed-step accumulator loop
+  (the same authoritative boundary `Core->advance_wall_ticks()`/
+  `Manipulators->advance()` already use) rather than from
+  `AEverwardPlayerController::Tick()` once per render frame. The earlier
+  version called `CommandSetControlledHoverVelocityMetersPerSecond()`
+  directly from `AdvanceControlledHover()`, so the correction cadence (and
+  therefore the trajectory) depended on frame rate rather than the
+  simulation's deterministic tick sequence whenever multiple fixed steps
+  landed inside one frame. `ToggleControlledHover()` now only configures the
+  governor via `SetControlledHoverGovernorEngaged()`; `AdvanceControlledHover()`
+  polls `GetControlledHoverGovernorNotice()` once per frame purely to detect
+  a fixed-step rejection and keep the player-facing toggle/HUD state in
+  sync. See `tools/test_controlled_hover_player_loop_surface.py`'s
+  `test_hover_governor_correction_runs_once_per_fixed_step_not_per_frame`.
 - Controlled hover, controlled descent, José, and mining auto-approach are
   mutually exclusive: engaging any one of the four releases the other
   three, matching the exclusivity the existing three already had. Unlike
