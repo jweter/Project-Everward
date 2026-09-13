@@ -13,7 +13,10 @@ _ALLOWED_STATUSES = {
     "PASS",
     "FAIL",
     "NOT TESTED",
+    "REVIEW_REQUIRED",
     "PRODUCT REALITY REQUIRED",
+    "PRODUCT_REALITY_REQUIRED",
+    "ENVIRONMENT_FAILURE",
 }
 
 
@@ -57,9 +60,11 @@ def _adapt_authoritative_evidence(
     if not label:
         raise ValueError("authoritative label must not be empty")
 
-    debt = str(evidence.get("product_reality_debt", "None recorded for this component.")).strip()
-    if status == "PRODUCT REALITY REQUIRED" and not debt:
+    debt = str(evidence.get("product_reality_debt", "")).strip()
+    if status in {"PRODUCT REALITY REQUIRED", "PRODUCT_REALITY_REQUIRED"} and not debt:
         raise ValueError("PRODUCT REALITY REQUIRED evidence must name remaining debt")
+    if not debt:
+        debt = "None recorded for this component."
 
     return {
         "components": {
