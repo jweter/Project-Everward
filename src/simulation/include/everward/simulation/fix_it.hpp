@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -73,6 +74,13 @@ struct FixItExecutionStatus {
     double elapsed_s{0.0};
     double material_consumed_kg{0.0};
     double energy_consumed_j{0.0};
+    // Which stored material_id(s) this repair/replacement actually drew from
+    // and how many kilograms came from each, accumulated across every
+    // advance() call. Always sums to material_consumed_kg. Fix_It still does
+    // not select a preferred material -- consume_stored_material_kg() keeps
+    // depleting in deterministic ascending material_id order -- this only
+    // reports which material(s) that deterministic order actually consumed.
+    std::map<std::string, double> material_consumed_breakdown_kg{};
     std::string detail;
 };
 
@@ -145,8 +153,11 @@ public:
             return;
         }
 
-        runtime.consume_stored_material_kg(material_delta);
+        const auto depleted_kg = runtime.consume_stored_material_kg(material_delta);
         runtime.consume_stored_energy_j(energy_delta);
+        for (const auto& [material_id, kg] : depleted_kg) {
+            status_.material_consumed_breakdown_kg[material_id] += kg;
+        }
         status_.material_consumed_kg += material_delta;
         status_.energy_consumed_j += energy_delta;
         status_.elapsed_s += applied_s;
@@ -241,8 +252,11 @@ public:
             return;
         }
 
-        runtime.consume_stored_material_kg(material_delta);
+        const auto depleted_kg = runtime.consume_stored_material_kg(material_delta);
         runtime.consume_stored_energy_j(energy_delta);
+        for (const auto& [material_id, kg] : depleted_kg) {
+            status_.material_consumed_breakdown_kg[material_id] += kg;
+        }
         status_.material_consumed_kg += material_delta;
         status_.energy_consumed_j += energy_delta;
         status_.elapsed_s += applied_s;

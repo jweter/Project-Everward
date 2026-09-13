@@ -437,8 +437,11 @@ public:
     // material_id order rather than proportionally, so a caller that does not
     // (yet) know which material a consumer such as Fix_It repair should draw
     // from gets a reproducible, testable result instead of floating-point
-    // drift from repeated proportional scaling.
-    void consume_stored_material_kg(double kilograms) {
+    // drift from repeated proportional scaling. Returns exactly which
+    // material_id(s) were depleted and how many kilograms came from each, so
+    // callers such as Fix_It can report which stored material a repair
+    // actually drew from instead of only the aggregate kilogram figure.
+    std::map<std::string, double> consume_stored_material_kg(double kilograms) {
         if (!std::isfinite(kilograms) || kilograms < 0.0) {
             throw std::invalid_argument("material consumption must be finite and non-negative");
         }
@@ -447,9 +450,13 @@ public:
         }
         probe_.storage_used_kg = std::max(0.0, probe_.storage_used_kg - kilograms);
         double remaining_to_deplete = kilograms;
+        std::map<std::string, double> depleted_kg;
         for (auto it = probe_.material_inventory_kg.begin();
              it != probe_.material_inventory_kg.end() && remaining_to_deplete > 1e-9;) {
             const double taken = std::min(it->second, remaining_to_deplete);
+            if (taken > 0.0) {
+                depleted_kg[it->first] += taken;
+            }
             it->second -= taken;
             remaining_to_deplete -= taken;
             if (it->second <= 1e-9) {
@@ -460,6 +467,7 @@ public:
         }
         events_.push_back({clock_.tick(), DomainEventType::MaterialConsumed,
                             "stored material consumed by " + std::to_string(kilograms) + " kg"});
+        return depleted_kg;
     }
 
     // Read-only per-material breakdown of storage_used_kg. See

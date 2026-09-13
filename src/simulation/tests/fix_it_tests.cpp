@@ -139,6 +139,36 @@ void test_executor_consumes_real_resources_and_restores_integrity() {
     assert(executor.status().energy_consumed_j == decision->energy_required_j);
 }
 
+void test_repair_reports_which_materials_it_consumed() {
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+    runtime.set_subsystem_integrity(PowerSubsystem::Sensors, 0.0);
+    // Ascending material_id order: "aaa_scrap" sorts before "raw_regolith", so
+    // the first 1.0 kg of the repair must come from aaa_scrap and the
+    // remainder must spill over into raw_regolith once aaa_scrap is exhausted.
+    runtime.add_stored_material_kg(1.0, "aaa_scrap");
+    runtime.add_stored_material_kg(5.0, "raw_regolith");
+
+    const auto decision = FixItPlanner::plan_next(runtime.component_integrity(), ample());
+    assert(decision.has_value());
+    assert(decision->subsystem == PowerSubsystem::Sensors);
+    assert(decision->material_required_kg == 2.0);
+
+    FixItRepairExecutor executor;
+    executor.start(*decision);
+    executor.advance(runtime, decision->time_required_s);
+
+    assert(executor.status().state == FixItExecutionState::Completed);
+    const auto& breakdown = executor.status().material_consumed_breakdown_kg;
+    assert(breakdown.size() == 2);
+    assert(breakdown.at("aaa_scrap") == 1.0);
+    assert(breakdown.at("raw_regolith") == 1.0);
+    double breakdown_total = 0.0;
+    for (const auto& [material_id, kg] : breakdown) {
+        breakdown_total += kg;
+    }
+    assert(breakdown_total == executor.status().material_consumed_kg);
+}
+
 void test_executor_interrupts_atomically_when_material_is_insufficient() {
     DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
     runtime.set_subsystem_integrity(PowerSubsystem::Sensors, 0.0);
@@ -251,6 +281,40 @@ void test_replacement_consumes_resources_but_installs_only_when_complete() {
     assert(executor.status().energy_consumed_j == decision->energy_required_j);
 }
 
+void test_replacement_reports_which_materials_it_consumed() {
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+    runtime.set_subsystem_integrity(PowerSubsystem::Sensors, 0.0);
+    // Sensors replacement requires 20.0 kg; split across two materials in
+    // ascending id order so the breakdown must report both.
+    runtime.add_stored_material_kg(5.0, "aaa_scrap");
+    runtime.add_stored_material_kg(20.0, "raw_regolith");
+
+    auto resources = ample();
+    resources.material_kg = 0.0;
+    resources.energy_j = 0.0;
+    resources.available_time_s = 0.0;
+    resources.fabrication_available = true;
+    const auto decision = FixItPlanner::plan_next(runtime.component_integrity(), resources);
+    assert(decision.has_value());
+    assert(decision->stage == FixItStage::Replacement);
+    assert(decision->material_required_kg == 20.0);
+
+    FixItReplacementExecutor executor;
+    executor.start(*decision, true);
+    executor.advance(runtime, decision->time_required_s);
+
+    assert(executor.status().state == FixItExecutionState::Completed);
+    const auto& breakdown = executor.status().material_consumed_breakdown_kg;
+    assert(breakdown.size() == 2);
+    assert(breakdown.at("aaa_scrap") == 5.0);
+    assert(breakdown.at("raw_regolith") == 15.0);
+    double breakdown_total = 0.0;
+    for (const auto& [material_id, kg] : breakdown) {
+        breakdown_total += kg;
+    }
+    assert(breakdown_total == executor.status().material_consumed_kg);
+}
+
 void test_replacement_requires_fabrication_capability() {
     FixItDecision decision;
     decision.stage = FixItStage::Replacement;
@@ -303,11 +367,13 @@ int main() {
     test_evolution_requires_explicit_design_capability();
     test_offline_component_can_surface_replacement_when_repair_unaffordable();
     test_executor_consumes_real_resources_and_restores_integrity();
+    test_repair_reports_which_materials_it_consumed();
     test_executor_interrupts_atomically_when_material_is_insufficient();
     test_executor_interrupts_atomically_when_energy_is_insufficient();
     test_executor_rejects_non_repair_stage();
     test_offline_replacement_uses_explicit_fabrication_recipe();
     test_replacement_consumes_resources_but_installs_only_when_complete();
+    test_replacement_reports_which_materials_it_consumed();
     test_replacement_requires_fabrication_capability();
     test_replacement_interruption_does_not_install_partial_component();
     std::puts("fix_it_tests: all tests passed");

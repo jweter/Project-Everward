@@ -41,6 +41,12 @@ Until the broader Phase-2 HUD/input redesign lands, a persistent on-screen `FIX_
 - material consumed;
 - the canonical planner reason.
 
+The `fix_it_repair_completed`/`fix_it_replacement_completed` playtest events now
+also name which stored `material_id`(s) the repair/replacement actually drew
+from and how many kilograms came from each (e.g. `iron_bearing_silicate_regolith
+2.00 kg`), reusing `consume_stored_material_kg()`'s existing deterministic
+ascending-id depletion order rather than Fix_It choosing a preferred material.
+
 This status line is presentation only. It does not determine repair truth.
 
 ## Playtest evidence
@@ -66,7 +72,7 @@ The runtime records structured events through the existing `APlaytestRecorderAct
 8. Confirm thermal becomes the next survival-critical priority.
 9. Continue mining and verify Fix_It works through staged subsystem recovery rather than jumping everything to 100%.
 10. Press F12 on any mismatch between visible status, storage/energy consumption, or subsystem integrity.
-11. After the run, confirm the playtest ZIP contains Fix_It lifecycle events.
+11. After the run, confirm the playtest ZIP contains Fix_It lifecycle events, and that a completed repair/replacement event names the specific stored material(s) consumed rather than only the aggregate kilogram figure.
 
 ## Architecture boundary
 

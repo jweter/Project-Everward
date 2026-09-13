@@ -737,6 +737,53 @@ Unreal Product Reality pass should specifically confirm the project still
 compiles under UBT and that the new row does not clip against the panel
 background or the manipulator page drawn above it.
 
+### Fix_It reports which stored material it consumed (Slice 12 foundation follow-up)
+
+`PHASE2_MATERIAL_INVENTORY_TEST.md`'s own "explicitly not complete" list named
+this exact gap: `consume_stored_material_kg()` already depleted the
+per-material breakdown deterministically in ascending `material_id` order, but
+discarded which material(s) it actually took from the moment it returned,
+so neither `FixItExecutionStatus` nor the in-editor Fix_It status line could
+report anything past the aggregate kilogram figure. This pass closes exactly
+that observability gap, with no change to which material Fix_It draws from or
+in what order:
+
+- `SimulationCore::consume_stored_material_kg()` now returns the
+  `std::map<material_id, kilograms>` it actually depleted for that call,
+  instead of `void`; `ProbeRuntime`/`DamageAwareProbeRuntime` forward the same
+  return value rather than swallowing it, so every existing caller that
+  ignores the result (the two prior `simulation_core_tests.cpp` call sites)
+  is unaffected;
+- `FixItExecutionStatus` gains `material_consumed_breakdown_kg`, accumulated
+  by `FixItRepairExecutor::advance()`/`FixItReplacementExecutor::advance()`
+  across every step of a repair/replacement and always summing to
+  `material_consumed_kg`;
+- `AFixItRuntimeActor`'s `fix_it_repair_completed`/`fix_it_replacement_completed`
+  playtest events and on-screen status now name the specific material_id(s)
+  consumed (e.g. `iron_bearing_silicate_regolith 2.00 kg`) alongside the
+  existing aggregate kilogram figure.
+
+Fix_It still does not select a preferred material, require a specific
+material for a given component, or substitute between materials -- this is
+observability over the existing deterministic depletion order, not a new
+consumption rule.
+
+**Status: implemented.** New `everward_fix_it_tests` coverage
+(`test_repair_reports_which_materials_it_consumed`,
+`test_replacement_reports_which_materials_it_consumed`) exercises a
+multi-material inventory split across an ascending-id boundary and asserts
+the reported breakdown sums to the existing aggregate figure. All 29
+`src/simulation` ctest suites and all 164 `tools/test_phase2*.py`
+source-contract tests pass; the full canonical preflight (`check_foundation`,
+`git diff --check`, `configure`/`build`/`test_simulation`, the full
+`tools/test_*.py` suite, and the prototypes/exit-gate suite) passes GREEN at
+this exact head. No Unreal Editor/UBT build was available in this sandbox to
+compile-verify `FixItRuntimeActor.cpp`; the change follows the exact
+`FString::Printf`/on-screen-message patterns already compiling in the same
+file. See the updated `PHASE2_FIX_IT_PLAYABLE_TEST.md` step 11 and
+`PHASE2_MATERIAL_INVENTORY_TEST.md`'s "explicitly not complete" list for the
+next local Unreal Product Reality pass.
+
 ### Science knowledge foundation wired into the scan lifecycle (Slice 11)
 
 Issue #215 landed `science_knowledge.hpp` (`TargetKnowledgeState`,
@@ -1235,7 +1282,7 @@ Everward continues to preserve:
 - manipulator move: a currently grasped target's registered position now follows the holding arm's wrist every fixed step through a single authoritative mutation point (`update_static_sphere_body_position()`), with the Unreal-side scan-target mesh/label mirroring that same position each tick (Slice 7 "move"; implemented, Product Reality pending);
 - manipulator release-with-consequence: releasing (`F`) now fails closed instead of embedding the held body in the probe's own hull or any other currently registered physical body, gated by the same five-sphere `ProbeCompoundCollisionEnvelope` the arm/hull and swept-contact guards already use plus a matching sphere-overlap test against the registered-body list (Slice 7 "release"; implemented, Product Reality pending; any place/hand-off-into-storage mechanic or released-object velocity/momentum still has no consequence);
 - mining reads a carried target's live registered position rather than its spawn-time position, so a `SCAN-001` grasped and moved by a manipulator arm is mined (or correctly rejected as out of reach) at its actual current location instead of a stale one (Slice 7 follow-up; implemented, Product Reality pending);
-- per-material storage identity: `storage_used_kg` now has an authoritative `material_inventory_kg` breakdown by `material_id`, credited by mining and depleted deterministically by generic consumption, with save/load round-tripping it as an additive v1 field, and now surfaced read-only through `UProbeSimulationAdapter::GetStoredMaterialInventory()` and an `INVENTORY` telemetry-panel row below `KNOWLEDGE` (Slice 12 foundation; implemented, Product Reality pending; no dedicated inventory HUD page or material-specific repair consumption yet — see "Material inventory HUD readout" above and `PHASE2_MATERIAL_INVENTORY_TEST.md`);
+- per-material storage identity: `storage_used_kg` now has an authoritative `material_inventory_kg` breakdown by `material_id`, credited by mining and depleted deterministically by generic consumption, with save/load round-tripping it as an additive v1 field, and now surfaced read-only through `UProbeSimulationAdapter::GetStoredMaterialInventory()` and an `INVENTORY` telemetry-panel row below `KNOWLEDGE` (Slice 12 foundation; implemented, Product Reality pending; no dedicated inventory HUD page yet — see "Material inventory HUD readout" above and `PHASE2_MATERIAL_INVENTORY_TEST.md`); `consume_stored_material_kg()` still depletes in the same deterministic ascending-`material_id` order rather than Fix_It choosing a preferred material, but now reports back which material_id(s) it actually drew from, surfaced through `FixItExecutionStatus::material_consumed_breakdown_kg` and the Fix_It completion status/playtest events (see "Fix_It reports which stored material it consumed" above);
 - José Take the Wheel Phase-2 autopilot: destination-locking onto the existing target-selection system, `Y` engage/cancel, progressive approach-speed shaping toward a configurable cruise speed, arrival at a fixed surface stand-off, and immediate manual-translation/`SPACE` takeover, with the underlying guidance-law decision now engine-independent and ctest-covered (`jose_autopilot.hpp`) behind `UProbeSimulationAdapter::GetJoseGuidanceCommand()` rather than computed in Unreal C++ (implemented, Product Reality pending; no orbital/obstacle-avoidance/route-planning navigation yet — see `docs/JOSE_TAKE_THE_WHEEL.md`);
 - canonical Prime Probe A / Scientific Explorer reference package with provenance validation;
 - deterministic, versioned (`save_version`) save/load for the canonical probe's full physical/energy/thermal/storage/scan/power state, component integrity, registered targets, installed software policy, target selection, and manipulator arm state, round-tripped through human-inspectable JSON (`save_data.hpp`; engine-independent, ctest-verified), now wired to an actual player-facing `F5`/`F6` save/load command over a single `Saved/SaveGames/everward_save_v1.json` file (fail-closed on a rejected load; implemented, Product Reality pending — see "Save/load Unreal UI wiring" above); the schema already supports a multi-probe campaign (`SaveGameV1.probes`, unique/non-empty `probe_id` enforced) and an ordered vN -> vN+1 migration framework (empty registry today since v1 is the first schema), and, additively, a top-level `lineages` list persisting `probe_lineage.hpp`'s data-only `probe_id`/`lineage_id`/`parent_probe_id`/`generation` records, fail-closed validated against this same save's persisted probe IDs (see `docs/SAVE_FORMAT.md`) — no authoritative successor/generation-change mechanic exists yet to ever populate more than a single root lineage record, so this is schema-only persistence, not Slice-advancing gameplay;

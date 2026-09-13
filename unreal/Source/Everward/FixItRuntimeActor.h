@@ -38,6 +38,9 @@ private:
     void RecordFixItEvent(const FString& EventName, const FString& Details) const;
 
     static constexpr double FixedFixItStepSeconds = 1.0 / 60.0;
+    // How long a completed repair/replacement's material breakdown stays on
+    // screen before yielding to the next decision's status line.
+    static constexpr double FixItCompletionDisplaySeconds = 4.0;
 
     UProbeSimulationAdapter* Adapter = nullptr;
     everward::simulation::DamageAwareProbeRuntime* BoundCore = nullptr;
@@ -54,4 +57,6 @@ private:
     FString ActiveSubsystem = TEXT("NONE");
     FString ActiveReason;
     FString StatusSummary = TEXT("FIX_IT // INITIALIZING");
+    FString LastCompletionSummary;
+    double CompletionDisplaySecondsRemaining = 0.0;
 };
