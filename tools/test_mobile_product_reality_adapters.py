@@ -12,6 +12,18 @@ from mobile_product_reality_adapters import (
 COMMIT = "a" * 40
 
 
+def _renderable_report(adapted: dict, scenario: str) -> dict:
+    return {
+        "commit": COMMIT,
+        "scenario": scenario,
+        "seed": "17",
+        "initial_state": {},
+        "final_state": {},
+        "invariants": {},
+        **adapted,
+    }
+
+
 class MobileProductRealityAdapterTests(unittest.TestCase):
     def test_persistence_adapter_is_renderer_compatible(self) -> None:
         adapted = adapt_persistence_evidence(
@@ -27,15 +39,7 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
                 ],
             }
         )
-        report = {
-            "commit": COMMIT,
-            "scenario": "save-round-trip-v1",
-            "seed": "17",
-            "initial_state": {},
-            "final_state": {},
-            "invariants": {"round_trip_preserved": True},
-            **adapted,
-        }
+        report = _renderable_report(adapted, "save-round-trip-v1")
 
         html = render_state_report(report)
 
@@ -58,8 +62,11 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
         card = adapted["components"]["Mining/Storage"]
         self.assertEqual(card["status"], "PRODUCT REALITY REQUIRED")
         self.assertEqual(card["product_reality_debt"], "Unreal mining feedback readability")
+        html = render_state_report(_renderable_report(adapted, "mining-storage-v1"))
+        self.assertIn("PRODUCT REALITY REQUIRED", html)
+        self.assertIn("Unreal mining feedback readability", html)
 
-    def test_adapter_accepts_canonical_unattended_worker_review_statuses(self) -> None:
+    def test_adapter_accepts_and_renders_canonical_unattended_worker_review_statuses(self) -> None:
         for status in ("REVIEW_REQUIRED", "ENVIRONMENT_FAILURE"):
             with self.subTest(status=status):
                 adapted = adapt_persistence_evidence(
@@ -72,8 +79,12 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
                     }
                 )
                 self.assertEqual(adapted["components"]["Save/Load"]["status"], status)
+                html = render_state_report(
+                    _renderable_report(adapted, "save-round-trip-v1")
+                )
+                self.assertIn(status, html)
 
-    def test_adapter_accepts_machine_style_product_reality_status(self) -> None:
+    def test_adapter_accepts_and_renders_machine_style_product_reality_status(self) -> None:
         adapted = adapt_mining_storage_evidence(
             {
                 "commit": COMMIT,
@@ -88,6 +99,9 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
             adapted["components"]["Mining/Storage"]["status"],
             "PRODUCT_REALITY_REQUIRED",
         )
+        html = render_state_report(_renderable_report(adapted, "mining-storage-v1"))
+        self.assertIn("PRODUCT_REALITY_REQUIRED", html)
+        self.assertIn("Unreal mining feedback readability", html)
 
     def test_adapter_rejects_unknown_status_instead_of_inventing_truth(self) -> None:
         with self.assertRaisesRegex(ValueError, "invalid authoritative status"):
