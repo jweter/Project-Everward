@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -21,6 +22,7 @@ REPO_NAME = "Project-Everward"
 EXPECTED_ORIGIN = "https://github.com/jweter/Project-Everward.git"
 FOUNDATION_WORKFLOW = "foundation.yml"
 SENTINEL_NAME = "everward-unattended-worker"
+MANUAL_LOCK_NAME = "everward-manual-playtest.lock"
 LOCK_NAME = "worker.lock"
 REPORT_SCHEMA_VERSION = 1
 
@@ -66,12 +68,7 @@ def select_successful_main_sha(payload: dict[str, Any]) -> str:
 
 def latest_successful_main_sha(timeout_seconds: float = 20.0) -> str:
     query = urllib.parse.urlencode(
-        {
-            "branch": "main",
-            "status": "success",
-            "event": "push",
-            "per_page": "20",
-        }
+        {"branch": "main", "status": "success", "event": "push", "per_page": "20"}
     )
     url = (
         f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/workflows/"
@@ -91,7 +88,9 @@ def latest_successful_main_sha(timeout_seconds: float = 20.0) -> str:
     return select_successful_main_sha(payload)
 
 
-def run_capture(args: list[str], *, cwd: Path | None = None, timeout: float = 30.0) -> subprocess.CompletedProcess[str]:
+def run_capture(
+    args: list[str], *, cwd: Path | None = None, timeout: float = 30.0
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         args,
         cwd=str(cwd) if cwd else None,
@@ -118,7 +117,7 @@ def validate_dedicated_checkout(repo_root: Path) -> None:
     if not sentinel.is_file():
         raise RuntimeError(
             "Dedicated-playtest sentinel is missing; refusing to reset or clean this checkout. "
-            "Run tools/register_unattended_product_reality.ps1 from the dedicated playtest checkout first."
+            "Run tools/register_unattended_product_reality.ps1 with explicit dedicated-checkout confirmation first."
         )
     origin = git_output(repo_root, "remote", "get-url", "origin")
     if not origin_is_expected(origin):
@@ -129,31 +128,97 @@ def process_running(image_name: str) -> bool:
     if os.name != "nt":
         return False
     proc = run_capture(["tasklist.exe", "/FI", f"IMAGENAME eq {image_name}", "/NH"], timeout=10.0)
-    if proc.returncode != 0:
+    return proc.returncode == 0 and image_name.lower() in proc.stdout.lower()
+
+
+def unreal_build_running() -> bool:
+    if os.name != "nt":
         return False
-    return image_name.lower() in proc.stdout.lower()
+    script = (
+        "$p=Get-CimInstance Win32_Process | Where-Object { "
+        "($_.Name -like 'UnrealBuildTool*') -or "
+        "(($_.Name -eq 'dotnet.exe') -and ($_.CommandLine -like '*UnrealBuildTool*')) "
+        "} | Select-Object -First 1 -ExpandProperty ProcessId; "
+        "if($p){Write-Output $p}"
+    )
+    proc = run_capture(
+        ["powershell.exe", "-NoProfile", "-Command", script], timeout=15.0
+    )
+    return proc.returncode == 0 and bool(proc.stdout.strip())
 
 
-def sync_to_latest_green(repo_root: Path) -> str:
+def pid_is_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        proc = run_capture(["tasklist.exe", "/FI", f"PID eq {pid}", "/NH"], timeout=10.0)
+        return proc.returncode == 0 and re.search(rf"\b{pid}\b", proc.stdout) is not None
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def manual_playtest_active(repo_root: Path) -> bool:
+    lock = repo_root / ".git" / MANUAL_LOCK_NAME
+    if lock.is_file():
+        try:
+            pid = int(lock.read_text(encoding="ascii").strip())
+        except (OSError, ValueError):
+            pid = -1
+        if pid_is_alive(pid):
+            return True
+        try:
+            lock.unlink()
+        except OSError:
+            return True
+    return process_running("UnrealEditor.exe") or unreal_build_running()
+
+
+def preserve_playtest_evidence(repo_root: Path, state_dir: Path) -> Path | None:
+    source = repo_root / "playtests" / "phase2" / "observations"
+    if not source.exists():
+        return None
+    files = [path for path in source.rglob("*") if path.is_file()]
+    if not files:
+        return None
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    destination = state_dir / "preserved-playtests" / stamp / "phase2-observations"
+    destination.mkdir(parents=True, exist_ok=True)
+    for path in files:
+        relative = path.relative_to(source)
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+    return destination
+
+
+def sync_to_target(repo_root: Path, target_sha: str, state_dir: Path) -> tuple[str, Path | None]:
     validate_dedicated_checkout(repo_root)
-    if process_running("UnrealEditor.exe"):
-        raise BlockingIOError("Unreal Editor is running; unattended checkout mutation is deferred.")
+    if not re.fullmatch(r"[0-9a-f]{40}", target_sha):
+        raise RuntimeError(f"Invalid target commit: {target_sha}")
+    if manual_playtest_active(repo_root):
+        raise BlockingIOError(
+            "Manual Unreal playtest/build is active; unattended checkout mutation is deferred."
+        )
 
-    target_sha = latest_successful_main_sha()
+    preserved = preserve_playtest_evidence(repo_root, state_dir)
     git_output(repo_root, "fetch", "--prune", "origin")
-    exists = run_capture(["git", "-C", str(repo_root), "cat-file", "-e", f"{target_sha}^{{commit}}"], timeout=30.0)
+    exists = run_capture(
+        ["git", "-C", str(repo_root), "cat-file", "-e", f"{target_sha}^{{commit}}"],
+        timeout=30.0,
+    )
     if exists.returncode != 0:
         raise RuntimeError(f"Green commit {target_sha} was not present after fetch.")
 
-    # This is intentionally destructive only after the dedicated-checkout sentinel
-    # and expected origin have both been verified above.
     git_output(repo_root, "reset", "--hard")
     git_output(repo_root, "clean", "-fd")
     git_output(repo_root, "checkout", "--detach", target_sha)
     actual = git_output(repo_root, "rev-parse", "HEAD").lower()
     if actual != target_sha:
         raise RuntimeError(f"Checkout identity mismatch: expected {target_sha}, got {actual}")
-    return target_sha
+    return actual, preserved
 
 
 def resolve_unreal_root(explicit_root: str | None = None) -> Path:
@@ -185,10 +250,7 @@ def resolve_unreal_root(explicit_root: str | None = None) -> Path:
             pass
 
     candidates.extend(
-        [
-            Path(r"C:\Program Files\Epic Games\UE_5.8"),
-            Path(r"C:\Epic Games\UE_5.8"),
-        ]
+        [Path(r"C:\Program Files\Epic Games\UE_5.8"), Path(r"C:\Epic Games\UE_5.8")]
     )
 
     seen: set[str] = set()
@@ -201,14 +263,13 @@ def resolve_unreal_root(explicit_root: str | None = None) -> Path:
         editor_exe = candidate / "Engine" / "Binaries" / "Win64" / "UnrealEditor.exe"
         if build_bat.is_file() and editor_exe.is_file():
             return candidate.resolve()
-    raise RuntimeError("Unreal Engine 5.8 was not found by explicit path, environment, registry, or standard locations.")
+    raise RuntimeError(
+        "Unreal Engine 5.8 was not found by explicit path, environment, registry, or standard locations."
+    )
 
 
 def sanitize_text(text: str, *, repo_root: Path, unreal_root: Path | None = None) -> str:
-    replacements = [
-        (str(repo_root), "<REPO_ROOT>"),
-        (str(Path.home()), "%USERPROFILE%"),
-    ]
+    replacements = [(str(repo_root), "<REPO_ROOT>"), (str(Path.home()), "%USERPROFILE%")]
     if unreal_root is not None:
         replacements.append((str(unreal_root), "<UE_5_8_ROOT>"))
     result = text
@@ -220,11 +281,7 @@ def sanitize_text(text: str, *, repo_root: Path, unreal_root: Path | None = None
 
 
 def run_logged(
-    args: list[str],
-    *,
-    cwd: Path,
-    log_path: Path,
-    timeout_seconds: float,
+    args: list[str], *, cwd: Path, log_path: Path, timeout_seconds: float
 ) -> tuple[int, float]:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
@@ -246,12 +303,16 @@ def run_logged(
     return code, time.monotonic() - started
 
 
-def log_tail(path: Path, *, repo_root: Path, unreal_root: Path | None = None, lines: int = 30) -> str:
+def log_tail(
+    path: Path, *, repo_root: Path, unreal_root: Path | None = None, lines: int = 30
+) -> str:
     try:
         content = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return ""
-    return sanitize_text("\n".join(content[-lines:]), repo_root=repo_root, unreal_root=unreal_root)
+    return sanitize_text(
+        "\n".join(content[-lines:]), repo_root=repo_root, unreal_root=unreal_root
+    )
 
 
 def run_full_preflight(repo_root: Path, log_path: Path) -> dict[str, Any]:
@@ -311,19 +372,6 @@ def run_unreal_build(repo_root: Path, unreal_root: Path, log_path: Path) -> dict
     }
 
 
-def pid_is_alive(pid: int) -> bool:
-    if pid <= 0:
-        return False
-    if os.name == "nt":
-        proc = run_capture(["tasklist.exe", "/FI", f"PID eq {pid}", "/NH"], timeout=10.0)
-        return proc.returncode == 0 and re.search(rf"\b{pid}\b", proc.stdout) is not None
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    return True
-
-
 def acquire_lock(state_dir: Path) -> tuple[int | None, bool]:
     state_dir.mkdir(parents=True, exist_ok=True)
     path = state_dir / LOCK_NAME
@@ -334,8 +382,7 @@ def acquire_lock(state_dir: Path) -> tuple[int | None, bool]:
             return fd, True
         except FileExistsError:
             try:
-                raw = path.read_text(encoding="ascii").strip()
-                pid = int(raw)
+                pid = int(path.read_text(encoding="ascii").strip())
             except (OSError, ValueError):
                 if attempt == 0:
                     time.sleep(0.25)
@@ -370,13 +417,17 @@ def aggregate_status(checks: dict[str, dict[str, Any]]) -> Status:
 
 def read_last_pass(state_dir: Path) -> str | None:
     try:
-        value = (state_dir / "last_passed_commit.txt").read_text(encoding="ascii").strip().lower()
+        value = (state_dir / "last_passed_commit.txt").read_text(
+            encoding="ascii"
+        ).strip().lower()
     except OSError:
         return None
     return value if re.fullmatch(r"[0-9a-f]{40}", value) else None
 
 
-def write_report(state_dir: Path, report: dict[str, Any], *, update_latest: bool = True) -> Path:
+def write_report(
+    state_dir: Path, report: dict[str, Any], *, update_latest: bool = True
+) -> Path:
     history = state_dir / "history"
     history.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
@@ -388,7 +439,9 @@ def write_report(state_dir: Path, report: dict[str, Any], *, update_latest: bool
     return history_path
 
 
-def run_worker(repo_root: Path, state_dir: Path, explicit_unreal_root: str | None = None) -> dict[str, Any]:
+def run_worker(
+    repo_root: Path, state_dir: Path, explicit_unreal_root: str | None = None
+) -> dict[str, Any]:
     started = utc_now()
     report: dict[str, Any] = {
         "schema_version": REPORT_SCHEMA_VERSION,
@@ -414,15 +467,18 @@ def run_worker(repo_root: Path, state_dir: Path, explicit_unreal_root: str | Non
         validate_dedicated_checkout(repo_root)
         report["checks"]["dedicated_checkout"] = {"status": "PASS"}
     except Exception as exc:
-        report["checks"]["dedicated_checkout"] = {"status": "REVIEW_REQUIRED", "reason": str(exc)}
+        report["checks"]["dedicated_checkout"] = {
+            "status": "REVIEW_REQUIRED",
+            "reason": str(exc),
+        }
         report["completed_at_utc"] = utc_now()
         report["result"] = aggregate_status(report["checks"])
         return report
 
-    if process_running("UnrealEditor.exe"):
+    if manual_playtest_active(repo_root):
         report["checks"]["editor_idle"] = {
             "status": "REVIEW_REQUIRED",
-            "reason": "UnrealEditor.exe is running; unattended verification deferred without touching the checkout.",
+            "reason": "Manual Unreal playtest/build is active; unattended verification deferred without touching the checkout.",
         }
         report["completed_at_utc"] = utc_now()
         report["result"] = "REVIEW_REQUIRED"
@@ -434,7 +490,10 @@ def run_worker(repo_root: Path, state_dir: Path, explicit_unreal_root: str | Non
         report["target_commit"] = target
         report["checks"]["green_main_discovery"] = {"status": "PASS", "commit": target}
     except Exception as exc:
-        report["checks"]["green_main_discovery"] = {"status": "REVIEW_REQUIRED", "reason": str(exc)}
+        report["checks"]["green_main_discovery"] = {
+            "status": "REVIEW_REQUIRED",
+            "reason": str(exc),
+        }
         report["completed_at_utc"] = utc_now()
         report["result"] = aggregate_status(report["checks"])
         return report
@@ -451,16 +510,26 @@ def run_worker(repo_root: Path, state_dir: Path, explicit_unreal_root: str | Non
         return report
 
     try:
-        synced = sync_to_latest_green(repo_root)
+        synced, preserved = sync_to_target(repo_root, target, state_dir)
         report["tested_commit"] = synced
         report["checks"]["checkout_sync"] = {"status": "PASS", "commit": synced}
+        if preserved is not None:
+            report["notes"].append(
+                "Existing Phase-2 observation evidence was copied to local worker preservation storage before checkout cleanup."
+            )
     except BlockingIOError as exc:
-        report["checks"]["checkout_sync"] = {"status": "REVIEW_REQUIRED", "reason": str(exc)}
+        report["checks"]["checkout_sync"] = {
+            "status": "REVIEW_REQUIRED",
+            "reason": str(exc),
+        }
         report["completed_at_utc"] = utc_now()
         report["result"] = "REVIEW_REQUIRED"
         return report
     except Exception as exc:
-        report["checks"]["checkout_sync"] = {"status": "REVIEW_REQUIRED", "reason": str(exc)}
+        report["checks"]["checkout_sync"] = {
+            "status": "REVIEW_REQUIRED",
+            "reason": str(exc),
+        }
         report["completed_at_utc"] = utc_now()
         report["result"] = aggregate_status(report["checks"])
         return report
@@ -469,7 +538,9 @@ def run_worker(repo_root: Path, state_dir: Path, explicit_unreal_root: str | Non
     preflight = run_full_preflight(repo_root, logs / "full-preflight.log")
     report["checks"]["full_preflight"] = preflight
     if preflight.get("status") != "PASS":
-        report["notes"].append("UBT build was not attempted because canonical full preflight did not pass.")
+        report["notes"].append(
+            "UBT build was not attempted because canonical full preflight did not pass."
+        )
         report["completed_at_utc"] = utc_now()
         report["result"] = aggregate_status(report["checks"])
         return report
@@ -478,7 +549,10 @@ def run_worker(repo_root: Path, state_dir: Path, explicit_unreal_root: str | Non
         unreal_root = resolve_unreal_root(explicit_unreal_root)
         report["checks"]["unreal_5_8"] = {"status": "PASS", "root": str(unreal_root)}
     except Exception as exc:
-        report["checks"]["unreal_5_8"] = {"status": "REVIEW_REQUIRED", "reason": str(exc)}
+        report["checks"]["unreal_5_8"] = {
+            "status": "REVIEW_REQUIRED",
+            "reason": str(exc),
+        }
         report["completed_at_utc"] = utc_now()
         report["result"] = aggregate_status(report["checks"])
         return report
@@ -496,8 +570,12 @@ def run_worker(repo_root: Path, state_dir: Path, explicit_unreal_root: str | Non
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run Everward private Windows verification without human interaction.")
-    parser.add_argument("--repo-root", type=Path, required=True, help="Dedicated Everward playtest checkout")
+    parser = argparse.ArgumentParser(
+        description="Run Everward private Windows verification without human interaction."
+    )
+    parser.add_argument(
+        "--repo-root", type=Path, required=True, help="Dedicated Everward playtest checkout"
+    )
     parser.add_argument("--state-dir", type=Path, default=None, help="Optional local evidence root")
     parser.add_argument("--unreal-root", default=None, help="Optional Unreal Engine 5.8 root")
     return parser
@@ -544,8 +622,6 @@ def main(argv: list[str] | None = None) -> int:
                 "notes": ["The unattended worker failed closed; no Product Reality was inferred."],
             }
         write_report(state_dir, report)
-        # Scheduled runs always return zero. Evidence status is carried by latest.json;
-        # a deterministic failure must not create an endless Task Scheduler retry storm.
         return 0
     finally:
         release_lock(state_dir, lock_fd)
