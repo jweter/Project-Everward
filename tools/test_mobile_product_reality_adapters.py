@@ -6,6 +6,7 @@ from mobile_product_reality import render_state_report
 from mobile_product_reality_adapters import (
     adapt_mining_storage_evidence,
     adapt_persistence_evidence,
+    adapt_repair_evidence,
 )
 
 
@@ -65,6 +66,32 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
         html = render_state_report(_renderable_report(adapted, "mining-storage-v1"))
         self.assertIn("PRODUCT REALITY REQUIRED", html)
         self.assertIn("Unreal mining feedback readability", html)
+
+    def test_repair_adapter_renders_authoritative_fix_it_evidence(self) -> None:
+        adapted = adapt_repair_evidence(
+            {
+                "commit": COMMIT,
+                "scenario": "fix-it-repair-v1",
+                "timestamp": "2026-09-13T15:00:00Z",
+                "status": "PASS",
+                "detail": "Authoritative Fix_It execution restored required capability.",
+                "events": [
+                    {
+                        "at": "tick 210",
+                        "event": "repair material consumed",
+                        "detail": "Material breakdown supplied by simulation authority.",
+                    },
+                    {"at": "tick 240", "event": "required capability restored"},
+                ],
+            }
+        )
+
+        card = adapted["components"]["Fix_It Repair"]
+        self.assertEqual(card["status"], "PASS")
+        html = render_state_report(_renderable_report(adapted, "fix-it-repair-v1"))
+        self.assertIn("Fix_It Repair", html)
+        self.assertIn("repair material consumed", html)
+        self.assertIn("required capability restored", html)
 
     def test_adapter_accepts_and_renders_canonical_unattended_worker_review_statuses(self) -> None:
         for status in ("REVIEW_REQUIRED", "ENVIRONMENT_FAILURE"):
