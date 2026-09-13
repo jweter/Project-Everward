@@ -13,7 +13,14 @@ _COMPONENT_STATUSES = {
     "PASS",
     "FAIL",
     "NOT TESTED",
+    "REVIEW_REQUIRED",
+    "ENVIRONMENT_FAILURE",
     "PRODUCT REALITY REQUIRED",
+    "PRODUCT_REALITY_REQUIRED",
+}
+_PRODUCT_REALITY_STATUSES = {
+    "PRODUCT REALITY REQUIRED",
+    "PRODUCT_REALITY_REQUIRED",
 }
 
 
@@ -149,7 +156,7 @@ def _render_component_card(name: Any, raw: Any, report_commit: str) -> str:
     timestamp = _required(raw, "timestamp")
     component_commit = _required(raw, "commit") if "commit" in raw else report_commit
     detail = str(raw.get("detail", "No additional deterministic evidence supplied.")).strip()
-    if status == "PRODUCT REALITY REQUIRED":
+    if status in _PRODUCT_REALITY_STATUSES:
         debt = _required(raw, "product_reality_debt")
     else:
         debt = str(raw.get("product_reality_debt", "None recorded for this component.")).strip()
