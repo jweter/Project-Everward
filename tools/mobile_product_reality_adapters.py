@@ -50,6 +50,16 @@ def adapt_repair_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
     )
 
 
+def adapt_tractor_field_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape authoritative tractor-field simulation evidence for mobile review."""
+
+    return _adapt_authoritative_evidence(
+        evidence,
+        component_name="Tractor Field",
+        default_label="Tractor-field coupling and motion",
+    )
+
+
 def _adapt_authoritative_evidence(
     evidence: Mapping[str, Any], *, component_name: str, default_label: str
 ) -> dict[str, Any]:
