@@ -60,6 +60,16 @@ def adapt_tractor_field_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
     )
 
 
+def adapt_scanner_target_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape authoritative scanner/target evidence for the mobile renderer."""
+
+    return _adapt_authoritative_evidence(
+        evidence,
+        component_name="Scanner/Target",
+        default_label="Scanner target classification",
+    )
+
+
 def _adapt_authoritative_evidence(
     evidence: Mapping[str, Any], *, component_name: str, default_label: str
 ) -> dict[str, Any]:
