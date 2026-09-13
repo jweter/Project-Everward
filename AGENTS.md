@@ -11,6 +11,8 @@ Before selecting or implementing substantial work, read:
 3. `docs/INDUSTRY_REALITY_CHECK.md` — the current repo-specific gap analysis versus commercial game-development expectations.
 4. Relevant playtest evidence, issues, PRs, tests, and architecture documents for the system being changed.
 
+For Windows/Product Reality automation, also read `docs/UNATTENDED_WINDOWS_PRODUCT_REALITY.md`.
+
 ## Authority and use of the reality check
 
 Use this order when sources disagree:
@@ -36,6 +38,16 @@ Use it to:
 Preserve deterministic simulation ownership of game truth, player agency, evolution/probe extensibility, documented design pillars, and the separation between simulation correctness and Unreal presentation.
 
 Do not simplify away core systems merely for implementation convenience. Do not invent major mechanics outside documented direction.
+
+## Product Reality automation rule
+
+**Zero humans for facts a computer can measure.**
+
+Repository tests, canonical preflight, Windows automation, UnrealBuildTool, headless/commandlet automation where available, and the private unattended laptop worker must be used before asking Jeremy to repeat a deterministic laptop check. A deterministic defect discovered by a human should gain automated regression or acceptance coverage before the same fact is requested again.
+
+The laptop remains part of Product Reality; Jeremy is not the test harness. Human involvement is reserved for genuinely visual, tactile, performance, gameplay-feel, art-direction, usability-preference, or new product-direction questions that do not yet have an independent machine oracle.
+
+A pending human Unreal/Product Reality check is lane-local. It must not stall independent parallel-safe deterministic development, but it also must not be silently converted into PASS.
 
 ## Execution rule
 
