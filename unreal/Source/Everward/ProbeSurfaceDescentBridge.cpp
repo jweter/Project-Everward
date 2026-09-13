@@ -240,3 +240,60 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSetControlledHoverVe
         return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what()));
     }
 }
+
+// Issue #235 finding 2: AdvanceControlledHover() previously called
+// CommandSetControlledHoverVelocityMetersPerSecond() directly from
+// AEverwardPlayerController::Tick(), once per render frame regardless of how
+// many authoritative fixed steps had actually elapsed -- making the hover
+// correction's cadence (and therefore the resulting trajectory) depend on
+// frame rate rather than the deterministic tick sequence. The controller now
+// only records the governor's engaged state/tunables here; the correction
+// itself is re-applied by AdvanceControlledHoverGovernorFixedStep() from
+// inside TickComponent()'s own fixed-step accumulator loop, the same
+// authoritative boundary Core->advance_wall_ticks()/Manipulators->advance()
+// already use.
+void UProbeSimulationAdapter::SetControlledHoverGovernorEngaged(
+    bool bEngaged,
+    double MaxTangentialSpeedMetersPerSecond,
+    double MinimumClearanceMeters,
+    double TargetAltitudeMeters,
+    double AltitudeGainPerSecond,
+    double MaxVerticalCorrectionSpeedMetersPerSecond)
+{
+    bControlledHoverGovernorEngaged = bEngaged;
+    ControlledHoverGovernorMaxTangentialSpeedMetersPerSecond = MaxTangentialSpeedMetersPerSecond;
+    ControlledHoverGovernorMinimumClearanceMeters = MinimumClearanceMeters;
+    ControlledHoverGovernorTargetAltitudeMeters = TargetAltitudeMeters;
+    ControlledHoverGovernorAltitudeGainPerSecond = AltitudeGainPerSecond;
+    ControlledHoverGovernorMaxVerticalCorrectionSpeedMetersPerSecond = MaxVerticalCorrectionSpeedMetersPerSecond;
+}
+
+FEverwardAutomationNotice UProbeSimulationAdapter::GetControlledHoverGovernorNotice() const
+{
+    return LastControlledHoverGovernorNotice;
+}
+
+void UProbeSimulationAdapter::AdvanceControlledHoverGovernorFixedStep()
+{
+    if (!bControlledHoverGovernorEngaged)
+    {
+        return;
+    }
+
+    const FEverwardProbeCommandResult Result = CommandSetControlledHoverVelocityMetersPerSecond(
+        GetProbeTelemetry().VelocityMetersPerSecond,
+        ControlledHoverGovernorMaxTangentialSpeedMetersPerSecond,
+        ControlledHoverGovernorMinimumClearanceMeters,
+        ControlledHoverGovernorTargetAltitudeMeters,
+        ControlledHoverGovernorAltitudeGainPerSecond,
+        ControlledHoverGovernorMaxVerticalCorrectionSpeedMetersPerSecond);
+    if (!Result.bAccepted)
+    {
+        // Fail closed exactly like the command itself: stop governing rather
+        // than leaving a stale engaged flag that never corrects again.
+        bControlledHoverGovernorEngaged = false;
+        LastControlledHoverGovernorNotice.Sequence = ++ControlledHoverGovernorSequence;
+        LastControlledHoverGovernorNotice.bRejected = true;
+        LastControlledHoverGovernorNotice.Detail = Result.Detail;
+    }
+}

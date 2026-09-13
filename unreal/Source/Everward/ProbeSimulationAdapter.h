@@ -392,6 +392,24 @@ public:
         double TargetAltitudeMeters,
         double AltitudeGainPerSecond,
         double MaxVerticalCorrectionSpeedMetersPerSecond);
+    // Issue #235 finding 2: the controller only configures this governor;
+    // the correction itself is re-applied by AdvanceControlledHoverGovernorFixedStep()
+    // once per elapsed authoritative fixed step inside TickComponent()'s own
+    // accumulator loop, so its cadence tracks the simulation's tick sequence
+    // rather than the render frame rate. Engaging with bEngaged=false (e.g.
+    // from CancelControlledHover()) stops the fixed-step correction
+    // immediately without waiting for a rejection.
+    UFUNCTION(BlueprintCallable, Category="Everward|Command") void SetControlledHoverGovernorEngaged(
+        bool bEngaged,
+        double MaxTangentialSpeedMetersPerSecond,
+        double MinimumClearanceMeters,
+        double TargetAltitudeMeters,
+        double AltitudeGainPerSecond,
+        double MaxVerticalCorrectionSpeedMetersPerSecond);
+    // Lets the controller detect a fixed-step rejection (e.g. the registered
+    // planetary body going away mid-hover) without polling Core directly;
+    // mirrors GetLastAutomationNotice()'s sequence-number change-detection.
+    UFUNCTION(BlueprintPure, Category="Everward|Command") FEverwardAutomationNotice GetControlledHoverGovernorNotice() const;
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandAdjustLocalVelocityMetersPerSecond(FVector DeltaLocalVelocityMetersPerSecond);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandAdjustAttitudeDegrees(FRotator DeltaAttitudeDegrees);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandStartScan(const FString& TargetId, double DurationSeconds);
@@ -430,6 +448,9 @@ private:
 
     FEverwardProbeCommandResult RecordCommandResult(FName CommandId, bool bAccepted, const FString& Detail);
     void SyncOwnerTransformFromSimulation();
+    // Called once per elapsed fixed step from inside TickComponent()'s own
+    // accumulator loop -- see SetControlledHoverGovernorEngaged()'s comment.
+    void AdvanceControlledHoverGovernorFixedStep();
 
     double FixedStepAccumulatorSeconds = 0.0;
     double TractorStepAccumulatorSeconds = 0.0;
@@ -438,6 +459,15 @@ private:
     int64 ScanLifecycleSequence = 0;
     FEverwardProbeCommandResult LastCommandResult;
     FEverwardAutomationNotice LastAutomationNotice;
+
+    bool bControlledHoverGovernorEngaged = false;
+    double ControlledHoverGovernorMaxTangentialSpeedMetersPerSecond = 0.0;
+    double ControlledHoverGovernorMinimumClearanceMeters = 0.0;
+    double ControlledHoverGovernorTargetAltitudeMeters = 0.0;
+    double ControlledHoverGovernorAltitudeGainPerSecond = 0.0;
+    double ControlledHoverGovernorMaxVerticalCorrectionSpeedMetersPerSecond = 0.0;
+    int64 ControlledHoverGovernorSequence = 0;
+    FEverwardAutomationNotice LastControlledHoverGovernorNotice;
     FEverwardScanLifecycleNotice LastScanLifecycleNotice;
     FString LastStartedScanTargetId;
     bool bBootstrapResourceSurveyed = false;
