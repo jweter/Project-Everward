@@ -75,6 +75,32 @@ class JoseAutopilotSourceContractTests(unittest.TestCase):
     def test_cancel_jose_stops_the_fixed_step_governor_immediately(self) -> None:
         self.assertIn("SetJoseAutopilotGovernorEngaged(false", self.autopilot_cpp)
 
+    def test_terminal_outcomes_stop_velocity_synchronously_in_the_fixed_step(self) -> None:
+        # Codex review on PR #245: the first version of this fix disengaged
+        # the governor on a terminal outcome (selection changed / arrived /
+        # destination unresolved or not found) but left the probe's last
+        # commanded velocity active until the controller noticed the notice
+        # change on a later render tick -- reintroducing a render-cadence-
+        # dependent stop inside the very PR meant to remove one. The zero-
+        # velocity command must be issued synchronously inside
+        # AdvanceJoseAutopilotGovernorFixedStep() itself, in the same fixed
+        # step that detects the stop, not deferred to the controller.
+        governor_start = self.target_bridge_cpp.index(
+            "void UProbeSimulationAdapter::AdvanceJoseAutopilotGovernorFixedStep()"
+        )
+        governor_body = self.target_bridge_cpp[governor_start:]
+        self.assertEqual(
+            governor_body.count("CommandSetVelocityMetersPerSecond(FVector::ZeroVector)"),
+            2,
+            "expected one zero-velocity stop for the selection-changed branch and one for "
+            "the Arrived/DestinationNotFound/DestinationUnresolved branch",
+        )
+
+        # The controller must not redundantly (and, worse, tardily) re-issue
+        # the stop once it observes the notice -- that responsibility now
+        # belongs entirely to the fixed-step governor above.
+        self.assertNotIn("CancelJoseTakeTheWheel(true, false)", self.autopilot_cpp)
+
     def test_guidance_law_is_engine_independent_and_ctest_covered(self) -> None:
         # The approach-speed shaping and arrival decision must live in pure,
         # engine-independent code -- not recomputed in Unreal C++ -- so it is

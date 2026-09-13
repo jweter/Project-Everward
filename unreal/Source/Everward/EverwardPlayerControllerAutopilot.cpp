@@ -101,24 +101,31 @@ void AEverwardPlayerController::AdvanceJoseTakeTheWheel(float DeltaSeconds)
     }
     LastSeenJoseAutopilotGovernorSequence = Notice.Sequence;
 
+    // bStopVelocity is false in every branch below: AdvanceJoseAutopilotGovernorFixedStep()
+    // already issued the terminal zero-velocity command synchronously, in the
+    // same fixed step that detected the stop (Codex review, PR #245) --
+    // re-issuing it here, up to a render frame later, would be redundant at
+    // best and would reintroduce the exact render-cadence-dependent stop
+    // timing this fix removes. This only resets local toggle/HUD state and
+    // shows the corresponding message.
     switch (Notice.StopReason)
     {
         case EEverwardJoseAutopilotStopReason::SelectionChanged:
         {
-            CancelJoseTakeTheWheel(true, false);
+            CancelJoseTakeTheWheel(false, false);
             ShowJoseMessage(TEXT("José released the wheel because the selected destination changed."), FColor::Orange);
             return;
         }
         case EEverwardJoseAutopilotStopReason::DestinationNotFound:
         {
-            CancelJoseTakeTheWheel(true, false);
+            CancelJoseTakeTheWheel(false, false);
             ShowJoseMessage(TEXT("José released the wheel because the destination is no longer available."), FColor::Orange);
             return;
         }
         case EEverwardJoseAutopilotStopReason::Arrived:
         {
             const FString ArrivedAt = Notice.DestinationId;
-            CancelJoseTakeTheWheel(true, false);
+            CancelJoseTakeTheWheel(false, false);
             ShowJoseMessage(FString::Printf(
                 TEXT("José Take the Wheel // arrived at %s // holding %.1f m surface standoff"),
                 *ArrivedAt,
@@ -127,7 +134,7 @@ void AEverwardPlayerController::AdvanceJoseTakeTheWheel(float DeltaSeconds)
         }
         case EEverwardJoseAutopilotStopReason::DestinationUnresolved:
         {
-            CancelJoseTakeTheWheel(true, false);
+            CancelJoseTakeTheWheel(false, false);
             ShowJoseMessage(TEXT("José stopped: destination geometry is unresolved."), FColor::Orange);
             return;
         }

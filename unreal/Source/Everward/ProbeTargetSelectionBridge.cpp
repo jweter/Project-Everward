@@ -262,6 +262,14 @@ void UProbeSimulationAdapter::AdvanceJoseAutopilotGovernorFixedStep()
     if (!Target.bHasSelection || Target.TargetId != JoseAutopilotGovernorDestinationBodyId)
     {
         bJoseAutopilotGovernorEngaged = false;
+        // Codex review (PR #245): zero velocity synchronously here, in the
+        // same fixed step that detects the stop, rather than waiting for the
+        // controller to notice the sequence change on a later render tick --
+        // otherwise the probe keeps coasting at its last commanded velocity
+        // for however many further fixed steps/frames elapse before the
+        // controller's own Tick() runs, reintroducing the exact
+        // render-cadence dependency this issue exists to remove.
+        (void)CommandSetVelocityMetersPerSecond(FVector::ZeroVector);
         LastJoseAutopilotGovernorNotice.Sequence = ++JoseAutopilotGovernorSequence;
         LastJoseAutopilotGovernorNotice.StopReason = EEverwardJoseAutopilotStopReason::SelectionChanged;
         LastJoseAutopilotGovernorNotice.DestinationId = JoseAutopilotGovernorDestinationBodyId;
@@ -296,6 +304,10 @@ void UProbeSimulationAdapter::AdvanceJoseAutopilotGovernorFixedStep()
     if (StopReason != EEverwardJoseAutopilotStopReason::None)
     {
         bJoseAutopilotGovernorEngaged = false;
+        // Same fix as above: Arrived/DestinationNotFound/DestinationUnresolved
+        // must stop the probe in this exact fixed step, not on a later render
+        // tick once the controller polls the notice.
+        (void)CommandSetVelocityMetersPerSecond(FVector::ZeroVector);
         LastJoseAutopilotGovernorNotice.Sequence = ++JoseAutopilotGovernorSequence;
         LastJoseAutopilotGovernorNotice.StopReason = StopReason;
         LastJoseAutopilotGovernorNotice.DestinationId = JoseAutopilotGovernorDestinationBodyId;
