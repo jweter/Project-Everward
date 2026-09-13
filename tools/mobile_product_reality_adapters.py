@@ -70,6 +70,16 @@ def adapt_scanner_target_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]
     )
 
 
+def adapt_simulation_tick_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape authoritative deterministic simulation-tick evidence for mobile review."""
+
+    return _adapt_authoritative_evidence(
+        evidence,
+        component_name="Simulation Tick",
+        default_label="Deterministic simulation tick",
+    )
+
+
 def _adapt_authoritative_evidence(
     evidence: Mapping[str, Any], *, component_name: str, default_label: str
 ) -> dict[str, Any]:
