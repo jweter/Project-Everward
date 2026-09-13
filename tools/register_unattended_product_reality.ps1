@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$RepoRoot = ""
+    [string]$RepoRoot = "",
+    [switch]$ConfirmDedicatedCheckout
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,15 +37,35 @@ if ($Disabled -and $Disabled.Trim().ToLowerInvariant() -in @("1", "true", "yes",
     exit 0
 }
 
+# Never turn an arbitrary development clone into a destructive unattended
+# checkout as a side effect of a normal playtest. The sentinel may only be
+# created by an explicit one-time setup that passes -ConfirmDedicatedCheckout.
+if (-not (Test-Path $Sentinel -PathType Leaf)) {
+    if (-not $ConfirmDedicatedCheckout) {
+        throw "This checkout is not authorized for unattended destructive sync. Run the dedicated one-time setup or re-run with -ConfirmDedicatedCheckout only for the disposable Everward Playtest checkout."
+    }
+    "registered_utc=$((Get-Date).ToUniversalTime().ToString('o'))" | Set-Content -Path $Sentinel -Encoding ASCII
+}
+
+# Revalidate origin before scheduling any destructive-capable worker.
+$Origin = (& git -C $RepoRoot remote get-url origin).Trim()
+if ($LASTEXITCODE -ne 0 -or -not $Origin) {
+    throw "Could not resolve the checkout origin."
+}
+$NormalizedOrigin = $Origin.Replace("\", "/").TrimEnd("/").ToLowerInvariant()
+if ($NormalizedOrigin.StartsWith("git@github.com:")) {
+    $NormalizedOrigin = "https://github.com/" + $NormalizedOrigin.Substring("git@github.com:".Length)
+}
+$NormalizedOrigin = $NormalizedOrigin.TrimEnd(".git")
+if ($NormalizedOrigin -ne "https://github.com/jweter/project-everward") {
+    throw "Unexpected origin remote; refusing unattended registration: $Origin"
+}
+
 $PythonCommand = Get-Command python -ErrorAction Stop
 $Python = $PythonCommand.Source
 if (-not $Python) {
     throw "Python was not found in PATH."
 }
-
-# This sentinel is deliberately stored inside .git so the worker can prove that
-# destructive reset/clean operations are restricted to the dedicated playtest checkout.
-"registered_utc=$((Get-Date).ToUniversalTime().ToString('o'))" | Set-Content -Path $Sentinel -Encoding ASCII
 
 # Run through the PowerShell wrapper so deterministic local evidence can be
 # published to the dedicated GitHub status issue when gh is authenticated.
