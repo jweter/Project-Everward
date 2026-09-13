@@ -8,6 +8,7 @@ from mobile_product_reality_adapters import (
     adapt_persistence_evidence,
     adapt_repair_evidence,
     adapt_scanner_target_evidence,
+    adapt_simulation_tick_evidence,
     adapt_tractor_field_evidence,
 )
 
@@ -148,6 +149,31 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
         self.assertIn("Scanner/Target", html)
         self.assertIn("target classification revealed", html)
         self.assertIn("Unreal scan presentation readability", html)
+
+    def test_simulation_tick_adapter_renders_authoritative_tick_evidence(self) -> None:
+        adapted = adapt_simulation_tick_evidence(
+            {
+                "commit": COMMIT,
+                "scenario": "deterministic-tick-v1",
+                "timestamp": "2026-09-13T19:40:00Z",
+                "status": "PASS",
+                "detail": "Authoritative simulation clock advanced deterministic state.",
+                "events": [
+                    {
+                        "at": "tick 120",
+                        "event": "simulation tick advanced",
+                        "detail": "Result fingerprint supplied by authoritative deterministic lane.",
+                    }
+                ],
+            }
+        )
+
+        card = adapted["components"]["Simulation Tick"]
+        self.assertEqual(card["status"], "PASS")
+        html = render_state_report(_renderable_report(adapted, "deterministic-tick-v1"))
+        self.assertIn("Simulation Tick", html)
+        self.assertIn("simulation tick advanced", html)
+        self.assertIn("Result fingerprint supplied by authoritative deterministic lane.", html)
 
     def test_adapter_accepts_and_renders_canonical_unattended_worker_review_statuses(self) -> None:
         for status in ("REVIEW_REQUIRED", "ENVIRONMENT_FAILURE"):
