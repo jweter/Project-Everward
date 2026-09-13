@@ -67,13 +67,85 @@ if (-not $Python) {
     throw "Python was not found in PATH."
 }
 
-# Run through the PowerShell wrapper so deterministic local evidence can be
-# published to the dedicated GitHub status issue when gh is authenticated.
-# Reporting is best-effort and never changes test truth.
-$Action = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$Runner`" -RepoRoot `"$RepoRoot`""
-& schtasks.exe /Create /TN $TaskName /TR $Action /SC ONIDLE /I 10 /RL LIMITED /F | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    throw "Windows Task Scheduler could not register the Everward unattended worker (exit $LASTEXITCODE)."
+function ConvertTo-XmlText {
+    param([string]$Value)
+    return [System.Security.SecurityElement]::Escape($Value)
+}
+
+# Do not use schtasks /TR for the worker command. /TR reparses embedded quotes
+# and broke the first real install because both the runner and repo live under
+# "Everward Playtest", which contains a space. Register from XML instead so
+# Command, Arguments, and WorkingDirectory remain separate Task Scheduler fields.
+$CurrentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$ActionArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$Runner`" -RepoRoot `"$RepoRoot`""
+$EscapedUser = ConvertTo-XmlText $CurrentUser
+$EscapedArguments = ConvertTo-XmlText $ActionArguments
+$EscapedRepoRoot = ConvertTo-XmlText $RepoRoot
+$TaskXmlPath = Join-Path ([System.IO.Path]::GetTempPath()) "everward-unattended-task-$PID.xml"
+
+$TaskXml = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Everward unattended deterministic Windows and Unreal verification worker.</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <IdleTrigger>
+      <Enabled>true</Enabled>
+    </IdleTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>$EscapedUser</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <Duration>PT10M</Duration>
+      <WaitTimeout>PT1H</WaitTimeout>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>powershell.exe</Command>
+      <Arguments>$EscapedArguments</Arguments>
+      <WorkingDirectory>$EscapedRepoRoot</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+"@
+
+try {
+    $TaskXml | Set-Content -Path $TaskXmlPath -Encoding Unicode
+    & schtasks.exe /Create /TN $TaskName /XML $TaskXmlPath /F | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Windows Task Scheduler could not register the Everward unattended worker from XML (exit $LASTEXITCODE)."
+    }
+
+    # Fail closed if Windows claimed success but the task cannot be queried back.
+    & schtasks.exe /Query /TN $TaskName /FO LIST 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Windows Task Scheduler registration could not be verified after creation."
+    }
+}
+finally {
+    Remove-Item -Force $TaskXmlPath -ErrorAction SilentlyContinue
 }
 
 Write-Host "Registered/refreshed Everward unattended Product Reality worker."
