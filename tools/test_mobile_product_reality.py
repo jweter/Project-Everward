@@ -24,6 +24,73 @@ class MobileProductRealityTests(unittest.TestCase):
         self.assertIn("Human Product Reality:</strong> UNREVIEWED", html)
         self.assertIn("Unreal rendering", html)
 
+    def test_scenario_selector_and_timeline_are_read_only_and_escaped(self) -> None:
+        html = render_state_report(
+            {
+                "commit": "abc123",
+                "scenario": "scenario-console",
+                "seed": 42,
+                "scenario_views": {
+                    "mining": {
+                        "label": "Mining <flow>",
+                        "events": [
+                            {"at": "tick 10", "event": "scan target"},
+                            {
+                                "at": "tick 12",
+                                "event": "store mass",
+                                "detail": "storage 10 -> 12.5 kg & conserved",
+                            },
+                        ],
+                    },
+                    "save-load": {
+                        "label": "Save / Load",
+                        "events": [
+                            {"at": "tick 20", "event": "save authoritative state"},
+                            {"at": "tick 21", "event": "reload identical state"},
+                        ],
+                    },
+                },
+            }
+        )
+        self.assertIn('id="scenario-selector"', html)
+        self.assertIn("Scenario timeline", html)
+        self.assertIn("Mining &lt;flow&gt;", html)
+        self.assertIn("storage 10 -&gt; 12.5 kg &amp; conserved", html)
+        self.assertIn('data-scenario="mining"', html)
+        self.assertIn('data-scenario="save-load"', html)
+        self.assertIn("selector.addEventListener('change',show)", html)
+        self.assertIn("tick 21", html)
+        self.assertIn("reload identical state", html)
+        self.assertNotIn("authoritative state =", html)
+
+    def test_scenario_view_validation_fails_closed(self) -> None:
+        invalid_cases = [
+            ({"scenario_views": []}, "scenario_views must be a mapping"),
+            ({"scenario_views": {"save-load": "events"}}, "scenario view entries must be mappings"),
+            (
+                {"scenario_views": {"save-load": {"events": "not-a-list"}}},
+                "scenario view events must be lists",
+            ),
+            (
+                {"scenario_views": {"save-load": {"events": ["bad"]}}},
+                "scenario timeline events must be mappings",
+            ),
+            (
+                {"scenario_views": {"save-load": {"events": [{"event": "load"}]}}},
+                "missing required field: at",
+            ),
+            (
+                {"scenario_views": {"save-load": {"events": [{"at": "tick 1"}]}}},
+                "missing required field: event",
+            ),
+        ]
+        for extra, message in invalid_cases:
+            with self.subTest(message=message):
+                evidence = {"commit": "abc123", "scenario": "identity", "seed": 42}
+                evidence.update(extra)
+                with self.assertRaisesRegex(ValueError, message):
+                    render_state_report(evidence)
+
     def test_component_cards_are_read_only_evidence_not_game_logic(self) -> None:
         html = render_state_report(
             {
