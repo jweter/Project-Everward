@@ -75,8 +75,10 @@ class Phase2ScienceKnowledgeSurfaceTests(unittest.TestCase):
         # The compact telemetry panel's fixed pixel layout is hand-tuned by
         # row count (see TARGET/SIM/arm rows above the new KNOWLEDGE row);
         # adding a row must extend the panel height rather than overlapping
-        # the existing rows below it.
-        self.assertIn("LineHeight * 10.0f", self.hud_cpp)
+        # the existing rows below it. The Slice 12 INVENTORY row landed below
+        # KNOWLEDGE afterward and bumped this to 11.0f -- see
+        # test_phase2_material_inventory_surface.py.
+        self.assertIn("LineHeight * 11.0f", self.hud_cpp)
 
 
 if __name__ == "__main__":

@@ -527,6 +527,19 @@ Scanning must evolve from a countdown into increasing knowledge:
 
 ### Slice 12 — Resource/sample loop
 
+**Status:** "item/material identity and provenance" has a data-model
+foundation: `storage_used_kg` gained an authoritative `material_inventory_kg`
+breakdown by `material_id`, credited by mining and depleted deterministically
+by generic consumption, round-tripped through save/load as an additive v1
+field (see `PROJECT_STATUS.md`'s "Per-material storage identity" section),
+and now surfaced read-only through a telemetry-panel `INVENTORY` row (see
+"Material inventory HUD readout" and `PHASE2_MATERIAL_INVENTORY_TEST.md`).
+**Status: implemented, Product Reality pending.** This is the "store" and
+first half of "inspect inventory" only: sampleable objects/materials beyond
+the existing bootstrap mining target, manipulator/tool acquisition of a
+sampled object as opposed to mining, and material-specific
+consume/use (repair/Fix_It still draws generically) remain unimplemented.
+
 Connect discovery to physical gain:
 
 `identify material -> acquire sample -> store -> inspect inventory -> consume/use`
