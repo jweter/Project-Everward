@@ -407,10 +407,16 @@ private:
     // later pass once the compound envelope and a planetary surface actually
     // need to agree at typical landing scale. Composing this with
     // resolve_static_contacts in the same tick (a registered planetary body
-    // and static bodies both present) is not yet supported: whichever ran
-    // first may already have moved the probe, so this sweep's start_position
-    // would not describe the true pre-tick segment in that combined case. No
-    // current scenario registers both simultaneously.
+    // and static bodies both present) is now covered: advance_wall_ticks()
+    // passes both calls the same true pre-tick start_position, and
+    // resolve_compound_contact's resolved probe root always lands exactly on
+    // that original straight-line segment, so this sweep still finds any
+    // true remaining crossing on the shortened [start, resolved_point]
+    // segment even when resolve_static_contacts already moved the probe --
+    // see the "Slice 9 composition" cases in software_policy_tests.cpp
+    // (a distant unrelated body, a nearer body that legitimately wins, and a
+    // body positioned beyond the planetary surface that must not let the
+    // probe tunnel through to reach it).
     void resolve_planetary_surface_contact(Vector3d start_position) {
         const auto& planetary_body = core_.planetary_body();
         if (!planetary_body.has_value()) {

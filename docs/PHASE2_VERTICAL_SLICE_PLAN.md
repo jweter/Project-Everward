@@ -376,13 +376,29 @@ authoritative tick" section.
 
 **Explicitly not complete:** the probe is still treated as a single point at
 zero clearance against the reference surface rather than the five-sample
-compound hull static-body contact already uses; a registered planetary body
-and static bodies are not yet composed in the same tick; no Unreal scene,
-adapter telemetry, or player-visible altitude/orbital-context HUD exists
-yet; and no local Product Reality evidence has been recorded. This is
-parallel-safe deterministic simulation-core work behind the existing
-adapter boundary -- it does not depend on, and does not claim to complete,
-the still-pending Slice 3/4 contact/damage Product Reality evidence.
+compound hull static-body contact already uses; no Unreal scene, adapter
+telemetry, or player-visible altitude/orbital-context HUD exists yet; and no
+local Product Reality evidence has been recorded. This is parallel-safe
+deterministic simulation-core work behind the existing adapter boundary --
+it does not depend on, and does not claim to complete, the still-pending
+Slice 3/4 contact/damage Product Reality evidence.
+
+A follow-on pass closed a different named gap: a registered planetary body
+and static bodies are now proven to compose correctly in the same tick.
+`resolve_planetary_surface_contact()`'s own comment previously claimed this
+was unsupported because whichever sweep ran first might already have moved
+the probe; in fact both sweeps share the same true pre-tick
+`start_position`, and `resolve_compound_contact`'s resolved probe root
+always lands exactly on the original straight-line segment, so the
+planetary sweep still finds any true remaining crossing on the shortened
+segment even after a static-body contact has already moved the probe. Three
+new `software_policy_tests.cpp` cases prove this rather than merely
+asserting it: a distant unrelated static body does not perturb a solo
+planetary-contact outcome; a static body genuinely nearer than the
+planetary surface wins on its own merits; and a static body registered
+beyond (below) the planetary surface cannot be used to tunnel through the
+planet -- the planetary sweep still catches and wins that crossing. No
+change to either sweep's math, only to what is verified and documented.
 
 Introduce a spherical body model rather than treating planets as flat levels.
 
