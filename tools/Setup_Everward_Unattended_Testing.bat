@@ -79,8 +79,8 @@ if not exist "tools\register_unattended_product_reality.ps1" (
     goto :failed
 )
 
-echo [3/5] Registering the Windows idle worker...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\tools\register_unattended_product_reality.ps1" -RepoRoot "%REPO_DIR%"
+echo [3/5] Explicitly authorizing this disposable playtest checkout and registering the Windows idle worker...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\tools\register_unattended_product_reality.ps1" -RepoRoot "%REPO_DIR%" -ConfirmDedicatedCheckout
 if errorlevel 1 (
     popd
     goto :failed
