@@ -256,6 +256,14 @@ void UProbeSimulationAdapter::TickComponent(
         // actually advanced, rather than once per render frame -- see
         // SetControlledHoverGovernorEngaged()'s comment.
         AdvanceControlledHoverGovernorFixedStep();
+        // Issue #239: controlled descent and José carried the same
+        // render-cadence dependency hover had before #238 -- see
+        // SetControlledDescentGovernorEngaged()'s and
+        // SetJoseAutopilotGovernorEngaged()'s comments. Only one of the four
+        // modes (hover/descent/José/mining auto-approach) is ever engaged at
+        // once, so calling all three governors unconditionally here is safe.
+        AdvanceControlledDescentGovernorFixedStep();
+        AdvanceJoseAutopilotGovernorFixedStep();
 
         if (Manipulators != nullptr)
         {

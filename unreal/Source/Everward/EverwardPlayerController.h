@@ -103,6 +103,10 @@ private:
     // sequence this controller has already reacted to -- lets
     // AdvanceControlledHover() detect a fixed-step rejection exactly once.
     int64 LastSeenControlledHoverGovernorSequence = 0;
+    // Same pattern (issue #239) for controlled descent's and José's own
+    // fixed-step governors.
+    int64 LastSeenControlledDescentGovernorSequence = 0;
+    int64 LastSeenJoseAutopilotGovernorSequence = 0;
 
     UPROPERTY(EditAnywhere, Category="Everward|Phase2", meta=(ClampMin="0.1"))
     double Phase2ScanDurationSeconds = 10.0;

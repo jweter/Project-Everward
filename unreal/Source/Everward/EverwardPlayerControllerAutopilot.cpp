@@ -47,6 +47,14 @@ void AEverwardPlayerController::ToggleJoseTakeTheWheel()
     bAutoApproachMiningTarget = false;
     bJoseAutopilotEngaged = true;
     JoseDestinationTargetId = Target.TargetId;
+    LastSeenJoseAutopilotGovernorSequence = Adapter->GetJoseAutopilotGovernorNotice().Sequence;
+    Adapter->SetJoseAutopilotGovernorEngaged(
+        true,
+        JoseDestinationTargetId,
+        JoseCruiseSpeedMetersPerSecond,
+        JoseArrivalSurfaceRangeMeters,
+        JoseArrivalToleranceMeters,
+        JoseApproachGainPerSecond);
 
     ShowJoseMessage(FString::Printf(
         TEXT("José Take the Wheel // destination %s // autopilot engaged // SPACE or manual thrust returns control"),
@@ -68,42 +76,48 @@ void AEverwardPlayerController::AdvanceJoseTakeTheWheel(float DeltaSeconds)
         return;
     }
 
-    const FEverwardTargetSelectionStatus Target = Adapter->GetSelectedTargetStatus();
-    if (!Target.bHasSelection || Target.TargetId != JoseDestinationTargetId)
-    {
-        CancelJoseTakeTheWheel(true, false);
-        ShowJoseMessage(TEXT("José released the wheel because the selected destination changed."), FColor::Orange);
-        return;
-    }
-
     // Phase-2 José is deliberately simple but physically useful: aim at the
     // selected body's live center, use the simulation's authoritative surface
     // range as the arrival metric, and progressively reduce commanded speed as
     // the safe stand-off is approached. The guidance decision itself lives in
-    // the engine-independent jose_autopilot.hpp (see GetJoseGuidanceCommand()),
-    // not here -- this controller only interprets the resulting Outcome and
-    // issues/cancels the authoritative velocity command. Later versions can
-    // replace that local guidance law with orbital intercepts, obstacle
-    // avoidance, route planning, power/thermal budgeting, and interplanetary
-    // navigation without changing the player-facing "select destination ->
-    // José" contract.
-    const FEverwardJoseGuidanceCommand Guidance = Adapter->GetJoseGuidanceCommand(
-        JoseDestinationTargetId,
-        JoseCruiseSpeedMetersPerSecond,
-        JoseArrivalSurfaceRangeMeters,
-        JoseArrivalToleranceMeters,
-        JoseApproachGainPerSecond);
-    switch (Guidance.Outcome)
+    // the engine-independent jose_autopilot.hpp, reached through the adapter's
+    // read-only guidance query, not here. This controller no longer
+    // re-evaluates guidance or issues the velocity command itself -- that ran
+    // once per render frame regardless of how many authoritative fixed steps
+    // had elapsed (issue #239), the same defect fixed for controlled hover by
+    // #238. The correction is now re-applied once per elapsed fixed step by
+    // UProbeSimulationAdapter::AdvanceJoseAutopilotGovernorFixedStep() from
+    // inside TickComponent()'s own fixed-step accumulator loop; this only
+    // detects a fixed-step stop/rejection so the player-facing toggle/HUD
+    // state and on-screen message stay in sync. Later versions can replace
+    // the local guidance law with orbital intercepts, obstacle avoidance,
+    // route planning, power/thermal budgeting, and interplanetary navigation
+    // without changing this player-facing "select destination -> José"
+    // contract.
+    const FEverwardJoseAutopilotGovernorNotice Notice = Adapter->GetJoseAutopilotGovernorNotice();
+    if (Notice.Sequence == LastSeenJoseAutopilotGovernorSequence)
     {
-        case EEverwardJoseGuidanceOutcome::DestinationNotFound:
+        return;
+    }
+    LastSeenJoseAutopilotGovernorSequence = Notice.Sequence;
+
+    switch (Notice.StopReason)
+    {
+        case EEverwardJoseAutopilotStopReason::SelectionChanged:
+        {
+            CancelJoseTakeTheWheel(true, false);
+            ShowJoseMessage(TEXT("José released the wheel because the selected destination changed."), FColor::Orange);
+            return;
+        }
+        case EEverwardJoseAutopilotStopReason::DestinationNotFound:
         {
             CancelJoseTakeTheWheel(true, false);
             ShowJoseMessage(TEXT("José released the wheel because the destination is no longer available."), FColor::Orange);
             return;
         }
-        case EEverwardJoseGuidanceOutcome::Arrived:
+        case EEverwardJoseAutopilotStopReason::Arrived:
         {
-            const FString ArrivedAt = JoseDestinationTargetId;
+            const FString ArrivedAt = Notice.DestinationId;
             CancelJoseTakeTheWheel(true, false);
             ShowJoseMessage(FString::Printf(
                 TEXT("José Take the Wheel // arrived at %s // holding %.1f m surface standoff"),
@@ -111,22 +125,21 @@ void AEverwardPlayerController::AdvanceJoseTakeTheWheel(float DeltaSeconds)
                 JoseArrivalSurfaceRangeMeters));
             return;
         }
-        case EEverwardJoseGuidanceOutcome::DestinationUnresolved:
+        case EEverwardJoseAutopilotStopReason::DestinationUnresolved:
         {
             CancelJoseTakeTheWheel(true, false);
             ShowJoseMessage(TEXT("José stopped: destination geometry is unresolved."), FColor::Orange);
             return;
         }
-        case EEverwardJoseGuidanceOutcome::Continue:
+        case EEverwardJoseAutopilotStopReason::CommandRejected:
+        {
+            CancelJoseTakeTheWheel(false, false);
+            ShowJoseMessage(FString::Printf(TEXT("José autopilot stopped: %s"), *Notice.Detail), FColor::Orange);
+            return;
+        }
+        case EEverwardJoseAutopilotStopReason::None:
         default:
-            break;
-    }
-
-    const FEverwardProbeCommandResult Result = Adapter->CommandSetVelocityMetersPerSecond(Guidance.CommandVelocityMetersPerSecond);
-    if (!Result.bAccepted)
-    {
-        CancelJoseTakeTheWheel(false, false);
-        ShowJoseMessage(FString::Printf(TEXT("José autopilot stopped: %s"), *Result.Detail), FColor::Orange);
+            return;
     }
 }
 
@@ -136,9 +149,12 @@ void AEverwardPlayerController::CancelJoseTakeTheWheel(bool bStopVelocity, bool 
     bJoseAutopilotEngaged = false;
     JoseDestinationTargetId.Reset();
 
-    if (bStopVelocity)
+    if (UProbeSimulationAdapter* Adapter = GetProbeAdapter())
     {
-        if (UProbeSimulationAdapter* Adapter = GetProbeAdapter())
+        // Stop the fixed-step governor immediately rather than leaving it
+        // engaged on the adapter until a stop/rejection happens to occur.
+        Adapter->SetJoseAutopilotGovernorEngaged(false, FString(), 0.0, 0.0, 0.0, 0.0);
+        if (bStopVelocity)
         {
             (void)Adapter->CommandSetVelocityMetersPerSecond(FVector::ZeroVector);
         }

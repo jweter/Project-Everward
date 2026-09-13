@@ -296,6 +296,41 @@ struct EVERWARD_API FEverwardJoseGuidanceCommand
     UPROPERTY(BlueprintReadOnly, Category="Everward|Autopilot") double RemainingSurfaceRangeMeters = 0.0;
 };
 
+// Issue #239: why the José fixed-step governor's notice carries its own
+// stop-reason enum instead of reusing EEverwardJoseGuidanceOutcome -- the
+// controller previously distinguished a fifth case
+// (GetSelectedTargetStatus() no longer reports the same destination the
+// player selected) that jose_guidance_command_for_body() never sees at all,
+// plus the velocity command itself being rejected after a Continue outcome.
+// Reusing the guidance enum would either conflate those two cases into
+// "Destination Not Found" or silently drop one, changing the exact
+// player-facing message this fix must not change.
+UENUM(BlueprintType)
+enum class EEverwardJoseAutopilotStopReason : uint8
+{
+    None UMETA(DisplayName="None"),
+    SelectionChanged UMETA(DisplayName="Selection Changed"),
+    Arrived UMETA(DisplayName="Arrived"),
+    DestinationUnresolved UMETA(DisplayName="Destination Unresolved"),
+    DestinationNotFound UMETA(DisplayName="Destination Not Found"),
+    CommandRejected UMETA(DisplayName="Command Rejected")
+};
+
+// Mirrors FEverwardAutomationNotice's sequence-number change-detection
+// pattern (GetControlledHoverGovernorNotice()) but also carries which of the
+// five stop reasons above ended the session, and the destination id that was
+// active, so AdvanceJoseTakeTheWheel() can still show the exact same
+// player-facing message it did when it computed the outcome itself.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardJoseAutopilotGovernorNotice
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Autopilot") int64 Sequence = 0;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Autopilot") EEverwardJoseAutopilotStopReason StopReason = EEverwardJoseAutopilotStopReason::None;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Autopilot") FString DestinationId;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Autopilot") FString Detail;
+};
+
 // Slice 10 near-surface command shaping (surface_descent_guidance.hpp):
 // constrains a requested inertial velocity to a body-relative controlled-
 // descent envelope around whatever planetary body SimulationCore currently
@@ -410,6 +445,34 @@ public:
     // planetary body going away mid-hover) without polling Core directly;
     // mirrors GetLastAutomationNotice()'s sequence-number change-detection.
     UFUNCTION(BlueprintPure, Category="Everward|Command") FEverwardAutomationNotice GetControlledHoverGovernorNotice() const;
+    // Issue #239: same fixed-step governor pattern as controlled hover
+    // (#235/#238) applied to controlled descent -- the controller only
+    // configures the governor; AdvanceControlledDescentGovernorFixedStep()
+    // re-applies the correction once per elapsed authoritative fixed step
+    // from inside TickComponent()'s own accumulator loop.
+    UFUNCTION(BlueprintCallable, Category="Everward|Command") void SetControlledDescentGovernorEngaged(
+        bool bEngaged,
+        double MaxDescentSpeedMetersPerSecond,
+        double MaxTangentialSpeedMetersPerSecond,
+        double MinimumClearanceMeters,
+        double FullSpeedAltitudeMeters,
+        double TouchdownDescentSpeedMetersPerSecond);
+    UFUNCTION(BlueprintPure, Category="Everward|Command") FEverwardAutomationNotice GetControlledDescentGovernorNotice() const;
+    // Issue #239: José Take the Wheel is a destination autopilot rather than
+    // a plain velocity governor, but the same render-cadence defect applied
+    // -- AdvanceJoseTakeTheWheel() computed guidance and issued the resulting
+    // velocity command directly from APlayerController::Tick(). The
+    // controller now only configures the destination/tunables here;
+    // AdvanceJoseAutopilotGovernorFixedStep() re-evaluates guidance and
+    // issues/stops the command once per elapsed authoritative fixed step.
+    UFUNCTION(BlueprintCallable, Category="Everward|Autopilot") void SetJoseAutopilotGovernorEngaged(
+        bool bEngaged,
+        const FString& DestinationBodyId,
+        double CruiseSpeedMetersPerSecond,
+        double ArrivalSurfaceStandoffMeters,
+        double ArrivalToleranceMeters,
+        double ApproachGainPerSecond);
+    UFUNCTION(BlueprintPure, Category="Everward|Autopilot") FEverwardJoseAutopilotGovernorNotice GetJoseAutopilotGovernorNotice() const;
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandAdjustLocalVelocityMetersPerSecond(FVector DeltaLocalVelocityMetersPerSecond);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandAdjustAttitudeDegrees(FRotator DeltaAttitudeDegrees);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandStartScan(const FString& TargetId, double DurationSeconds);
@@ -451,6 +514,11 @@ private:
     // Called once per elapsed fixed step from inside TickComponent()'s own
     // accumulator loop -- see SetControlledHoverGovernorEngaged()'s comment.
     void AdvanceControlledHoverGovernorFixedStep();
+    // Issue #239: same fixed-step call site pattern, for controlled descent
+    // and José -- see SetControlledDescentGovernorEngaged()'s and
+    // SetJoseAutopilotGovernorEngaged()'s comments.
+    void AdvanceControlledDescentGovernorFixedStep();
+    void AdvanceJoseAutopilotGovernorFixedStep();
 
     double FixedStepAccumulatorSeconds = 0.0;
     double TractorStepAccumulatorSeconds = 0.0;
@@ -468,6 +536,25 @@ private:
     double ControlledHoverGovernorMaxVerticalCorrectionSpeedMetersPerSecond = 0.0;
     int64 ControlledHoverGovernorSequence = 0;
     FEverwardAutomationNotice LastControlledHoverGovernorNotice;
+
+    bool bControlledDescentGovernorEngaged = false;
+    double ControlledDescentGovernorMaxDescentSpeedMetersPerSecond = 0.0;
+    double ControlledDescentGovernorMaxTangentialSpeedMetersPerSecond = 0.0;
+    double ControlledDescentGovernorMinimumClearanceMeters = 0.0;
+    double ControlledDescentGovernorFullSpeedAltitudeMeters = 0.0;
+    double ControlledDescentGovernorTouchdownSpeedMetersPerSecond = 0.0;
+    int64 ControlledDescentGovernorSequence = 0;
+    FEverwardAutomationNotice LastControlledDescentGovernorNotice;
+
+    bool bJoseAutopilotGovernorEngaged = false;
+    FString JoseAutopilotGovernorDestinationBodyId;
+    double JoseAutopilotGovernorCruiseSpeedMetersPerSecond = 0.0;
+    double JoseAutopilotGovernorArrivalSurfaceStandoffMeters = 0.0;
+    double JoseAutopilotGovernorArrivalToleranceMeters = 0.0;
+    double JoseAutopilotGovernorApproachGainPerSecond = 0.0;
+    int64 JoseAutopilotGovernorSequence = 0;
+    FEverwardJoseAutopilotGovernorNotice LastJoseAutopilotGovernorNotice;
+
     FEverwardScanLifecycleNotice LastScanLifecycleNotice;
     FString LastStartedScanTargetId;
     bool bBootstrapResourceSurveyed = false;

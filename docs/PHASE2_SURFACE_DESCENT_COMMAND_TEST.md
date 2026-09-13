@@ -74,14 +74,27 @@ play, the same way `EverwardPlayerControllerAutopilot.cpp` later made
   registered (`bHasResult=false`), rather than engaging a session with
   nothing to constrain against.
 - Unlike José, controlled descent is a **velocity governor**, not a
-  destination autopilot: `AdvanceControlledDescent()` re-reads the probe's
-  own live `GetProbeTelemetry().VelocityMetersPerSecond` every fixed step
-  (rather than commanding a fixed direction) and re-issues it through
+  destination autopilot: it re-reads the probe's own live
+  `GetProbeTelemetry().VelocityMetersPerSecond` (rather than commanding a
+  fixed direction) and re-issues it through
   `CommandSetControlledDescentVelocityMetersPerSecond()`, so ordinary WASDQE
   translation still steers while this only caps/tapers descent and lateral
   rate near the registered body's surface. A rejected command (e.g. the
   planetary body is cleared mid-session) cancels the mode with an on-screen
   reason.
+- **Issue #239 correction:** this correction is re-applied once per elapsed
+  authoritative fixed step by
+  `UProbeSimulationAdapter::AdvanceControlledDescentGovernorFixedStep()`,
+  called from inside `TickComponent()`'s own fixed-step accumulator loop --
+  the same authoritative boundary `Core->advance_wall_ticks()` already uses,
+  and the same pattern issue #235/#238 established for controlled hover --
+  rather than from `AEverwardPlayerController::Tick()` once per render
+  frame. `ToggleControlledDescent()` now only configures the governor via
+  `SetControlledDescentGovernorEngaged()`; `AdvanceControlledDescent()` polls
+  `GetControlledDescentGovernorNotice()` once per frame purely to detect a
+  fixed-step rejection and keep the player-facing toggle/HUD state in sync.
+  See `tools/test_controlled_descent_player_loop_surface.py`'s
+  `test_descent_governor_correction_runs_once_per_fixed_step_not_per_frame`.
 - Controlled descent, José, and mining auto-approach are mutually
   exclusive: engaging any one of the three releases the other two, matching
   the exclusivity José and mining auto-approach already had. Any manual
@@ -110,16 +123,19 @@ play, the same way `EverwardPlayerControllerAutopilot.cpp` later made
   that it fails closed with no registered body; and that this status
   document's method names are reflected in the vertical-slice plan and
   project-status record.
-- `tools/test_controlled_descent_player_loop_surface.py` (new) confirms the
+- `tools/test_controlled_descent_player_loop_surface.py` confirms the
   player-facing loop above is actually wired rather than merely declared:
   `EverwardPlayerController.h` declares `ToggleControlledDescent`/
   `AdvanceControlledDescent`/`CancelControlledDescent` plus the tunable
   envelope/profile `UPROPERTY`s; `EverwardPlayerControllerDescent.cpp` calls
-  `GetControlledDescentVelocityCommand`/
-  `CommandSetControlledDescentVelocityMetersPerSecond` with the probe's own
-  live telemetry velocity (not a hardcoded direction) and reuses every
-  tunable rather than stranding it, with no `FMath::Clamp`/
-  `SetActorLocation`/`Teleport` shortcut of its own;
+  `GetControlledDescentVelocityCommand` with the probe's own live telemetry
+  velocity (not a hardcoded direction) for the engage-time preview and
+  reuses every tunable rather than stranding it, with no `FMath::Clamp`/
+  `SetActorLocation`/`Teleport` shortcut of its own; per the issue #239
+  correction above, it no longer calls
+  `CommandSetControlledDescentVelocityMetersPerSecond` itself (that call now
+  lives only in `AdvanceControlledDescentGovernorFixedStep()`, asserted
+  separately);
   `EverwardPlayerControllerInteractionTick.cpp` binds `C`, advances the mode
   every tick, releases it on manual translation/`SPACE`, and keeps it
   mutually exclusive with José/mining auto-approach; and
