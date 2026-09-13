@@ -397,8 +397,25 @@ asserting it: a distant unrelated static body does not perturb a solo
 planetary-contact outcome; a static body genuinely nearer than the
 planetary surface wins on its own merits; and a static body registered
 beyond (below) the planetary surface cannot be used to tunnel through the
-planet -- the planetary sweep still catches and wins that crossing. No
-change to either sweep's math, only to what is verified and documented.
+planet -- the planetary sweep still catches and wins that crossing.
+
+That third case surfaced a real correctness bug (caught by automated PR
+review on the new coverage, not self-discovered): `resolve_planetary_
+surface_contact()` was reading the probe's velocity from the *current*
+snapshot, which `resolve_static_contacts()` had already zeroed/deflected
+against the rock before the planetary sweep ever ran, even though the rock
+was not actually the true earliest contact. Since `DamageAwareProbeRuntime`
+derives impact kinetic energy directly from `last_contact_normal_speed_mps`
+(`impact_damage.hpp`), this could silently reclassify a catastrophic
+planetary impact as harmless contact. `advance_wall_ticks()` now captures
+the probe's velocity right after this tick's integration -- reflecting
+gravity/thrust, but before either contact resolution can touch it -- and
+threads it into `resolve_planetary_surface_contact()` explicitly, so a
+composed planetary impact still reports its true speed. The position sweep
+was unaffected and needed no change: it is collinear regardless of which
+velocity is used downstream. The embedded-rock test case now also asserts
+`last_contact_normal_speed_mps` equals the true incoming speed (400 m/s),
+not 0.
 
 Introduce a spherical body model rather than treating planets as flat levels.
 

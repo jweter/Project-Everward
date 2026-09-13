@@ -393,7 +393,14 @@ int main() {
     // let the probe tunnel through the planet to reach it: the static-only
     // resolution alone would stop the probe at 50.0 + 4.60 = 54.6 m, inside
     // the moon's 100 m reference surface. The planetary sweep must catch
-    // that remaining crossing on the shortened segment and win.
+    // that remaining crossing on the shortened segment and win. Critically,
+    // the recorded contact speed must reflect the true ~400 m/s planetary
+    // impact, not 0 -- resolve_static_contacts already zeroed the probe's
+    // velocity against the (physically irrelevant) rock before the
+    // planetary check ever reads it, and DamageAwareProbeRuntime derives
+    // impact kinetic energy directly from last_contact_normal_speed_mps
+    // (see impact_damage.hpp), so a lost impact speed here would silently
+    // reclassify a catastrophic planetary impact as harmless contact.
     {
         ProbeStateSnapshot start{};
         start.position_m.z = 300.0;
@@ -409,6 +416,7 @@ int main() {
         assert(nearly_equal_local(runtime.snapshot().position_m.z, 100.0));
         assert(nearly_equal_local(runtime.snapshot().velocity_mps.z, 0.0));
         assert(runtime.snapshot().last_contact_body_id == "test-moon");
+        assert(nearly_equal_local(runtime.snapshot().last_contact_normal_speed_mps, 400.0));
     }
 
     // Slice 11 composition/classification: reveal_full_confidence_target_
