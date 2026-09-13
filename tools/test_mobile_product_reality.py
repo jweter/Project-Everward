@@ -83,6 +83,14 @@ class MobileProductRealityTests(unittest.TestCase):
                 {"scenario_views": {"save-load": {"events": [{"at": "tick 1"}]}}},
                 "missing required field: event",
             ),
+            (
+                {"scenario_views": {"mining": {"events": []}, " mining ": {"events": []}}},
+                "scenario view ids must be unique after normalization",
+            ),
+            (
+                {"scenario_views": {1: {"events": []}, "1": {"events": []}}},
+                "scenario view ids must be unique after normalization",
+            ),
         ]
         for extra, message in invalid_cases:
             with self.subTest(message=message):
