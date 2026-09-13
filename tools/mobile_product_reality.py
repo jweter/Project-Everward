@@ -84,6 +84,7 @@ def _render_scenario_timeline_section(scenario_views: Mapping[str, Any]) -> str:
 
     options: list[str] = []
     panels: list[str] = []
+    normalized_ids: set[str] = set()
     for index, (scenario_id, raw) in enumerate(
         sorted(scenario_views.items(), key=lambda item: str(item[0]))
     ):
@@ -92,6 +93,9 @@ def _render_scenario_timeline_section(scenario_views: Mapping[str, Any]) -> str:
         normalized_id = str(scenario_id).strip()
         if not normalized_id:
             raise ValueError("scenario view ids must not be empty")
+        if normalized_id in normalized_ids:
+            raise ValueError("scenario view ids must be unique after normalization")
+        normalized_ids.add(normalized_id)
         label = str(raw.get("label", normalized_id)).strip()
         if not label:
             raise ValueError("scenario view labels must not be empty")
