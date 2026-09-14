@@ -23,6 +23,18 @@ The harness will:
 
 After Unreal opens, continue with `docs/PHASE2_FIRST_RUN_PLAYTEST.md`.
 
+## Low-Spec Development mode
+
+For the 16 GB / integrated-graphics development path tracked by issue #228, use the explicit opt-in profile:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\run_phase2_first_playtest.ps1 -LowSpec
+```
+
+`-LowSpec` does **not** change project defaults, simulation rules, saves, mechanics, or the final graphics target. It only constrains this development launch: UnrealBuildTool is limited to two parallel actions, the editor opens windowed at 1280×720 with a 30 FPS cap, screen percentage is reduced, expensive scalability groups are set to their minimum tier for the session, and the texture streaming pool is bounded for integrated graphics.
+
+This profile is a development-access aid, not Product Reality evidence that normal/production rendering or performance has passed. A successful low-spec session should still record exact-build evidence and any remaining Unreal-only visual/performance debt.
+
 ## Unreal Engine discovery
 
 The harness tries, in order:

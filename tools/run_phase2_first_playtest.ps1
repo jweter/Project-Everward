@@ -2,7 +2,8 @@
 param(
     [string]$UnrealRoot = "",
     [switch]$SkipBuild,
-    [switch]$NoLaunch
+    [switch]$NoLaunch,
+    [switch]$LowSpec
 )
 
 $ErrorActionPreference = "Stop"
@@ -146,11 +147,18 @@ try {
     Write-Host "  Commit:     $GitCommit"
     Write-Host "  Unreal 5.8: $ResolvedUnrealRoot"
     Write-Host "  Evidence:   $ObservationPath"
+    if ($LowSpec) {
+        Write-Host "  Profile:    Low-Spec Development (720p / 30 FPS / reduced presentation cost)"
+    }
     Write-Host ""
 
     if (-not $SkipBuild) {
         Write-Host "Building EverwardEditor (Win64 Development)..."
-        & $BuildBat EverwardEditor Win64 Development $ProjectPath -WaitMutex -NoHotReloadFromIDE
+        $BuildArguments = @("EverwardEditor", "Win64", "Development", $ProjectPath, "-WaitMutex", "-NoHotReloadFromIDE")
+        if ($LowSpec) {
+            $BuildArguments += "-MaxParallelActions=2"
+        }
+        & $BuildBat @BuildArguments
         $BuildExitCode = $LASTEXITCODE
 
         if ($BuildExitCode -ne 0) {
@@ -159,7 +167,11 @@ try {
             throw "EverwardEditor build failed with exit code $BuildExitCode. Observation recorded at $ObservationPath"
         }
 
-        Set-ObservationCheck -ObservationPath $ObservationPath -CheckId "unreal_cpp_build" -Status "pass" -Notes "EverwardEditor Win64 Development build completed successfully via Unreal Engine 5.8 Build.bat."
+        $BuildNotes = "EverwardEditor Win64 Development build completed successfully via Unreal Engine 5.8 Build.bat."
+        if ($LowSpec) {
+            $BuildNotes += " Low-Spec Development mode constrained UnrealBuildTool to at most 2 parallel actions."
+        }
+        Set-ObservationCheck -ObservationPath $ObservationPath -CheckId "unreal_cpp_build" -Status "pass" -Notes $BuildNotes
         Write-Host "Build passed and was recorded in the observation file."
     }
     else {
@@ -167,8 +179,34 @@ try {
     }
 
     if (-not $NoLaunch) {
-        Write-Host "Launching Unreal Editor with log window..."
-        Start-Process -FilePath $EditorExe -ArgumentList @("`"$ProjectPath`"", "-log")
+        $EditorArguments = @("`"$ProjectPath`"", "-log")
+        if ($LowSpec) {
+            $LowSpecCommands = @(
+                "t.MaxFPS 30",
+                "r.ScreenPercentage 65",
+                "sg.ViewDistanceQuality 0",
+                "sg.AntiAliasingQuality 0",
+                "sg.ShadowQuality 0",
+                "sg.GlobalIlluminationQuality 0",
+                "sg.ReflectionQuality 0",
+                "sg.PostProcessQuality 0",
+                "sg.TextureQuality 0",
+                "sg.EffectsQuality 0",
+                "sg.FoliageQuality 0",
+                "r.Streaming.PoolSize 384"
+            ) -join ","
+            $EditorArguments += @(
+                "-WINDOWED",
+                "-ResX=1280",
+                "-ResY=720",
+                "-ExecCmds=`"$LowSpecCommands`""
+            )
+            Write-Host "Launching Unreal Editor in opt-in Low-Spec Development mode..."
+        }
+        else {
+            Write-Host "Launching Unreal Editor with log window..."
+        }
+        Start-Process -FilePath $EditorExe -ArgumentList $EditorArguments
 
         # Keep the shared manual lock until the editor process has had a chance
         # to become visible. After that, the unattended worker also detects
