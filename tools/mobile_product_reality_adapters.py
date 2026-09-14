@@ -30,6 +30,16 @@ def adapt_persistence_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
     )
 
 
+def adapt_probe_state_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape authoritative probe identity/state evidence for mobile review."""
+
+    return _adapt_authoritative_evidence(
+        evidence,
+        component_name="Probe State",
+        default_label="Probe identity and authoritative state",
+    )
+
+
 def adapt_mining_storage_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
     """Shape authoritative mining/storage evidence for the mobile renderer."""
 
