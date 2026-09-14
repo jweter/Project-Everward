@@ -1317,6 +1317,69 @@ make José reachable until a later pass added the controller loop. The next
 local Unreal Product Reality pass should specifically confirm the project
 still compiles under UBT before relying on this further.
 
+### Sampleable object acquisition (Slice 12)
+
+`PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 12 ("resource/sample loop") initial
+scope named two items no prior pass implemented: "sampleable object/
+material" and "manipulator/tool acquisition" of a sampled object, as opposed
+to `mining.hpp`'s repeated-cycle tool-beam extraction from a deposit. This
+pass adds exactly that minimum interaction:
+
+- `StaticSphereBody` (`types.hpp`) gains `sample_mass_kg`: the mass a body
+  contributes to authoritative storage if a manipulator arm collects it
+  whole, in one action, rather than mining's repeated small cycles. Zero
+  (default) means "not manipulator-collectible" -- every pre-existing
+  reference/deposit body is unaffected;
+- `ProbeRuntime::remove_static_sphere_body()` (forwarded through
+  `DamageAwareProbeRuntime`) is the sole deregistration mutation point,
+  mirroring `add_static_sphere_body()`'s sole registration boundary;
+- new `manipulator_collection.hpp`: `attempt_collect_grasped_target()` fails
+  closed (no mutation) whenever nothing is held, the held body is no longer
+  registered, or it is not manipulator-collectible; only once eligible does
+  it release the grasp and report what to credit. It deliberately does not
+  itself deregister the body or credit storage -- `UProbeSimulationAdapter::CommandCollectGraspedTarget()`
+  composes those two mutations after a successful gate, the same division of
+  responsibility the "move" sub-slice already established between
+  `grasped_target_position()` (a read) and `update_static_sphere_body_position()`
+  (the runtime's own mutation);
+- `X` (alongside `F`'s grasp/release) collects on whichever arm the
+  manipulator HUD page currently has selected;
+- the Phase-2 test environment gains a fourth registered body, `SAMPLE-001`
+  (`phase2-test-target-004`), with a positive `sample_mass_kg` and its own
+  `carbonaceous_chondrite_fragment` material identity, distinct from the
+  mining deposit and the two plain reference bodies. Its mesh/label mirror
+  the held body's live position while grasped and hide exactly once
+  collected/deregistered, rather than leaving a ghost mesh behind.
+
+**Status: implemented, Product Reality pending.** New
+`everward_manipulator_collection_tests` coverage: nothing held, a
+deregistered body, and a non-collectible body (`sample_mass_kg == 0`) all
+fail closed without disturbing an existing grasp; a genuine sample succeeds,
+releases the grasp, and reports the correct body/material/mass while leaving
+the registered-body list itself untouched (the module's own contract); the
+gate stays scoped to the queried arm; and the runtime overload matches the
+free function. `save_data_tests.cpp` gained `sample_mass_kg` round-trip and
+legacy-inference coverage (absent field reads back as `0.0`). All 30
+`src/simulation` ctest suites pass. New `tools/test_phase2_manipulator_collection_surface.py`
+proves the math is engine-independent and fails closed, that the collection
+module performs neither the registry removal nor the storage credit itself,
+and that the adapter/controller/HUD/environment wiring is actually present;
+the pre-existing `tools/test_phase2_target_selection_surface.py` registered-
+body count assertion was updated from 3 to 4 to match the new body. All 181
+`tools/test_phase2*.py` source-contract tests pass, and the full canonical
+preflight (`python3 tools/quality_preflight.py --full`) passes GREEN at this
+exact head. No Unreal Editor/UBT build was available in this sandbox to
+compile-verify `ProbeSimulationAdapter.h`/`.cpp`,
+`EverwardPlayerController.h`/`.cpp`, `EverwardHUD.cpp`, or
+`EverwardPhase2TestEnvironment.h`/`.cpp`; each change follows an exact
+pattern that already compiles in the same file (`CommandReleaseGraspedTarget`'s
+structure, `ToggleManipulatorGrasp`'s arm-resolution, `RefreshScanTargetPosition`'s
+fail-closed position mirroring, and the existing `add_static_sphere_body`
+aggregate-init calls). See `PHASE2_MANIPULATOR_COLLECTION_TEST.md`. This does
+not by itself close Slice 12: material-specific consume/use still does not
+exist (repair/Fix_It continues to draw generically from storage), and only
+one sampleable body exists in the test scene.
+
 ## Current authoritative foundation
 
 Everward continues to preserve:

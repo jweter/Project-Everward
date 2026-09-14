@@ -60,6 +60,21 @@ public:
     // acceleration magnitude when no other external force is applied.
     static constexpr double ReferenceTarget2MassKilograms = 2500.0;
 
+    // Slice 12 ("resource/sample loop") "sampleable object/material": a
+    // fourth registered physical body distinct from SCAN-001's repeated-
+    // cycle mining deposit and the two plain REF-*** reference bodies -- this
+    // one is manipulator-collectible whole (StaticSphereBody::sample_mass_kg,
+    // see UProbeSimulationAdapter::CommandCollectGraspedTarget). Close enough
+    // to the bootstrap target for one approach to reach both, but registered
+    // as its own body so collecting it is a deliberate, separate action from
+    // mining.
+    static constexpr const TCHAR* SampleTargetId = TEXT("phase2-test-target-004");
+    static constexpr double SampleTargetCenterXMeters = 70.0;
+    static constexpr double SampleTargetCenterYMeters = -35.0;
+    static constexpr double SampleTargetCenterZMeters = 8.0;
+    static constexpr double SampleTargetRadiusMeters = 1.2;
+    static constexpr double SampleTargetSampleMassKilograms = 18.0;
+
 private:
     void ApplyEnvironmentMaterialScaffold();
     void RefreshResourceReadout();
@@ -81,6 +96,14 @@ private:
     // selecting one of them stays visually consistent with the bootstrap
     // target instead of silently desyncing.
     void RefreshReferenceTargets();
+    // Slice 12: mirrors RefreshScanTargetPosition()'s authoritative-position
+    // pattern while the sample is registered (it can be grasped and carried
+    // like any other body before collection), then -- the one behavior none
+    // of the existing registered bodies needed before this pass -- hides the
+    // mesh/label exactly once the body is actually collected and deregistered
+    // (Core->remove_static_sphere_body), rather than leaving a ghost mesh
+    // sitting at its last position.
+    void RefreshSampleTarget();
     const UProbeSimulationAdapter* ResolvePlayerAdapter() const;
 
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
@@ -111,4 +134,12 @@ private:
     TArray<TObjectPtr<UMaterialInstanceDynamic>> ReferenceTargetDynamicMaterials;
     TArray<FString> ReferenceTargetIds;
     TArray<bool> ReferenceTargetHighlightActive;
+
+    UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
+    TObjectPtr<UStaticMeshComponent> SampleTargetMesh;
+    UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
+    TObjectPtr<UTextRenderComponent> SampleTargetLabel;
+    UPROPERTY(Transient)
+    TObjectPtr<UMaterialInstanceDynamic> SampleTargetDynamicMaterial;
+    bool bSampleTargetCollected = false;
 };

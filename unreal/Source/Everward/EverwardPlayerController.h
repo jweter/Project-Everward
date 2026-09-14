@@ -74,6 +74,7 @@ private:
 
     void SelectNearestPhysicalTarget();
     void ToggleManipulatorGrasp();
+    void CollectGraspedSample();
 
     void SaveGame();
     void LoadGame();

@@ -375,6 +375,9 @@ public:
         runtime_.add_static_sphere_body(std::move(body));
     }
     void clear_static_bodies() noexcept { runtime_.clear_static_bodies(); }
+    bool remove_static_sphere_body(const std::string& body_id) noexcept {
+        return runtime_.remove_static_sphere_body(body_id);
+    }
     [[nodiscard]] const std::vector<StaticSphereBody>& static_bodies() const noexcept {
         return runtime_.static_bodies();
     }

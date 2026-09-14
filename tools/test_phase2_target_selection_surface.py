@@ -159,7 +159,11 @@ class Phase2TargetSelectionSurfaceTests(unittest.TestCase):
         adapter_cpp = (SOURCE / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
         self.assertIn("AEverwardPhase2TestEnvironment::ReferenceTarget1Id", adapter_cpp)
         self.assertIn("AEverwardPhase2TestEnvironment::ReferenceTarget2Id", adapter_cpp)
-        self.assertEqual(adapter_cpp.count("Core->add_static_sphere_body("), 3)
+        # 4, not 3: Slice 12 ("resource/sample loop") added a fourth
+        # registered body (SampleTargetId, see
+        # test_phase2_manipulator_collection_surface.py) alongside the
+        # bootstrap mining target and these two plain reference bodies.
+        self.assertEqual(adapter_cpp.count("Core->add_static_sphere_body("), 4)
 
         # Highlight and position mirroring must be generalized to these
         # targets too, reusing GetSelectedTargetStatus/GetStaticBodyPositionMeters

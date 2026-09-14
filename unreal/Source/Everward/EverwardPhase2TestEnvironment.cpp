@@ -141,6 +141,40 @@ AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
         ReferenceTargetDynamicMaterials.Add(nullptr);
         ReferenceTargetHighlightActive.Add(false);
     }
+
+    // Slice 12 "sampleable object/material": a fourth registered body,
+    // constructed the same way as the bootstrap/reference targets above, but
+    // kept as its own dedicated mesh/label pair rather than folded into the
+    // ReferenceTarget* parallel arrays -- this is the one body that can
+    // actually disappear at runtime once collected (see
+    // RefreshSampleTarget()), which those arrays' shared refresh logic does
+    // not need to reason about.
+    SampleTargetMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SampleTarget"));
+    SampleTargetMesh->SetupAttachment(SceneRoot);
+    SampleTargetMesh->SetRelativeLocation(FVector(
+        SampleTargetCenterXMeters * 100.0,
+        SampleTargetCenterYMeters * 100.0,
+        SampleTargetCenterZMeters * 100.0));
+    SampleTargetMesh->SetRelativeScale3D(FVector(SampleTargetRadiusMeters * 100.0 / 50.0));
+    SampleTargetMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    SampleTargetMesh->SetCollisionResponseToAllChannels(ECR_Block);
+    if (SphereMesh.Succeeded())
+    {
+        SampleTargetMesh->SetStaticMesh(SphereMesh.Object);
+    }
+
+    SampleTargetLabel = CreateDefaultSubobject<UTextRenderComponent>(TEXT("SampleTargetLabel"));
+    SampleTargetLabel->SetupAttachment(SceneRoot);
+    SampleTargetLabel->SetRelativeLocation(FVector(
+        SampleTargetCenterXMeters * 100.0,
+        SampleTargetCenterYMeters * 100.0,
+        SampleTargetCenterZMeters * 100.0 + 400.0));
+    SampleTargetLabel->SetRelativeRotation(FRotator(0.0, 180.0, 0.0));
+    SampleTargetLabel->SetHorizontalAlignment(EHTA_Center);
+    SampleTargetLabel->SetWorldSize(150.0f);
+    SampleTargetLabel->SetTextRenderColor(FColor(180, 255, 190));
+    SampleTargetLabel->SetText(FText::FromString(TEXT(
+        "SAMPLE-001 // GRASP [F] THEN COLLECT [X]")));
 }
 
 void AEverwardPhase2TestEnvironment::BeginPlay()
@@ -157,6 +191,7 @@ void AEverwardPhase2TestEnvironment::Tick(float DeltaSeconds)
     RefreshTargetSelectionHighlight();
     RefreshScanTargetPosition();
     RefreshReferenceTargets();
+    RefreshSampleTarget();
 }
 
 const UProbeSimulationAdapter* AEverwardPhase2TestEnvironment::ResolvePlayerAdapter() const
@@ -254,6 +289,12 @@ void AEverwardPhase2TestEnvironment::ApplyEnvironmentMaterialScaffold()
         ReferenceTargetDynamicMaterials[Index] =
             ApplyMaterial(ReferenceTargetMeshes[Index], RegolithRock, 0.04f, 0.88f);
     }
+
+    // Distinct dark carbonaceous tint so the collectible sample reads as
+    // visually different material from the regolith-rock reference/deposit
+    // bodies rather than an unlabeled duplicate of them.
+    const FLinearColor CarbonaceousSample(0.10f, 0.09f, 0.085f, 1.0f);
+    SampleTargetDynamicMaterial = ApplyMaterial(SampleTargetMesh, CarbonaceousSample, 0.10f, 0.75f);
 }
 
 void AEverwardPhase2TestEnvironment::RefreshScanTargetPosition()
@@ -387,5 +428,45 @@ void AEverwardPhase2TestEnvironment::RefreshReferenceTargets()
         DynamicMaterial->SetVectorParameterValue(TEXT("BaseColor"), TintColor);
         DynamicMaterial->SetScalarParameterValue(TEXT("Metallic"), bIsSelected ? 0.35f : 0.04f);
         DynamicMaterial->SetScalarParameterValue(TEXT("Roughness"), bIsSelected ? 0.30f : 0.88f);
+    }
+}
+
+void AEverwardPhase2TestEnvironment::RefreshSampleTarget()
+{
+    if (SampleTargetMesh == nullptr || bSampleTargetCollected)
+    {
+        return;
+    }
+
+    const UProbeSimulationAdapter* Adapter = ResolvePlayerAdapter();
+    if (Adapter == nullptr)
+    {
+        return;
+    }
+
+    // Fails closed the same way RefreshScanTargetPosition() does for a
+    // deregistered id -- but here that outcome is actually reachable at
+    // runtime (CommandCollectGraspedTarget's Core->remove_static_sphere_body
+    // once collected), so it means something has genuinely happened rather
+    // than "not yet registered": hide the now-nonexistent mesh/label exactly
+    // once instead of leaving a ghost sitting at its last position.
+    FVector PositionMeters;
+    if (!Adapter->GetStaticBodyPositionMeters(SampleTargetId, PositionMeters))
+    {
+        bSampleTargetCollected = true;
+        SampleTargetMesh->SetVisibility(false);
+        SampleTargetMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        if (SampleTargetLabel != nullptr)
+        {
+            SampleTargetLabel->SetVisibility(false);
+        }
+        return;
+    }
+
+    const FVector PositionCentimeters = PositionMeters * 100.0;
+    SampleTargetMesh->SetRelativeLocation(PositionCentimeters);
+    if (SampleTargetLabel != nullptr)
+    {
+        SampleTargetLabel->SetRelativeLocation(PositionCentimeters + FVector(0.0, 0.0, 400.0));
     }
 }

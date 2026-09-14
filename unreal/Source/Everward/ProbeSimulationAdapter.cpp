@@ -10,6 +10,7 @@
 #include "everward/simulation/manipulator.hpp"
 #include "everward/simulation/manipulator_hull_contact.hpp"
 #include "everward/simulation/manipulator_reach.hpp"
+#include "everward/simulation/manipulator_collection.hpp"
 #include "everward/simulation/manipulator_grasp.hpp"
 #include "everward/simulation/manipulator_move.hpp"
 #include "everward/simulation/manipulator_release.hpp"
@@ -228,6 +229,23 @@ void UProbeSimulationAdapter::BeginPlay()
             AEverwardPhase2TestEnvironment::ReferenceTarget2CenterZMeters,
         },
         AEverwardPhase2TestEnvironment::ReferenceTarget2RadiusMeters,
+    });
+
+    // Slice 12 "sampleable object/material": a fourth registered body with a
+    // positive sample_mass_kg (the trailing field StaticSphereBody gained for
+    // exactly this), distinct from the plain reference bodies above (which
+    // default to 0.0, i.e. not manipulator-collectible) and from
+    // BootstrapScanTargetId's separate repeated-cycle mining deposit.
+    Core->add_static_sphere_body({
+        std::string(TCHAR_TO_UTF8(AEverwardPhase2TestEnvironment::SampleTargetId)),
+        {
+            AEverwardPhase2TestEnvironment::SampleTargetCenterXMeters,
+            AEverwardPhase2TestEnvironment::SampleTargetCenterYMeters,
+            AEverwardPhase2TestEnvironment::SampleTargetCenterZMeters,
+        },
+        AEverwardPhase2TestEnvironment::SampleTargetRadiusMeters,
+        "carbonaceous_chondrite_fragment",
+        AEverwardPhase2TestEnvironment::SampleTargetSampleMassKilograms,
     });
 
     SyncOwnerTransformFromSimulation();
@@ -809,6 +827,44 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandReleaseGraspedTarget
             bReleased
                 ? FString::Printf(TEXT("%s arm released grasped target"), ManipulatorArmName(ArmId))
                 : FString::Printf(TEXT("%s arm cannot release: target would collide with the probe hull or another object"), ManipulatorArmName(ArmId)));
+    }
+    catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandCollectGraspedTarget(EEverwardManipulatorArmId ArmId)
+{
+    // Slice 12 "manipulator/tool acquisition of a sampled object": a
+    // different acquisition path from CommandMineBootstrapTarget's
+    // repeated-cycle tool-beam extraction above -- a sample is a bounded
+    // object collected once, in full, the moment it is grasped. Gated by
+    // attempt_collect_grasped_target, which fails closed (no mutation, the
+    // arm keeps holding the target) whenever nothing is held, the held body
+    // is no longer registered, or the held body is not manipulator-
+    // collectible (sample_mass_kg <= 0, e.g. a plain reference body or an
+    // ordinary mining deposit target). Only on success does this adapter --
+    // not the engine-independent module -- perform the two mutations the
+    // module's own contract deliberately leaves to its caller: deregistering
+    // the collected body and crediting authoritative storage, the same
+    // add_stored_material_kg boundary CommandMineBootstrapTarget already
+    // uses above.
+    const FName CommandId(TEXT("collect_grasped_target"));
+    if (Core == nullptr || Manipulators == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    try
+    {
+        const auto SimulationArmId = ToSimulationManipulatorArmId(ArmId);
+        const auto Result = everward::simulation::attempt_collect_grasped_target(*Manipulators, *Core, SimulationArmId);
+        if (!Result.has_value())
+        {
+            return RecordCommandResult(CommandId, false,
+                FString::Printf(TEXT("%s arm has nothing collectible to stow"), ManipulatorArmName(ArmId)));
+        }
+
+        Core->remove_static_sphere_body(Result->body_id);
+        Core->add_stored_material_kg(Result->mass_kg, Result->material_id);
+
+        return RecordCommandResult(CommandId, true,
+            FString::Printf(TEXT("%s arm collected %.1f kg %s"),
+                ManipulatorArmName(ArmId), Result->mass_kg, UTF8_TO_TCHAR(Result->material_id.c_str())));
     }
     catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
 }

@@ -35,6 +35,14 @@ struct StaticSphereBody {
     // the science-knowledge layer may reveal once a scan earns it -- it is
     // never itself a statement of what the player currently knows.
     std::string material_id{};
+    // Slice 12 ("resource/sample loop") "sampleable object/material": the
+    // mass this body contributes to authoritative storage if a manipulator
+    // arm collects it whole (see manipulator_collection.hpp), as opposed to
+    // mining.hpp's repeated-cycle tool-beam extraction from a deposit. Zero
+    // (default) means the body is not manipulator-collectible -- a plain
+    // reference/navigation body or an ordinary mining deposit target, neither
+    // of which are meant to be picked up and stowed in one action.
+    double sample_mass_kg{0.0};
 };
 
 // Authoritative local-space contact samples for the Prime Generation-1 body.
