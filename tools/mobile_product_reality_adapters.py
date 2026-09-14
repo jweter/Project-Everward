@@ -60,6 +60,21 @@ def adapt_mining_storage_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]
     )
 
 
+def adapt_material_consumption_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape authoritative material-consumption evidence for mobile review.
+
+    This adapter is presentation-only.  It may display an authoritative plan or
+    completed mutation event supplied by simulation evidence, but it never applies
+    inventory changes or infers that player-facing repair/fabrication is accepted.
+    """
+
+    return _adapt_authoritative_evidence(
+        evidence,
+        component_name="Material Consumption",
+        default_label="Material-specific resource use",
+    )
+
+
 def adapt_repair_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
     """Shape authoritative Fix_It repair evidence for the mobile renderer."""
 
