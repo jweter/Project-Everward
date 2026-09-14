@@ -6,11 +6,14 @@ from mobile_product_reality import render_state_report
 from mobile_product_reality_adapters import adapt_control_state_evidence
 
 
+COMMIT = "a" * 40
+
+
 class ControlStateAdapterTests(unittest.TestCase):
     def test_control_state_adapter_renders_authoritative_transition_evidence(self) -> None:
         adapted = adapt_control_state_evidence(
             {
-                "commit": "a" * 40,
+                "commit": COMMIT,
                 "scenario": "control-transition",
                 "timestamp": "2026-09-14T04:00:00Z",
                 "status": "PASS",
@@ -35,7 +38,16 @@ class ControlStateAdapterTests(unittest.TestCase):
             "MANIPULATOR_ACTIVE",
         )
 
-        rendered = render_state_report(adapted)
+        report = {
+            "commit": COMMIT,
+            "scenario": "control-transition",
+            "seed": "100",
+            "initial_state": {},
+            "final_state": {},
+            "invariants": {},
+            **adapted,
+        }
+        rendered = render_state_report(report)
         self.assertIn("Control State", rendered)
         self.assertIn("MANIPULATOR_ACTIVE", rendered)
         self.assertIn("remapping", rendered)
@@ -44,7 +56,7 @@ class ControlStateAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must name remaining debt"):
             adapt_control_state_evidence(
                 {
-                    "commit": "b" * 40,
+                    "commit": COMMIT,
                     "scenario": "control-transition",
                     "timestamp": "2026-09-14T04:00:00Z",
                     "status": "PRODUCT_REALITY_REQUIRED",
