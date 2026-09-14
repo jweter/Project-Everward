@@ -110,6 +110,16 @@ def adapt_power_allocation_evidence(evidence: Mapping[str, Any]) -> dict[str, An
     )
 
 
+def adapt_deterministic_replay_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape authoritative deterministic replay/seed evidence for mobile review."""
+
+    return _adapt_authoritative_evidence(
+        evidence,
+        component_name="Deterministic Replay",
+        default_label="Seeded replay identity and invariant state",
+    )
+
+
 def _adapt_authoritative_evidence(
     evidence: Mapping[str, Any], *, component_name: str, default_label: str
 ) -> dict[str, Any]:
