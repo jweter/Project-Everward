@@ -50,7 +50,7 @@ class InvariantAdapterTests(unittest.TestCase):
             "seed": "240",
             "initial_state": {},
             "final_state": {},
-            "invariants": {"storage_mass_conserved": "FAIL"},
+            "invariants": {"storage_mass_conserved": False},
             **adapted,
         }
         rendered = render_state_report(report)
