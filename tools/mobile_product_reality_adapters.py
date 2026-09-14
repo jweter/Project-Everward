@@ -100,6 +100,16 @@ def adapt_collision_damage_evidence(evidence: Mapping[str, Any]) -> dict[str, An
     )
 
 
+def adapt_power_allocation_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape authoritative subsystem power-allocation evidence for mobile review."""
+
+    return _adapt_authoritative_evidence(
+        evidence,
+        component_name="Power Allocation",
+        default_label="Subsystem power allocation and capability state",
+    )
+
+
 def _adapt_authoritative_evidence(
     evidence: Mapping[str, Any], *, component_name: str, default_label: str
 ) -> dict[str, Any]:
