@@ -11,8 +11,11 @@ Before selecting or implementing substantial work, read:
 3. The current phase/vertical-slice plan and design documents referenced by `docs/PROJECT_STATUS.md`, especially `docs/PHASE2_VERTICAL_SLICE_PLAN.md` while Phase 2 is active.
 4. `docs/INDUSTRY_REALITY_CHECK.md` — the current repo-specific gap analysis versus commercial game-development expectations.
 5. Relevant playtest evidence, issues, PRs, tests, and architecture documents for the system being changed.
+6. `docs/QUANTUM_SCIENCE_CANON.md` when proposing quantum sensing, communication, materials, computation, or quantum-physics lore/mechanics.
 
 For Windows/Product Reality automation, also read `docs/UNATTENDED_WINDOWS_PRODUCT_REALITY.md`.
+
+Quantum-science work is additive future canon, not permission to displace the active phase. Any such feature must identify a real physical mechanism, measurable quantity, limitation/noise source, gameplay decision, classical fallback, and Product Reality test. Entanglement is not an FTL communications channel; quantum teleportation is not macroscopic matter transport; consciousness is not a required engineering observer; and quantum computation is not unlimited general-purpose acceleration.
 
 ## Authority and use of the reality check
 
@@ -23,7 +26,7 @@ Use this order when sources disagree:
 3. `docs/PROJECT_STATUS.md` as the continuity record.
 4. `docs/UNATTENDED_VERIFICATION.md` for verification ownership and human-escalation behavior.
 5. `docs/INDUSTRY_REALITY_CHECK.md` as the industry-quality gap baseline.
-6. Other current design/architecture documents relevant to the task.
+6. Other current design/architecture documents relevant to the task, including `docs/QUANTUM_SCIENCE_CANON.md` when applicable.
 7. Historical documents and conversation memory.
 
 `docs/INDUSTRY_REALITY_CHECK.md` does not override verified state or authorized game direction. It exists to prevent technically impressive infrastructure from being mistaken for a commercially ready game.
