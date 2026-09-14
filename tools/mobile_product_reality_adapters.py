@@ -140,6 +140,16 @@ def adapt_deterministic_replay_evidence(evidence: Mapping[str, Any]) -> dict[str
     )
 
 
+def adapt_invariant_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape authoritative invariant/regression evidence for mobile review."""
+
+    return _adapt_authoritative_evidence(
+        evidence,
+        component_name="Invariant Checks",
+        default_label="Automated invariant and regression findings",
+    )
+
+
 def _adapt_authoritative_evidence(
     evidence: Mapping[str, Any], *, component_name: str, default_label: str
 ) -> dict[str, Any]:
