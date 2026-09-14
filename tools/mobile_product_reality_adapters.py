@@ -40,6 +40,16 @@ def adapt_probe_state_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
     )
 
 
+def adapt_lineage_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Shape authoritative parent/successor lineage evidence for mobile review."""
+
+    return _adapt_authoritative_evidence(
+        evidence,
+        component_name="Lineage/Evolution",
+        default_label="Parent and successor lineage state",
+    )
+
+
 def adapt_mining_storage_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
     """Shape authoritative mining/storage evidence for the mobile renderer."""
 
