@@ -155,6 +155,24 @@ public:
 
     void clear_static_bodies() noexcept { static_bodies_.clear(); }
 
+    // Slice 12 "manipulator/tool acquisition of a sampled object": the sole
+    // deregistration mutation point, mirroring add_static_sphere_body's sole
+    // registration boundary above. A missing/already-removed body_id is a
+    // no-op rather than an error -- a caller racing with a body that vanished
+    // some other way should treat that as "already gone", the same fail-
+    // closed spirit update_static_sphere_body_position already applies to an
+    // unknown id. Returns whether a body was actually removed for a caller
+    // that needs to distinguish the two.
+    bool remove_static_sphere_body(const std::string& body_id) noexcept {
+        const auto before = static_bodies_.size();
+        static_bodies_.erase(
+            std::remove_if(
+                static_bodies_.begin(), static_bodies_.end(),
+                [&body_id](const StaticSphereBody& body) { return body.body_id == body_id; }),
+            static_bodies_.end());
+        return static_bodies_.size() != before;
+    }
+
     [[nodiscard]] const std::vector<StaticSphereBody>& static_bodies() const noexcept {
         return static_bodies_;
     }

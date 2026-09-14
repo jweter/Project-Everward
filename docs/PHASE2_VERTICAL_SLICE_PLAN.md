@@ -580,11 +580,16 @@ by generic consumption, round-tripped through save/load as an additive v1
 field (see `PROJECT_STATUS.md`'s "Per-material storage identity" section),
 and now surfaced read-only through a telemetry-panel `INVENTORY` row (see
 "Material inventory HUD readout" and `PHASE2_MATERIAL_INVENTORY_TEST.md`).
-**Status: implemented, Product Reality pending.** This is the "store" and
-first half of "inspect inventory" only: sampleable objects/materials beyond
-the existing bootstrap mining target, manipulator/tool acquisition of a
-sampled object as opposed to mining, and material-specific
-consume/use (repair/Fix_It still draws generically) remain unimplemented.
+A fourth registered body (`SAMPLE-001`) and `attempt_collect_grasped_target()`
+(`manipulator_collection.hpp`) now also close "sampleable object/material"
+and "manipulator/tool acquisition of a sampled object as opposed to mining":
+a manipulator arm can grasp and collect it whole (`X`) into the same
+authoritative storage/inventory mining already credits (see "Sampleable
+object acquisition (Slice 12)" and `PHASE2_MANIPULATOR_COLLECTION_TEST.md`).
+**Status: implemented, Product Reality pending.** Material-specific
+consume/use (repair/Fix_It still draws generically from storage regardless
+of provenance) and a richer variety of sample types/materials beyond the one
+test-scene body remain unimplemented.
 
 Connect discovery to physical gain:
 

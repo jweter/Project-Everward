@@ -199,6 +199,7 @@ namespace detail {
     object.set("center_m", vector3d_to_json(body.center_m));
     object.set("radius_m", JsonValue(body.radius_m));
     object.set("material_id", JsonValue(body.material_id));
+    object.set("sample_mass_kg", JsonValue(body.sample_mass_kg));
     return object;
 }
 
@@ -213,6 +214,14 @@ namespace detail {
     // with no material_id has always had -- no schema migration required.
     if (const JsonValue* material_id = value.find("material_id")) {
         body.material_id = material_id->as_string();
+    }
+    // Additive v1 field (Slice 12 "sampleable object/material"): a save
+    // captured before manipulator collection existed has no entry for it.
+    // Absence reads back as 0.0, the same "not manipulator-collectible"
+    // reading every pre-existing reference/deposit body has always had -- no
+    // schema migration required.
+    if (const JsonValue* sample_mass_kg = value.find("sample_mass_kg")) {
+        body.sample_mass_kg = sample_mass_kg->as_double();
     }
     return body;
 }

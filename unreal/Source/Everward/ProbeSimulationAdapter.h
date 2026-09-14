@@ -515,6 +515,7 @@ public:
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandDetachManipulatorTool(EEverwardManipulatorArmId ArmId);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandGraspSelectedTarget(EEverwardManipulatorArmId ArmId);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandReleaseGraspedTarget(EEverwardManipulatorArmId ArmId);
+    UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandCollectGraspedTarget(EEverwardManipulatorArmId ArmId);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandSaveGame();
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandLoadGame();
     UFUNCTION(BlueprintCallable, Category="Everward|Simulation") void SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond);

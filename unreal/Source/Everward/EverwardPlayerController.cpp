@@ -103,6 +103,13 @@ void AEverwardPlayerController::SetupInputComponent()
     // that page's REACH row already reports for the same arm.
     InputComponent->BindKey(EKeys::F, IE_Pressed, this, &AEverwardPlayerController::ToggleManipulatorGrasp);
 
+    // Slice 12 "manipulator/tool acquisition of a sampled object": acts on
+    // the same selected-arm resolution as F above. The command itself
+    // enforces the "actually a collectible sample" gate and reports why an
+    // attempt fails, so this key is intentionally global rather than only
+    // active while a sample is known to be held.
+    InputComponent->BindKey(EKeys::X, IE_Pressed, this, &AEverwardPlayerController::CollectGraspedSample);
+
     // Single-slot save/load over the whole canonical probe state
     // (save_data.hpp's SaveGameV1). F9 is deliberately avoided: it conflicts
     // with an Unreal Editor wireframe shortcut in PIE (see
@@ -437,6 +444,26 @@ void AEverwardPlayerController::ToggleManipulatorGrasp()
         }
         return;
     }
+}
+
+void AEverwardPlayerController::CollectGraspedSample()
+{
+    UProbeSimulationAdapter* Adapter = GetProbeAdapter();
+    if (Adapter == nullptr)
+    {
+        return;
+    }
+
+    // Same selected-arm resolution as ToggleManipulatorGrasp() above -- this
+    // always acts on whichever arm the manipulator HUD page currently has
+    // selected, so X and F both target the same arm the player is looking
+    // at.
+    const AEverwardHUD* EverwardHUD = Cast<AEverwardHUD>(GetHUD());
+    const EEverwardManipulatorArmId ArmId = EverwardHUD != nullptr && EverwardHUD->GetSelectedManipulatorArmIndex() == 1
+        ? EEverwardManipulatorArmId::Starboard
+        : EEverwardManipulatorArmId::Port;
+
+    (void)Adapter->CommandCollectGraspedTarget(ArmId);
 }
 
 void AEverwardPlayerController::SaveGame()

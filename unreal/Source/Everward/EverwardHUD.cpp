@@ -277,6 +277,7 @@ void AEverwardHUD::DrawControlsReference()
         {TEXT(", / ."), TEXT("ADJUST JOINT TARGET")},
         {TEXT("T"), TEXT("SELECT NEAREST PHYSICAL TARGET")},
         {TEXT("F"), TEXT("GRASP / RELEASE SELECTED TARGET")},
+        {TEXT("X"), TEXT("COLLECT GRASPED SAMPLE")},
         {TEXT("G"), TEXT("MINE SURVEYED TARGET")},
     };
 
@@ -575,7 +576,7 @@ void AEverwardHUD::DrawHUD()
             Margin + S(16.0f), FooterY + LineHeight * 2.0f, HudFont, ReadableTextScale(HudScale, 0.86f), false);
         DrawText(TEXT("[4/5/6] SELECT JOINT   [,] / [.] ADJUST TARGET"), MutedColor,
             Margin + S(16.0f), FooterY + LineHeight * 3.0f, HudFont, ReadableTextScale(HudScale, 0.86f), false);
-        DrawText(TEXT("[F] GRASP / RELEASE TARGET"), MutedColor,
+        DrawText(TEXT("[F] GRASP / RELEASE TARGET   [X] COLLECT SAMPLE"), MutedColor,
             Margin + S(16.0f), FooterY + LineHeight * 4.0f, HudFont, ReadableTextScale(HudScale, 0.86f), false);
         DrawText(TEXT("[G] MINE SURVEYED TARGET   [F1] ALL CONTROLS"), MutedColor,
             Margin + S(16.0f), FooterY + LineHeight * 5.0f, HudFont, ReadableTextScale(HudScale, 0.86f), false);

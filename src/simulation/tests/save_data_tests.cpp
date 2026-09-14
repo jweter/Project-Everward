@@ -55,7 +55,7 @@ DamageAwareProbeRuntime build_representative_runtime() {
     DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
 
     runtime.add_static_sphere_body(
-        StaticSphereBody{"rock", Vector3d{12.0, 3.0, -1.0}, 1.5, "iron_bearing_silicate_regolith"});
+        StaticSphereBody{"rock", Vector3d{12.0, 3.0, -1.0}, 1.5, "iron_bearing_silicate_regolith", 40.0});
     runtime.select_target("rock");
     runtime.set_planetary_body(SphericalPlanetaryBody{
         "moon", Vector3d{0.0, 0.0, -500.0}, 80.0, Vector3d{1.0, 0.0, 0.0}, 3.0e5});
@@ -172,6 +172,8 @@ void test_round_trip_preserves_full_probe_state() {
     assert(nearly_equal(restored.static_bodies().at(0).radius_m, original.static_bodies().at(0).radius_m));
     assert(restored.static_bodies().at(0).material_id == original.static_bodies().at(0).material_id);
     assert(restored.static_bodies().at(0).material_id == "iron_bearing_silicate_regolith");
+    assert(nearly_equal(restored.static_bodies().at(0).sample_mass_kg, original.static_bodies().at(0).sample_mass_kg));
+    assert(nearly_equal(restored.static_bodies().at(0).sample_mass_kg, 40.0));
 
     assert(original.planetary_body().has_value());
     assert(restored.planetary_body().has_value());
@@ -917,6 +919,30 @@ void test_legacy_static_body_without_material_id_infers_no_composition() {
     assert(restored.material_id.empty());
 }
 
+void test_legacy_static_body_without_sample_mass_kg_infers_not_collectible() {
+    using everward::simulation::detail::static_body_from_json;
+    using everward::simulation::detail::static_body_to_json;
+
+    const StaticSphereBody body{"rock", Vector3d{12.0, 3.0, -1.0}, 1.5, "iron_bearing_silicate_regolith", 40.0};
+    const JsonValue full = static_body_to_json(body);
+    assert(nearly_equal(full.require("sample_mass_kg").as_double(), 40.0));
+
+    // A save captured before Slice 12's manipulator collection existed has
+    // no entry for it at all, and must read back as "not manipulator-
+    // collectible" (0.0, matching every pre-existing reference/deposit body)
+    // rather than throwing on a missing field.
+    JsonValue without_field = JsonValue::make_object();
+    for (const auto& [key, field] : full.as_object()) {
+        if (key != "sample_mass_kg") {
+            without_field.set(key, field);
+        }
+    }
+
+    const StaticSphereBody restored = static_body_from_json(without_field);
+    assert(restored.body_id == "rock");
+    assert(nearly_equal(restored.sample_mass_kg, 0.0));
+}
+
 void test_lineage_referencing_unpersisted_probe_fails_closed() {
     const ProbeSaveData data =
         capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
@@ -968,6 +994,7 @@ int main() {
     test_probe_lineage_records_round_trip();
     test_legacy_save_without_lineages_field_infers_empty();
     test_legacy_static_body_without_material_id_infers_no_composition();
+    test_legacy_static_body_without_sample_mass_kg_infers_not_collectible();
     test_lineage_referencing_unpersisted_probe_fails_closed();
 
     std::puts("save_data_tests: all tests passed");
