@@ -1267,6 +1267,61 @@ Slice 9 -- no Unreal scene, adapter telemetry/HUD, or local Product Reality
 pass exists yet for planetary gravity or surface contact. See
 `PHASE2_VERTICAL_SLICE_PLAN.md`'s updated Slice 9 status for what remains.
 
+### Planetary surface contact sweeps the compound hull (Slice 9 follow-up)
+
+The previous pass's own "explicitly not complete" note named this exact
+gap: `resolve_planetary_surface_contact()` deliberately treated the probe as
+a single point at zero clearance rather than sweeping the same five-sample
+`ProbeCompoundCollisionEnvelope` `resolve_static_contacts()` already sweeps
+against small registered bodies, so a wing-first or nose-first approach to a
+planetary surface stopped at the wrong distance (or, for an off-axis
+approach that only a wing sample would actually reach, might not stop at
+all). This pass closes that gap by composing the same two already-existing
+patterns rather than inventing new sweep math:
+
+- `planetary_body.hpp` gains `sweep_compound_envelope_against_surface()`
+  (finds the earliest of the five hull samples, rotated by the probe's
+  current attitude via `compound_contact.hpp`'s existing
+  `rotate_local_contact_offset`, to cross the reference sphere, mirroring
+  `compound_contact.hpp`'s `sweep_compound_probe_against_body()` per-sample
+  loop shape) and `resolve_compound_swept_surface_contact()` (places the
+  winning sample just outside the surface, then subtracts its rotated local
+  offset to recover the probe root, mirroring `resolve_compound_contact()`'s
+  "resolve the winning sample, not the whole probe" pattern);
+- an already-embedded-at-the-segment's-start sample only counts as a hit if
+  the segment's *proposed end* is still under the combined radius too (the
+  same check `resolve_surface_contact()`'s own overlap branch already makes
+  for the point case) -- otherwise a sample that starts inside a huge
+  reference sphere (e.g. the probe spawning at a registered body's center in
+  a test) but integrates clear by the end of the tick is correctly left
+  alone rather than snapped back to the surface;
+- `ProbeRuntime::resolve_planetary_surface_contact()` now calls these
+  instead of the single-point `resolve_swept_surface_contact()`, passing the
+  same `state.compound_collision_envelope` and `state.attitude_degrees`
+  `resolve_static_contacts()` already reads -- no second hull shape or
+  attitude convention introduced.
+
+This changes the exact stopping distance for every existing planetary-
+contact scenario: for a purely vertical approach at x=y=0, the central hull
+sample (local offset `{0,0,0}`, radius 1.60 m, the only sample with no
+off-axis correction) is now the earliest to touch, so the probe root stops
+100.0 + 1.60 = 101.6 m above a 100 m reference surface instead of exactly on
+it -- the three existing `software_policy_tests.cpp` Slice 9 cases were
+updated to this value (the composition semantics and the nearer/farther
+static-body outcomes they were written to prove are otherwise unchanged).
+
+**Status: implemented, Product Reality pending.** New deterministic
+coverage in `planetary_body_tests.cpp`: a vertical descent caught by the
+central sample; a lateral pass over a small body where only the port wing
+sample (not the central hull) reaches the surface, including its tilted
+(non-purely-radial) velocity resolution; and a pass that stays clear of
+every sample reporting no contact at all. All 31 `src/simulation` ctest
+suites pass (Debug and Release); the full `tools/test_phase2*.py` suite
+(181 tests) passes unchanged, since this pass touches no Unreal or tooling
+file. This still does not complete Slice 9 -- no Unreal scene, adapter
+telemetry/HUD, or local Product Reality pass exists yet for planetary
+surface contact.
+
 ### Controlled-descent command wiring (Slice 10)
 
 `PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 10 status previously named this exact

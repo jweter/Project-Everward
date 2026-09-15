@@ -419,16 +419,13 @@ private:
             resolution.resolved_velocity);
     }
 
-    // Slice 9 foundation: swept contact against a registered planetary body's
-    // reference sphere, the surface-scale counterpart to
-    // resolve_static_contacts' compound-envelope sweep against small local
-    // bodies. Deliberately treats the probe as a single point at zero
-    // clearance rather than sweeping the five-sample compound hull: unlike a
-    // nearby mineable target, a planetary body's surface is enormous relative
-    // to the hull, so the hull's shape is not yet load-bearing here -- a
-    // documented simplification, not a silent one, and a candidate for a
-    // later pass once the compound envelope and a planetary surface actually
-    // need to agree at typical landing scale. Composing this with
+    // Slice 9 follow-up: swept contact against a registered planetary body's
+    // reference sphere, now sweeping the same five-sample compound hull
+    // resolve_static_contacts already sweeps against small local bodies
+    // instead of treating the probe as a single point at zero clearance --
+    // a wing-first or nose-first approach to a planetary surface is now
+    // stopped by the actual hull sample nearest the ground, matching how a
+    // registered StaticSphereBody already behaves. Composing this with
     // resolve_static_contacts in the same tick (a registered planetary body
     // and static bodies both present) is now covered: advance_wall_ticks()
     // passes both calls the same true pre-tick start_position, and
@@ -459,24 +456,28 @@ private:
         }
 
         const auto& state = core_.snapshot();
-        const SurfaceContactResolution resolution = resolve_swept_surface_contact(
-            start_position, state.position_m, incoming_velocity, *planetary_body);
+        const CompoundSurfaceContactResolution resolution = resolve_compound_swept_surface_contact(
+            start_position,
+            state.position_m,
+            incoming_velocity,
+            state.attitude_degrees,
+            state.compound_collision_envelope,
+            *planetary_body);
         if (!resolution.corrected) {
             return;
         }
 
-        const Vector3d normal = local_surface_normal(resolution.position_m, *planetary_body);
         const Vector3d relative_velocity = body_relative_velocity(incoming_velocity, *planetary_body);
-        const double inward_normal_speed = std::max(0.0, -dot(relative_velocity, normal));
+        const double inward_normal_speed = std::max(0.0, -dot(relative_velocity, resolution.normal));
 
         core_.resolve_contact(
             planetary_body->body_id,
-            resolution.position_m,
-            resolution.position_m,
-            normal,
+            resolution.resolved_probe_root,
+            resolution.surface_point,
+            resolution.normal,
             relative_velocity,
             inward_normal_speed,
-            resolution.velocity_mps);
+            resolution.resolved_velocity);
     }
 
     [[nodiscard]] bool policy_executor_available() const noexcept {
