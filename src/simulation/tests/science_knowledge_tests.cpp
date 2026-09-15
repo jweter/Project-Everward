@@ -73,6 +73,21 @@ int main() {
     }
 
     {
+        auto state = make_unknown_target_knowledge("sample-resolution");
+        apply_observation(state, {ObservationMode::ActiveScan, 2.0, 0.30, 0.80, "iron-rich regolith"});
+        apply_observation(state, {ObservationMode::ActiveScan, 4.0, 0.20, 0.30, "silicate-rich regolith"});
+        assert(state.classification == "iron-rich regolith");
+        assert(state.best_instrument_resolution == 0.80);
+        assert(state.active_scan_s == 6.0);
+        assert(state.confidence == 0.50);
+
+        apply_observation(state, {ObservationMode::ActiveScan, 1.0, 0.10, 0.90, "iron-nickel regolith"});
+        assert(state.classification == "iron-nickel regolith");
+        assert(state.best_instrument_resolution == 0.90);
+        assert(state.confidence == 0.60);
+    }
+
+    {
         auto state = make_unknown_target_knowledge("sample-005");
         assert(throws_invalid_argument([&] {
             apply_observation(state, {ObservationMode::Passive, -1.0, 0.1, 0.1, ""});
@@ -84,6 +99,10 @@ int main() {
         }));
         assert(throws_invalid_argument([&] {
             apply_observation(state, {ObservationMode::ActiveScan, 1.0, 0.1, 1.1, ""});
+        }));
+        state.best_instrument_resolution = std::numeric_limits<double>::quiet_NaN();
+        assert(throws_invalid_argument([&] {
+            apply_observation(state, {ObservationMode::Passive, 1.0, 0.1, 0.1, ""});
         }));
         assert(state.level == KnowledgeLevel::Unknown);
         assert(state.confidence == 0.0);
