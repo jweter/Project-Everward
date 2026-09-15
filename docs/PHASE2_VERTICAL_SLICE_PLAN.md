@@ -568,8 +568,16 @@ updated `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`). **Status: implemented, Product
 Reality pending.** Confidence/uncertainty and instrument-dependent
 resolution already existed as read-only fields on `TargetKnowledgeState`
 before this pass; repeated/longer observations improving knowledge beyond a
-single confidence ramp, persistent discoveries, and discoveries enabling
-decisions rather than merely filling a codex remain unimplemented.
+single confidence ramp and discoveries enabling decisions rather than
+merely filling a codex remain unimplemented. A further follow-on pass closed
+the "persistent discoveries" gap specifically: `UProbeSimulationAdapter::GetDiscoveredTargets()`
+surfaces every target `target_knowledge` has ever accumulated evidence for
+(not only whichever target is currently selected) as a new `DISCOVERIES`
+telemetry row below `INVENTORY` (**Status: implemented, Product Reality
+pending**; see `PROJECT_STATUS.md`'s "Persistent discoveries catalogue"
+section and `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`'s updated local acceptance
+step 10). This is still read-only telemetry, not a codex UI or a
+decision-enabling gameplay consequence.
 
 Scanning must evolve from a countdown into increasing knowledge:
 

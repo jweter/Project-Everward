@@ -81,9 +81,43 @@ class Phase2ScienceKnowledgeSurfaceTests(unittest.TestCase):
         # row count (see TARGET/SIM/arm rows above the new KNOWLEDGE row);
         # adding a row must extend the panel height rather than overlapping
         # the existing rows below it. The Slice 12 INVENTORY row landed below
-        # KNOWLEDGE afterward and bumped this to 11.0f -- see
-        # test_phase2_material_inventory_surface.py.
-        self.assertIn("LineHeight * 11.0f", self.hud_cpp)
+        # KNOWLEDGE and bumped this to 11.0f (test_phase2_material_inventory_surface.py),
+        # and the DISCOVERIES row below that bumped it again to 12.0f -- see
+        # test_hud_renders_a_discoveries_row_below_inventory_without_relayouting.
+        self.assertIn("LineHeight * 12.0f", self.hud_cpp)
+
+    def test_unreal_adapter_exposes_a_read_only_discovered_targets_list(self) -> None:
+        # Slice 11 follow-up ("persistent discoveries"): unlike
+        # FEverwardTargetKnowledgeStatus (scoped to whichever single target
+        # is currently selected), this lists every target Core's
+        # target_knowledge map has ever accumulated evidence for, so a
+        # discovery remains reviewable after deselecting the target or after
+        # its registered body is later mined out/collected.
+        self.assertIn("FEverwardDiscoveredTarget", self.adapter_h)
+        self.assertIn("GetDiscoveredTargets", self.adapter_h)
+        self.assertIn(
+            "TArray<FEverwardDiscoveredTarget> UProbeSimulationAdapter::GetDiscoveredTargets() const",
+            self.bridge_cpp,
+        )
+        # Reuses the same authoritative map GetSelectedTargetKnowledgeStatus()
+        # already reads -- no second knowledge store is introduced.
+        self.assertIn("Core->target_knowledge()", self.bridge_cpp)
+        # A registered-but-never-observed entry is not a discovery yet and
+        # must be skipped rather than padding the list with a fabricated
+        # Unknown-level reading.
+        self.assertIn("everward::simulation::KnowledgeLevel::Unknown", self.bridge_cpp)
+
+    def test_hud_renders_a_discoveries_row_below_inventory_without_relayouting(self) -> None:
+        self.assertIn("GetDiscoveredTargets()", self.hud_cpp)
+        self.assertIn("DiscoveredTargetsLine(", self.hud_cpp)
+        self.assertIn("DISCOVERIES", self.hud_cpp)
+        # Ascending-target_id ordered the same way MaterialInventoryLine's
+        # entries already are (Core's std::map iteration order); no separate
+        # sort is introduced.
+        self.assertIn(
+            "LineHeight * (9.0f + ManipulatorArms.Num())",
+            self.hud_cpp,
+        )
 
     def test_static_sphere_body_carries_optional_ground_truth_material_id(self) -> None:
         self.assertIn("std::string material_id{};", self.types_hpp)

@@ -18,6 +18,17 @@ EEverwardApproachMotion ToApproachMotion(everward::simulation::ApproachMotionSta
         default: return EEverwardApproachMotion::HoldingRange;
     }
 }
+
+EEverwardKnowledgeLevel ToKnowledgeLevel(everward::simulation::KnowledgeLevel Level)
+{
+    switch (Level)
+    {
+        case everward::simulation::KnowledgeLevel::Characterized: return EEverwardKnowledgeLevel::Characterized;
+        case everward::simulation::KnowledgeLevel::Observed: return EEverwardKnowledgeLevel::Observed;
+        case everward::simulation::KnowledgeLevel::Unknown:
+        default: return EEverwardKnowledgeLevel::Unknown;
+    }
+}
 } // namespace
 
 FEverwardTargetSelectionStatus UProbeSimulationAdapter::GetSelectedTargetStatus() const
@@ -63,23 +74,46 @@ FEverwardTargetKnowledgeStatus UProbeSimulationAdapter::GetSelectedTargetKnowled
     }
 
     Status.bHasKnowledge = true;
-    switch (Knowledge->level)
-    {
-        case everward::simulation::KnowledgeLevel::Characterized:
-            Status.Level = EEverwardKnowledgeLevel::Characterized;
-            break;
-        case everward::simulation::KnowledgeLevel::Observed:
-            Status.Level = EEverwardKnowledgeLevel::Observed;
-            break;
-        case everward::simulation::KnowledgeLevel::Unknown:
-        default:
-            Status.Level = EEverwardKnowledgeLevel::Unknown;
-            break;
-    }
+    Status.Level = ToKnowledgeLevel(Knowledge->level);
     Status.Confidence = Knowledge->confidence;
     Status.ActiveScanSeconds = Knowledge->active_scan_s;
     Status.Classification = UTF8_TO_TCHAR(Knowledge->classification.c_str());
     return Status;
+}
+
+TArray<FEverwardDiscoveredTarget> UProbeSimulationAdapter::GetDiscoveredTargets() const
+{
+    // Slice 11 follow-up ("persistent discoveries"): unlike
+    // GetSelectedTargetKnowledgeStatus() above, this is not scoped to
+    // whichever single target is currently selected -- it lists every
+    // target_id Core's target_knowledge map has ever accumulated evidence
+    // for, so a discovery remains reviewable after deselecting the target
+    // or after its registered body is later mined out/collected away.
+    // Core's std::map already iterates in ascending target_id order, so
+    // this is deterministic without an explicit sort. A target that was
+    // registered but never actually observed (level == Unknown) is not a
+    // discovery yet and is skipped rather than padding the list with
+    // fabricated entries.
+    TArray<FEverwardDiscoveredTarget> Discoveries;
+    if (Core == nullptr)
+    {
+        return Discoveries;
+    }
+
+    for (const auto& [TargetId, Knowledge] : Core->target_knowledge())
+    {
+        if (Knowledge.level == everward::simulation::KnowledgeLevel::Unknown)
+        {
+            continue;
+        }
+        FEverwardDiscoveredTarget Entry;
+        Entry.TargetId = UTF8_TO_TCHAR(TargetId.c_str());
+        Entry.Level = ToKnowledgeLevel(Knowledge.level);
+        Entry.Confidence = Knowledge.confidence;
+        Entry.Classification = UTF8_TO_TCHAR(Knowledge.classification.c_str());
+        Discoveries.Add(Entry);
+    }
+    return Discoveries;
 }
 
 bool UProbeSimulationAdapter::GetStaticBodyPositionMeters(const FString& BodyId, FVector& OutPositionMeters) const
