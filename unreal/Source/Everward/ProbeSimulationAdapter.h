@@ -262,6 +262,24 @@ struct EVERWARD_API FEverwardMaterialInventoryEntry
     UPROPERTY(BlueprintReadOnly, Category="Everward|Telemetry") double Kilograms = 0.0;
 };
 
+// Slice 11 follow-up ("persistent discoveries"): FEverwardTargetKnowledgeStatus
+// only ever reports whichever single target GetSelectedTargetStatus()
+// currently has selected, so knowledge accumulated about a target becomes
+// unreadable the moment it is deselected or its registered body is mined
+// out/collected -- even though Core's own target_knowledge map already
+// keeps every entry for the life of the save. One entry per every target
+// ever observed (Level != Unknown), read-only and recomputed live every
+// call from that same authoritative map -- no second knowledge store.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardDiscoveredTarget
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target") FString TargetId;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target") EEverwardKnowledgeLevel Level = EEverwardKnowledgeLevel::Unknown;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target") double Confidence = 0.0;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Target") FString Classification;
+};
+
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardTractorFieldStatus
 {
@@ -406,6 +424,7 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Telemetry") TArray<FEverwardMaterialInventoryEntry> GetStoredMaterialInventory() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetKnowledgeStatus GetSelectedTargetKnowledgeStatus() const;
+    UFUNCTION(BlueprintPure, Category="Everward|Target") TArray<FEverwardDiscoveredTarget> GetDiscoveredTargets() const;
     UFUNCTION(BlueprintPure, Category="Everward|Tractor") FEverwardTractorFieldStatus GetTractorFieldStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") bool GetStaticBodyPositionMeters(const FString& BodyId, FVector& OutPositionMeters) const;
     UFUNCTION(BlueprintPure, Category="Everward|Autopilot") FEverwardJoseGuidanceCommand GetJoseGuidanceCommand(

@@ -58,8 +58,11 @@ class Phase2MaterialInventorySurfaceTests(unittest.TestCase):
         self.assertIn("INVENTORY  EMPTY", self.hud_cpp)
         # The panel's fixed row budget (TelemetryHeight) must grow by exactly
         # one line to fit the new row rather than silently overlapping the
-        # manipulator panel drawn above it.
-        self.assertIn("LineHeight * 11.0f", self.hud_cpp)
+        # manipulator panel drawn above it. A later DISCOVERIES row (Slice 11
+        # follow-up, see test_phase2_science_knowledge_surface.py) bumped
+        # this again from 11.0f to 12.0f; this assertion only needs the
+        # panel to still budget at least the row INVENTORY itself requires.
+        self.assertIn("LineHeight * 12.0f", self.hud_cpp)
 
 
 if __name__ == "__main__":

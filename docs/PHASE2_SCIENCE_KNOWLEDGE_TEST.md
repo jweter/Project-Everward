@@ -83,6 +83,38 @@ its own:
   `KNOWLEDGE  CHARACTERIZED // iron_bearing_silicate_regolith` in place of a
   now-constant, uninformative 100% confidence readout.
 
+## Persistent discoveries catalogue
+
+A follow-on pass closes the "no persistent discoveries list" gap this
+document's "Explicitly not complete" section originally named. The
+`KNOWLEDGE` row above only ever reports whichever single target the
+`TARGET` row currently has selected, so knowledge accumulated about a
+target became unreadable the moment it was deselected — even though
+`SimulationCore`'s own `target_knowledge` map already keeps every entry for
+the life of the save (it is never cleared when a target is deselected, or
+even when its registered `StaticSphereBody` is later removed by mining-out
+or manipulator collection). This pass exposes that already-persistent data
+as a read-only catalogue rather than inventing a second store:
+
+- `UProbeSimulationAdapter::GetDiscoveredTargets()` (new
+  `ProbeTargetSelectionBridge.cpp` accessor, alongside
+  `GetSelectedTargetKnowledgeStatus()`) iterates `Core->target_knowledge()`
+  directly and returns one `FEverwardDiscoveredTarget` (target id, level,
+  confidence, classification) per entry whose level is not `Unknown` —
+  registered-but-never-observed targets are not discoveries yet and are
+  skipped rather than padding the list with a fabricated reading. The
+  underlying map already iterates in ascending target_id order, so the
+  result is deterministic without an explicit sort;
+- the always-visible telemetry panel gains a `DISCOVERIES` row directly
+  below `INVENTORY`, reading a muted "DISCOVERIES NONE YET" prompt with
+  nothing yet observed, or a compact catalogue such as `SCAN-001 //
+  iron_bearing_silicate_regolith, REF-002 // 40%` once one or more targets
+  have been observed;
+- no new authoritative state, save field, mutation point, or player command
+  was added — `target_knowledge` itself is unchanged, and this reads the
+  exact same map `GetSelectedTargetKnowledgeStatus()` already reads for the
+  single currently-selected target.
+
 ## Behavior
 
 - The always-visible telemetry panel gains a `KNOWLEDGE` row directly below
@@ -146,7 +178,10 @@ its own:
   material rather than a second invented one; and the HUD renders the new
   row (and, since this pass, the classification once `Characterized`) by
   extending the telemetry panel's height rather than overlapping the rows
-  already below it.
+  already below it. It also confirms `GetDiscoveredTargets()` is wired into
+  the adapter/HUD (the `DISCOVERIES` row, the panel height's further bump to
+  12 lines, and that never-observed entries are skipped) rather than merely
+  present alongside them.
 
 No Unreal Editor/UBT build was available in this sandbox to compile-verify
 `ProbeSimulationAdapter.h`/`.cpp` or `EverwardHUD.cpp`. The adapter change
@@ -190,10 +225,20 @@ panel's background or the manipulator page drawn above it.
    selection/cycling, manipulator, mining, contact, or damage behavior, and
    that mining `SCAN-001` still reports the same
    `iron_bearing_silicate_regolith` material id the new KNOWLEDGE row does.
-10. Record any discrepancy (row overlapping other panel content, confidence
+10. With `SCAN-001` already characterized (step 7) and a reference target
+    already scanned to 100% confidence (step 8), confirm the panel's new
+    `DISCOVERIES` row (directly below `INVENTORY`) lists both, and that the
+    panel background still fully contains every row down through
+    `DISCOVERIES` with no clipping or overlap against the manipulator page
+    drawn above it. Deselect all targets (retreat past selection range) and
+    confirm the row still reports both entries rather than clearing when
+    nothing is selected — this is the specific gap it closes versus
+    `KNOWLEDGE` above.
+11. Record any discrepancy (row overlapping other panel content, confidence
     resetting unexpectedly, a stale reading after reselection, a reference
     target wrongly characterizing, a mismatched material id between mining
-    and science, or a build/compile failure) as Product Reality evidence.
+    and science, a discoveries entry disappearing on deselection, or a
+    build/compile failure) as Product Reality evidence.
 
 ## Explicitly not complete in this pass
 
@@ -204,10 +249,11 @@ panel's background or the manipulator page drawn above it.
   a modeled estimation process.
 - No passive-observation trigger exists anywhere in the simulation yet,
   though `science_knowledge.hpp` already supports the mode.
-- No persistent "discoveries" list, codex, or decision-enabling gameplay
-  consequence — this is read-only telemetry over an accumulating number.
-- No inventory/discoveries HUD page; only the single compact `KNOWLEDGE`
-  row on the existing always-visible panel.
+- A persistent discoveries catalogue (the `DISCOVERIES` row) now exists, but
+  it is still read-only telemetry: no codex UI, no decision-enabling
+  gameplay consequence, and no dedicated discoveries HUD page — only the
+  single compact row on the existing always-visible panel, truncated the
+  same way the `INVENTORY` row already is once the catalogue grows long.
 - Instrument-dependent resolution beyond a fixed nominal baseline
   (`kNominalInstrumentResolution = 1.0`) is not modeled.
 

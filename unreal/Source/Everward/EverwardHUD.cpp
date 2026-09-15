@@ -96,6 +96,41 @@ FString MaterialInventoryLine(const TArray<FEverwardMaterialInventoryEntry>& Inv
 // carries a real Classification (composition reveal wired end to end
 // through ProbeRuntime::reveal_full_confidence_target_classifications()),
 // show it rather than leaving the player to infer it only exists.
+// Slice 11 follow-up ("persistent discoveries"): unlike the KNOWLEDGE row
+// above (scoped to whichever single target TARGET currently reports
+// selected), this summarizes every target GetDiscoveredTargets() reports --
+// i.e. every target ever observed this session, whether or not it is still
+// selected or even still registered. Entries are already ascending-
+// target_id ordered by the adapter (Core's std::map iteration order), so
+// this never reorders them itself. TruncatedPanelLine (as MaterialInventoryLine
+// already uses) keeps a long catalogue from overflowing the fixed panel width.
+FString DiscoveredTargetsLine(const TArray<FEverwardDiscoveredTarget>& Discoveries)
+{
+    if (Discoveries.IsEmpty())
+    {
+        return TEXT("DISCOVERIES  NONE YET");
+    }
+
+    FString Joined;
+    for (int32 Index = 0; Index < Discoveries.Num(); ++Index)
+    {
+        if (Index > 0)
+        {
+            Joined += TEXT(", ");
+        }
+        const FEverwardDiscoveredTarget& Entry = Discoveries[Index];
+        if (Entry.Level == EEverwardKnowledgeLevel::Characterized)
+        {
+            Joined += FString::Printf(TEXT("%s // %s"), *Entry.TargetId, *Entry.Classification);
+        }
+        else
+        {
+            Joined += FString::Printf(TEXT("%s // %.0f%%"), *Entry.TargetId, Entry.Confidence * 100.0);
+        }
+    }
+    return FString::Printf(TEXT("DISCOVERIES  %s"), *Joined);
+}
+
 FString TargetKnowledgeLine(
     const FEverwardTargetSelectionStatus& TargetSelection,
     const FEverwardTargetKnowledgeStatus& TargetKnowledge)
@@ -353,6 +388,7 @@ void AEverwardHUD::DrawHUD()
     const TArray<FEverwardManipulatorArmState> ManipulatorArms = Adapter->GetManipulatorArmStates();
     const FEverwardTargetSelectionStatus TargetSelection = Adapter->GetSelectedTargetStatus();
     const FEverwardTargetKnowledgeStatus TargetKnowledge = Adapter->GetSelectedTargetKnowledgeStatus();
+    const TArray<FEverwardDiscoveredTarget> Discoveries = Adapter->GetDiscoveredTargets();
     const TArray<FEverwardMaterialInventoryEntry> MaterialInventory = Adapter->GetStoredMaterialInventory();
     const FEverwardSoftwarePolicyStatus PolicyStatus = Adapter->GetSoftwarePolicyStatus();
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
@@ -402,7 +438,7 @@ void AEverwardHUD::DrawHUD()
     const FLinearColor MutedColor(0.64f, 0.75f, 0.80f, 1.0f);
     const FLinearColor AlertColor(1.0f, 0.36f, 0.18f, 1.0f);
 
-    const float TelemetryHeight = S(62.0f) + LineHeight * 11.0f;
+    const float TelemetryHeight = S(62.0f) + LineHeight * 12.0f;
     const float TelemetryY = Canvas->ClipY - Margin - TelemetryHeight;
     DrawRect(PanelColor, Margin, TelemetryY, PanelWidth, TelemetryHeight);
     DrawText(
@@ -492,6 +528,16 @@ void AEverwardHUD::DrawHUD()
         TruncatedPanelLine(MaterialInventoryLine(MaterialInventory)),
         MaterialInventory.IsEmpty() ? MutedColor : TextColor,
         Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (8.0f + ManipulatorArms.Num()),
+        HudFont, ReadableTextScale(HudScale, 0.94f), false);
+
+    // Slice 11 follow-up ("persistent discoveries"): a catalogue of every
+    // target ever observed this session, immediately below INVENTORY --
+    // unlike KNOWLEDGE above, this stays readable after deselecting a
+    // target or after its registered body is later mined out/collected.
+    DrawText(
+        TruncatedPanelLine(DiscoveredTargetsLine(Discoveries)),
+        Discoveries.IsEmpty() ? MutedColor : TextColor,
+        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (9.0f + ManipulatorArms.Num()),
         HudFont, ReadableTextScale(HudScale, 0.94f), false);
 
     // Dedicated manipulator HUD page (Slice 6 joint-articulation follow-up).
