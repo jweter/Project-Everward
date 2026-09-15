@@ -1,6 +1,7 @@
 #pragma once
 
 #include "everward/simulation/clock.hpp"
+#include "everward/simulation/material_consumption.hpp"
 #include "everward/simulation/planetary_body.hpp"
 #include "everward/simulation/types.hpp"
 
@@ -468,6 +469,36 @@ public:
         events_.push_back({clock_.tick(), DomainEventType::MaterialConsumed,
                             "stored material consumed by " + std::to_string(kilograms) + " kg"});
         return depleted_kg;
+    }
+
+    // Named-material atomic consumption boundary (Slice 12 remainder,
+    // issue #274): unlike the generic overload above, this never substitutes
+    // a different material to make up a shortfall. It reuses
+    // plan_material_consumption() -- the same read-only planning primitive a
+    // caller can use to check eligibility first -- as the sole pre-mutation
+    // gate, so an absent, insufficient, or otherwise-invalid material_id
+    // fails closed with no mutation at all rather than partially depleting
+    // storage or falling back to a different material_id. A caller that
+    // knows exactly which material a use requires (as opposed to Fix_It's
+    // still-generic repair draw, which intentionally keeps using the
+    // overload above until a component/material selection policy exists)
+    // should consume through this boundary instead.
+    std::map<std::string, double> consume_stored_material_kg(
+            const std::string& material_id, double kilograms) {
+        const auto plan = plan_material_consumption(probe_.material_inventory_kg, material_id, kilograms);
+        if (!plan.can_consume) {
+            throw std::runtime_error("insufficient stored material: " + material_id);
+        }
+        probe_.storage_used_kg = std::max(0.0, probe_.storage_used_kg - kilograms);
+        if (plan.remaining_kg <= 1e-9) {
+            probe_.material_inventory_kg.erase(material_id);
+        } else {
+            probe_.material_inventory_kg[material_id] = plan.remaining_kg;
+        }
+        events_.push_back({clock_.tick(), DomainEventType::MaterialConsumed,
+                            "stored material consumed by " + std::to_string(kilograms) + " kg " +
+                            material_id});
+        return {{material_id, kilograms}};
     }
 
     // Read-only per-material breakdown of storage_used_kg. See

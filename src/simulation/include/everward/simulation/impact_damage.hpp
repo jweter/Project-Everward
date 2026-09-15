@@ -462,6 +462,9 @@ public:
     std::map<std::string, double> consume_stored_material_kg(double kilograms) {
         return runtime_.consume_stored_material_kg(kilograms);
     }
+    std::map<std::string, double> consume_stored_material_kg(const std::string& material_id, double kilograms) {
+        return runtime_.consume_stored_material_kg(material_id, kilograms);
+    }
     [[nodiscard]] const std::map<std::string, double>& material_inventory_kg() const noexcept {
         return runtime_.material_inventory_kg();
     }
