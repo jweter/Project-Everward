@@ -374,14 +374,27 @@ before this field existed (`everward_save_data_tests`). See
 `PROJECT_STATUS.md`'s "Planetary gravity and surface contact wired into the
 authoritative tick" section.
 
-**Explicitly not complete:** the probe is still treated as a single point at
-zero clearance against the reference surface rather than the five-sample
-compound hull static-body contact already uses; no Unreal scene, adapter
-telemetry, or player-visible altitude/orbital-context HUD exists yet; and no
-local Product Reality evidence has been recorded. This is parallel-safe
-deterministic simulation-core work behind the existing adapter boundary --
-it does not depend on, and does not claim to complete, the still-pending
-Slice 3/4 contact/damage Product Reality evidence.
+**Explicitly not complete:** no Unreal scene, adapter telemetry, or
+player-visible altitude/orbital-context HUD exists yet; and no local Product
+Reality evidence has been recorded. This is parallel-safe deterministic
+simulation-core work behind the existing adapter boundary -- it does not
+depend on, and does not claim to complete, the still-pending Slice 3/4
+contact/damage Product Reality evidence.
+
+A later follow-on pass closed the single-point caveat above: planetary
+surface contact now sweeps the same five-sample compound hull
+`resolve_static_contacts()` already sweeps against small registered bodies,
+via new `planetary_body.hpp` helpers `sweep_compound_envelope_against_surface()`/
+`resolve_compound_swept_surface_contact()` that reuse
+`compound_contact.hpp`'s existing rotated-local-offset convention and
+"resolve the winning sample, then subtract its offset" pattern rather than
+inventing new sweep math. A wing- or nose-first approach to a planetary
+surface is now stopped by the actual hull sample nearest the ground; the
+three existing composition test cases' expected stopping distances moved
+from exactly the reference surface to 1.60 m above it (the central hull
+sample's radius, the earliest sample to touch a straight-down approach at
+x=y=0). See `PROJECT_STATUS.md`'s "Planetary surface contact sweeps the
+compound hull (Slice 9 follow-up)" section.
 
 A follow-on pass closed a different named gap: a registered planetary body
 and static bodies are now proven to compose correctly in the same tick.

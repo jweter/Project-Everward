@@ -300,6 +300,12 @@ int main() {
     // reference sphere in one fixed step is instead stopped exactly at the
     // surface with its inward velocity removed, the same authoritative
     // resolve_contact() mutation point resolve_static_contacts already uses.
+    // The compound-hull follow-up sweeps all five hull samples, not a zero-
+    // clearance point: for a purely vertical descent at x=y=0, the central
+    // hull sample (local offset {0,0,0}, radius 1.60 m) has the largest
+    // radius among samples whose offset does not push them off-axis, so it
+    // is the first sample to touch and the probe root stops at
+    // 100.0 + 1.60 = 101.6 m instead of exactly on the reference surface.
     {
         ProbeRuntime runtime;
         assert(!runtime.planetary_body().has_value());
@@ -321,7 +327,7 @@ int main() {
         runtime.set_velocity_mps({0.0, 0.0, -200.0});
         runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
 
-        assert(nearly_equal_local(runtime.snapshot().position_m.z, 100.0));
+        assert(nearly_equal_local(runtime.snapshot().position_m.z, 101.6));
         assert(nearly_equal_local(runtime.snapshot().position_m.x, 0.0));
         assert(nearly_equal_local(runtime.snapshot().position_m.y, 0.0));
         assert(nearly_equal_local(runtime.snapshot().velocity_mps.z, 0.0));
@@ -360,7 +366,7 @@ int main() {
         runtime.set_velocity_mps({0.0, 0.0, -400.0});
         runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
 
-        assert(nearly_equal_local(runtime.snapshot().position_m.z, 100.0));
+        assert(nearly_equal_local(runtime.snapshot().position_m.z, 101.6));
         assert(nearly_equal_local(runtime.snapshot().velocity_mps.z, 0.0));
         assert(runtime.snapshot().last_contact_body_id == "test-moon");
     }
@@ -413,7 +419,7 @@ int main() {
         runtime.set_velocity_mps({0.0, 0.0, -400.0});
         runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
 
-        assert(nearly_equal_local(runtime.snapshot().position_m.z, 100.0));
+        assert(nearly_equal_local(runtime.snapshot().position_m.z, 101.6));
         assert(nearly_equal_local(runtime.snapshot().velocity_mps.z, 0.0));
         assert(runtime.snapshot().last_contact_body_id == "test-moon");
         assert(nearly_equal_local(runtime.snapshot().last_contact_normal_speed_mps, 400.0));

@@ -1,9 +1,12 @@
 #pragma once
 
+#include "everward/simulation/compound_contact.hpp"
 #include "everward/simulation/types.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <limits>
 #include <string>
 
 namespace everward::simulation {
@@ -24,6 +27,7 @@ struct SurfaceContactResolution { Vector3d position_m{}; Vector3d velocity_mps{}
 
 enum class SurfaceApproachState { Clear, ControlledDescent, ExcessiveDescentRate, ExcessiveTangentialRate, SurfacePenetration };
 
+[[nodiscard]] inline Vector3d planetary_add(Vector3d a, Vector3d b) noexcept { return {a.x+b.x,a.y+b.y,a.z+b.z}; }
 [[nodiscard]] inline Vector3d planetary_subtract(Vector3d a, Vector3d b) noexcept { return {a.x-b.x,a.y-b.y,a.z-b.z}; }
 [[nodiscard]] inline Vector3d planetary_scale(Vector3d v,double s) noexcept { return {v.x*s,v.y*s,v.z*s}; }
 [[nodiscard]] inline double planetary_dot(Vector3d a,Vector3d b) noexcept { return a.x*b.x+a.y*b.y+a.z*b.z; }
@@ -72,6 +76,131 @@ enum class SurfaceApproachState { Clear, ControlledDescent, ExcessiveDescentRate
     if (normal_speed < 0.0) relative = planetary_subtract(relative, planetary_scale(normal, normal_speed));
     velocity_mps = {body.velocity_mps.x+relative.x,body.velocity_mps.y+relative.y,body.velocity_mps.z+relative.z};
     return {contact, velocity_mps, true, planetary_magnitude(delta) * (1.0 - t)};
+}
+
+// Slice 9 compound-hull follow-up: the counterpart to
+// sweep_compound_probe_against_body (compound_contact.hpp) for a spherical
+// planetary body instead of a small registered StaticSphereBody. Sweeps all
+// five authoritative local-space hull samples (rotated by the probe's
+// current attitude, the same convention resolve_static_contacts already
+// uses) against the reference surface and keeps the earliest genuine hit,
+// so a wing-first or nose-first approach to a planetary surface is now
+// stopped by the actual hull sample nearest the ground rather than treating
+// the probe as a zero-clearance point.
+struct CompoundSurfaceContactCandidate {
+    bool hit{false};
+    std::size_t sample_index{0};
+    double fraction{1.0};
+    Vector3d contact_point_m{};
+    Vector3d normal{};
+};
+
+[[nodiscard]] inline CompoundSurfaceContactCandidate sweep_compound_envelope_against_surface(
+    Vector3d probe_start,
+    Vector3d probe_end,
+    EulerAttitudeDegrees attitude,
+    const ProbeCompoundCollisionEnvelope& envelope,
+    const SphericalPlanetaryBody& body) noexcept {
+    CompoundSurfaceContactCandidate earliest;
+    earliest.fraction = std::numeric_limits<double>::infinity();
+
+    for (std::size_t index = 0; index < envelope.samples.size(); ++index) {
+        const ProbeCollisionSphereSample& sample = envelope.samples[index];
+        const Vector3d offset = rotate_local_contact_offset(sample.local_center_m, attitude);
+        const Vector3d sample_start = planetary_add(probe_start, offset);
+        const Vector3d sample_end = planetary_add(probe_end, offset);
+
+        const double radius = body.radius_m + sample.radius_m;
+        const Vector3d start = planetary_subtract(sample_start, body.center_m);
+        const Vector3d delta = planetary_subtract(sample_end, sample_start);
+        const double a = planetary_dot(delta, delta);
+        const double c = planetary_dot(start, start) - radius * radius;
+
+        double fraction = std::numeric_limits<double>::infinity();
+        Vector3d contact_point{};
+        if (c <= 0.0) {
+            // The sample already starts within the clearance sphere (mirrors
+            // resolve_surface_contact's own overlap branch): only a genuine
+            // contact if the proposed end is *still* under clearance -- a
+            // sample that starts embedded but integrates clear by the end of
+            // this swept segment (e.g. the probe spawned/teleported inside a
+            // huge reference sphere and immediately climbed away) must not be
+            // forced back down to the surface.
+            const Vector3d end_from_center = planetary_subtract(sample_end, body.center_m);
+            if (planetary_dot(end_from_center, end_from_center) < radius * radius) {
+                fraction = 0.0;
+                contact_point = sample_end;
+            }
+        } else if (a > 1e-12) {
+            const double half_b = planetary_dot(start, delta);
+            const double discriminant = half_b * half_b - a * c;
+            if (discriminant >= 0.0) {
+                const double root = (-half_b - std::sqrt(discriminant)) / a;
+                if (root >= 0.0 && root <= 1.0) {
+                    fraction = root;
+                    contact_point = planetary_add(sample_start, planetary_scale(delta, root));
+                }
+            }
+        }
+
+        if (!std::isfinite(fraction) || fraction >= earliest.fraction) {
+            continue;
+        }
+
+        earliest.hit = true;
+        earliest.sample_index = index;
+        earliest.fraction = fraction;
+        earliest.contact_point_m = contact_point;
+        earliest.normal = local_surface_normal(contact_point, body);
+    }
+
+    return earliest;
+}
+
+struct CompoundSurfaceContactResolution {
+    Vector3d resolved_probe_root{};
+    Vector3d surface_point{};
+    Vector3d normal{};
+    Vector3d resolved_velocity{};
+    bool corrected{false};
+};
+
+// Resolves the earliest hull-sample crossing sweep_compound_envelope_against_
+// surface finds into an authoritative probe-root position and velocity, the
+// same "place the winning sample just outside, then subtract its rotated
+// local offset" pattern resolve_compound_contact (compound_contact.hpp)
+// already uses for registered StaticSphereBody contact.
+[[nodiscard]] inline CompoundSurfaceContactResolution resolve_compound_swept_surface_contact(
+    Vector3d probe_start,
+    Vector3d probe_end,
+    Vector3d incoming_velocity,
+    EulerAttitudeDegrees attitude,
+    const ProbeCompoundCollisionEnvelope& envelope,
+    const SphericalPlanetaryBody& body) noexcept {
+    const CompoundSurfaceContactCandidate candidate =
+        sweep_compound_envelope_against_surface(probe_start, probe_end, attitude, envelope, body);
+    if (!candidate.hit) {
+        return {};
+    }
+
+    const ProbeCollisionSphereSample& sample = envelope.samples[candidate.sample_index];
+    const Vector3d offset = rotate_local_contact_offset(sample.local_center_m, attitude);
+
+    Vector3d relative = body_relative_velocity(incoming_velocity, body);
+    const double normal_speed = planetary_dot(relative, candidate.normal);
+    if (normal_speed < 0.0) {
+        relative = planetary_subtract(relative, planetary_scale(candidate.normal, normal_speed));
+    }
+
+    CompoundSurfaceContactResolution resolution;
+    resolution.corrected = true;
+    resolution.normal = candidate.normal;
+    resolution.resolved_velocity = planetary_add(body.velocity_mps, relative);
+    const Vector3d resolved_sample_center = planetary_add(
+        body.center_m, planetary_scale(candidate.normal, body.radius_m + sample.radius_m));
+    resolution.resolved_probe_root = planetary_subtract(resolved_sample_center, offset);
+    resolution.surface_point = planetary_add(body.center_m, planetary_scale(candidate.normal, body.radius_m));
+    return resolution;
 }
 
 [[nodiscard]] inline SurfaceApproachState classify_surface_approach(Vector3d p,Vector3d v,const SphericalPlanetaryBody& b,const ControlledDescentEnvelope& e={}) noexcept { const double a=altitude_above_reference_surface(p,b); if(a<e.minimum_clearance_m) return SurfaceApproachState::SurfacePenetration; const auto m=surface_relative_motion(p,v,b); if(m.vertical_speed_mps<-std::fabs(e.max_descent_speed_mps)) return SurfaceApproachState::ExcessiveDescentRate; if(m.tangential_speed_mps>std::fabs(e.max_tangential_speed_mps)) return SurfaceApproachState::ExcessiveTangentialRate; if(m.vertical_speed_mps<0) return SurfaceApproachState::ControlledDescent; return SurfaceApproachState::Clear; }

@@ -24,6 +24,10 @@ using everward::simulation::local_surface_normal;
 using everward::simulation::orbital_context;
 using everward::simulation::resolve_surface_contact;
 using everward::simulation::surface_relative_motion;
+using everward::simulation::EulerAttitudeDegrees;
+using everward::simulation::ProbeCompoundCollisionEnvelope;
+using everward::simulation::resolve_compound_swept_surface_contact;
+using everward::simulation::sweep_compound_envelope_against_surface;
 
 bool nearly_equal(double a, double b, double epsilon = 1e-6) {
     return std::fabs(a - b) <= epsilon;
@@ -216,6 +220,77 @@ void test_surface_approach_detects_clearance_violation() {
     assert(classify_surface_approach({100.5, 0.0, 0.0}, {0.0, 0.0, 0.0}, body, envelope) == SurfaceApproachState::SurfacePenetration);
 }
 
+// Slice 9 compound-hull follow-up: a straight-down descent at x=y=0 is
+// caught by the central hull sample (local offset {0,0,0}, radius 1.60 m,
+// the largest single-sample radius with no off-axis correction), matching
+// the exact combined-radius arithmetic a zero-clearance point sweep would
+// only get right by accident of that sample's zero offset.
+void test_compound_envelope_sweep_stops_at_central_sample() {
+    const ProbeCompoundCollisionEnvelope envelope{};
+    const SphericalPlanetaryBody moon{"moon", {0.0, 0.0, 0.0}, 100.0, {}, 0.0};
+
+    const auto candidate = sweep_compound_envelope_against_surface(
+        {0.0, 0.0, 200.0}, {0.0, 0.0, 50.0}, EulerAttitudeDegrees{}, envelope, moon);
+    assert(candidate.hit);
+    assert(candidate.sample_index == 1);
+    assert(nearly_equal(candidate.contact_point_m.z, 101.6, 1e-5));
+
+    const auto resolution = resolve_compound_swept_surface_contact(
+        {0.0, 0.0, 200.0}, {0.0, 0.0, 50.0}, {0.0, 0.0, -400.0}, EulerAttitudeDegrees{}, envelope, moon);
+    assert(resolution.corrected);
+    assert(nearly_equal(resolution.resolved_probe_root.z, 101.6, 1e-5));
+    assert(nearly_equal(resolution.surface_point.z, 100.0, 1e-5));
+    assert(std::fabs(resolution.resolved_velocity.z) < 1e-6);
+}
+
+// A lateral pass that never brings the probe's own center hull sample
+// within reach of a small body must still be caught by whichever hull
+// sample actually reaches it -- here the port wing sample (local offset
+// {-0.5, -3.0, 0.0}, radius 1.00 m), which a zero-clearance point sweep
+// (or a sweep that only ever tested the central sample) would miss
+// entirely, letting the wing silently clip through the body.
+void test_compound_envelope_sweep_stops_at_off_center_sample() {
+    const ProbeCompoundCollisionEnvelope envelope{};
+    const SphericalPlanetaryBody body{"small-moon", {0.0, 0.0, 0.0}, 10.0, {}, 0.0};
+
+    const auto candidate = sweep_compound_envelope_against_surface(
+        {50.0, 12.0, 0.0}, {-50.0, 12.0, 0.0}, EulerAttitudeDegrees{}, envelope, body);
+    assert(candidate.hit);
+    assert(candidate.sample_index == 3);
+
+    const auto resolution = resolve_compound_swept_surface_contact(
+        {50.0, 12.0, 0.0}, {-50.0, 12.0, 0.0}, {-100.0, 0.0, 0.0}, EulerAttitudeDegrees{}, envelope, body);
+    assert(resolution.corrected);
+    assert(nearly_equal(resolution.resolved_probe_root.x, 6.824555, 1e-5));
+    assert(nearly_equal(resolution.resolved_probe_root.y, 12.0, 1e-5));
+    // Tangential (Y) speed is preserved; only the inward normal component is
+    // removed, and the normal is not purely radial-from-the-probe -- this
+    // wing sample's own local offset tilts it, so the incoming pure -X
+    // velocity is redirected rather than simply zeroed.
+    assert(resolution.resolved_velocity.x < 0.0);
+    assert(resolution.resolved_velocity.y > 0.0);
+    assert(nearly_equal(
+        resolution.resolved_velocity.x * resolution.resolved_velocity.x +
+            resolution.resolved_velocity.y * resolution.resolved_velocity.y,
+        66.942149 * 66.942149 + 47.042147 * 47.042147,
+        1.0));
+}
+
+// A pass that stays clear of every hull sample's combined radius must not
+// fabricate a contact.
+void test_compound_envelope_sweep_reports_no_hit_when_clear() {
+    const ProbeCompoundCollisionEnvelope envelope{};
+    const SphericalPlanetaryBody body{"far-moon", {0.0, 0.0, 0.0}, 10.0, {}, 0.0};
+
+    const auto candidate = sweep_compound_envelope_against_surface(
+        {50.0, 200.0, 0.0}, {-50.0, 200.0, 0.0}, EulerAttitudeDegrees{}, envelope, body);
+    assert(!candidate.hit);
+
+    const auto resolution = resolve_compound_swept_surface_contact(
+        {50.0, 200.0, 0.0}, {-50.0, 200.0, 0.0}, {-100.0, 0.0, 0.0}, EulerAttitudeDegrees{}, envelope, body);
+    assert(!resolution.corrected);
+}
+
 } // namespace
 
 int main() {
@@ -238,6 +313,9 @@ int main() {
     test_surface_approach_rejects_excessive_descent_rate();
     test_surface_approach_rejects_excessive_tangential_rate();
     test_surface_approach_detects_clearance_violation();
+    test_compound_envelope_sweep_stops_at_central_sample();
+    test_compound_envelope_sweep_stops_at_off_center_sample();
+    test_compound_envelope_sweep_reports_no_hit_when_clear();
 
     std::puts("planetary_body_tests: all tests passed");
     return 0;
