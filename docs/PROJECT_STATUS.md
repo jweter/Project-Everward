@@ -784,6 +784,60 @@ file. See the updated `PHASE2_FIX_IT_PLAYABLE_TEST.md` step 11 and
 `PHASE2_MATERIAL_INVENTORY_TEST.md`'s "explicitly not complete" list for the
 next local Unreal Product Reality pass.
 
+### Named-material atomic consumption boundary (Slice 12 remainder, issue #274)
+
+Issue #274 named the last unclosed piece of Slice 12's `consume`/`use` gap:
+PR #273's `plan_material_consumption()` was a pure read-only planning
+primitive that nothing outside its own tests ever called, and
+`SimulationCore::consume_stored_material_kg(double)` remained the only
+mutation boundary -- material-agnostic, always depleting in deterministic
+ascending `material_id` order regardless of what a caller actually needed.
+This pass adds the named-material mutation boundary the issue asked for,
+without inventing a component-to-material recipe or balance policy that is
+explicitly out of this slice's scope:
+
+- `SimulationCore::consume_stored_material_kg(const std::string& material_id, double kilograms)`
+  is a new overload alongside the existing generic one. It runs the merged
+  `plan_material_consumption()` planner against the live
+  `material_inventory_kg()` breakdown as its sole pre-mutation gate: an
+  absent material, a present-but-insufficient material, or an
+  invalid request (empty id, non-positive kilograms) all fail closed by
+  throwing before any state is touched -- no partial draw, and never a
+  silent substitution from a different material to make up a shortfall,
+  which the existing generic overload's deterministic-order draw would
+  otherwise do;
+- on success it mutates `storage_used_kg` and the named
+  `material_inventory_kg()` entry together, atomically, through the same
+  single authority boundary every other storage mutation already uses,
+  and returns the `{material_id: kilograms}` it actually drew, matching the
+  generic overload's `std::map<material_id, kilograms>` return shape;
+- `ProbeRuntime` (`software_policy.hpp`) and `DamageAwareProbeRuntime`
+  (`impact_damage.hpp`) each gain a matching forwarding overload, so the
+  named-material path sits at the exact same authority boundary the
+  generic overload Fix_It already calls sits at, ready for any consumer
+  that knows exactly which material a use requires.
+
+Fix_It's own repair/replacement draw intentionally keeps calling the
+existing generic overload: neither `FixItComponentPolicy` nor
+`FixItDecision` carries a material_id today, and requiring one would mean
+inventing a component-to-material selection/recipe policy, which issue #274
+explicitly places out of this slice's scope. The named boundary now exists
+and is available the moment such a policy is authorized.
+
+**Status: implemented.** New `simulation_core_tests.cpp` coverage exercises
+success (draws only the named material, leaves other materials/the
+aggregate untouched), insufficient-material (fails closed with zero
+mutation, not a partial draw of what is actually available), wrong-material
+(a different material has capacity, but the requested id does not -- must
+not substitute), invalid-request (empty id fails closed), and
+exact-drain-removes-the-entry parity with the generic overload. All 31
+`src/simulation` ctest suites (Debug and Release) and all 181
+`tools/test_phase2*.py` source-contract tests pass; the full canonical
+preflight passes GREEN at this exact head. This is engine-independent
+`src/simulation` work behind the existing storage authority boundary --
+no Unreal-facing command, HUD row, or gameplay rule changed, so there is no
+new Product Reality debt from this pass.
+
 ### Science knowledge foundation wired into the scan lifecycle (Slice 11)
 
 Issue #215 landed `science_knowledge.hpp` (`TargetKnowledgeState`,

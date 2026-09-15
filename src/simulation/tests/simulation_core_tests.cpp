@@ -1320,6 +1320,76 @@ int main() {
         assert(inventory_core.material_inventory_kg().empty());
     }
 
+    // Named-material consume_stored_material_kg(material_id, kilograms)
+    // (Slice 12 remainder, issue #274): the atomic authoritative boundary a
+    // caller uses when it must draw from one specific material rather than
+    // whatever the generic overload's deterministic ascending-order draw
+    // happens to pick.
+    {
+        SimulationCore named_core;
+        named_core.add_stored_material_kg(5.0, "iron_bearing_silicate_regolith");
+        named_core.add_stored_material_kg(3.0, "carbonaceous_regolith");
+        assert(nearly_equal(named_core.snapshot().storage_used_kg, 8.0));
+
+        // Success: draws only from the named material, leaves the other
+        // material's balance and the aggregate exactly consistent.
+        const auto depleted = named_core.consume_stored_material_kg("iron_bearing_silicate_regolith", 2.0);
+        assert(depleted.size() == 1);
+        assert(nearly_equal(depleted.at("iron_bearing_silicate_regolith"), 2.0));
+        assert(nearly_equal(named_core.snapshot().storage_used_kg, 6.0));
+        assert(nearly_equal(
+            named_core.material_inventory_kg().at("iron_bearing_silicate_regolith"), 3.0));
+        assert(nearly_equal(named_core.material_inventory_kg().at("carbonaceous_regolith"), 3.0));
+
+        // Insufficient: the named material exists but not enough of it. Fails
+        // closed with no mutation at all -- not even a partial draw of the
+        // 3.0 kg that is actually available.
+        bool insufficient_threw = false;
+        try {
+            named_core.consume_stored_material_kg("iron_bearing_silicate_regolith", 100.0);
+        } catch (const std::runtime_error&) {
+            insufficient_threw = true;
+        }
+        assert(insufficient_threw);
+        assert(nearly_equal(named_core.snapshot().storage_used_kg, 6.0));
+        assert(nearly_equal(
+            named_core.material_inventory_kg().at("iron_bearing_silicate_regolith"), 3.0));
+
+        // Wrong material: plenty of total storage exists (via
+        // carbonaceous_regolith), but not under the requested id. Must not
+        // silently substitute a different material to make up the shortfall.
+        bool wrong_material_threw = false;
+        try {
+            named_core.consume_stored_material_kg("raw_regolith", 1.0);
+        } catch (const std::runtime_error&) {
+            wrong_material_threw = true;
+        }
+        assert(wrong_material_threw);
+        assert(nearly_equal(named_core.snapshot().storage_used_kg, 6.0));
+        assert(!named_core.material_inventory_kg().contains("raw_regolith"));
+        assert(nearly_equal(named_core.material_inventory_kg().at("carbonaceous_regolith"), 3.0));
+
+        // Invalid request (empty material id / non-positive kilograms) also
+        // fails closed with no partial mutation.
+        bool invalid_threw = false;
+        try {
+            named_core.consume_stored_material_kg("", 1.0);
+        } catch (const std::invalid_argument&) {
+            invalid_threw = true;
+        }
+        assert(invalid_threw);
+        assert(nearly_equal(named_core.snapshot().storage_used_kg, 6.0));
+
+        // Draining a named material exactly to its available balance removes
+        // its entry entirely, matching the generic overload's behavior, and
+        // leaves the untouched material exactly as it was.
+        const auto exhausted = named_core.consume_stored_material_kg("iron_bearing_silicate_regolith", 3.0);
+        assert(nearly_equal(exhausted.at("iron_bearing_silicate_regolith"), 3.0));
+        assert(!named_core.material_inventory_kg().contains("iron_bearing_silicate_regolith"));
+        assert(nearly_equal(named_core.material_inventory_kg().at("carbonaceous_regolith"), 3.0));
+        assert(nearly_equal(named_core.snapshot().storage_used_kg, 3.0));
+    }
+
     // Slice 9 foundation: with no planetary body registered (the default),
     // advancing ticks must be byte-for-byte identical to every existing
     // deep-space scenario -- gravity is strictly opt-in.
