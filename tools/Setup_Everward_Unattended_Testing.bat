@@ -10,7 +10,8 @@ echo.
 echo This setup will:
 echo   1. prepare the dedicated Everward playtest checkout,
 echo   2. register the 10-minute-idle Windows test worker,
-echo   3. configure repo status reporting when GitHub CLI can authenticate.
+echo   3. configure repo status reporting when GitHub CLI can authenticate,
+echo   4. start the first unattended verification run immediately in the background.
 echo.
 echo After this, routine Everward build/preflight testing should happen
 echo without you launching Unreal or repeating deterministic QA steps.
@@ -74,7 +75,7 @@ if errorlevel 1 (
 
 if not exist "tools\register_unattended_product_reality.ps1" (
     echo ERROR: The passed build does not contain the unattended worker yet.
-    echo Run this setup again after PR #241 is merged and main Foundation is green.
+    echo Run this setup again after the unattended worker is merged and main Foundation is green.
     popd
     goto :failed
 )
@@ -121,13 +122,17 @@ if defined GH_EXE (
     echo       GitHub reporting: LOCAL ONLY ^(GitHub CLI unavailable^).
 )
 
-echo [5/5] Setup complete.
+echo [5/5] Starting the first unattended verification run and completing setup...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%REPO_DIR%\tools\register_unattended_product_reality.ps1" -RepoRoot "%REPO_DIR%" -RunOnceNow
+if errorlevel 1 goto :failed
+
 echo.
 echo ============================================================
 echo   YOU ARE OUT OF THE ROUTINE TEST LOOP
 echo ============================================================
 echo.
-echo Leave the laptop plugged in with the sleep/lid settings you already set.
+echo The first worker run is now running in the background. After that,
+echo leave the laptop plugged in with the sleep/lid settings you already set.
 echo After about 10 minutes of Windows idle time, Everward will automatically:
 echo   - find the latest Foundation-green main commit,
 echo   - update only the dedicated playtest checkout,
