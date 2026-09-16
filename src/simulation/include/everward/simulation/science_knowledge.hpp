@@ -67,6 +67,10 @@ inline void apply_observation(TargetKnowledgeState& state, const ObservationEvid
     if (!std::isfinite(state.confidence) || state.confidence < 0.0 || state.confidence > 1.0) {
         throw std::invalid_argument("existing confidence must be finite and between 0 and 1");
     }
+    if (!std::isfinite(state.best_instrument_resolution) ||
+        state.best_instrument_resolution < 0.0 || state.best_instrument_resolution > 1.0) {
+        throw std::invalid_argument("existing best_instrument_resolution must be finite and between 0 and 1");
+    }
 
     if (evidence.mode == ObservationMode::Passive) {
         state.passive_observation_s += evidence.duration_s;
@@ -78,7 +82,13 @@ inline void apply_observation(TargetKnowledgeState& state, const ObservationEvid
         if (state.level == KnowledgeLevel::Unknown) {
             state.level = KnowledgeLevel::Observed;
         }
-        if (!evidence.classification.empty()) {
+        // A classification is authoritative only when it is at least as well
+        // resolved as the evidence that established the current one. Repeated
+        // lower-resolution scans may add confidence/time, but cannot overwrite
+        // a better-resolved characterization with a contradictory label.
+        if (!evidence.classification.empty() &&
+            (state.classification.empty() ||
+             evidence.instrument_resolution >= state.best_instrument_resolution)) {
             state.classification = evidence.classification;
             state.level = KnowledgeLevel::Characterized;
         }
