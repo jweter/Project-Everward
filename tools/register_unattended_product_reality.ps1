@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$RepoRoot = "",
-    [switch]$ConfirmDedicatedCheckout
+    [switch]$ConfirmDedicatedCheckout,
+    [switch]$RunOnceNow
 )
 
 $ErrorActionPreference = "Stop"
@@ -146,6 +147,18 @@ try {
 }
 finally {
     Remove-Item -Force $TaskXmlPath -ErrorAction SilentlyContinue
+}
+
+# First-time explicit setup should produce evidence immediately instead of leaving the
+# repository status issue empty until Windows happens to become idle. This switch is NOT
+# used by normal playtest/desktop refresh paths, so ordinary launches do not trigger a
+# heavy Unreal build. Task Scheduler starts the already-registered worker asynchronously.
+if ($RunOnceNow) {
+    & schtasks.exe /Run /TN $TaskName | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Windows Task Scheduler registered the worker but could not start the requested first run."
+    }
+    Write-Host "Started the first unattended verification run in the background."
 }
 
 Write-Host "Registered/refreshed Everward unattended Product Reality worker."
