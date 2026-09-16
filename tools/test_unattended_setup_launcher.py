@@ -6,6 +6,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SETUP = ROOT / "tools/Setup_Everward_Unattended_Testing.bat"
+REGISTER = ROOT / "tools/register_unattended_product_reality.ps1"
 
 
 class UnattendedSetupLauncherTests(unittest.TestCase):
@@ -24,6 +25,17 @@ class UnattendedSetupLauncherTests(unittest.TestCase):
         self.assertIn("10 minutes of Windows idle time", source)
         self.assertNotIn("UnrealEditor.exe", source)
         self.assertIn("YOU ARE OUT OF THE ROUTINE TEST LOOP", source)
+
+    def test_explicit_setup_starts_one_background_worker_run(self) -> None:
+        setup = SETUP.read_text(encoding="utf-8")
+        register = REGISTER.read_text(encoding="utf-8")
+        self.assertIn("-RunOnceNow", setup)
+        self.assertIn("[switch]$RunOnceNow", register)
+        self.assertIn("schtasks.exe /Run /TN $TaskName", register)
+        self.assertIn("first worker run is now running in the background", setup)
+        # The on-demand start is opt-in to the explicit setup path; normal
+        # playtest refreshes call the registration script without RunOnceNow.
+        self.assertIn("if ($RunOnceNow)", register)
 
 
 if __name__ == "__main__":
