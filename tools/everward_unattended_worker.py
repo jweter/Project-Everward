@@ -24,6 +24,7 @@ FOUNDATION_WORKFLOW = "foundation.yml"
 SENTINEL_NAME = "everward-unattended-worker"
 MANUAL_LOCK_NAME = "everward-manual-playtest.lock"
 LOCK_NAME = "worker.lock"
+LAST_PASS_MARKER = "last_passed_headless_smoke_commit.txt"
 REPORT_SCHEMA_VERSION = 1
 
 
@@ -372,6 +373,46 @@ def run_unreal_build(repo_root: Path, unreal_root: Path, log_path: Path) -> dict
     }
 
 
+def run_unreal_headless_smoke(
+    repo_root: Path, unreal_root: Path, log_path: Path
+) -> dict[str, Any]:
+    script = repo_root / "tools" / "run_unreal_headless_smoke.ps1"
+    if not script.is_file():
+        return {
+            "status": "REVIEW_REQUIRED",
+            "reason": "tools/run_unreal_headless_smoke.ps1 is missing",
+        }
+    if os.name != "nt":
+        return {"status": "REVIEW_REQUIRED", "reason": "Unreal headless smoke requires Windows"}
+
+    code, duration = run_logged(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script),
+            "-UnrealRoot",
+            str(unreal_root),
+            "-TimeoutSeconds",
+            "120",
+        ],
+        cwd=repo_root,
+        log_path=log_path,
+        timeout_seconds=180.0,
+    )
+    return {
+        "status": "PASS" if code == 0 else "FAIL",
+        "exit_code": code,
+        "duration_seconds": round(duration, 3),
+        "log": str(log_path),
+        "failure_tail": ""
+        if code == 0
+        else log_tail(log_path, repo_root=repo_root, unreal_root=unreal_root),
+    }
+
+
 def acquire_lock(state_dir: Path) -> tuple[int | None, bool]:
     state_dir.mkdir(parents=True, exist_ok=True)
     path = state_dir / LOCK_NAME
@@ -417,9 +458,7 @@ def aggregate_status(checks: dict[str, dict[str, Any]]) -> Status:
 
 def read_last_pass(state_dir: Path) -> str | None:
     try:
-        value = (state_dir / "last_passed_commit.txt").read_text(
-            encoding="ascii"
-        ).strip().lower()
+        value = (state_dir / LAST_PASS_MARKER).read_text(encoding="ascii").strip().lower()
     except OSError:
         return None
     return value if re.fullmatch(r"[0-9a-f]{40}", value) else None
@@ -502,9 +541,9 @@ def run_worker(
         report["tested_commit"] = target
         report["checks"]["cached_exact_commit"] = {
             "status": "PASS",
-            "reason": "This exact Foundation-green commit already passed unattended full preflight and UBT build.",
+            "reason": "This exact Foundation-green commit already passed unattended full preflight, UBT build, and headless Unreal smoke.",
         }
-        report["notes"].append("No rebuild was needed; exact passed commit is unchanged.")
+        report["notes"].append("No rerun was needed; exact fully verified commit is unchanged.")
         report["completed_at_utc"] = utc_now()
         report["result"] = "PASS"
         return report
@@ -539,7 +578,7 @@ def run_worker(
     report["checks"]["full_preflight"] = preflight
     if preflight.get("status") != "PASS":
         report["notes"].append(
-            "UBT build was not attempted because canonical full preflight did not pass."
+            "UBT build and headless smoke were not attempted because canonical full preflight did not pass."
         )
         report["completed_at_utc"] = utc_now()
         report["result"] = aggregate_status(report["checks"])
@@ -559,12 +598,24 @@ def run_worker(
 
     unreal_build = run_unreal_build(repo_root, unreal_root, logs / "unreal-build.log")
     report["checks"]["unreal_editor_build"] = unreal_build
+    if unreal_build.get("status") != "PASS":
+        report["notes"].append(
+            "Headless Unreal smoke was not attempted because the Unreal editor build did not pass."
+        )
+        report["completed_at_utc"] = utc_now()
+        report["result"] = aggregate_status(report["checks"])
+        return report
+
+    headless_smoke = run_unreal_headless_smoke(
+        repo_root, unreal_root, logs / "unreal-headless-smoke.log"
+    )
+    report["checks"]["unreal_headless_smoke"] = headless_smoke
     report["completed_at_utc"] = utc_now()
     report["result"] = aggregate_status(report["checks"])
     if report["result"] == "PASS":
-        (state_dir / "last_passed_commit.txt").write_text(target + "\n", encoding="ascii")
+        (state_dir / LAST_PASS_MARKER).write_text(target + "\n", encoding="ascii")
         report["notes"].append(
-            "Deterministic/headless engineering gates passed. Visual, interaction-feel, and gameplay Product Reality remain human-only."
+            "Deterministic engineering gates and headless map/load smoke passed. Visual, interaction-feel, performance, and gameplay Product Reality remain human-only."
         )
     return report
 

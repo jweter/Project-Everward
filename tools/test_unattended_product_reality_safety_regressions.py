@@ -63,6 +63,27 @@ class UnattendedSafetyRegressionTests(unittest.TestCase):
         sync_body = source.split("def sync_to_target", 1)[1].split("def resolve_unreal_root", 1)[0]
         self.assertLess(sync_body.index("preserve_playtest_evidence"), sync_body.index('git_output(repo_root, "clean", "-fd")'))
 
+    def test_headless_smoke_is_required_before_new_exact_commit_cache(self) -> None:
+        source = WORKER.read_text(encoding="utf-8")
+        self.assertIn('LAST_PASS_MARKER = "last_passed_headless_smoke_commit.txt"', source)
+        self.assertNotIn('(state_dir / "last_passed_commit.txt")', source)
+        self.assertIn("def run_unreal_headless_smoke", source)
+        self.assertIn('"run_unreal_headless_smoke.ps1"', source)
+        self.assertIn('report["checks"]["unreal_headless_smoke"] = headless_smoke', source)
+
+        run_body = source.split("def run_worker", 1)[1].split("def build_parser", 1)[0]
+        build_index = run_body.index("run_unreal_build(")
+        smoke_index = run_body.index("run_unreal_headless_smoke(")
+        marker_index = run_body.index("LAST_PASS_MARKER).write_text")
+        self.assertLess(build_index, smoke_index)
+        self.assertLess(smoke_index, marker_index)
+
+    def test_cached_pass_requires_post_smoke_marker_semantics(self) -> None:
+        source = WORKER.read_text(encoding="utf-8")
+        run_body = source.split("def run_worker", 1)[1].split("def build_parser", 1)[0]
+        self.assertIn("full preflight, UBT build, and headless Unreal smoke", run_body)
+        self.assertIn("read_last_pass(state_dir) == target", run_body)
+
 
 if __name__ == "__main__":
     unittest.main()
