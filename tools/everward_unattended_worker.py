@@ -337,7 +337,7 @@ def run_full_preflight(repo_root: Path, log_path: Path) -> dict[str, Any]:
     script = repo_root / "tools" / "quality_preflight.py"
     if not script.is_file():
         return {"status": "REVIEW_REQUIRED", "reason": "tools/quality_preflight.py is missing"}
-    provisioned_cmake = _provision_cmake_path()
+    _provision_cmake_path()
     code, duration = run_logged(
         [sys.executable, str(script), "--full"],
         cwd=repo_root,
