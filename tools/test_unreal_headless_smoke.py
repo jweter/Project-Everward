@@ -25,6 +25,7 @@ class UnrealHeadlessSmokeTests(unittest.TestCase):
         self.assertIn("RedirectStandardOutput", source)
         self.assertIn("RedirectStandardError", source)
         self.assertIn("stdout: $StdoutPath; stderr: $StderrPath", source)
+        self.assertIn("taskkill.exe /PID $Process.Id /T /F", source)
 
     def test_smoke_does_not_claim_product_reality(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
