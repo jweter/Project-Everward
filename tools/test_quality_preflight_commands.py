@@ -1,0 +1,22 @@
+"""Regression coverage for cross-platform CMake/CTest preflight commands."""
+
+from __future__ import annotations
+
+import unittest
+
+import quality_preflight
+
+
+class QualityPreflightCommandTests(unittest.TestCase):
+    def test_build_and_ctest_bind_same_explicit_configuration(self) -> None:
+        configure, build, test = quality_preflight.SIMULATION_BUILD
+        self.assertIn(f"-DCMAKE_BUILD_TYPE={quality_preflight.SIMULATION_CONFIG}", configure)
+        self.assertEqual(build[build.index("--config") + 1], quality_preflight.SIMULATION_CONFIG)
+        self.assertEqual(test[test.index("-C") + 1], quality_preflight.SIMULATION_CONFIG)
+
+    def test_ctest_keeps_failure_output(self) -> None:
+        self.assertIn("--output-on-failure", quality_preflight.SIMULATION_BUILD[-1])
+
+
+if __name__ == "__main__":
+    unittest.main()
