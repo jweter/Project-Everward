@@ -43,6 +43,8 @@ $StateDir = Join-Path $env:LOCALAPPDATA "Everward\unattended-worker"
 $LogDir = Join-Path $StateDir "logs"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $LogPath = Join-Path $LogDir "headless-smoke-$GitCommit.log"
+$StdoutPath = Join-Path $LogDir "headless-smoke-$GitCommit.stdout.log"
+$StderrPath = Join-Path $LogDir "headless-smoke-$GitCommit.stderr.log"
 
 $Arguments = @(
     "`"$ProjectPath`"",
@@ -56,10 +58,10 @@ $Arguments = @(
     "-log=`"$LogPath`""
 )
 
-$Process = Start-Process -FilePath $EditorCmd -ArgumentList $Arguments -PassThru -WindowStyle Hidden
+$Process = Start-Process -FilePath $EditorCmd -ArgumentList $Arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
 if (-not $Process.WaitForExit($TimeoutSeconds * 1000)) {
     try { Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue } catch {}
-    throw "Headless Unreal smoke timed out after $TimeoutSeconds seconds. Log: $LogPath"
+    throw "Headless Unreal smoke timed out after $TimeoutSeconds seconds. Unreal log: $LogPath; stdout: $StdoutPath; stderr: $StderrPath"
 }
 if ($Process.ExitCode -ne 0) {
     throw "Headless Unreal smoke failed with exit code $($Process.ExitCode). Log: $LogPath"
