@@ -318,10 +318,26 @@ def log_tail(
     )
 
 
+def _provision_cmake_path() -> str | None:
+    if shutil.which("cmake"):
+        return None
+    candidates = [
+        Path(r"C:\Program Files\Microsoft Visual Studio\18\Insiders\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"),
+    ]
+    for candidate in candidates:
+        if (candidate / "cmake.exe").is_file():
+            os.environ["PATH"] = str(candidate) + os.pathsep + os.environ.get("PATH", "")
+            return str(candidate)
+    return None
+
+
 def run_full_preflight(repo_root: Path, log_path: Path) -> dict[str, Any]:
     script = repo_root / "tools" / "quality_preflight.py"
     if not script.is_file():
         return {"status": "REVIEW_REQUIRED", "reason": "tools/quality_preflight.py is missing"}
+    _provision_cmake_path()
     code, duration = run_logged(
         [sys.executable, str(script), "--full"],
         cwd=repo_root,
