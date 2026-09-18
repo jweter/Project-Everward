@@ -88,8 +88,8 @@ PYTHON_TESTS: tuple[Command, ...] = (
 
 SIMULATION_BUILD: tuple[Command, ...] = (
     ("cmake", "-S", "src/simulation", "-B", "build/simulation", "-DCMAKE_BUILD_TYPE=Release"),
-    ("cmake", "--build", "build/simulation", "--parallel", "2"),
-    ("ctest", "--test-dir", "build/simulation", "--output-on-failure"),
+    ("cmake", "--build", "build/simulation", "--config", "Release", "--parallel", "2"),
+    ("ctest", "--test-dir", "build/simulation", "-C", "Release", "--output-on-failure"),
 )
 
 

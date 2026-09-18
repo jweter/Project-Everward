@@ -270,9 +270,11 @@ def resolve_unreal_root(explicit_root: str | None = None) -> Path:
 
 
 def sanitize_text(text: str, *, repo_root: Path, unreal_root: Path | None = None) -> str:
-    replacements = [(str(repo_root), "<REPO_ROOT>"), (str(Path.home()), "%USERPROFILE%")]
+    replacements = [(str(repo_root), "<REPO_ROOT>")]
     if unreal_root is not None:
         replacements.append((str(unreal_root), "<UE_5_8_ROOT>"))
+    # Replace specific roots before home so nested paths retain semantic redaction.
+    replacements.append((str(Path.home()), "%USERPROFILE%"))
     result = text
     for raw, replacement in replacements:
         if raw:
