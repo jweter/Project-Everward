@@ -16,19 +16,80 @@ FOUNDATION_CHECKS: tuple[Command, ...] = (
 
 PYTHON_TESTS: tuple[Command, ...] = (
     (sys.executable, "-m", "unittest", "discover", "-s", "tools", "-p", "test_*.py", "-v"),
-    (sys.executable, "-m", "unittest", "discover", "-s", "prototypes/simulation-clock", "-p", "test_*.py", "-v"),
-    (sys.executable, "-m", "unittest", "discover", "-s", "prototypes/procedural-system", "-p", "test_*.py", "-v"),
-    (sys.executable, "-m", "unittest", "discover", "-s", "prototypes/coordinate-scale", "-p", "test_*.py", "-v"),
-    (sys.executable, "-m", "unittest", "discover", "-s", "prototypes/headless-simulation", "-p", "test_*.py", "-v"),
-    (sys.executable, "-m", "unittest", "discover", "-s", "prototypes/rendering-benchmark", "-p", "test_*.py", "-v"),
-    (sys.executable, "-m", "unittest", "discover", "-s", "prototypes", "-p", "test_*.py", "-t", "prototypes", "-v"),
+    (
+        sys.executable,
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "prototypes/simulation-clock",
+        "-p",
+        "test_*.py",
+        "-v",
+    ),
+    (
+        sys.executable,
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "prototypes/procedural-system",
+        "-p",
+        "test_*.py",
+        "-v",
+    ),
+    (
+        sys.executable,
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "prototypes/coordinate-scale",
+        "-p",
+        "test_*.py",
+        "-v",
+    ),
+    (
+        sys.executable,
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "prototypes/headless-simulation",
+        "-p",
+        "test_*.py",
+        "-v",
+    ),
+    (
+        sys.executable,
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "prototypes/rendering-benchmark",
+        "-p",
+        "test_*.py",
+        "-v",
+    ),
+    (
+        sys.executable,
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "prototypes",
+        "-p",
+        "test_*.py",
+        "-t",
+        "prototypes",
+        "-v",
+    ),
 )
 
-SIMULATION_CONFIG = "Release"
 SIMULATION_BUILD: tuple[Command, ...] = (
-    ("cmake", "-S", "src/simulation", "-B", "build/simulation", f"-DCMAKE_BUILD_TYPE={SIMULATION_CONFIG}"),
-    ("cmake", "--build", "build/simulation", "--config", SIMULATION_CONFIG, "--parallel", "2"),
-    ("ctest", "--test-dir", "build/simulation", "-C", SIMULATION_CONFIG, "--output-on-failure"),
+    ("cmake", "-S", "src/simulation", "-B", "build/simulation", "-DCMAKE_BUILD_TYPE=Release"),
+    ("cmake", "--build", "build/simulation", "--config", "Release", "--parallel", "2"),
+    ("ctest", "--test-dir", "build/simulation", "-C", "Release", "--output-on-failure"),
 )
 
 
@@ -45,8 +106,13 @@ def run(commands: Sequence[Command]) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the fast foundation gate, or full CI-parity simulation validation."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--full", action="store_true", help="Also build/test the C++ simulation core and all Python prototype suites.")
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Also build/test the C++ simulation core and all Python prototype suites.",
+    )
     args = parser.parse_args(argv)
+
     returncode = run(FOUNDATION_CHECKS)
     if returncode != 0 or not args.full:
         return returncode
