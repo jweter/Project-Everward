@@ -61,7 +61,7 @@ if ($LASTEXITCODE -ne 0) {
 
 $ShortCommit = if ($Commit.Length -ge 12) { $Commit.Substring(0, 12) } else { $Commit }
 $Lines = New-Object System.Collections.Generic.List[string]
-$Lines.Add("# Everward unattended Windows worker — latest status")
+$Lines.Add("# Everward unattended Windows worker - latest status")
 $Lines.Add("")
 $Lines.Add("This body is updated by the private Windows test worker. Detailed logs stay on the laptop; this issue receives only a compact sanitized summary.")
 $Lines.Add("")
@@ -91,7 +91,7 @@ foreach ($Name in $CheckNames) {
     if ($null -eq $Property) { continue }
     $Check = $Property.Value
     $Status = [string]$Check.status
-    $Lines.Add("- **$Name:** $Status")
+    $Lines.Add("- **${Name}:** $Status")
 }
 
 $Lines.Add("")
