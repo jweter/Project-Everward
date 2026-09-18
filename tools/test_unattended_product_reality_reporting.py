@@ -45,3 +45,9 @@ class UnattendedProductRealityReportingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_publisher_avoids_encoding_sensitive_punctuation_and_ambiguous_variable_colon():
+    script = (ROOT / "tools" / "publish_unattended_product_reality.ps1").read_text(encoding="utf-8")
+    assert "—" not in script
+    assert '"- **${Name}:** $Status"' in script
