@@ -60,7 +60,7 @@ $Arguments = @(
 
 $Process = Start-Process -FilePath $EditorCmd -ArgumentList $Arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
 if (-not $Process.WaitForExit($TimeoutSeconds * 1000)) {
-    try { Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue } catch {}
+    try { & taskkill.exe /PID $Process.Id /T /F | Out-Null } catch { Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue }
     throw "Headless Unreal smoke timed out after $TimeoutSeconds seconds. Unreal log: $LogPath; stdout: $StdoutPath; stderr: $StderrPath"
 }
 if ($Process.ExitCode -ne 0) {
