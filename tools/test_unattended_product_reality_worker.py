@@ -99,6 +99,12 @@ class UnattendedProductRealityWorkerTests(unittest.TestCase):
         self.assertNotIn("Start-Process", text)
         self.assertNotIn('"-log"', text)
 
+    def test_unreal_build_invokes_build_bat_directly_without_cmd_requoting(self) -> None:
+        text = WORKER_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("subprocess.list2cmdline", text)
+        self.assertNotIn('["cmd.exe", "/d", "/s", "/c"', text)
+        self.assertIn("str(build_bat),", text)
+
     def test_manual_harness_silently_attempts_worker_registration(self) -> None:
         text = HARNESS_PATH.read_text(encoding="utf-8")
         self.assertIn("register_unattended_product_reality.ps1", text)

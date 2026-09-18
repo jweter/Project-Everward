@@ -347,7 +347,7 @@ def run_unreal_build(repo_root: Path, unreal_root: Path, log_path: Path) -> dict
     if os.name != "nt":
         return {"status": "REVIEW_REQUIRED", "reason": "Unreal build lane requires Windows"}
 
-    command_line = subprocess.list2cmdline(
+    code, duration = run_logged(
         [
             str(build_bat),
             "EverwardEditor",
@@ -356,10 +356,7 @@ def run_unreal_build(repo_root: Path, unreal_root: Path, log_path: Path) -> dict
             str(uproject),
             "-WaitMutex",
             "-NoHotReloadFromIDE",
-        ]
-    )
-    code, duration = run_logged(
-        ["cmd.exe", "/d", "/s", "/c", command_line],
+        ],
         cwd=repo_root,
         log_path=log_path,
         timeout_seconds=60.0 * 60.0,
