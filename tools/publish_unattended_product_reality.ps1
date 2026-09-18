@@ -30,6 +30,20 @@ function Write-PublishState {
     } | ConvertTo-Json -Depth 5 | Set-Content -Path $PublishState -Encoding UTF8
 }
 
+function Get-FailureFingerprint {
+    param([object]$Check)
+
+    if ($null -eq $Check -or [string]$Check.status -ne "FAIL") { return "" }
+    $ExitCode = [string]$Check.exit_code
+    $Tail = [string]$Check.failure_tail
+    if ($Tail -match "(?i)timeout") { return "timeout|exit=$ExitCode" }
+    if ($Tail -match "(?i)cmake") { return "cmake|exit=$ExitCode" }
+    if ($Tail -match "(?i)ctest|test failed|tests failed") { return "test|exit=$ExitCode" }
+    if ($Tail -match "(?i)build\.bat|unrealbuildtool|ubt") { return "unreal_build|exit=$ExitCode" }
+    if ($Tail -match "(?i)traceback|error|failed") { return "command_failure|exit=$ExitCode" }
+    return "exit=$ExitCode"
+}
+
 if (-not (Test-Path $Latest -PathType Leaf)) {
     Write-PublishState "LOCAL_ONLY" "No unattended result exists yet." ""
     exit 0
@@ -83,6 +97,7 @@ $CheckNames = @(
     "full_preflight",
     "unreal_5_8",
     "unreal_editor_build",
+    "unreal_headless_smoke",
     "worker_exception"
 )
 
@@ -92,6 +107,10 @@ foreach ($Name in $CheckNames) {
     $Check = $Property.Value
     $Status = [string]$Check.status
     $Lines.Add("- **${Name}:** $Status")
+    $Fingerprint = Get-FailureFingerprint $Check
+    if ($Fingerprint) {
+        $Lines.Add("  - sanitized failure fingerprint: ``$Fingerprint``")
+    }
 }
 
 $Lines.Add("")
@@ -101,7 +120,7 @@ foreach ($Debt in @($Report.human_only_debt)) {
     if ($Debt) { $Lines.Add("- $Debt") }
 }
 $Lines.Add("")
-$Lines.Add("Related implementation: #240. Local detailed evidence remains under `%LOCALAPPDATA%\\Everward\\unattended-worker\\`.")
+$Lines.Add("Related implementation: #240. Local detailed evidence remains under `%LOCALAPPDATA%\\Everward\\unattended-worker\\`. Failure fingerprints contain only allow-listed categories and exit codes; raw local log text and paths are not published.")
 
 $Lines -join "`r`n" | Set-Content -Path $BodyFile -Encoding UTF8
 
