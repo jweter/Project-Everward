@@ -63,6 +63,25 @@ int main() {
         assert(state.classification == "silicate-rich rock");
     }
 
+    // Slice 11 requires repeated/longer observations to improve knowledge.
+    // The observing instrument remains authoritative for confidence gain and
+    // resolution; this state container only accumulates supplied evidence.
+    {
+        auto state = make_unknown_target_knowledge("sample-repeat");
+        apply_observation(state, {ObservationMode::ActiveScan, 2.0, 0.20, 0.35, ""});
+        const auto first_confidence = state.confidence;
+        const auto first_scan_s = state.active_scan_s;
+        assert(state.level == KnowledgeLevel::Observed);
+
+        apply_observation(state, {ObservationMode::ActiveScan, 6.0, 0.30, 0.70, "metal-rich sample"});
+        assert(state.active_scan_s > first_scan_s);
+        assert(state.confidence > first_confidence);
+        assert(state.confidence == 0.50);
+        assert(state.best_instrument_resolution == 0.70);
+        assert(state.level == KnowledgeLevel::Characterized);
+        assert(state.classification == "metal-rich sample");
+    }
+
     {
         auto state = make_unknown_target_knowledge("sample-004");
         apply_observation(state, {ObservationMode::Passive, 1.0, 0.8, 0.3, ""});
