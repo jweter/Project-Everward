@@ -39,7 +39,8 @@ class UnattendedProductRealityReportingTests(unittest.TestCase):
         self.assertIn("auth status", source)
         self.assertIn("issue edit", source)
         self.assertIn("Gameplay/visual Product Reality claimed", source)
-        self.assertNotIn("failure_tail", source)
+        self.assertIn("Get-FailureFingerprint", source)
+        self.assertIn("sanitized failure fingerprint", source)
         self.assertNotIn("repo_root", source)
 
 
