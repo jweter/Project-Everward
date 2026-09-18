@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import importlib.util
 import unittest
+from pathlib import Path
 
-import quality_preflight
+_MODULE_PATH = Path(__file__).with_name("quality_preflight.py")
+_SPEC = importlib.util.spec_from_file_location("everward_quality_preflight", _MODULE_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+quality_preflight = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(quality_preflight)
 
 
 class QualityPreflightCommandTests(unittest.TestCase):
