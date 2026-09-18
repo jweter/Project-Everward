@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKER_PATH = ROOT / "tools" / "everward_unattended_worker.py"
 REGISTER_PATH = ROOT / "tools" / "register_unattended_product_reality.ps1"
+PUBLISH_PATH = ROOT / "tools" / "publish_unattended_product_reality.ps1"
 HARNESS_PATH = ROOT / "tools" / "run_phase2_first_playtest.ps1"
 
 spec = importlib.util.spec_from_file_location("everward_unattended_worker", WORKER_PATH)
@@ -104,6 +105,13 @@ class UnattendedProductRealityWorkerTests(unittest.TestCase):
         self.assertNotIn("subprocess.list2cmdline", text)
         self.assertNotIn('["cmd.exe", "/d", "/s", "/c"', text)
         self.assertIn("str(build_bat),", text)
+
+    def test_publisher_exports_only_sanitized_failure_fingerprint(self) -> None:
+        text = PUBLISH_PATH.read_text(encoding="utf-8")
+        self.assertIn("Get-FailureFingerprint", text)
+        self.assertIn("sanitized failure fingerprint", text)
+        self.assertIn("unreal_headless_smoke", text)
+        self.assertNotIn("$Check.failure_tail)", text)
 
     def test_manual_harness_silently_attempts_worker_registration(self) -> None:
         text = HARNESS_PATH.read_text(encoding="utf-8")
