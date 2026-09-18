@@ -65,6 +65,8 @@
             "cmake",
             "--build",
             "build/control-plane",
+            "--config",
+            "Release",
             "--parallel",
             "2"
           ],
@@ -72,6 +74,8 @@
             "ctest",
             "--test-dir",
             "build/control-plane",
+            "-C",
+            "Release",
             "--output-on-failure"
           ]
         ],
@@ -234,6 +238,8 @@
           "cmake",
           "--build",
           "build/preflight",
+          "--config",
+          "Release",
           "--parallel",
           "2"
         ],
@@ -246,6 +252,8 @@
           "ctest",
           "--test-dir",
           "build/preflight",
+          "-C",
+          "Release",
           "--output-on-failure"
         ],
         "kind": "simulation",
