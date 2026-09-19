@@ -27,6 +27,11 @@ class UnrealHeadlessSmokeTests(unittest.TestCase):
         self.assertIn("stdout: $StdoutPath; stderr: $StderrPath", source)
         self.assertIn("taskkill.exe /PID $Process.Id /T /F", source)
 
+    def test_smoke_uses_deterministic_engine_exit_hook(self) -> None:
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('-TestExit=`"Automation Test Queue Empty`"', source)
+        self.assertNotIn('-ExecCmds=`"quit`"', source)
+
     def test_smoke_does_not_claim_product_reality(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertNotIn("PRODUCT_REALITY_VERIFIED", source)
