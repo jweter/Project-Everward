@@ -13,6 +13,7 @@ namespace {
 using everward::simulation::ComponentIntegritySnapshot;
 using everward::simulation::DamageAwareProbeRuntime;
 using everward::simulation::EulerAttitudeDegrees;
+using everward::simulation::GeneratedRegionRecord;
 using everward::simulation::JsonValue;
 using everward::simulation::ManipulatorArmId;
 using everward::simulation::ManipulatorRig;
@@ -21,12 +22,18 @@ using everward::simulation::PolicyConditionKind;
 using everward::simulation::PowerSubsystem;
 using everward::simulation::ProbeSaveData;
 using everward::simulation::ProbeStateSnapshot;
+using everward::simulation::RegionCoordinate;
+using everward::simulation::RegionEntityModificationRecord;
 using everward::simulation::SaveGameV1;
 using everward::simulation::SaveMigrationResult;
 using everward::simulation::SaveMigrationStep;
 using everward::simulation::apply_ordered_save_migrations;
+using everward::simulation::derive_region_id;
+using everward::simulation::generate_region_baseline;
 using everward::simulation::kSaveFormatVersion;
+using everward::simulation::make_unknown_target_knowledge;
 using everward::simulation::migrate_save_json_to_current;
+using everward::simulation::reconstruct_region_entities;
 using everward::simulation::SimulationCore;
 using everward::simulation::SoftwarePolicy;
 using everward::simulation::SoftwarePolicyRule;
@@ -98,7 +105,7 @@ void test_round_trip_preserves_full_probe_state() {
     const std::string json_text = serialize_save_game(save);
 
     const SaveGameV1 parsed = deserialize_save_game(json_text);
-    assert(parsed.save_version == 1);
+    assert(parsed.save_version == kSaveFormatVersion);
     assert(parsed.simulation_tick == original.tick());
     assert(parsed.probes.size() == 1);
 
@@ -358,10 +365,10 @@ void test_migration_framework_rejects_backward_migration() {
 
 void test_current_save_migration_boundary_is_deterministic_noop() {
     const ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
-    const std::string json_text = serialize_save_game(SaveGameV1{1, 42, 0, 1, {data}});
+    const std::string json_text = serialize_save_game(SaveGameV1{kSaveFormatVersion, 42, 0, 1, {data}});
 
     const SaveMigrationResult migrated = migrate_save_json_to_current(json_text);
-    assert(migrated.source_version == 1);
+    assert(migrated.source_version == kSaveFormatVersion);
     assert(migrated.target_version == kSaveFormatVersion);
     assert(migrated.applied_target_versions.empty());
 
@@ -383,7 +390,8 @@ void test_legacy_save_without_registered_migration_fails_closed() {
 }
 
 void test_unsupported_save_version_fails_closed() {
-    const std::string future_save = R"({"save_version": 2, "simulation_tick": 0, "probes": []})";
+    const std::string future_save =
+        R"({"save_version": )" + std::to_string(kSaveFormatVersion + 1) + R"(, "simulation_tick": 0, "probes": []})";
     bool threw = false;
     try {
         (void)deserialize_save_game(future_save);
@@ -877,7 +885,8 @@ void test_probe_lineage_records_round_trip() {
 void test_legacy_save_without_lineages_field_infers_empty() {
     const ProbeSaveData data =
         capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
-    const JsonValue full = everward::simulation::save_game_to_json(SaveGameV1{1, 0, 1234, 1, {data}});
+    const JsonValue full =
+        everward::simulation::save_game_to_json(SaveGameV1{kSaveFormatVersion, 0, 1234, 1, {data}});
     assert(full.require("lineages").as_array().empty());
 
     // This build's own writer always emits the key; a save missing the key
@@ -959,6 +968,134 @@ void test_lineage_referencing_unpersisted_probe_fails_closed() {
     assert(threw);
 }
 
+void test_generated_region_round_trips_losslessly() {
+    const ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    const RegionCoordinate coordinate{4, -9, 12};
+    const auto baseline = generate_region_baseline(2024, coordinate, 1);
+    assert(baseline.size() >= 2);
+
+    GeneratedRegionRecord region;
+    region.coordinate = coordinate;
+    region.region_id = derive_region_id(coordinate);
+    region.observations.emplace(baseline.at(0).body_id, make_unknown_target_knowledge(baseline.at(0).body_id));
+    region.modifications.push_back(RegionEntityModificationRecord{baseline.at(1).body_id, true, std::nullopt});
+
+    SaveGameV1 source{kSaveFormatVersion, 10, 2024, 1, {data}};
+    source.generated_regions = {region};
+
+    const SaveGameV1 parsed = deserialize_save_game(serialize_save_game(source));
+    assert(parsed.generated_regions.size() == 1);
+    const GeneratedRegionRecord& round_tripped = parsed.generated_regions.at(0);
+    assert(round_tripped.region_id == region.region_id);
+    assert(round_tripped.coordinate.x == coordinate.x);
+    assert(round_tripped.coordinate.y == coordinate.y);
+    assert(round_tripped.coordinate.z == coordinate.z);
+    assert(round_tripped.observations.size() == 1);
+    assert(round_tripped.observations.at(baseline.at(0).body_id).target_id == baseline.at(0).body_id);
+    assert(round_tripped.modifications.size() == 1);
+    assert(round_tripped.modifications.at(0).body_id == baseline.at(1).body_id);
+    assert(round_tripped.modifications.at(0).removed);
+}
+
+void test_generated_region_does_not_serialize_full_baseline() {
+    const ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    const RegionCoordinate coordinate{20, 20, 20};
+    const auto baseline = generate_region_baseline(31415, coordinate, 1);
+    assert(baseline.size() >= 3);
+
+    // Persist only one entity's observation; the rest of the baseline is
+    // left entirely unmentioned, matching docs/SAVE_FORMAT.md's "do not
+    // store a copy of the entire unmodified generated universe" rule.
+    GeneratedRegionRecord region;
+    region.coordinate = coordinate;
+    region.region_id = derive_region_id(coordinate);
+    region.observations.emplace(baseline.at(0).body_id, make_unknown_target_knowledge(baseline.at(0).body_id));
+
+    SaveGameV1 source{kSaveFormatVersion, 0, 31415, 1, {data}};
+    source.generated_regions = {region};
+    const std::string json_text = serialize_save_game(source);
+
+    // The persisted JSON must not mention any of the other baseline
+    // entities' ids -- proving the save carries only the delta, not the
+    // full region -- while regeneration from (seed, coordinate,
+    // algorithm_version) still recovers every one of them.
+    for (std::size_t i = 1; i < baseline.size(); ++i) {
+        assert(json_text.find(baseline.at(i).body_id) == std::string::npos);
+    }
+
+    const SaveGameV1 parsed = deserialize_save_game(json_text);
+    const auto reconstructed = reconstruct_region_entities(31415, 1, parsed.generated_regions.at(0));
+    assert(reconstructed.size() == baseline.size());
+}
+
+void test_legacy_v1_save_migrates_generated_regions_to_v2() {
+    // A genuine save captured before issue #270 existed: no
+    // "generated_regions" key at all, matching exactly what this build's
+    // own pre-#270 writer would have produced.
+    const std::string legacy_v1_save =
+        R"({"save_version":1,"simulation_tick":"0","universe_seed":"5","generation_algorithm_version":1,"probes":[]})";
+
+    const SaveMigrationResult migrated = migrate_save_json_to_current(legacy_v1_save);
+    assert(migrated.source_version == 1);
+    assert(migrated.target_version == kSaveFormatVersion);
+    assert((migrated.applied_target_versions == std::vector<int>{2}));
+
+    const SaveGameV1 parsed = deserialize_save_game(legacy_v1_save);
+    assert(parsed.save_version == kSaveFormatVersion);
+    assert(parsed.generated_regions.empty());
+}
+
+void test_generated_regions_field_required_at_current_version() {
+    const std::string missing_field = R"({"save_version":)" + std::to_string(kSaveFormatVersion) +
+        R"(,"simulation_tick":"0","universe_seed":"1","generation_algorithm_version":1,"probes":[],"lineages":[]})";
+
+    bool threw = false;
+    try {
+        (void)deserialize_save_game(missing_field);
+    } catch (const std::runtime_error& error) {
+        threw = std::string(error.what()).find("missing required field: generated_regions") != std::string::npos;
+    }
+    assert(threw);
+}
+
+void test_generated_region_id_mismatched_with_coordinate_fails_closed() {
+    const ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    GeneratedRegionRecord region;
+    region.coordinate = RegionCoordinate{1, 1, 1};
+    region.region_id = derive_region_id(RegionCoordinate{2, 2, 2}); // Deliberately wrong.
+
+    SaveGameV1 source{kSaveFormatVersion, 0, 1, 1, {data}};
+    source.generated_regions = {region};
+
+    bool threw = false;
+    try {
+        (void)deserialize_save_game(serialize_save_game(source));
+    } catch (const std::runtime_error& error) {
+        threw = std::string(error.what()).find("does not match its own coordinate") != std::string::npos;
+    }
+    assert(threw);
+}
+
+void test_generated_region_unknown_modification_entity_fails_closed() {
+    const ProbeSaveData data = capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    const RegionCoordinate coordinate{30, 30, 30};
+    GeneratedRegionRecord region;
+    region.coordinate = coordinate;
+    region.region_id = derive_region_id(coordinate);
+    region.modifications.push_back(RegionEntityModificationRecord{"fabricated-body-id", true, std::nullopt});
+
+    SaveGameV1 source{kSaveFormatVersion, 0, 1, 1, {data}};
+    source.generated_regions = {region};
+
+    bool threw = false;
+    try {
+        (void)deserialize_save_game(serialize_save_game(source));
+    } catch (const std::runtime_error& error) {
+        threw = std::string(error.what()).find("entity generation would never produce") != std::string::npos;
+    }
+    assert(threw);
+}
+
 } // namespace
 
 int main() {
@@ -996,6 +1133,12 @@ int main() {
     test_legacy_static_body_without_material_id_infers_no_composition();
     test_legacy_static_body_without_sample_mass_kg_infers_not_collectible();
     test_lineage_referencing_unpersisted_probe_fails_closed();
+    test_generated_region_round_trips_losslessly();
+    test_generated_region_does_not_serialize_full_baseline();
+    test_legacy_v1_save_migrates_generated_regions_to_v2();
+    test_generated_regions_field_required_at_current_version();
+    test_generated_region_id_mismatched_with_coordinate_fails_closed();
+    test_generated_region_unknown_modification_entity_fails_closed();
 
     std::puts("save_data_tests: all tests passed");
     return 0;

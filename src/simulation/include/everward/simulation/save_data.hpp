@@ -7,10 +7,10 @@
 // registered physical targets, an installed software policy, target
 // selection, and both manipulator arms' deploy/joint/tool/grasp state). The
 // many other top-level categories docs/SAVE_FORMAT.md anticipates
-// (lineages, infrastructure, civilizations, ...) do not exist in the
-// simulation yet and are therefore not represented here; adding them is a
-// later, explicit schema version rather than something this slice should
-// invent ahead of the mechanics that would give them meaning.
+// (infrastructure, civilizations, ...) do not exist in the simulation yet
+// and are therefore not represented here; adding them is a later, explicit
+// schema version rather than something this slice should invent ahead of
+// the mechanics that would give them meaning.
 //
 // Save data is untrusted input once it leaves this process (a player can
 // hand-edit the human-inspectable JSON), so every read path below fails
@@ -18,7 +18,22 @@
 // field rather than silently substituting a default -- matching
 // docs/SAVE_FORMAT.md's "unknown or unsupported ... fail clearly" rule and
 // this codebase's existing fail-closed conventions.
+//
+// Schema version 2 (issue #270) adds generated_regions: the persisted
+// observation/modification delta for procedurally-identified regions, per
+// generated_region.hpp's LoadedRegion rule. Every prior addition to this
+// schema (planetary_body, material_inventory_kg, target_knowledge,
+// lineages, ...) stayed backward-compatible in place as an absent-tolerant
+// additive v1 field specifically because its absence had one unambiguous,
+// invariant-preserving reading. generated_regions has no such reading --
+// "absent" and "no regions have ever been persisted" happen to coincide
+// today, but the field's own validation (region_id must match its
+// coordinate, every referenced body_id must exist in that region's
+// deterministic baseline) is exactly the kind of new invariant this
+// project's migration framework exists to gate through an explicit version
+// bump rather than silently folding into the v1 parser.
 
+#include "everward/simulation/generated_region.hpp"
 #include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/json_value.hpp"
 #include "everward/simulation/manipulator.hpp"
@@ -37,7 +52,7 @@
 
 namespace everward::simulation {
 
-inline constexpr int kSaveFormatVersion = 1;
+inline constexpr int kSaveFormatVersion = 2;
 
 // A single probe's persisted state. Grouped separately from the top-level
 // SaveGameV1 envelope so it can be captured from / restored onto a
@@ -84,6 +99,14 @@ struct SaveGameV1 {
     // before this field existed, read back as empty rather than requiring a
     // schema migration -- matching material_inventory_kg's precedent above.
     std::vector<ProbeLineageRecord> lineages{};
+    // Schema version 2 field (see this file's header comment): the
+    // persisted observation/modification delta for every procedurally-
+    // identified region a player has actually visited/observed/modified.
+    // Unlike the fields above, a save captured before this field existed is
+    // not read as "empty" implicitly -- it is migrated explicitly by
+    // migrate_v1_generated_regions_to_v2 below, so this field is always
+    // present (possibly empty) by the time save_game_from_json returns.
+    std::vector<GeneratedRegionRecord> generated_regions{};
 };
 
 namespace detail {
@@ -558,6 +581,74 @@ namespace detail {
     return record;
 }
 
+[[nodiscard]] inline JsonValue region_coordinate_to_json(const RegionCoordinate& coordinate) {
+    JsonValue object = JsonValue::make_object();
+    object.set("x", int64_to_json(coordinate.x));
+    object.set("y", int64_to_json(coordinate.y));
+    object.set("z", int64_to_json(coordinate.z));
+    return object;
+}
+
+[[nodiscard]] inline RegionCoordinate region_coordinate_from_json(const JsonValue& value) {
+    RegionCoordinate coordinate;
+    coordinate.x = int64_from_json(value.require("x"));
+    coordinate.y = int64_from_json(value.require("y"));
+    coordinate.z = int64_from_json(value.require("z"));
+    return coordinate;
+}
+
+[[nodiscard]] inline JsonValue region_modification_to_json(const RegionEntityModificationRecord& modification) {
+    JsonValue object = JsonValue::make_object();
+    object.set("body_id", JsonValue(modification.body_id));
+    object.set("removed", JsonValue(modification.removed));
+    object.set(
+        "remaining_sample_mass_kg",
+        modification.remaining_sample_mass_kg.has_value() ? JsonValue(*modification.remaining_sample_mass_kg)
+                                                            : JsonValue());
+    return object;
+}
+
+[[nodiscard]] inline RegionEntityModificationRecord region_modification_from_json(const JsonValue& value) {
+    RegionEntityModificationRecord modification;
+    modification.body_id = value.require("body_id").as_string();
+    modification.removed = value.require("removed").as_bool();
+    const JsonValue& remaining = value.require("remaining_sample_mass_kg");
+    if (!remaining.is_null()) {
+        modification.remaining_sample_mass_kg = remaining.as_double();
+    }
+    return modification;
+}
+
+[[nodiscard]] inline JsonValue generated_region_record_to_json(const GeneratedRegionRecord& region) {
+    JsonValue object = JsonValue::make_object();
+    object.set("region_id", JsonValue(region.region_id));
+    object.set("coordinate", region_coordinate_to_json(region.coordinate));
+    JsonValue observations = JsonValue::make_object();
+    for (const auto& [entity_id, knowledge] : region.observations) {
+        observations.set(entity_id, target_knowledge_state_to_json(knowledge));
+    }
+    object.set("observations", std::move(observations));
+    JsonValue modifications = JsonValue::make_array();
+    for (const auto& modification : region.modifications) {
+        modifications.push_back(region_modification_to_json(modification));
+    }
+    object.set("modifications", std::move(modifications));
+    return object;
+}
+
+[[nodiscard]] inline GeneratedRegionRecord generated_region_record_from_json(const JsonValue& value) {
+    GeneratedRegionRecord region;
+    region.region_id = value.require("region_id").as_string();
+    region.coordinate = region_coordinate_from_json(value.require("coordinate"));
+    for (const auto& [entity_id, knowledge_value] : value.require("observations").as_object()) {
+        region.observations.emplace(entity_id, target_knowledge_state_from_json(knowledge_value));
+    }
+    for (const auto& modification_value : value.require("modifications").as_array()) {
+        region.modifications.push_back(region_modification_from_json(modification_value));
+    }
+    return region;
+}
+
 } // namespace detail
 
 [[nodiscard]] inline JsonValue probe_save_data_to_json(const ProbeSaveData& data) {
@@ -630,6 +721,11 @@ namespace detail {
         lineages.push_back(detail::lineage_record_to_json(record));
     }
     object.set("lineages", std::move(lineages));
+    JsonValue generated_regions = JsonValue::make_array();
+    for (const auto& region : save.generated_regions) {
+        generated_regions.push_back(detail::generated_region_record_to_json(region));
+    }
+    object.set("generated_regions", std::move(generated_regions));
     return object;
 }
 
@@ -680,6 +776,17 @@ namespace detail {
         }
         validate_probe_lineages(save.lineages, probe_ids);
     }
+
+    // Schema version 2 field (see this file's and SaveGameV1's header
+    // comments): always present by this point, since migrate_save_json_to_
+    // current has already run migrate_v1_generated_regions_to_v2 on any
+    // legacy save that lacked it. Required (not absent-tolerant) so a
+    // save_version 2 file that is missing it fails clearly rather than
+    // silently losing region state.
+    for (const auto& region_value : value.require("generated_regions").as_array()) {
+        save.generated_regions.push_back(detail::generated_region_record_from_json(region_value));
+    }
+    validate_generated_regions(save.generated_regions, save.universe_seed, save.generation_algorithm_version);
     return save;
 }
 
@@ -687,11 +794,13 @@ namespace detail {
     return save_game_to_json(save).dump();
 }
 
-// Ordered migration boundary for campaign saves. v1 is the first persisted
-// schema, so the production registry is empty today. The framework below is
-// intentionally real before v2 exists: future schema bumps register explicit,
-// deterministic, contiguous vN -> vN+1 transforms with fixture coverage rather
-// than teaching the normal parser to silently accept historical shapes.
+// Ordered migration boundary for campaign saves. v1 was the first persisted
+// schema, with an empty production registry; v2 (issue #270, see
+// migrate_v1_generated_regions_to_v2 below) is the first schema bump to
+// actually use it. Future schema bumps register their own explicit,
+// deterministic, contiguous vN -> vN+1 transforms with fixture coverage
+// rather than teaching the normal parser to silently accept historical
+// shapes.
 using SaveMigrationTransform = JsonValue (*)(const JsonValue&);
 
 struct SaveMigrationStep {
@@ -782,8 +891,30 @@ struct SaveMigrationResult {
     };
 }
 
+// v1 -> v2 (issue #270): adds generated_regions. A genuine legacy v1 save
+// has no such key at all; inject an empty array rather than requiring one,
+// since no generated-region state could possibly have existed under v1 (the
+// field itself did not exist). Guarded by find() rather than unconditional
+// set() because JsonValue::set() always appends a new key instead of
+// upserting an existing one -- this build's own writer (save_game_to_json)
+// already emits "generated_regions" unconditionally, so a JSON value that
+// happens to already carry the key (never true for a real legacy save, but
+// true of e.g. a test fixture built by re-serializing an in-memory
+// SaveGameV1 that explicitly set save_version back to 1) is left alone
+// rather than gaining a duplicate key.
+[[nodiscard]] inline JsonValue migrate_v1_generated_regions_to_v2(const JsonValue& source) {
+    JsonValue migrated = source;
+    migrated.replace("save_version", JsonValue(static_cast<std::int64_t>(2)));
+    if (migrated.find("generated_regions") == nullptr) {
+        migrated.set("generated_regions", JsonValue::make_array());
+    }
+    return migrated;
+}
+
 [[nodiscard]] inline const std::vector<SaveMigrationStep>& registered_save_migrations() {
-    static const std::vector<SaveMigrationStep> kRegisteredMigrations{};
+    static const std::vector<SaveMigrationStep> kRegisteredMigrations{
+        SaveMigrationStep{1, 2, &migrate_v1_generated_regions_to_v2},
+    };
     return kRegisteredMigrations;
 }
 
