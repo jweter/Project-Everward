@@ -121,3 +121,8 @@ class UnattendedProductRealityWorkerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_unattended_unreal_build_bounds_parallel_actions() -> None:
+    source = WORKER_PATH.read_text(encoding="utf-8")
+    assert '"-MaxParallelActions=2"' in source

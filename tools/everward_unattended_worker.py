@@ -372,6 +372,7 @@ def run_unreal_build(repo_root: Path, unreal_root: Path, log_path: Path) -> dict
             str(uproject),
             "-WaitMutex",
             "-NoHotReloadFromIDE",
+            "-MaxParallelActions=2",
         ],
         cwd=repo_root,
         log_path=log_path,
