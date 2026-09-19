@@ -46,6 +46,10 @@ $LogPath = Join-Path $LogDir "headless-smoke-$GitCommit.log"
 $StdoutPath = Join-Path $LogDir "headless-smoke-$GitCommit.stdout.log"
 $StderrPath = Join-Path $LogDir "headless-smoke-$GitCommit.stderr.log"
 
+# Use the engine's deterministic command-line exit hook rather than an ExecCmds
+# console command. ExecCmds="quit" can be consumed before startup reaches the
+# game loop and has produced non-zero unattended exits on otherwise build-green
+# heads. TestExit validates startup, then requests a clean engine exit.
 $Arguments = @(
     "`"$ProjectPath`"",
     "-game",
@@ -54,7 +58,7 @@ $Arguments = @(
     "-NoSplash",
     "-NoSound",
     "-NoP4",
-    "-ExecCmds=`"quit`"",
+    "-TestExit=`"Automation Test Queue Empty`"",
     "-log=`"$LogPath`""
 )
 
