@@ -57,7 +57,8 @@ class Phase2ManipulatorReleaseSurfaceTests(unittest.TestCase):
         self.assertIn("if (found == bodies.end()) return false;", self.manipulator_release)
 
     def test_runtime_overload_reads_live_authoritative_state_without_caching(self) -> None:
-        self.assertIn("const DamageAwareProbeRuntime& runtime", self.manipulator_release)
+        self.assertIn("DamageAwareProbeRuntime& runtime", self.manipulator_release)
+        self.assertIn("runtime.update_static_sphere_body_velocity(held_id, state.velocity_mps)", self.manipulator_release)
         self.assertIn("runtime.snapshot()", self.manipulator_release)
         self.assertIn("runtime.static_bodies()", self.manipulator_release)
 

@@ -167,8 +167,14 @@ void test_runtime_overload_matches_free_function() {
     runtime.select_target("rock");
     assert(attempt_grasp_selected_target(rig, runtime, ManipulatorArmId::Port));
 
+    runtime.set_velocity_mps({3.0, -2.0, 0.5});
     assert(attempt_release_grasped_target(rig, runtime, ManipulatorArmId::Port));
     assert(rig.arm(ManipulatorArmId::Port).grasped_target_body_id.empty());
+    assert(runtime.static_bodies().size() == 1);
+    const Vector3d released_velocity = runtime.static_bodies().front().velocity_mps;
+    assert(released_velocity.x == 3.0);
+    assert(released_velocity.y == -2.0);
+    assert(released_velocity.z == 0.5);
 }
 
 } // namespace
