@@ -178,7 +178,7 @@ def adapt_invariant_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
 def _adapt_authoritative_evidence(
     evidence: Mapping[str, Any], *, component_name: str, default_label: str
 ) -> dict[str, Any]:
-    commit = _required(evidence, "commit")
+    commit = _required_commit(evidence)
     scenario = _required(evidence, "scenario")
     timestamp = _required(evidence, "timestamp")
     status = _required(evidence, "status")
@@ -242,3 +242,11 @@ def _required(data: Mapping[str, Any], key: str) -> str:
     if not normalized:
         raise ValueError(f"missing required field: {key}")
     return normalized
+
+
+
+def _required_commit(data: Mapping[str, Any]) -> str:
+    commit = _required(data, "commit")
+    if len(commit) != 40 or any(ch not in "0123456789abcdef" for ch in commit):
+        raise ValueError("authoritative commit must be a full 40-character lowercase Git SHA")
+    return commit
