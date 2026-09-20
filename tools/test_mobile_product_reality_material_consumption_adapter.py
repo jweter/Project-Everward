@@ -9,7 +9,7 @@ from mobile_product_reality_adapters import adapt_material_consumption_evidence
 class MaterialConsumptionEvidenceAdapterTests(unittest.TestCase):
     def _renderable_report(self, adapted: dict[str, object]) -> dict[str, object]:
         return {
-            "commit": "abc123",
+            "commit": "a" * 40,
             "scenario": "material-consumption",
             "seed": "42",
             "initial_state": {},
@@ -20,7 +20,7 @@ class MaterialConsumptionEvidenceAdapterTests(unittest.TestCase):
 
     def test_authoritative_material_consumption_evidence_renders_without_reimplementing_state(self) -> None:
         evidence = {
-            "commit": "abc123",
+            "commit": "a" * 40,
             "scenario": "material-consumption",
             "timestamp": "2026-09-14T22:00:00Z",
             "status": "PASS",
@@ -52,7 +52,7 @@ class MaterialConsumptionEvidenceAdapterTests(unittest.TestCase):
 
     def test_product_reality_required_material_evidence_must_name_remaining_debt(self) -> None:
         evidence = {
-            "commit": "abc123",
+            "commit": "a" * 40,
             "scenario": "material-consumption",
             "timestamp": "2026-09-14T22:00:00Z",
             "status": "PRODUCT_REALITY_REQUIRED",
@@ -64,7 +64,7 @@ class MaterialConsumptionEvidenceAdapterTests(unittest.TestCase):
 
     def test_material_evidence_fails_closed_without_authoritative_events(self) -> None:
         evidence = {
-            "commit": "abc123",
+            "commit": "a" * 40,
             "scenario": "material-consumption",
             "timestamp": "2026-09-14T22:00:00Z",
             "status": "PASS",
