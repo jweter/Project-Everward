@@ -1,3 +1,4 @@
+import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -5,15 +6,18 @@ SMOKE = ROOT / "tools" / "run_unreal_headless_smoke.ps1"
 WORKER = ROOT / "tools" / "everward_unattended_worker.py"
 
 
-def test_headless_smoke_enforces_bounded_cold_start_floor() -> None:
-    source = SMOKE.read_text(encoding="utf-8")
-    assert '[int]$TimeoutSeconds = 300' in source
-    assert '$EffectiveTimeoutSeconds = [Math]::Max($TimeoutSeconds, 300)' in source
-    assert '$Process.WaitForExit($EffectiveTimeoutSeconds * 1000)' in source
+class HeadlessSmokeTimeoutContractTests(unittest.TestCase):
+    def test_headless_smoke_enforces_bounded_cold_start_floor(self) -> None:
+        source = SMOKE.read_text(encoding="utf-8")
+        self.assertIn('[int]$TimeoutSeconds = 300', source)
+        self.assertIn('$EffectiveTimeoutSeconds = [Math]::Max($TimeoutSeconds, 300)', source)
+        self.assertIn('$Process.WaitForExit($EffectiveTimeoutSeconds * 1000)', source)
+
+    def test_worker_timeout_exceeds_smoke_floor_with_cleanup_grace(self) -> None:
+        worker = WORKER.read_text(encoding="utf-8")
+        self.assertIn('timeout_seconds=330.0', worker)
+        self.assertNotIn('timeout_seconds=180.0', worker)
 
 
-def test_legacy_worker_timeout_cannot_shorten_cold_start_floor() -> None:
-    worker = WORKER.read_text(encoding="utf-8")
-    smoke = SMOKE.read_text(encoding="utf-8")
-    assert '"-TimeoutSeconds",\n            "120"' in worker
-    assert '[Math]::Max($TimeoutSeconds, 300)' in smoke
+if __name__ == "__main__":
+    unittest.main()
