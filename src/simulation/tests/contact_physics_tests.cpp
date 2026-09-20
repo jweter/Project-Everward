@@ -130,6 +130,82 @@ int main() {
         assert(!has_event(events, DomainEventType::Contact));
     }
 
+    // A registered body's own motion must not be ignored by the swept
+    // contact test: a fast body crossing all the way through a *stationary*
+    // probe within one tick is still caught, not tunnelled through. Before
+    // this fix the sweep tested the probe's own (here zero-length) path
+    // against the body's already-advanced end-of-tick position only, so a
+    // body that started 500 m away on one side and ended 500 m away on the
+    // other side -- passing directly through the probe in between -- was
+    // never detected at all.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(
+            StaticSphereBody{"ram", {-500.0, 0.0, 0.0}, 3.0, "", 0.0, {1000.0, 0.0, 0.0}});
+        // Probe stays at rest; only the registered body moves this tick.
+        (void)runtime.drain_events();
+
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        const auto& state = runtime.snapshot();
+        const auto events = runtime.drain_events();
+
+        assert(state.has_contact_history);
+        assert(state.last_contact_body_id == "ram");
+        assert(has_event(events, DomainEventType::Contact));
+        // Impact speed/relative velocity must come from the body's own
+        // motion (the probe's own absolute velocity is zero throughout).
+        assert(state.last_contact_normal_speed_mps > 900.0);
+        assert(state.last_contact_relative_velocity_mps.x < -900.0);
+        // The resolved probe position stays near where contact actually
+        // happened (close to the origin the stationary probe never left),
+        // not snapped next to the body's eventual resting place 500 m away
+        // on the far side.
+        assert(std::fabs(state.position_m.x) < 50.0);
+    }
+
+    // The companion failure mode the same defect produced: a body that is
+    // *already* touching the probe at the start of a tick and moving
+    // further in must still register as a genuine approach. The stale
+    // implementation classified "already touching, moving away?" using only
+    // the (here zero) probe velocity, so it always read as "moving away"
+    // and silently discarded a real, ongoing collision.
+    {
+        ProbeRuntime runtime;
+        // Exactly touching the aft hull sample (local {-5,0,0}, radius 1.50)
+        // from the -x side: combined radius 1.0 + 1.50 = 2.50.
+        runtime.add_static_sphere_body(
+            StaticSphereBody{"charging", {-7.5, 0.0, 0.0}, 1.0, "", 0.0, {1000.0, 0.0, 0.0}});
+        (void)runtime.drain_events();
+
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        const auto& state = runtime.snapshot();
+        const auto events = runtime.drain_events();
+
+        assert(state.has_contact_history);
+        assert(state.last_contact_body_id == "charging");
+        assert(has_event(events, DomainEventType::Contact));
+        assert(state.last_contact_normal_speed_mps > 900.0);
+        assert(std::fabs(state.position_m.x) < 5.0);
+    }
+
+    // The reverse case proves the fix is not simply "always contact": a
+    // body already touching the probe but pulling directly away faster than
+    // the probe could ever be said to be catching it must not manufacture a
+    // spurious contact. This also has to read the body's own motion, not
+    // just the (here zero) probe velocity, to correctly classify separation.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(
+            StaticSphereBody{"retreating", {-7.5, 0.0, 0.0}, 1.0, "", 0.0, {-1000.0, 0.0, 0.0}});
+        (void)runtime.drain_events();
+
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        const auto events = runtime.drain_events();
+
+        assert(!runtime.snapshot().has_contact_history);
+        assert(!has_event(events, DomainEventType::Contact));
+    }
+
     std::cout << "Physical contact foundation tests passed\n";
     return 0;
 }
