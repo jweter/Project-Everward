@@ -98,6 +98,10 @@ public:
     void advance_wall_ticks(std::int64_t wall_ticks) {
         const Vector3d start_position = core_.snapshot().position_m;
         core_.advance_wall_ticks(wall_ticks);
+        const double elapsed_seconds = static_cast<double>(wall_ticks) / static_cast<double>(SimulationClock::TicksPerSecond);
+        for (StaticSphereBody& body : static_bodies_) {
+            body.center_m = contact_add(body.center_m, contact_scale(body.velocity_mps, elapsed_seconds));
+        }
         // Captured after integration (so it reflects this tick's gravity/
         // thrust) but before resolve_static_contacts can zero it against a
         // body that turns out not to be the true earliest contact. See

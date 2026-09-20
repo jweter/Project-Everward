@@ -952,6 +952,20 @@ void test_legacy_static_body_without_sample_mass_kg_infers_not_collectible() {
     assert(nearly_equal(restored.sample_mass_kg, 0.0));
 }
 
+void test_static_body_velocity_round_trips_and_legacy_defaults_to_rest() {
+    using everward::simulation::detail::static_body_from_json;
+    using everward::simulation::detail::static_body_to_json;
+    StaticSphereBody body{"rock", Vector3d{1.0, 2.0, 3.0}, 1.5};
+    body.velocity_mps = {4.0, -5.0, 0.25};
+    const JsonValue full = static_body_to_json(body);
+    const StaticSphereBody restored = static_body_from_json(full);
+    assert(restored.velocity_mps.x == 4.0 && restored.velocity_mps.y == -5.0 && restored.velocity_mps.z == 0.25);
+    JsonValue legacy = JsonValue::make_object();
+    for (const auto& [key, field] : full.as_object()) if (key != "velocity_mps") legacy.set(key, field);
+    const StaticSphereBody legacy_restored = static_body_from_json(legacy);
+    assert(legacy_restored.velocity_mps.x == 0.0 && legacy_restored.velocity_mps.y == 0.0 && legacy_restored.velocity_mps.z == 0.0);
+}
+
 void test_lineage_referencing_unpersisted_probe_fails_closed() {
     const ProbeSaveData data =
         capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
@@ -1132,6 +1146,7 @@ int main() {
     test_legacy_save_without_lineages_field_infers_empty();
     test_legacy_static_body_without_material_id_infers_no_composition();
     test_legacy_static_body_without_sample_mass_kg_infers_not_collectible();
+    test_static_body_velocity_round_trips_and_legacy_defaults_to_rest();
     test_lineage_referencing_unpersisted_probe_fails_closed();
     test_generated_region_round_trips_losslessly();
     test_generated_region_does_not_serialize_full_baseline();

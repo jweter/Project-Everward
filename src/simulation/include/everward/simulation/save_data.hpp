@@ -223,6 +223,7 @@ namespace detail {
     object.set("radius_m", JsonValue(body.radius_m));
     object.set("material_id", JsonValue(body.material_id));
     object.set("sample_mass_kg", JsonValue(body.sample_mass_kg));
+    object.set("velocity_mps", vector3d_to_json(body.velocity_mps));
     return object;
 }
 
@@ -245,6 +246,9 @@ namespace detail {
     // schema migration required.
     if (const JsonValue* sample_mass_kg = value.find("sample_mass_kg")) {
         body.sample_mass_kg = sample_mass_kg->as_double();
+    }
+    if (const JsonValue* velocity_mps = value.find("velocity_mps")) {
+        body.velocity_mps = vector3d_from_json(*velocity_mps);
     }
     return body;
 }

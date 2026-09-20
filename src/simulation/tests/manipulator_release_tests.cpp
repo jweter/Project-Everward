@@ -175,6 +175,12 @@ void test_runtime_overload_matches_free_function() {
     assert(released_velocity.x == 3.0);
     assert(released_velocity.y == -2.0);
     assert(released_velocity.z == 0.5);
+    const Vector3d release_position = runtime.static_bodies().front().center_m;
+    runtime.advance_wall_ticks(everward::simulation::SimulationClock::TicksPerSecond);
+    const Vector3d advanced_position = runtime.static_bodies().front().center_m;
+    assert(advanced_position.x == release_position.x + 3.0);
+    assert(advanced_position.y == release_position.y - 2.0);
+    assert(advanced_position.z == release_position.z + 0.5);
 }
 
 } // namespace
