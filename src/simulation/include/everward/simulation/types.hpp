@@ -43,6 +43,8 @@ struct StaticSphereBody {
     // reference/navigation body or an ordinary mining deposit target, neither
     // of which are meant to be picked up and stowed in one action.
     double sample_mass_kg{0.0};
+    // Authoritative inertial velocity for movable registered bodies; reference bodies default to rest.
+    Vector3d velocity_mps{};
 };
 
 // Authoritative local-space contact samples for the Prime Generation-1 body.

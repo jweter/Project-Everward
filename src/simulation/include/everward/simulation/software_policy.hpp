@@ -200,6 +200,17 @@ public:
         found->center_m = new_center_m;
     }
 
+    void update_static_sphere_body_velocity(const std::string& body_id, Vector3d new_velocity_mps) {
+        if (!finite_vector(new_velocity_mps)) {
+            throw std::invalid_argument("physical body velocity must be finite");
+        }
+        const auto found = std::find_if(
+            static_bodies_.begin(), static_bodies_.end(),
+            [&body_id](const StaticSphereBody& existing) { return existing.body_id == body_id; });
+        if (found == static_bodies_.end()) return;
+        found->velocity_mps = new_velocity_mps;
+    }
+
     void set_velocity_mps(Vector3d velocity) { core_.set_velocity_mps(velocity); }
     void adjust_attitude_degrees(EulerAttitudeDegrees delta) {
         core_.adjust_attitude_degrees(delta);

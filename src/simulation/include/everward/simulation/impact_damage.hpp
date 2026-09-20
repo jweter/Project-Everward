@@ -384,6 +384,9 @@ public:
     void update_static_sphere_body_position(const std::string& body_id, Vector3d new_center_m) {
         runtime_.update_static_sphere_body_position(body_id, new_center_m);
     }
+    void update_static_sphere_body_velocity(const std::string& body_id, Vector3d new_velocity_mps) {
+        runtime_.update_static_sphere_body_velocity(body_id, new_velocity_mps);
+    }
 
     void set_planetary_body(SphericalPlanetaryBody body) { runtime_.set_planetary_body(std::move(body)); }
     void clear_planetary_body() noexcept { runtime_.clear_planetary_body(); }

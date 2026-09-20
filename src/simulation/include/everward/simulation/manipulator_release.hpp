@@ -122,11 +122,19 @@ namespace everward::simulation {
 // first.
 [[nodiscard]] inline bool attempt_release_grasped_target(
     ManipulatorRig& rig,
-    const DamageAwareProbeRuntime& runtime,
+    DamageAwareProbeRuntime& runtime,
     ManipulatorArmId id) {
     const ProbeStateSnapshot& state = runtime.snapshot();
-    return attempt_release_grasped_target(
+    const std::string held_id = rig.arm(id).grasped_target_body_id;
+    const bool released = attempt_release_grasped_target(
         rig, id, ProbeWorldPose{state.position_m, state.attitude_degrees}, runtime.static_bodies());
+    if (released && !held_id.empty()) {
+        // A released body inherits the carrier probe's inertial velocity rather than
+        // becoming magically stationary in world space. Arm-relative throw velocity
+        // remains future scope; this preserves the minimum physically coherent release.
+        runtime.update_static_sphere_body_velocity(held_id, state.velocity_mps);
+    }
+    return released;
 }
 
 } // namespace everward::simulation
