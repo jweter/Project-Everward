@@ -33,7 +33,14 @@ function Write-PublishState {
 function Get-FailureFingerprint {
     param([object]$Check)
 
-    if ($null -eq $Check -or [string]$Check.status -ne "FAIL") { return "" }
+    if ($null -eq $Check) { return "" }
+    $Status = [string]$Check.status
+    if ($Status -eq "REVIEW_REQUIRED") {
+        $Reason = [string]$Check.reason
+        if ($Reason -match "^([A-Za-z]+Error):") { return "worker_exception|type=$($Matches[1])" }
+        return "review_required"
+    }
+    if ($Status -ne "FAIL") { return "" }
     $ExitCode = [string]$Check.exit_code
     $Tail = [string]$Check.failure_tail
     if ($Tail -match "(?i)timeout") { return "timeout|exit=$ExitCode" }
