@@ -38,10 +38,9 @@ namespace everward::simulation {
 // hull's spheres rather than inventing a second formula.
 //
 // A "place"/"drop toward a target location" mechanic, automatic hand-off
-// into the mining/storage flow, and released-object velocity/momentum still
-// have no consequence beyond these two overlap checks -- that stays
-// intentionally out of scope, matching PHASE2_MANIPULATOR_MOVE_TEST.md's
-// "explicitly not complete" list.
+// into the mining/storage flow, and arm-relative throw velocity remain out of scope.
+// Successful release now preserves the carrier probe's inertial velocity so the
+// body does not become artificially stationary in world space.
 //
 // The held body's position/radius are read directly from the already-
 // authoritative registered-body list (kept current every tick by
