@@ -99,7 +99,14 @@ public:
         const Vector3d start_position = core_.snapshot().position_m;
         core_.advance_wall_ticks(wall_ticks);
         const double elapsed_seconds = static_cast<double>(wall_ticks) / static_cast<double>(SimulationClock::TicksPerSecond);
+        // Captured before each body is advanced by its own velocity, so
+        // resolve_static_contacts can sweep the probe against a body's true
+        // motion during this tick instead of only its already-moved final
+        // position. See that method's comment for why this matters.
+        std::vector<Vector3d> body_start_positions;
+        body_start_positions.reserve(static_bodies_.size());
         for (StaticSphereBody& body : static_bodies_) {
+            body_start_positions.push_back(body.center_m);
             body.center_m = contact_add(body.center_m, contact_scale(body.velocity_mps, elapsed_seconds));
         }
         // Captured after integration (so it reflects this tick's gravity/
@@ -107,7 +114,7 @@ public:
         // body that turns out not to be the true earliest contact. See
         // resolve_planetary_surface_contact's comment for why this matters.
         const Vector3d integrated_velocity = core_.snapshot().velocity_mps;
-        resolve_static_contacts(start_position);
+        resolve_static_contacts(start_position, body_start_positions);
         resolve_planetary_surface_contact(start_position, integrated_velocity);
         evaluate_policy();
         reveal_full_confidence_target_classifications();
@@ -371,23 +378,46 @@ private:
     // retired single-sphere sweep: a long probe with wing samples can now be
     // touched by its nose or a wing tip instead of an oversized center
     // sphere reporting contact in visibly empty space around the hull.
+    //
+    // A registered body may itself be moving (StaticSphereBody::velocity_mps,
+    // added by the released-object-momentum slice). body_start_center is
+    // that body's position at the *start* of this tick (before
+    // advance_wall_ticks's own per-tick integration moved it to body's
+    // current, already-advanced center_m). The probe/body pair is swept in
+    // the body's rest frame -- body held fixed at body_start_center, probe
+    // given the pair's *relative* displacement -- which is exact for
+    // constant-velocity motion within one fixed step and is the standard
+    // way to avoid two moving objects tunnelling through each other: without
+    // it, a fast body crossing a stationary probe is tested only against
+    // its already-moved final position and can cross the probe's swept path
+    // entirely undetected, or a body moving away from the probe can read as
+    // an approach because only the probe's own absolute velocity was
+    // consulted. See resolve_static_contacts below for why resolution still
+    // uses the body's true (current) position once a hit is found.
     [[nodiscard]] bool sweep_probe_against_body(
         Vector3d start,
         Vector3d end,
         EulerAttitudeDegrees attitude,
         const StaticSphereBody& body,
+        Vector3d body_start_center,
         ContactCandidate& candidate) const noexcept {
+        const Vector3d body_delta = contact_subtract(body.center_m, body_start_center);
+        const Vector3d relative_end = contact_subtract(end, body_delta);
+        StaticSphereBody rest_frame_body = body;
+        rest_frame_body.center_m = body_start_center;
+
         const CompoundContactCandidate hit = sweep_compound_probe_against_body(
-            start, end, attitude, core_.snapshot().compound_collision_envelope, body);
+            start, relative_end, attitude, core_.snapshot().compound_collision_envelope, rest_frame_body);
         if (!hit.hit) {
             return false;
         }
 
-        const double inward_normal_speed =
-            std::max(0.0, -dot(core_.snapshot().velocity_mps, hit.normal));
+        const Vector3d relative_velocity = contact_subtract(core_.snapshot().velocity_mps, body.velocity_mps);
+        const double inward_normal_speed = std::max(0.0, -dot(relative_velocity, hit.normal));
 
-        // If we begin touching/overlapping but are already moving away, do not
-        // manufacture another contact event or pin the probe to the surface.
+        // If we begin touching/overlapping but are already moving apart
+        // (relative to the body's own motion), do not manufacture another
+        // contact event or pin the probe to the surface.
         if (hit.fraction == 0.0 && inward_normal_speed <= 1e-9) {
             return false;
         }
@@ -397,7 +427,7 @@ private:
         return true;
     }
 
-    void resolve_static_contacts(Vector3d start_position) {
+    void resolve_static_contacts(Vector3d start_position, const std::vector<Vector3d>& body_start_positions) {
         if (static_bodies_.empty()) {
             return;
         }
@@ -408,12 +438,16 @@ private:
 
         ContactCandidate earliest;
         earliest.sample_hit.fraction = std::numeric_limits<double>::infinity();
+        std::size_t earliest_index = 0;
 
-        for (const StaticSphereBody& body : static_bodies_) {
+        for (std::size_t index = 0; index < static_bodies_.size(); ++index) {
+            const StaticSphereBody& body = static_bodies_[index];
             ContactCandidate candidate;
-            if (sweep_probe_against_body(start_position, integrated_end, attitude, body, candidate) &&
+            if (sweep_probe_against_body(
+                    start_position, integrated_end, attitude, body, body_start_positions[index], candidate) &&
                 candidate.sample_hit.fraction < earliest.sample_hit.fraction) {
                 earliest = candidate;
+                earliest_index = index;
             }
         }
 
@@ -421,19 +455,49 @@ private:
             return;
         }
 
-        const Vector3d incoming_velocity = state.velocity_mps;
+        // The probe's own post-contact velocity must be deflected from its
+        // true absolute velocity (resolve_compound_contact's
+        // resolved_velocity becomes the probe's actual world velocity via
+        // core_.resolve_contact below) -- but the *reported* relative
+        // velocity/impact speed a moving body produces must subtract the
+        // body's own motion first, exactly like
+        // resolve_planetary_surface_contact already does for a moving
+        // planetary body. A stationary body (velocity_mps == {}) makes both
+        // identical to the pre-existing behavior.
+        const Vector3d absolute_incoming_velocity = state.velocity_mps;
+        const Vector3d relative_velocity = contact_subtract(absolute_incoming_velocity, earliest.body->velocity_mps);
+        const double normal_speed_mps = std::max(0.0, -dot(relative_velocity, earliest.sample_hit.normal));
+
+        // resolve_compound_contact places the resolved probe position
+        // relative to whatever body center it is given. earliest.body->
+        // center_m is that body's already-advanced end-of-tick position
+        // (see advance_wall_ticks), which for a fast-moving body can be far
+        // from where the contact actually happened within this tick -- using
+        // it directly would snap the probe next to the body's eventual
+        // resting place instead of the true contact point. Interpolate the
+        // body's own straight-line motion by the same fraction the sweep
+        // found instead; for a stationary body (the pre-existing case)
+        // body_start_positions[earliest_index] == earliest.body->center_m,
+        // so this is exactly the previous behavior.
+        StaticSphereBody body_at_contact = *earliest.body;
+        body_at_contact.center_m = contact_add(
+            body_start_positions[earliest_index],
+            contact_scale(
+                contact_subtract(earliest.body->center_m, body_start_positions[earliest_index]),
+                earliest.sample_hit.fraction));
+
         const ProbeCollisionSphereSample& sample =
             state.compound_collision_envelope.samples[earliest.sample_hit.sample_index];
         const CompoundContactResolution resolution = resolve_compound_contact(
-            earliest.sample_hit, attitude, sample, *earliest.body, incoming_velocity);
+            earliest.sample_hit, attitude, sample, body_at_contact, absolute_incoming_velocity);
 
         core_.resolve_contact(
             earliest.body->body_id,
             resolution.resolved_probe_root,
             resolution.surface_point,
             earliest.sample_hit.normal,
-            incoming_velocity,
-            resolution.normal_speed_mps,
+            relative_velocity,
+            normal_speed_mps,
             resolution.resolved_velocity);
     }
 
