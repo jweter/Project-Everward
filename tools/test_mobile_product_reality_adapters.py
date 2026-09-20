@@ -292,3 +292,21 @@ class MobileProductRealityAdapterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MobileEvidenceCommitIdentityTests(unittest.TestCase):
+    def test_short_commit_identity_fails_closed(self) -> None:
+        evidence = {
+            "commit": "deadbeef", "scenario": "save-load", "timestamp": "2026-09-20T00:00:00Z",
+            "status": "PASS", "events": [],
+        }
+        with self.assertRaisesRegex(ValueError, "full 40-character"):
+            adapt_persistence_evidence(evidence)
+
+    def test_full_commit_identity_is_preserved(self) -> None:
+        evidence = {
+            "commit": COMMIT, "scenario": "save-load", "timestamp": "2026-09-20T00:00:00Z",
+            "status": "PASS", "events": [],
+        }
+        adapted = adapt_persistence_evidence(evidence)
+        self.assertEqual(adapted["components"]["Save/Load"]["commit"], COMMIT)
