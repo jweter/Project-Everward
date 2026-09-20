@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$UnrealRoot = "",
-    [int]$TimeoutSeconds = 120
+    [int]$TimeoutSeconds = 300
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,10 +46,9 @@ $LogPath = Join-Path $LogDir "headless-smoke-$GitCommit.log"
 $StdoutPath = Join-Path $LogDir "headless-smoke-$GitCommit.stdout.log"
 $StderrPath = Join-Path $LogDir "headless-smoke-$GitCommit.stderr.log"
 
-# Use the engine's deterministic command-line exit hook rather than an ExecCmds
-# console command. ExecCmds="quit" can be consumed before startup reaches the
-# game loop and has produced non-zero unattended exits on otherwise build-green
-# heads. TestExit validates startup, then requests a clean engine exit.
+# Cold Unreal starts on the low-spec unattended machine can spend several minutes
+# loading modules before the game loop is ready. Keep the smoke bounded, but give
+# startup enough time to reach the deterministic TestExit hook.
 $Arguments = @(
     "`"$ProjectPath`"",
     "-game",
