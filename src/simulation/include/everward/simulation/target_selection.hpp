@@ -37,7 +37,7 @@ struct TargetRangeTelemetry {
     const double distance = std::sqrt(contact_dot(to_body, to_body));
     if (distance <= 1e-9) return 0.0;
     const Vector3d unit_to_body = contact_scale(to_body, 1.0 / distance);
-    return contact_dot(point_velocity_mps, unit_to_body);
+    return contact_dot(contact_subtract(point_velocity_mps, body.velocity_mps), unit_to_body);
 }
 
 [[nodiscard]] inline std::optional<TargetRangeTelemetry> find_nearest_selectable_target(Vector3d probe_position_m, const std::vector<StaticSphereBody>& bodies, double max_selection_range_m) noexcept {
