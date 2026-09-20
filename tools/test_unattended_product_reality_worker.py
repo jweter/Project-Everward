@@ -113,6 +113,12 @@ class UnattendedProductRealityWorkerTests(unittest.TestCase):
         self.assertIn("unreal_headless_smoke", text)
         self.assertNotIn("$Check.failure_tail)", text)
 
+    def test_publisher_fingerprints_review_required_worker_exception_type(self) -> None:
+        text = PUBLISH_PATH.read_text(encoding="utf-8")
+        self.assertIn('$Status -eq "REVIEW_REQUIRED"', text)
+        self.assertIn('worker_exception|type=$($Matches[1])', text)
+        self.assertIn('return "review_required"', text)
+
     def test_manual_harness_silently_attempts_worker_registration(self) -> None:
         text = HARNESS_PATH.read_text(encoding="utf-8")
         self.assertIn("register_unattended_product_reality.ps1", text)
