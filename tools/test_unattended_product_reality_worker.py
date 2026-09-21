@@ -4,6 +4,7 @@ import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER_PATH = ROOT / "tools" / "everward_unattended_worker.py"
@@ -41,6 +42,12 @@ class UnattendedProductRealityWorkerTests(unittest.TestCase):
             (repo / ".git").mkdir()
             with self.assertRaisesRegex(RuntimeError, "sentinel is missing"):
                 worker.validate_dedicated_checkout(repo)
+
+    def test_commandlet_process_blocks_worker_checkout_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp, mock.patch.object(
+            worker, "process_running", side_effect=lambda name: name == "UnrealEditor-Cmd.exe"
+        ), mock.patch.object(worker, "unreal_build_running", return_value=False):
+            self.assertTrue(worker.manual_playtest_active(Path(temp)))
 
     def test_explicit_unreal_root_is_discovered_from_required_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -105,6 +112,13 @@ class UnattendedProductRealityWorkerTests(unittest.TestCase):
         self.assertNotIn("subprocess.list2cmdline", text)
         self.assertNotIn('["cmd.exe", "/d", "/s", "/c"', text)
         self.assertIn("str(build_bat),", text)
+
+    def test_logged_timeout_owns_and_kills_the_child_process_tree(self) -> None:
+        text = WORKER_PATH.read_text(encoding="utf-8")
+        self.assertIn("subprocess.Popen(", text)
+        self.assertIn("subprocess.CREATE_NEW_PROCESS_GROUP", text)
+        self.assertIn('["taskkill.exe", "/PID", str(proc.pid), "/T", "/F"]', text)
+        self.assertIn("proc.wait(timeout=10.0)", text)
 
     def test_publisher_exports_only_sanitized_failure_fingerprint(self) -> None:
         text = PUBLISH_PATH.read_text(encoding="utf-8")

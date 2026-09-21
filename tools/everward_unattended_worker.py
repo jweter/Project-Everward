@@ -174,7 +174,11 @@ def manual_playtest_active(repo_root: Path) -> bool:
             lock.unlink()
         except OSError:
             return True
-    return process_running("UnrealEditor.exe") or unreal_build_running()
+    return (
+        process_running("UnrealEditor.exe")
+        or process_running("UnrealEditor-Cmd.exe")
+        or unreal_build_running()
+    )
 
 
 def preserve_playtest_evidence(repo_root: Path, state_dir: Path) -> Path | None:
@@ -289,18 +293,35 @@ def run_logged(
     log_path.parent.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     with log_path.open("w", encoding="utf-8", errors="replace") as handle:
+        proc = subprocess.Popen(
+            args,
+            cwd=str(cwd),
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+            text=True,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
+        )
         try:
-            proc = subprocess.run(
-                args,
-                cwd=str(cwd),
-                check=False,
-                stdout=handle,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=timeout_seconds,
-            )
-            code = int(proc.returncode)
+            code = int(proc.wait(timeout=timeout_seconds))
         except subprocess.TimeoutExpired:
+            if os.name == "nt":
+                try:
+                    subprocess.run(
+                        ["taskkill.exe", "/PID", str(proc.pid), "/T", "/F"],
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                        timeout=30.0,
+                    )
+                except (OSError, subprocess.SubprocessError):
+                    proc.kill()
+            else:
+                proc.kill()
+            try:
+                proc.wait(timeout=10.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
             handle.write(f"\nTIMEOUT after {timeout_seconds:.0f} seconds\n")
             code = 124
     return code, time.monotonic() - started
