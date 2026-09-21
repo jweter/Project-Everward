@@ -98,6 +98,29 @@ class Phase2ManipulatorCollectionSurfaceTests(unittest.TestCase):
         self.assertIn("bSampleTargetCollected = true;", self.environment_cpp)
         self.assertIn("SampleTargetMesh->SetVisibility(false);", self.environment_cpp)
 
+    def test_environment_registers_a_second_manipulator_collectible_sample_body(self) -> None:
+        # PHASE2_VERTICAL_SLICE_PLAN.md's Slice 12 status and
+        # PHASE2_MANIPULATOR_COLLECTION_TEST.md's "explicitly not complete"
+        # list both named "only one sampleable body exists in the test
+        # scene; a richer variety of sample types/materials is future
+        # scope" -- this is that follow-up, using the exact same generic
+        # attempt_collect_grasped_target()/CommandCollectGraspedTarget path
+        # SAMPLE-001 already established (no new mechanic).
+        self.assertIn("SampleTarget2Id = TEXT(\"phase2-test-target-005\")", self.environment_h)
+        self.assertIn("SampleTarget2SampleMassKilograms", self.environment_h)
+        self.assertIn("AEverwardPhase2TestEnvironment::SampleTarget2Id", self.adapter_cpp)
+        self.assertIn("AEverwardPhase2TestEnvironment::SampleTarget2SampleMassKilograms", self.adapter_cpp)
+        # A distinct material identity from SAMPLE-001's
+        # carbonaceous_chondrite_fragment, so the two are actually different
+        # sample types rather than a relabeled duplicate.
+        self.assertIn("nickel_iron_meteorite_fragment", self.adapter_cpp)
+
+    def test_environment_hides_the_second_sample_once_actually_collected(self) -> None:
+        self.assertIn("RefreshSampleTarget2", self.environment_h)
+        self.assertIn("RefreshSampleTarget2();", self.environment_cpp)
+        self.assertIn("bSampleTarget2Collected = true;", self.environment_cpp)
+        self.assertIn("SampleTarget2Mesh->SetVisibility(false);", self.environment_cpp)
+
 
 if __name__ == "__main__":
     unittest.main()

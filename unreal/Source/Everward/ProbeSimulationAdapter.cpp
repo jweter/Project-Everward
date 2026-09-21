@@ -248,6 +248,23 @@ void UProbeSimulationAdapter::BeginPlay()
         AEverwardPhase2TestEnvironment::SampleTargetSampleMassKilograms,
     });
 
+    // A second manipulator-collectible body with a distinct material
+    // identity -- closes the "richer variety of sample types/materials
+    // beyond the one test-scene body" gap PHASE2_VERTICAL_SLICE_PLAN.md's
+    // Slice 12 status named. Registered the same way as SampleTargetId
+    // above; no new registration/collection mechanic is introduced.
+    Core->add_static_sphere_body({
+        std::string(TCHAR_TO_UTF8(AEverwardPhase2TestEnvironment::SampleTarget2Id)),
+        {
+            AEverwardPhase2TestEnvironment::SampleTarget2CenterXMeters,
+            AEverwardPhase2TestEnvironment::SampleTarget2CenterYMeters,
+            AEverwardPhase2TestEnvironment::SampleTarget2CenterZMeters,
+        },
+        AEverwardPhase2TestEnvironment::SampleTarget2RadiusMeters,
+        "nickel_iron_meteorite_fragment",
+        AEverwardPhase2TestEnvironment::SampleTarget2SampleMassKilograms,
+    });
+
     SyncOwnerTransformFromSimulation();
 }
 
