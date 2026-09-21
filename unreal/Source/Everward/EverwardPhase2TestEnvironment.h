@@ -75,6 +75,21 @@ public:
     static constexpr double SampleTargetRadiusMeters = 1.2;
     static constexpr double SampleTargetSampleMassKilograms = 18.0;
 
+    // A second manipulator-collectible body with its own distinct material
+    // identity, closing the "richer variety of sample types/materials beyond
+    // the one test-scene body" gap PHASE2_VERTICAL_SLICE_PLAN.md's Slice 12
+    // status and PHASE2_MANIPULATOR_COLLECTION_TEST.md's "explicitly not
+    // complete" list both named. Constructed, refreshed, and hidden-on-
+    // collection through its own dedicated fields mirroring SampleTarget*
+    // above exactly, rather than folding it into a shared array, so the
+    // already-working single-sample path stays untouched.
+    static constexpr const TCHAR* SampleTarget2Id = TEXT("phase2-test-target-005");
+    static constexpr double SampleTarget2CenterXMeters = 82.0;
+    static constexpr double SampleTarget2CenterYMeters = -42.0;
+    static constexpr double SampleTarget2CenterZMeters = 5.0;
+    static constexpr double SampleTarget2RadiusMeters = 0.9;
+    static constexpr double SampleTarget2SampleMassKilograms = 9.0;
+
 private:
     void ApplyEnvironmentMaterialScaffold();
     void RefreshResourceReadout();
@@ -104,6 +119,10 @@ private:
     // (Core->remove_static_sphere_body), rather than leaving a ghost mesh
     // sitting at its last position.
     void RefreshSampleTarget();
+    // Identical fail-closed position-mirroring/hide-on-collection contract
+    // as RefreshSampleTarget(), applied to the second, distinctly-materialed
+    // collectible body.
+    void RefreshSampleTarget2();
     const UProbeSimulationAdapter* ResolvePlayerAdapter() const;
 
     UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
@@ -142,4 +161,12 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<UMaterialInstanceDynamic> SampleTargetDynamicMaterial;
     bool bSampleTargetCollected = false;
+
+    UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
+    TObjectPtr<UStaticMeshComponent> SampleTarget2Mesh;
+    UPROPERTY(VisibleAnywhere, Category="Everward|Phase2")
+    TObjectPtr<UTextRenderComponent> SampleTarget2Label;
+    UPROPERTY(Transient)
+    TObjectPtr<UMaterialInstanceDynamic> SampleTarget2DynamicMaterial;
+    bool bSampleTarget2Collected = false;
 };

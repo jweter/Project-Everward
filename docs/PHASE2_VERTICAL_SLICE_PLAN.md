@@ -607,10 +607,17 @@ and "manipulator/tool acquisition of a sampled object as opposed to mining":
 a manipulator arm can grasp and collect it whole (`X`) into the same
 authoritative storage/inventory mining already credits (see "Sampleable
 object acquisition (Slice 12)" and `PHASE2_MANIPULATOR_COLLECTION_TEST.md`).
+A fifth registered body (`SAMPLE-002`, `nickel_iron_meteorite_fragment`) uses
+the exact same generic collection path with no new mechanic, closing the
+"richer variety of sample types/materials beyond the one test-scene body"
+gap this status previously named (see "A second sampleable body with a
+distinct material identity (Slice 12 follow-up)" in `PROJECT_STATUS.md`).
 **Status: implemented, Product Reality pending.** Material-specific
 consume/use (repair/Fix_It still draws generically from storage regardless
-of provenance) and a richer variety of sample types/materials beyond the one
-test-scene body remain unimplemented.
+of provenance) remains unimplemented; issue #274 explicitly places inventing
+a component-to-material selection/recipe policy for that out of this
+slice's scope until authorized. Only two sampleable bodies exist in the test
+scene; further variety remains extensible future scope, not a defect.
 
 Connect discovery to physical gain:
 

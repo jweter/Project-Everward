@@ -1547,6 +1547,59 @@ not by itself close Slice 12: material-specific consume/use still does not
 exist (repair/Fix_It continues to draw generically from storage), and only
 one sampleable body exists in the test scene.
 
+### A second sampleable body with a distinct material identity (Slice 12 follow-up)
+
+`PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 12 status and
+`PHASE2_MANIPULATOR_COLLECTION_TEST.md`'s "explicitly not complete" list both
+named the same remaining gap: "only one sampleable body exists in the test
+scene; a richer variety of sample types/materials is future scope." This
+pass closes exactly that, adding no new mechanic:
+
+- `EverwardPhase2TestEnvironment.h` gains `SampleTarget2Id`
+  (`phase2-test-target-005`) and its own center/radius/mass constants,
+  distinct from `SampleTargetId`'s `phase2-test-target-004`;
+- `ProbeSimulationAdapter.cpp` registers it via the same
+  `Core->add_static_sphere_body()` call `SampleTargetId` already uses, with
+  its own `nickel_iron_meteorite_fragment` material identity (distinct from
+  `SAMPLE-001`'s `carbonaceous_chondrite_fragment`) and positive
+  `sample_mass_kg`;
+- `EverwardPhase2TestEnvironment` gains dedicated `SampleTarget2Mesh`/
+  `SampleTarget2Label`/`SampleTarget2DynamicMaterial`/
+  `bSampleTarget2Collected` fields and a `RefreshSampleTarget2()` method,
+  each mirroring the corresponding `SampleTarget*` field/method exactly
+  (fail-closed position mirroring while registered, hide mesh/label exactly
+  once collected/deregistered) rather than refactoring the already-working
+  single-sample path into a shared array;
+- a bright, high-metallic nickel-iron tint (vs. `SAMPLE-001`'s dark
+  carbonaceous tint) keeps the two visually distinct.
+
+`manipulator_collection.hpp`'s `attempt_collect_grasped_target()`,
+`UProbeSimulationAdapter::CommandCollectGraspedTarget()`, the player
+controller's collect binding, and target selection/cycling are all already
+generic over whichever registered body is grasped/selected -- none of them
+needed a change for a second collectible body to work.
+
+**Status: implemented, Product Reality pending.** New
+`tools/test_phase2_manipulator_collection_surface.py` coverage
+(`test_environment_registers_a_second_manipulator_collectible_sample_body`,
+`test_environment_hides_the_second_sample_once_actually_collected`) proves
+the registration and hide-on-collection source contract the same way the
+first sample body's tests do; `tools/test_phase2_target_selection_surface.py`'s
+registered-body count assertion was updated from 4 to 5. No `src/simulation`
+code changed (only the Unreal-side test environment and adapter
+registration), but the full canonical preflight
+(`python3 tools/quality_preflight.py --full`) was re-run at this exact head
+as a regression check anyway: all 32 `src/simulation` ctest suites and all
+185 `tools/test_phase2*.py`-matching source-contract tests pass. No Unreal
+Editor/UBT build was available in this sandbox to compile-verify the changed
+files; each addition follows the exact pattern that already compiles for
+`SampleTargetId`/`SampleTargetMesh`/`RefreshSampleTarget()` in the same
+files. The next local Unreal Product Reality pass should confirm the project
+still compiles and that `SAMPLE-002` behaves identically to `SAMPLE-001`
+(visible, selectable, graspable, collectible into a distinct `INVENTORY`
+entry) per `PHASE2_MANIPULATOR_COLLECTION_TEST.md`'s updated local
+acceptance section.
+
 ## Current authoritative foundation
 
 Everward continues to preserve:

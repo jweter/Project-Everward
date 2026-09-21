@@ -135,10 +135,20 @@ project still compiles under UBT before relying on this further.
    inventory not updating, a non-sample body being collectible, a stale
    `HOLDING` state, or a build/compile failure) as Product Reality evidence.
 
+## A second sample (`SAMPLE-002`)
+
+A follow-up pass registered a fifth body, `SAMPLE-002`
+(`phase2-test-target-005`), with its own `nickel_iron_meteorite_fragment`
+material identity and a bright, high-metallic tint distinct from
+`SAMPLE-001`'s dark carbonaceous one. It uses the exact same generic
+collection path documented above -- select/grasp/collect it exactly as
+`SAMPLE-001`, and confirm the `INVENTORY` row gains/grows its own
+`nickel_iron_meteorite_fragment` entry separate from `SAMPLE-001`'s
+`carbonaceous_chondrite_fragment` entry. See `PROJECT_STATUS.md`'s "A second
+sampleable body with a distinct material identity (Slice 12 follow-up)".
+
 ## Explicitly not complete in this pass
 
-- Only one sampleable body exists in the test scene; a richer variety of
-  sample types/materials is future scope.
 - Material-specific consume/use still does not exist -- repair/Fix_It
   continues to draw generically from whatever is in storage regardless of
   provenance (see `PHASE2_MATERIAL_INVENTORY_TEST.md`'s own gap list).

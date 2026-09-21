@@ -175,6 +175,36 @@ AEverwardPhase2TestEnvironment::AEverwardPhase2TestEnvironment()
     SampleTargetLabel->SetTextRenderColor(FColor(180, 255, 190));
     SampleTargetLabel->SetText(FText::FromString(TEXT(
         "SAMPLE-001 // GRASP [F] THEN COLLECT [X]")));
+
+    // A second collectible body with its own distinct material identity --
+    // see EverwardPhase2TestEnvironment.h's SampleTarget2* constants for why.
+    // Constructed identically to SampleTargetMesh/Label above.
+    SampleTarget2Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SampleTarget2"));
+    SampleTarget2Mesh->SetupAttachment(SceneRoot);
+    SampleTarget2Mesh->SetRelativeLocation(FVector(
+        SampleTarget2CenterXMeters * 100.0,
+        SampleTarget2CenterYMeters * 100.0,
+        SampleTarget2CenterZMeters * 100.0));
+    SampleTarget2Mesh->SetRelativeScale3D(FVector(SampleTarget2RadiusMeters * 100.0 / 50.0));
+    SampleTarget2Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    SampleTarget2Mesh->SetCollisionResponseToAllChannels(ECR_Block);
+    if (SphereMesh.Succeeded())
+    {
+        SampleTarget2Mesh->SetStaticMesh(SphereMesh.Object);
+    }
+
+    SampleTarget2Label = CreateDefaultSubobject<UTextRenderComponent>(TEXT("SampleTarget2Label"));
+    SampleTarget2Label->SetupAttachment(SceneRoot);
+    SampleTarget2Label->SetRelativeLocation(FVector(
+        SampleTarget2CenterXMeters * 100.0,
+        SampleTarget2CenterYMeters * 100.0,
+        SampleTarget2CenterZMeters * 100.0 + 400.0));
+    SampleTarget2Label->SetRelativeRotation(FRotator(0.0, 180.0, 0.0));
+    SampleTarget2Label->SetHorizontalAlignment(EHTA_Center);
+    SampleTarget2Label->SetWorldSize(150.0f);
+    SampleTarget2Label->SetTextRenderColor(FColor(210, 215, 225));
+    SampleTarget2Label->SetText(FText::FromString(TEXT(
+        "SAMPLE-002 // GRASP [F] THEN COLLECT [X]")));
 }
 
 void AEverwardPhase2TestEnvironment::BeginPlay()
@@ -192,6 +222,7 @@ void AEverwardPhase2TestEnvironment::Tick(float DeltaSeconds)
     RefreshScanTargetPosition();
     RefreshReferenceTargets();
     RefreshSampleTarget();
+    RefreshSampleTarget2();
 }
 
 const UProbeSimulationAdapter* AEverwardPhase2TestEnvironment::ResolvePlayerAdapter() const
@@ -295,6 +326,12 @@ void AEverwardPhase2TestEnvironment::ApplyEnvironmentMaterialScaffold()
     // bodies rather than an unlabeled duplicate of them.
     const FLinearColor CarbonaceousSample(0.10f, 0.09f, 0.085f, 1.0f);
     SampleTargetDynamicMaterial = ApplyMaterial(SampleTargetMesh, CarbonaceousSample, 0.10f, 0.75f);
+
+    // Bright, high-metallic nickel-iron tint so the second sample reads as a
+    // visually distinct material from both the dark carbonaceous sample and
+    // the dull regolith-rock reference/deposit bodies.
+    const FLinearColor NickelIronSample(0.62f, 0.63f, 0.65f, 1.0f);
+    SampleTarget2DynamicMaterial = ApplyMaterial(SampleTarget2Mesh, NickelIronSample, 0.85f, 0.35f);
 }
 
 void AEverwardPhase2TestEnvironment::RefreshScanTargetPosition()
@@ -468,5 +505,40 @@ void AEverwardPhase2TestEnvironment::RefreshSampleTarget()
     if (SampleTargetLabel != nullptr)
     {
         SampleTargetLabel->SetRelativeLocation(PositionCentimeters + FVector(0.0, 0.0, 400.0));
+    }
+}
+
+void AEverwardPhase2TestEnvironment::RefreshSampleTarget2()
+{
+    if (SampleTarget2Mesh == nullptr || bSampleTarget2Collected)
+    {
+        return;
+    }
+
+    const UProbeSimulationAdapter* Adapter = ResolvePlayerAdapter();
+    if (Adapter == nullptr)
+    {
+        return;
+    }
+
+    // Identical fail-closed hide-on-collection contract as RefreshSampleTarget().
+    FVector PositionMeters;
+    if (!Adapter->GetStaticBodyPositionMeters(SampleTarget2Id, PositionMeters))
+    {
+        bSampleTarget2Collected = true;
+        SampleTarget2Mesh->SetVisibility(false);
+        SampleTarget2Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        if (SampleTarget2Label != nullptr)
+        {
+            SampleTarget2Label->SetVisibility(false);
+        }
+        return;
+    }
+
+    const FVector PositionCentimeters = PositionMeters * 100.0;
+    SampleTarget2Mesh->SetRelativeLocation(PositionCentimeters);
+    if (SampleTarget2Label != nullptr)
+    {
+        SampleTarget2Label->SetRelativeLocation(PositionCentimeters + FVector(0.0, 0.0, 400.0));
     }
 }
