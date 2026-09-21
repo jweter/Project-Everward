@@ -119,6 +119,8 @@ class UnattendedProductRealityWorkerTests(unittest.TestCase):
         self.assertIn("subprocess.CREATE_NEW_PROCESS_GROUP", text)
         self.assertIn('["taskkill.exe", "/PID", str(proc.pid), "/T", "/F"]', text)
         self.assertIn("proc.wait(timeout=10.0)", text)
+        self.assertIn("if result.returncode == 0:", text)
+        self.assertIn("PROCESS_TREE_CLEANUP_FAILED", text)
 
     def test_publisher_exports_only_sanitized_failure_fingerprint(self) -> None:
         text = PUBLISH_PATH.read_text(encoding="utf-8")

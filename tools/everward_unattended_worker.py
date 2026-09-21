@@ -305,16 +305,24 @@ def run_logged(
             code = int(proc.wait(timeout=timeout_seconds))
         except subprocess.TimeoutExpired:
             if os.name == "nt":
-                try:
-                    subprocess.run(
-                        ["taskkill.exe", "/PID", str(proc.pid), "/T", "/F"],
-                        check=False,
-                        capture_output=True,
-                        text=True,
-                        timeout=30.0,
-                    )
-                except (OSError, subprocess.SubprocessError):
+                tree_killed = False
+                for _attempt in range(2):
+                    try:
+                        result = subprocess.run(
+                            ["taskkill.exe", "/PID", str(proc.pid), "/T", "/F"],
+                            check=False,
+                            capture_output=True,
+                            text=True,
+                            timeout=30.0,
+                        )
+                    except (OSError, subprocess.SubprocessError):
+                        continue
+                    if result.returncode == 0:
+                        tree_killed = True
+                        break
+                if not tree_killed:
                     proc.kill()
+                    handle.write("\nPROCESS_TREE_CLEANUP_FAILED\n")
             else:
                 proc.kill()
             try:
