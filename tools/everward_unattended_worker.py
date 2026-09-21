@@ -416,7 +416,7 @@ def run_unreal_headless_smoke(
         ],
         cwd=repo_root,
         log_path=log_path,
-        timeout_seconds=330.0,
+        timeout_seconds=930.0,
     )
     return {
         "status": "PASS" if code == 0 else "FAIL",

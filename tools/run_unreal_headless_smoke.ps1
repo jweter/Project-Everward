@@ -1,13 +1,14 @@
 [CmdletBinding()]
 param(
     [string]$UnrealRoot = "",
-    [int]$TimeoutSeconds = 300
+    [int]$TimeoutSeconds = 900
 )
 
 $ErrorActionPreference = "Stop"
-# The unattended worker historically passed 120 explicitly. Preserve the public
-# parameter while enforcing the observed cold-start floor until the caller migrates.
-$EffectiveTimeoutSeconds = [Math]::Max($TimeoutSeconds, 300)
+# Preserve the public parameter while enforcing a bounded floor for the low-spec
+# worker's observed UE 5.8 cold-start path. The process was still responsive and
+# consuming CPU when the previous five-minute limit killed it before engine startup.
+$EffectiveTimeoutSeconds = [Math]::Max($TimeoutSeconds, 900)
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ProjectPath = Join-Path $RepoRoot "unreal\Everward.uproject"
 
