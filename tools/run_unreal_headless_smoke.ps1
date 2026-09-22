@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$UnrealRoot = "",
     [int]$TimeoutSeconds = 900
@@ -34,6 +34,20 @@ if (-not $Process.WaitForExit($EffectiveTimeoutSeconds * 1000)) {
     try { & taskkill.exe /PID $Process.Id /T /F | Out-Null } catch { Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue }
     throw "Headless Unreal smoke timed out after $EffectiveTimeoutSeconds seconds. Unreal log: $LogPath; stdout: $StdoutPath; stderr: $StderrPath"
 }
-if ($Process.ExitCode -ne 0) { throw "Headless Unreal smoke failed with exit code $($Process.ExitCode). Log: $LogPath" }
+$SessionRoot = Join-Path $RepoRoot "unreal\Saved\Playtests"
+$LatestSession = Get-ChildItem -Path $SessionRoot -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+$SessionComplete = $false
+if ($LatestSession) {
+    $SessionJson = Join-Path $LatestSession.FullName "session.json"
+    $EventsJsonl = Join-Path $LatestSession.FullName "events.jsonl"
+    if ((Test-Path $SessionJson -PathType Leaf) -and (Test-Path $EventsJsonl -PathType Leaf)) {
+        $Session = Get-Content -Raw $SessionJson | ConvertFrom-Json
+        $Events = Get-Content -Raw $EventsJsonl
+        $SessionComplete = ($Session.status -eq "complete") -and ($Events -match '"event_type"\s*:\s*"headless_smoke_complete"')
+    }
+}
+if ($Process.ExitCode -ne 0 -and -not $SessionComplete) { throw "Headless Unreal smoke failed with exit code $($Process.ExitCode). Log: $LogPath" }
+if (-not $SessionComplete) { throw "Headless Unreal smoke did not produce complete deterministic evidence. Log: $LogPath" }
 Write-Host "PASS: Everward headless Unreal smoke completed for exact commit $GitCommit."
 Write-Host "Log: $LogPath"
+

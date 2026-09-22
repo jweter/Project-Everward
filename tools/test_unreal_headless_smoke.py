@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +33,12 @@ class UnrealHeadlessSmokeTests(unittest.TestCase):
         self.assertIn('-TestExit=`"Automation Test Queue Empty`"', source)
         self.assertNotIn('-ExecCmds=`"quit`"', source)
 
+    def test_smoke_requires_deterministic_evidence_not_zero_exit_alone(self) -> None:
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("headless_smoke_complete", source)
+        self.assertIn('$Session.status -eq "complete"', source)
+        self.assertIn("$Process.ExitCode -ne 0 -and -not $SessionComplete", source)
+        self.assertIn("did not produce complete deterministic evidence", source)
     def test_smoke_does_not_claim_product_reality(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertNotIn("PRODUCT_REALITY_VERIFIED", source)
@@ -53,3 +59,4 @@ def test_smoke_has_deterministic_runtime_exit_after_evidence_capture() -> None:
     assert "headless_smoke_complete" in recorder
     assert "FPlatformMisc::RequestExit(false)" in recorder
     assert "HeadlessSmokeExitSeconds = 0.0" in header
+
