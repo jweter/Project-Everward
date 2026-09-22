@@ -47,6 +47,7 @@ private:
 
     double SessionStartSeconds = 0.0;
     float TelemetryAccumulator = 0.0f;
+    double HeadlessSmokeExitSeconds = 0.0;
     int32 MarkerCount = 0;
 
     static constexpr float TelemetryIntervalSeconds = 0.5f;
