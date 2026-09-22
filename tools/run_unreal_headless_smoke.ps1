@@ -28,7 +28,7 @@ New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $LogPath = Join-Path $LogDir "headless-smoke-$GitCommit.log"
 $StdoutPath = Join-Path $LogDir "headless-smoke-$GitCommit.stdout.log"
 $StderrPath = Join-Path $LogDir "headless-smoke-$GitCommit.stderr.log"
-$Arguments = @("`"$ProjectPath`"", "-game", "-NullRHI", "-Unattended", "-NoSplash", "-NoSound", "-NoP4", "-TestExit=`"Automation Test Queue Empty`"", "-log=`"$LogPath`"")
+$Arguments = @("`"$ProjectPath`"", "-game", "-NullRHI", "-Unattended", "-NoSplash", "-NoSound", "-NoP4", "-NoAutoSDK", "-TestExit=`"Automation Test Queue Empty`"", "-log=`"$LogPath`"")
 $Process = Start-Process -FilePath $EditorCmd -ArgumentList $Arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
 if (-not $Process.WaitForExit($EffectiveTimeoutSeconds * 1000)) {
     try { & taskkill.exe /PID $Process.Id /T /F | Out-Null } catch { Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue }

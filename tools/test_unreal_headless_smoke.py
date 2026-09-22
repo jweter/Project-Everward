@@ -13,6 +13,7 @@ class UnrealHeadlessSmokeTests(unittest.TestCase):
         self.assertIn('"-Unattended"', source)
         self.assertIn('"-NoSound"', source)
         self.assertIn('"-NoP4"', source)
+        self.assertIn('"-NoAutoSDK"', source)
         self.assertNotIn("Build.bat", source)
 
     def test_smoke_binds_logs_to_exact_commit_and_fails_closed(self) -> None:
