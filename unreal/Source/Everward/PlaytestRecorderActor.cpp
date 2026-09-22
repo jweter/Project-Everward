@@ -5,12 +5,15 @@
 #include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
+#include "HAL/PlatformMisc.h"
+#include "Misc/CommandLine.h"
 #include "InputCoreTypes.h"
 #include "Misc/App.h"
 #include "Misc/DateTime.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/Parse.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "UnrealClient.h"
@@ -24,6 +27,7 @@ void APlaytestRecorderActor::BeginPlay()
 {
     Super::BeginPlay();
     InitializeSession();
+    FParse::Value(FCommandLine::Get(), TEXT("EverwardHeadlessSmokeSeconds="), HeadlessSmokeExitSeconds);
 }
 
 void APlaytestRecorderActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -51,6 +55,15 @@ void APlaytestRecorderActor::Tick(float DeltaSeconds)
     {
         AppendTelemetry(DeltaSeconds);
         TelemetryAccumulator = 0.0f;
+    }
+
+    if (HeadlessSmokeExitSeconds > 0.0 &&
+        (FPlatformTime::Seconds() - SessionStartSeconds) >= HeadlessSmokeExitSeconds)
+    {
+        RecordPlaytestEvent(TEXT("headless_smoke_complete"), TEXT("deterministic_exit=true"));
+        WriteSessionMetadata(TEXT("complete"), UtcNowIso());
+        FPlatformMisc::RequestExit(false);
+        return;
     }
 
     if (APlayerController* PlayerController = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
@@ -171,6 +184,15 @@ void APlaytestRecorderActor::AppendTelemetry(float DeltaSeconds)
 
     FVector Location = FVector::ZeroVector;
     double Speed = 0.0;
+
+    if (HeadlessSmokeExitSeconds > 0.0 &&
+        (FPlatformTime::Seconds() - SessionStartSeconds) >= HeadlessSmokeExitSeconds)
+    {
+        RecordPlaytestEvent(TEXT("headless_smoke_complete"), TEXT("deterministic_exit=true"));
+        WriteSessionMetadata(TEXT("complete"), UtcNowIso());
+        FPlatformMisc::RequestExit(false);
+        return;
+    }
 
     if (APlayerController* PlayerController = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
     {

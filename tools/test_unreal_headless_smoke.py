@@ -41,3 +41,15 @@ class UnrealHeadlessSmokeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_smoke_has_deterministic_runtime_exit_after_evidence_capture() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    recorder = (ROOT / "unreal/Source/Everward/PlaytestRecorderActor.cpp").read_text(encoding="utf-8")
+    header = (ROOT / "unreal/Source/Everward/PlaytestRecorderActor.h").read_text(encoding="utf-8")
+    self_exit_flag = "EverwardHeadlessSmokeSeconds=10"
+    assert self_exit_flag in source
+    assert "EverwardHeadlessSmokeSeconds=" in recorder
+    assert "headless_smoke_complete" in recorder
+    assert "FPlatformMisc::RequestExit(false)" in recorder
+    assert "HeadlessSmokeExitSeconds = 0.0" in header
