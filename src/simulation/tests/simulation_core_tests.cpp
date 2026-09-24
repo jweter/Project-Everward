@@ -1462,5 +1462,21 @@ int main() {
     }
 
     std::cout << "Everward simulation core tests passed\n";
+    // Slice 11: passive observations use an explicit authoritative boundary
+    // and accumulate supplied evidence without fabricating a classification.
+    {
+        SimulationCore core;
+        core.record_passive_observation("passive-target", 5.0, 0.10, 0.25);
+        core.record_passive_observation("passive-target", 7.0, 0.15, 0.40);
+        const auto knowledge = core.target_knowledge_state("passive-target");
+        assert(knowledge.has_value());
+        assert(knowledge->level == KnowledgeLevel::Observed);
+        assert(knowledge->passive_observation_s == 12.0);
+        assert(knowledge->active_scan_s == 0.0);
+        assert(knowledge->confidence == 0.25);
+        assert(knowledge->best_instrument_resolution == 0.40);
+        assert(knowledge->classification.empty());
+    }
+
     return 0;
 }
