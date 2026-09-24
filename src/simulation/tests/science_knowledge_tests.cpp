@@ -1,4 +1,5 @@
 #include "everward/simulation/science_knowledge.hpp"
+#include "everward/simulation/composition_estimate.hpp"
 
 #include <cassert>
 #include <cmath>
@@ -128,5 +129,38 @@ int main() {
     }
 
     assert(throws_invalid_argument([] { (void)make_unknown_target_knowledge(""); }));
+
+    // Composition estimates are explicitly uncertain observations, not simulation
+    // ground truth. Preserve the supplied evidence exactly and fail closed on
+    // malformed probabilities so later science systems cannot silently invent
+    // certainty.
+    {
+        const auto estimate = make_composition_estimate("iron", 0.62, 0.18, 0.74);
+        assert(estimate.material_id == "iron");
+        assert(estimate.fraction == 0.62);
+        assert(estimate.uncertainty == 0.18);
+        assert(estimate.confidence == 0.74);
+    }
+
+    assert(throws_invalid_argument([] {
+        (void)make_composition_estimate("", 0.5, 0.2, 0.8);
+    }));
+    assert(throws_invalid_argument([] {
+        (void)make_composition_estimate("   ", 0.5, 0.2, 0.8);
+    }));
+    assert(throws_invalid_argument([] {
+        (void)make_composition_estimate("iron", -0.01, 0.2, 0.8);
+    }));
+    assert(throws_invalid_argument([] {
+        (void)make_composition_estimate("iron", 0.5, 1.01, 0.8);
+    }));
+    assert(throws_invalid_argument([] {
+        (void)make_composition_estimate(
+            "iron", 0.5, 0.2, std::numeric_limits<double>::quiet_NaN());
+    }));
+    assert(throws_invalid_argument([] {
+        (void)make_composition_estimate(
+            "iron", std::numeric_limits<double>::infinity(), 0.2, 0.8);
+    }));
     return 0;
 }
