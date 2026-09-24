@@ -146,6 +146,9 @@ int main() {
         (void)make_composition_estimate("", 0.5, 0.2, 0.8);
     }));
     assert(throws_invalid_argument([] {
+        (void)make_composition_estimate("   ", 0.5, 0.2, 0.8);
+    }));
+    assert(throws_invalid_argument([] {
         (void)make_composition_estimate("iron", -0.01, 0.2, 0.8);
     }));
     assert(throws_invalid_argument([] {
@@ -154,6 +157,10 @@ int main() {
     assert(throws_invalid_argument([] {
         (void)make_composition_estimate(
             "iron", 0.5, 0.2, std::numeric_limits<double>::quiet_NaN());
+    }));
+    assert(throws_invalid_argument([] {
+        (void)make_composition_estimate(
+            "iron", std::numeric_limits<double>::infinity(), 0.2, 0.8);
     }));
     return 0;
 }
