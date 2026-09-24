@@ -507,6 +507,30 @@ public:
         return probe_.material_inventory_kg;
     }
 
+    // Engine-independent passive-observation boundary for Slice 11. The
+    // observing instrument supplies confidence/resolution; Core records that
+    // evidence without inventing precision from elapsed time. A later sensor
+    // or Unreal presentation layer may call this boundary when it has a real
+    // passive-observation trigger.
+    void record_passive_observation(
+            const std::string& target_id,
+            double duration_s,
+            double confidence_gain,
+            double instrument_resolution) {
+        if (target_id.empty()) {
+            throw std::invalid_argument("target_id must not be empty");
+        }
+        auto entry = probe_.target_knowledge.find(target_id);
+        if (entry == probe_.target_knowledge.end()) {
+            entry = probe_.target_knowledge
+                        .emplace(target_id, make_unknown_target_knowledge(target_id))
+                        .first;
+        }
+        apply_observation(
+            entry->second,
+            {ObservationMode::Passive, duration_s, confidence_gain, instrument_resolution, ""});
+    }
+
     // Read-only per-target science knowledge accumulated by
     // observe_active_scan_progress(). See ProbeStateSnapshot::target_knowledge.
     [[nodiscard]] const std::map<std::string, TargetKnowledgeState>& target_knowledge() const noexcept {
