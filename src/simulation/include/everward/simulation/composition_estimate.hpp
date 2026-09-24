@@ -19,8 +19,8 @@ struct CompositionEstimate {
     double fraction,
     double uncertainty,
     double confidence) {
-    if (material_id.empty()) {
-        throw std::invalid_argument("composition estimate material_id must not be empty");
+    if (material_id.find_first_not_of(" \t\r\n") == std::string::npos) {
+        throw std::invalid_argument("composition estimate material_id must not be blank");
     }
     if (!std::isfinite(fraction) || fraction < 0.0 || fraction > 1.0) {
         throw std::invalid_argument("composition estimate fraction must be finite and between 0 and 1");
