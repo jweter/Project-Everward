@@ -1657,6 +1657,81 @@ still compiles and that `SAMPLE-002` behaves identically to `SAMPLE-001`
 entry) per `PHASE2_MANIPULATOR_COLLECTION_TEST.md`'s updated local
 acceptance section.
 
+### Input remapping/accessibility binding foundation (issue #165)
+
+`docs/PHASE2_INPUT_REMAP_ACCESSIBILITY_ARCHITECTURE.md` (PR #267) defined the
+device-input -> Enhanced Input -> semantic action -> authoritative command
+boundary but was scope/design only (177 lines, one doc file, no code). Its
+own review left two open findings, and PR #267 merged with both still
+unresolved: the migration inventory was too narrow (it missed production
+input consumers outside the main player controller), and this file never
+registered the new architecture, risking duplicate future work. This pass
+closes both gaps and lands migration-sequence steps 1 and 5 (of the doc's
+eight-step sequence) as an engine-independent foundation, following the
+same "math/logic foundation first, Unreal wiring later" pattern
+`fix_it.hpp`/`target_cycle_runtime.hpp`/`surface_descent_guidance.hpp` each
+used before their own later Unreal wiring passes:
+
+- new `src/simulation/include/everward/simulation/input_binding.hpp`
+  defines a 46-entry `SemanticAction` catalog with `MappingContext`
+  (Gameplay/Manipulator/UI/Development) assignment per the doc's own named
+  categories, derived from a fresh audit of every `EKeys::`/`BindKey` call
+  in `unreal/Source/Everward` -- including the two production consumers
+  PR #267's review found missing from the first inventory attempt
+  (`EverwardProbePawn.cpp`'s `R` camera-aligned-righting binding and
+  `PlaytestRecorderActor.cpp`'s `F12` development-only playtest marker),
+  alongside the already-known `EverwardPlayerController.cpp`/
+  `EverwardPlayerControllerInteractionTick.cpp` bindings;
+- `BindingPreferences` is a versioned (`kBindingPreferencesSchemaVersion`,
+  independent of `docs/SAVE_FORMAT.md`'s save schema per the doc's explicit
+  requirement), player-mappable binding set with context-scoped conflict
+  detection (`find_conflicts`), a fail-closed `rebind()` that refuses to
+  create an ambiguous dispatch, `clear_binding()` that refuses to empty an
+  `essential_navigation` action's last binding (the doc's "do not silently
+  delete a binding required to reach the remapping UI" rule), and
+  `restore_defaults()`/`restore_all_defaults()`;
+- `to_json()`/`from_json()` (reusing `json_value.hpp`, the existing
+  `save_data.hpp`-established dependency-free JSON type) round-trip every
+  binding; `load_or_default()` is the doc's actual "fail closed on
+  malformed or obsolete preference data by falling back to known defaults"
+  boundary -- unlike gameplay save data, which fails loudly, a corrupted or
+  obsolete preferences file silently reverts to the shipped default
+  bindings rather than blocking play. A file that omits any action the
+  current schema version knows about (for example one written before a
+  later action was added) is treated the same as malformed/obsolete rather
+  than silently leaving that action unbound.
+- `SpaceBar` and the tractor field's press/release pair are each modeled as
+  exactly one semantic action (`StopPropulsion`,
+  `ToggleTractorFieldCoupling`) rather than several, matching the doc's
+  "rebinding must never change action semantics" rule: in the live
+  controller these already coordinate multiple authoritative side effects
+  (cancelling José/controlled-descent/controlled-hover/mining-auto-approach,
+  or coupling-on-press/decoupling-on-release) from one physical input, and a
+  single semantic action keeps all of them moving together under rebinding.
+
+This does not touch any Unreal source file or change any default binding,
+key, or presentation behavior -- no Unreal Editor/UBT build was needed or
+attempted. Steps 2-4 and 6-8 (Enhanced Input assets, controller defaults, a
+live remapping UI, and the Product Reality acceptance pass) remain later,
+separately reviewable slices per the doc's own "do not combine a broad
+control rewrite... into one PR" rule; this is groundwork for them, not a
+claim that remapping/controller/accessibility support exists in the actual
+game yet.
+
+**Status: engine-independent foundation only, no Unreal wiring.** New
+`src/simulation/tests/input_binding_tests.cpp` (25 cases) covers catalog
+completeness, stable wire-identifier round-tripping, default-binding
+conflict-freedom, multi-binding dispatch to one semantic action (`W`/`Up`
+both resolve to `IncreaseForwardVelocity`), context-scoped resolution,
+conflict detection and refusal, essential-navigation clear refusal,
+restore-defaults, JSON round-trip, and `load_or_default`'s fail-closed
+fallback on malformed data, an unsupported schema version, and a file
+missing a known action. Full canonical preflight
+(`python3 tools/quality_preflight.py --full`) passes at this exact head: all
+33 `src/simulation` ctest suites (32 prior plus the new
+`everward_input_binding_tests`) and every `tools`/`prototypes` Python suite
+are green.
+
 ## Current authoritative foundation
 
 Everward continues to preserve:
