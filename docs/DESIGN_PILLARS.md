@@ -46,6 +46,16 @@ The target is cinematic scientific realism: visually striking without becoming s
 
 The player should sometimes want to stop time acceleration, hide the HUD, and simply watch.
 
+### World-building is a first-class design discipline
+
+Everward must actively learn from mature environment art, level design, lighting, procedural generation, technical art, VFX, and world-building practice instead of treating those disciplines as late-stage decoration.
+
+External techniques are candidates, not commandments. A useful practice should be understood, prototyped, measured for visual/gameplay/performance impact, and promoted into a canonical standard only when it strengthens Everward's scientific realism, physical readability, scalability, and identity.
+
+World construction should prioritize readable macro/meso/micro hierarchy, physically motivated variation, procedural systems with authored control, environmental history, strong landmarks and vistas, intentional negative space, and performance-aware rendering architecture.
+
+See `WORLD_BUILDING_CRAFT_PLAYBOOK.md` for the living research/adoption process and `VISUAL_DIRECTION.md` for canonical presentation requirements.
+
 ## 6. Difficulty Changes the Universe
 
 Difficulty must alter more than combat statistics.
