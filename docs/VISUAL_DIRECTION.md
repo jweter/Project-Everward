@@ -138,6 +138,12 @@ At minimum the game should ultimately support hiding the HUD, selective panel vi
 
 HUD readability is quality-preset invariant. Lower graphics settings may simplify effects around the HUD, but must not make gameplay-critical state, selection, warnings, or interaction prompts less available than on higher presets.
 
+## World-building craft learning
+
+Everward should actively learn from mature environment-art, level-design, procedural-generation, lighting, and technical-art practice rather than rediscovering every production lesson independently.
+
+The canonical learning/adoption process is maintained in `WORLD_BUILDING_CRAFT_PLAYBOOK.md`. External techniques begin as candidates, are prototyped and measured, and become project standards only when they improve Everward without violating scientific realism, simulation truth, scalability, or performance requirements.
+
 ## Unreal production direction
 
 Unreal Engine is the intended production presentation/runtime engine because Everward's visual identity requires a serious path toward high-end real-time 3D rendering, lighting, materials, volumetrics, particles, cinematic cameras, and large-environment presentation.
