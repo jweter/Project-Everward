@@ -89,6 +89,24 @@ The universe should eventually support visually and mechanically meaningful exam
 
 Visual appearance should arise from the same physical properties that affect scanning, navigation, thermal load, radiation exposure, communications, research opportunity, and resource access.
 
+## Terrain and planetary-surface material standard
+
+Large moons, planets, asteroids, ice fields, regolith surfaces, and other traversable terrain must not expose obvious repeating texture tiles at gameplay or cinematic camera distances.
+
+The default Everward surface-material approach should therefore combine **world-space coordinates with multi-scale variation**:
+
+- use world-space/world-aligned mapping where appropriate so surface appearance is not dependent on fragile per-mesh UV tiling;
+- introduce low-frequency macro noise in world space to modulate albedo, roughness, normal intensity, tint, and/or material-layer weighting subtly across large areas;
+- combine macro variation with medium-scale breakup and fine local detail so the same base texture does not repeat at one dominant visible frequency;
+- use triplanar/world-aligned projection on steep or irregular surfaces when conventional UV projection would visibly stretch;
+- allow controlled per-region/per-body parameter variation so two regolith bodies built from the same material family do not look stamped from one source;
+- preserve physically plausible material response: breakup should remove repetition without turning rock, ice, dust, or metal into visual noise;
+- make the expensive layers scalable. Lower presets may reduce sample count, secondary normals, or fine-detail layers, but should retain enough macro variation that obvious tiling does not reappear.
+
+A useful material test is deliberately unflattering: view a broad surface from high altitude, low grazing angle, and ordinary near-surface gameplay distance. If the eye can identify a repeating grid or recurring texture patch, the material has failed.
+
+This is a presentation rule only. World-space material noise must never alter authoritative collision, resource composition, scan truth, or terrain geometry unless a separate simulation system explicitly owns that state.
+
 ## Quiet space matters
 
 Not every scene should announce spectacle. Darkness, distance, isolation, sparse instrumentation, and long periods of calm are part of the identity.

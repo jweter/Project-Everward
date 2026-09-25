@@ -92,6 +92,13 @@ After acceptance, the intended non-conflicting sequence remains:
 3. object selection and physical interaction;
 4. dedicated zero-g test scene;
 5. spherical planetary-body foundation;
-6. reusable moon/regolith/ice material family on real spherical terrain;
+6. reusable moon/regolith/ice material family on real spherical terrain, using world-space coordinates and multi-scale macro noise/variation to break visible texture repetition;
 7. controlled descent, solid surface contact, and near-surface operations;
 8. sample/resource/mining interaction.
+
+
+## Surface anti-tiling acceptance
+
+When the real spherical terrain/material lane begins, validate the material family at three scales: near-surface operation, mid-altitude approach, and wide cinematic view. The material must not reveal an obvious repeating grid or recurring texture patch. Use subtle world-space macro variation layered over the authored PBR material; preserve physically plausible albedo/roughness response and keep the effect presentation-only.
+
+The anti-tiling treatment should be parameterized so regolith, rock, ice, dust, and future planetary materials can reuse the same architecture with body-specific scales and intensities rather than duplicating one-off shaders.
