@@ -78,6 +78,17 @@ public:
     static constexpr std::size_t kGeneration1MaxPolicyRules = 2;
     static constexpr double kGeneration1MinimumPolicyComputationPowerW = 25.0;
     static constexpr double kGeneration1MinimumSensorPowerW = 50.0;
+    // Slice 11 passive-observation trigger. Matches
+    // EverwardPlayerController.h's TargetSelectionRangeMeters default, so
+    // sensors passively observe the same "nearby" volume a player can
+    // already select a target within -- no separate ambient-sensing range is
+    // invented.
+    static constexpr double kGeneration1PassiveObservationRangeM = 500.0;
+    // 12x slower than core.hpp's kNominalActiveScanConfidenceTimeConstantS
+    // (10 s): passive observation costs no dedicated scan command or time,
+    // so it builds confidence far more slowly than deliberately scanning a
+    // selected target.
+    static constexpr double kGeneration1PassiveObservationConfidenceTimeConstantS = 120.0;
 
     ProbeRuntime() = default;
     explicit ProbeRuntime(SimulationCore core) : core_(std::move(core)) {}
@@ -117,6 +128,7 @@ public:
         resolve_static_contacts(start_position, body_start_positions);
         resolve_planetary_surface_contact(start_position, integrated_velocity);
         evaluate_policy();
+        observe_passive_targets(elapsed_seconds);
         reveal_full_confidence_target_classifications();
     }
 
@@ -713,6 +725,41 @@ private:
             if (!policy_executor_available()) {
                 break;
             }
+        }
+    }
+
+    // Slice 11 passive-observation trigger: the sole place that decides
+    // *when* a passive observation happens, keeping core.hpp's
+    // record_passive_observation() a pure evidence-recording boundary with
+    // no notion of registered bodies, range, or sensor power. Every fixed
+    // tick the sensors are powered at or above the same minimum an active
+    // scan already requires (kGeneration1MinimumSensorPowerW -- no separate
+    // ambient/idle power tier is invented), every registered body within
+    // kGeneration1PassiveObservationRangeM of the probe accumulates passive
+    // evidence at kGeneration1PassiveObservationConfidenceTimeConstantS's far
+    // slower rate than an active scan. The body currently under an active
+    // scan is skipped so a single tick never double-credits the same
+    // evidence through both observation modes; integrate_scan() (core.hpp)
+    // remains its sole source of ActiveScan evidence.
+    void observe_passive_targets(double seconds) {
+        if (seconds <= 0.0) {
+            return;
+        }
+        const auto& state = core_.snapshot();
+        if (state.power_allocated_sensors_w < kGeneration1MinimumSensorPowerW) {
+            return;
+        }
+        const double confidence_gain =
+            std::min(1.0, seconds / kGeneration1PassiveObservationConfidenceTimeConstantS);
+        for (const StaticSphereBody& body : static_bodies_) {
+            if (state.is_scanning && body.body_id == state.active_scan_target_id) {
+                continue;
+            }
+            if (surface_range_to_body(state.position_m, body) > kGeneration1PassiveObservationRangeM) {
+                continue;
+            }
+            core_.record_passive_observation(
+                body.body_id, seconds, confidence_gain, SimulationCore::kNominalInstrumentResolution);
         }
     }
 

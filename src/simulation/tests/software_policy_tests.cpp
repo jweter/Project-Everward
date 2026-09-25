@@ -476,6 +476,75 @@ int main() {
         assert(unregistered_knowledge->classification.empty());
     }
 
+    // Slice 11 passive-observation trigger: merely operating sensors near a
+    // registered body now accumulates passive evidence through
+    // advance_wall_ticks(), with no active scan or target selection
+    // required. 60 s at the 120 s passive confidence time constant yields
+    // exactly 0.5 confidence and 60 s of accumulated passive_observation_s.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(StaticSphereBody{"nearby-rock", {200.0, 0.0, 0.0}, 2.0});
+        runtime.allocate_power(PowerSubsystem::Sensors, 100.0);
+
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 60);
+
+        auto knowledge = runtime.target_knowledge_state("nearby-rock");
+        assert(knowledge.has_value());
+        assert(knowledge->level == KnowledgeLevel::Observed);
+        assert(nearly_equal_local(knowledge->passive_observation_s, 60.0));
+        assert(knowledge->active_scan_s == 0.0);
+        assert(nearly_equal_local(knowledge->confidence, 0.5));
+    }
+
+    // No passive observation happens below the same minimum sensor power an
+    // active scan already requires -- no separate ambient power tier exists.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(StaticSphereBody{"nearby-rock", {200.0, 0.0, 0.0}, 2.0});
+        runtime.allocate_power(PowerSubsystem::Sensors, 20.0);
+
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 60);
+
+        assert(!runtime.target_knowledge_state("nearby-rock").has_value());
+    }
+
+    // A body beyond the passive-observation range is left unobserved even
+    // with sensors fully powered.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(StaticSphereBody{"distant-rock", {600.0, 0.0, 0.0}, 2.0});
+        runtime.allocate_power(PowerSubsystem::Sensors, 100.0);
+
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 60);
+
+        assert(!runtime.target_knowledge_state("distant-rock").has_value());
+    }
+
+    // The actively-scanned target is never double-credited by the passive
+    // sweep in the same tick -- its knowledge advances only through
+    // ActiveScan evidence -- while a second nearby, unscanned body still
+    // accumulates passive evidence in that same tick.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(StaticSphereBody{"scanned-rock", {50.0, 0.0, 0.0}, 2.0});
+        runtime.add_static_sphere_body(StaticSphereBody{"bystander-rock", {80.0, 0.0, 0.0}, 2.0});
+        runtime.allocate_power(PowerSubsystem::Sensors, 100.0);
+
+        runtime.start_scan("scanned-rock", 30.0);
+        (void)runtime.drain_events();
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+
+        auto scanned_knowledge = runtime.target_knowledge_state("scanned-rock");
+        assert(scanned_knowledge.has_value());
+        assert(nearly_equal_local(scanned_knowledge->active_scan_s, 10.0));
+        assert(scanned_knowledge->passive_observation_s == 0.0);
+
+        auto bystander_knowledge = runtime.target_knowledge_state("bystander-rock");
+        assert(bystander_knowledge.has_value());
+        assert(bystander_knowledge->active_scan_s == 0.0);
+        assert(nearly_equal_local(bystander_knowledge->passive_observation_s, 10.0));
+    }
+
     std::cout << "Generation-1 software policy tests passed\n";
     return 0;
 }

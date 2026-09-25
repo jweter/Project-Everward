@@ -577,7 +577,16 @@ telemetry row below `INVENTORY` (**Status: implemented, Product Reality
 pending**; see `PROJECT_STATUS.md`'s "Persistent discoveries catalogue"
 section and `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`'s updated local acceptance
 step 10). This is still read-only telemetry, not a codex UI or a
-decision-enabling gameplay consequence.
+decision-enabling gameplay consequence. A further follow-on pass closed the
+"passive observation" gap: `ProbeRuntime::observe_passive_targets()` (called
+from `advance_wall_ticks()`) now gives `science_knowledge.hpp`'s
+already-existing `ObservationMode::Passive`/`record_passive_observation()`
+boundary an actual trigger -- every registered body within sensor range
+accumulates slow passive evidence whenever sensors are powered, without
+requiring target selection or an active scan (**Status: implemented,
+Product Reality pending**; see `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`'s
+"Passive-observation trigger" section). Composition *estimation* with
+uncertainty and a decision-enabling discoveries UI remain unimplemented.
 
 Scanning must evolve from a countdown into increasing knowledge:
 

@@ -36,8 +36,9 @@ already stretches `duration_s` by `1 / effectiveness`) still reaches the
 same confidence — it simply takes longer wall-clock time to do so, since
 duration is the only channel scan damage already degrades; this pass does
 not add a second, competing degradation model. Passive observation
-(`ObservationMode::Passive`) is supported by `science_knowledge.hpp` but has
-no trigger anywhere in the simulation yet.
+(`ObservationMode::Passive`) is supported by `science_knowledge.hpp`; see
+"Passive-observation trigger" below for the follow-on pass that gave it an
+actual trigger.
 
 This qualifies for the parallel-safe lane the same way target selection and
 manipulator reach telemetry did: it reads/mutates only its own new state
@@ -115,6 +116,45 @@ as a read-only catalogue rather than inventing a second store:
   exact same map `GetSelectedTargetKnowledgeStatus()` already reads for the
   single currently-selected target.
 
+## Passive-observation trigger
+
+A follow-on pass closes the "no passive-observation trigger" gap this
+document's "Explicitly not complete" section originally named.
+`science_knowledge.hpp`'s `ObservationMode::Passive` and core.hpp's
+`SimulationCore::record_passive_observation()` boundary already existed as
+an unused, engine-independent evidence-recording contract; this pass adds
+the one thing they were missing, something that actually decides *when* a
+passive observation happens:
+
+- `ProbeRuntime::observe_passive_targets()` (new, called from
+  `advance_wall_ticks()` after `evaluate_policy()` and before
+  `reveal_full_confidence_target_classifications()`) is the sole new
+  mutation-triggering point. Every fixed-tick batch the probe's sensors are
+  powered at or above the exact same `kGeneration1MinimumSensorPowerW`
+  (50 W) an active scan already requires — no separate ambient/idle power
+  tier is invented — every registered `StaticSphereBody` within
+  `kGeneration1PassiveObservationRangeM` (500 m, matching
+  `EverwardPlayerController.h`'s existing `TargetSelectionRangeMeters`
+  default) accumulates passive evidence through
+  `SimulationCore::record_passive_observation()`;
+- confidence accumulates far more slowly than an active scan:
+  `kGeneration1PassiveObservationConfidenceTimeConstantS` (120 s) is 12x
+  `core.hpp`'s `kNominalActiveScanConfidenceTimeConstantS` (10 s), so
+  merely loitering near a target with sensors on is a much weaker signal
+  than deliberately spending a scan on it;
+- the body currently under an active scan is skipped by the passive sweep
+  in the same tick, so `integrate_scan()`'s existing `ActiveScan` evidence
+  is never double-credited with a second `Passive` observation of the same
+  elapsed time on the same target;
+- this reuses `target_selection.hpp`'s existing `surface_range_to_body()`
+  range math (the same function nearest-target selection already uses) —
+  no second notion of "how far away is this body" was introduced.
+
+This is still read-only knowledge accumulation: no new player command, no
+new HUD element beyond the existing `KNOWLEDGE`/`DISCOVERIES` rows (which
+already read whatever `target_knowledge` contains regardless of which
+observation mode produced it), and no change to active-scan behavior.
+
 ## Behavior
 
 - The always-visible telemetry panel gains a `KNOWLEDGE` row directly below
@@ -157,7 +197,13 @@ as a read-only catalogue rather than inventing a second store:
   confidence, is `Characterized` with that exact material; a registered
   body with no `material_id`, scanned to the same full confidence, stays
   `Observed`; and a scan target that is not a registered body at all is
-  likewise never fabricated a classification.
+  likewise never fabricated a classification. It also covers
+  `observe_passive_targets()` end to end: a nearby unselected, unscanned
+  body accumulates exactly the expected `passive_observation_s`/confidence
+  from sensors alone; no observation happens below the minimum sensor
+  power or beyond the passive-observation range; and a body currently
+  under an active scan is never double-credited a `Passive` observation in
+  the same tick while a second nearby body still accumulates one.
 - `src/simulation/tests/save_data_tests.cpp` covers round-tripping
   `target_knowledge` byte-for-byte through save/load (exercised
   incidentally by `build_representative_runtime()`'s existing
@@ -247,8 +293,6 @@ panel's background or the manipulator page drawn above it.
   readings, multiple possible materials) does not exist — classification is
   a single deterministic ground-truth reveal gated on full confidence, not
   a modeled estimation process.
-- No passive-observation trigger exists anywhere in the simulation yet,
-  though `science_knowledge.hpp` already supports the mode.
 - A persistent discoveries catalogue (the `DISCOVERIES` row) now exists, but
   it is still read-only telemetry: no codex UI, no decision-enabling
   gameplay consequence, and no dedicated discoveries HUD page — only the
@@ -260,4 +304,7 @@ panel's background or the manipulator page drawn above it.
 ## Status
 
 Implemented in the parallel-safe lane; Product Reality pending. Does not by
-itself close Slice 11.
+itself close Slice 11. The passive-observation trigger closes one of the
+three remaining Slice 11 gaps this document named (composition
+*estimation* with uncertainty and a decision-enabling discoveries UI
+remain later work).
