@@ -25,7 +25,18 @@ SENTINEL_NAME = "everward-unattended-worker"
 MANUAL_LOCK_NAME = "everward-manual-playtest.lock"
 LOCK_NAME = "worker.lock"
 LAST_PASS_MARKER = "last_passed_headless_smoke_commit.txt"
+LOW_SPEC_PASS_MARKER = "last_passed_low_spec_startup_commit.txt"
 REPORT_SCHEMA_VERSION = 1
+LOW_SPEC_RESULT_SCHEMA_VERSION = 1
+LOW_SPEC_STARTUP_TIMEOUT_SECONDS = 900
+LOW_SPEC_SAMPLE_WINDOW_SECONDS = 60
+LOW_SPEC_NOT_EVIDENCE_FOR = [
+    "visual quality or art direction",
+    "control or movement feel",
+    "HUD readability",
+    "frame time or playability",
+    "gameplay loop quality",
+]
 
 
 def utc_now() -> str:
@@ -282,8 +293,12 @@ def sanitize_text(text: str, *, repo_root: Path, unreal_root: Path | None = None
     result = text
     for raw, replacement in replacements:
         if raw:
-            result = result.replace(raw, replacement)
-            result = result.replace(raw.replace("\\", "/"), replacement)
+            for variant in (raw, raw.replace("\\", "/")):
+                # Windows paths are case-insensitive and Unreal logs often change drive/letter case.
+                result = re.sub(re.escape(variant), lambda _m, r=replacement: r, result, flags=re.IGNORECASE)
+    user = os.environ.get("USERNAME") or os.environ.get("USER") or ""
+    if len(user) >= 3:
+        result = re.sub(rf"(?<![A-Za-z0-9_]){re.escape(user)}(?![A-Za-z0-9_])", "<USER>", result, flags=re.IGNORECASE)
     return result
 
 
@@ -458,6 +473,171 @@ def run_unreal_headless_smoke(
     }
 
 
+def read_unreal_engine_version(unreal_root: Path) -> str | None:
+    try:
+        payload = json.loads(
+            (unreal_root / "Engine" / "Build" / "Build.version").read_text(encoding="utf-8-sig")
+        )
+        parts = [int(payload[key]) for key in ("MajorVersion", "MinorVersion", "PatchVersion")]
+        changelist = int(payload.get("Changelist", 0))
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        return None
+    return f"{parts[0]}.{parts[1]}.{parts[2]}-CL{changelist}"
+
+
+def _finite_number(value: Any, *, positive: bool = False) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    if number != number or number in (float("inf"), float("-inf")):
+        return None
+    if number < 0 or (positive and number <= 0):
+        return None
+    return round(number, 1)
+
+
+def interpret_low_spec_startup(
+    payload: Any, *, expected_commit: str, runner_exit_code: int
+) -> dict[str, Any]:
+    """Classify raw low-spec startup facts fail-closed.
+
+    Only allow-listed numeric/boolean facts are copied out of the probe result.
+    PASS means bounded engine startup plus measured process memory for the exact
+    commit; it never implies visual, control-feel, frame-time, or gameplay PASS.
+    """
+    check: dict[str, Any] = {
+        "status": "REVIEW_REQUIRED",
+        "profile": "low-spec-development",
+        "scope": "bounded editor startup and process working-set telemetry only",
+        "product_reality_claimed": False,
+        "not_evidence_for": list(LOW_SPEC_NOT_EVIDENCE_FOR),
+        "exit_code": runner_exit_code,
+    }
+    if runner_exit_code == 124:
+        check.update(status="FAIL", failure_category="probe_timeout",
+                     reason="Low-spec startup probe exceeded its outer time bound.")
+        return check
+    if not isinstance(payload, dict) or payload.get("schema_version") != LOW_SPEC_RESULT_SCHEMA_VERSION:
+        check["reason"] = "Low-spec startup result was missing or had an unexpected schema."
+        return check
+    commit = str(payload.get("git_commit") or "").lower()
+    if not re.fullmatch(r"[0-9a-f]{40}", commit) or commit != expected_commit:
+        check["reason"] = "Low-spec startup build identity did not match the exact tested commit."
+        return check
+    check["commit"] = commit
+
+    marker = payload.get("startup_marker_observed") is True
+    exited = payload.get("exited_before_window_end") is True
+    exit_code = payload.get("exit_code")
+    facts = {
+        "startup_marker_observed": marker,
+        "startup_seconds": _finite_number(payload.get("startup_seconds")),
+        "engine_reported_init_seconds": _finite_number(payload.get("engine_reported_init_seconds")),
+        "startup_timeout_seconds": _finite_number(payload.get("startup_timeout_seconds")),
+        "sample_window_seconds": _finite_number(payload.get("sample_window_seconds")),
+        "sampled_after_startup_seconds": _finite_number(payload.get("sampled_after_startup_seconds")),
+        "exited_before_window_end": exited,
+        "editor_exit_code": exit_code if isinstance(exit_code, int) and not isinstance(exit_code, bool) else None,
+    }
+    check["startup"] = facts
+    peak = _finite_number(payload.get("peak_working_set_mib"), positive=True)
+    samples = payload.get("memory_sample_count")
+    samples = samples if isinstance(samples, int) and not isinstance(samples, bool) and samples >= 0 else 0
+    check["memory"] = {
+        "metric": "editor_peak_working_set_mib",
+        "value": peak,
+        "sample_count": samples,
+        "source": "UnrealEditor process WorkingSet64",
+        "interpretation": "process working set only; not total system RAM or shared-GPU memory",
+    }
+    cleanup = payload.get("cleanup")
+    check["cleanup"] = cleanup if cleanup in ("terminated", "already_exited", "failed", "pending", "not_started") else "unknown"
+
+    if payload.get("editor_launched") is not True:
+        check["reason"] = "Unreal Editor was not launched; low-spec startup telemetry is unavailable."
+        return check
+    if check["cleanup"] not in ("terminated", "already_exited"):
+        check["reason"] = "The launched Unreal Editor could not be confirmed stopped."
+        return check
+    if not marker:
+        category = "exited_before_startup" if exited else "startup_timeout"
+        check.update(status="FAIL", failure_category=category,
+                     reason="Unreal Editor did not reach the engine initialization marker within the bound.")
+        return check
+    if exited:
+        check.update(status="FAIL", failure_category="exited_during_sample_window",
+                     reason="Unreal Editor exited during the post-startup memory sample window.")
+        return check
+    window = facts["sample_window_seconds"]
+    sampled = facts["sampled_after_startup_seconds"]
+    if facts["startup_seconds"] is None or window is None or sampled is None or sampled + 1.0 < window:
+        check["reason"] = "Startup timing or the post-startup sample window was incomplete."
+        return check
+    if peak is None or samples <= 0:
+        check["reason"] = "Process memory telemetry was unavailable."
+        return check
+    check["status"] = "PASS"
+    return check
+
+
+def run_unreal_low_spec_startup(
+    repo_root: Path, unreal_root: Path, tested_commit: str, log_dir: Path, state_dir: Path
+) -> dict[str, Any]:
+    script = repo_root / "tools" / "run_unattended_low_spec_startup.ps1"
+    if not script.is_file():
+        return {"status": "REVIEW_REQUIRED", "reason": "tools/run_unattended_low_spec_startup.ps1 is missing"}
+    if os.name != "nt":
+        return {"status": "REVIEW_REQUIRED", "reason": "Low-spec startup evidence requires Windows"}
+
+    runner_log = log_dir / "unreal-low-spec-startup-runner.log"
+    unreal_log = log_dir / "unreal-low-spec-startup.log"
+    result_path = log_dir / "unreal-low-spec-startup.json"
+    result_path.unlink(missing_ok=True)
+    code, duration = run_logged(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script),
+            "-UnrealRoot",
+            str(unreal_root),
+            "-ResultPath",
+            str(result_path),
+            "-LogPath",
+            str(unreal_log),
+            "-StartupTimeoutSeconds",
+            str(LOW_SPEC_STARTUP_TIMEOUT_SECONDS),
+            "-SampleWindowSeconds",
+            str(LOW_SPEC_SAMPLE_WINDOW_SECONDS),
+        ],
+        cwd=repo_root,
+        log_path=runner_log,
+        timeout_seconds=float(LOW_SPEC_STARTUP_TIMEOUT_SECONDS + LOW_SPEC_SAMPLE_WINDOW_SECONDS + 240),
+    )
+    try:
+        payload: Any = json.loads(result_path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        payload = None
+    check = interpret_low_spec_startup(payload, expected_commit=tested_commit, runner_exit_code=code)
+    check["duration_seconds"] = round(duration, 3)
+    check["build_identity"] = {
+        "commit": tested_commit,
+        "target": "EverwardEditor Win64 Development",
+        "unreal_engine_version": read_unreal_engine_version(unreal_root),
+    }
+    check["log"] = unreal_log.relative_to(state_dir).as_posix() if unreal_log.is_relative_to(state_dir) else unreal_log.name
+    if isinstance(payload, dict) and isinstance(payload.get("error"), str) and payload["error"]:
+        check["probe_error"] = sanitize_text(
+            payload["error"], repo_root=repo_root, unreal_root=unreal_root
+        )[:300]
+    if check["status"] != "PASS":
+        tail_source = unreal_log if unreal_log.is_file() else runner_log
+        check["failure_tail"] = log_tail(tail_source, repo_root=repo_root, unreal_root=unreal_root)
+    return check
+
+
 def acquire_lock(state_dir: Path) -> tuple[int | None, bool]:
     state_dir.mkdir(parents=True, exist_ok=True)
     path = state_dir / LOCK_NAME
@@ -501,12 +681,19 @@ def aggregate_status(checks: dict[str, dict[str, Any]]) -> Status:
     return "PASS"
 
 
-def read_last_pass(state_dir: Path) -> str | None:
+def _read_commit_marker(path: Path) -> str | None:
     try:
-        value = (state_dir / LAST_PASS_MARKER).read_text(encoding="ascii").strip().lower()
+        value = path.read_text(encoding="ascii").strip().lower()
     except OSError:
         return None
     return value if re.fullmatch(r"[0-9a-f]{40}", value) else None
+
+
+def read_last_pass(state_dir: Path) -> str | None:
+    """Return the exact commit that passed every unattended lane, including low-spec startup."""
+    smoke = _read_commit_marker(state_dir / LAST_PASS_MARKER)
+    low_spec = _read_commit_marker(state_dir / LOW_SPEC_PASS_MARKER)
+    return smoke if smoke is not None and smoke == low_spec else None
 
 
 def write_report(
@@ -586,7 +773,7 @@ def run_worker(
         report["tested_commit"] = target
         report["checks"]["cached_exact_commit"] = {
             "status": "PASS",
-            "reason": "This exact Foundation-green commit already passed unattended full preflight, UBT build, and headless Unreal smoke.",
+            "reason": "This exact Foundation-green commit already passed unattended full preflight, UBT build, and headless Unreal smoke, plus bounded low-spec startup/memory evidence.",
         }
         report["notes"].append("No rerun was needed; exact fully verified commit is unchanged.")
         report["completed_at_utc"] = utc_now()
@@ -655,12 +842,23 @@ def run_worker(
         repo_root, unreal_root, logs / "unreal-headless-smoke.log"
     )
     report["checks"]["unreal_headless_smoke"] = headless_smoke
+    if headless_smoke.get("status") != "PASS":
+        report["notes"].append(
+            "Low-spec startup evidence was not attempted because the headless Unreal smoke did not pass."
+        )
+        report["completed_at_utc"] = utc_now()
+        report["result"] = aggregate_status(report["checks"])
+        return report
+
+    low_spec = run_unreal_low_spec_startup(repo_root, unreal_root, synced, logs, state_dir)
+    report["checks"]["unreal_low_spec_startup"] = low_spec
     report["completed_at_utc"] = utc_now()
     report["result"] = aggregate_status(report["checks"])
     if report["result"] == "PASS":
         (state_dir / LAST_PASS_MARKER).write_text(target + "\n", encoding="ascii")
+        (state_dir / LOW_SPEC_PASS_MARKER).write_text(target + "\n", encoding="ascii")
         report["notes"].append(
-            "Deterministic engineering gates and headless map/load smoke passed. Visual, interaction-feel, performance, and gameplay Product Reality remain human-only."
+            "Deterministic engineering gates, headless map/load smoke, and bounded low-spec startup/memory telemetry passed. Visual, interaction-feel, frame-time, and gameplay Product Reality remain human-only."
         )
     return report
 

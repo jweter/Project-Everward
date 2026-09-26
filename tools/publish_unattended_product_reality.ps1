@@ -42,6 +42,8 @@ function Get-FailureFingerprint {
     }
     if ($Status -ne "FAIL") { return "" }
     $ExitCode = [string]$Check.exit_code
+    $Category = [string]$Check.failure_category
+    if ($Category -match "^[a-z_]{1,40}$") { return "$Category|exit=$ExitCode" }
     $Tail = [string]$Check.failure_tail
     if ($Tail -match "(?i)timeout") { return "timeout|exit=$ExitCode" }
     if ($Tail -match "(?i)cmake") { return "cmake|exit=$ExitCode" }
@@ -105,8 +107,17 @@ $CheckNames = @(
     "unreal_5_8",
     "unreal_editor_build",
     "unreal_headless_smoke",
+    "unreal_low_spec_startup",
     "worker_exception"
 )
+
+function Format-AllowListedNumber {
+    param([object]$Value)
+    if ($Value -is [double] -or $Value -is [decimal] -or $Value -is [int] -or $Value -is [long]) {
+        return ([double]$Value).ToString("0.0", [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+    return "unavailable"
+}
 
 foreach ($Name in $CheckNames) {
     $Property = $Report.checks.PSObject.Properties[$Name]
@@ -117,6 +128,11 @@ foreach ($Name in $CheckNames) {
     $Fingerprint = Get-FailureFingerprint $Check
     if ($Fingerprint) {
         $Lines.Add("  - sanitized failure fingerprint: ``$Fingerprint``")
+    }
+    if ($Name -eq "unreal_low_spec_startup" -and $null -ne $Check.startup) {
+        $StartupSeconds = Format-AllowListedNumber $Check.startup.startup_seconds
+        $PeakMiB = Format-AllowListedNumber $Check.memory.value
+        $Lines.Add("  - low-spec startup seconds: $StartupSeconds; editor peak working set MiB: $PeakMiB (process working set only; not visual, control-feel, frame-time, or gameplay evidence)")
     }
 }
 
