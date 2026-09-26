@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace everward::simulation {
 
@@ -37,6 +38,18 @@ struct CompositionEstimate {
         uncertainty,
         confidence,
     };
+}
+
+inline void validate_composition_estimates(const std::vector<CompositionEstimate>& estimates) {
+    double total_fraction = 0.0;
+    for (const auto& estimate : estimates) {
+        (void)make_composition_estimate(
+            estimate.material_id, estimate.fraction, estimate.uncertainty, estimate.confidence);
+        total_fraction += estimate.fraction;
+        if (!std::isfinite(total_fraction) || total_fraction > 1.0 + 1e-12) {
+            throw std::invalid_argument("composition estimate fractions must not exceed 1 in aggregate");
+        }
+    }
 }
 
 }  // namespace everward::simulation

@@ -162,5 +162,19 @@ int main() {
         (void)make_composition_estimate(
             "iron", std::numeric_limits<double>::infinity(), 0.2, 0.8);
     }));
+    {
+        const std::vector<CompositionEstimate> plausible{
+            make_composition_estimate("iron", 0.62, 0.18, 0.74),
+            make_composition_estimate("silicate", 0.28, 0.22, 0.68),
+        };
+        validate_composition_estimates(plausible);
+    }
+    assert(throws_invalid_argument([] {
+        const std::vector<CompositionEstimate> impossible{
+            make_composition_estimate("iron", 0.70, 0.10, 0.90),
+            make_composition_estimate("silicate", 0.40, 0.10, 0.90),
+        };
+        validate_composition_estimates(impossible);
+    }));
     return 0;
 }
