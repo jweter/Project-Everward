@@ -29,6 +29,8 @@ Pending worker verification blocks only the dependent lane. Deterministic simula
 
 Objective checks such as UBT compilation, Unreal Automation tests, packaged startup, deterministic fixed-step behavior, save/load round trips, component/system state, resource/mining/repair invariants, input-state transitions, HUD data contracts, crash detection, screenshots, and reproducible telemetry should move into CI or the unattended worker.
 
+The private Windows worker currently runs full preflight, the UBT editor build, the headless Unreal smoke, and then a bounded low-spec startup/process-memory check that reuses the manual `-LowSpec -MeasureMemory` launch contract. That last check records startup survival and working-set facts for the exact tested commit only. Missing telemetry is `REVIEW_REQUIRED`, an editor exit is `FAIL`, and neither result, nor a PASS, is visual, control-feel, frame-time, or gameplay acceptance. See `docs/UNATTENDED_WINDOWS_PRODUCT_REALITY.md`.
+
 Human review remains appropriate for irreducibly subjective gameplay feel, visual quality, pacing, artistic presentation, or product-direction decisions. Even then, automate setup, navigation, evidence capture, and regression checks so Jeremy evaluates only the final subjective question.
 
 Jeremy may always play a milestone or new version, but repeated incremental Unreal tests should not be required for development to continue.
