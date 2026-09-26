@@ -105,6 +105,7 @@ $CheckNames = @(
     "unreal_5_8",
     "unreal_editor_build",
     "unreal_headless_smoke",
+    "unreal_low_spec_startup",
     "worker_exception"
 )
 

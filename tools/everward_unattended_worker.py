@@ -25,6 +25,9 @@ SENTINEL_NAME = "everward-unattended-worker"
 MANUAL_LOCK_NAME = "everward-manual-playtest.lock"
 LOCK_NAME = "worker.lock"
 LAST_PASS_MARKER = "last_passed_headless_smoke_commit.txt"
+LOW_SPEC_PASS_MARKER = "last_passed_low_spec_startup_commit.txt"
+LOW_SPEC_EVIDENCE_SCHEMA_VERSION = 1
+LOW_SPEC_SAMPLE_WINDOW_SECONDS = 60
 REPORT_SCHEMA_VERSION = 1
 
 
@@ -458,6 +461,176 @@ def run_unreal_headless_smoke(
     }
 
 
+def _finite_number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if number == number and number not in (float("inf"), float("-inf")) else None
+
+
+def _allow_listed_token(value: Any) -> str | None:
+    if isinstance(value, str) and re.fullmatch(r"[a-z_]{1,64}", value):
+        return value
+    return None
+
+
+def evaluate_low_spec_startup_evidence(
+    evidence: Any, *, expected_commit: str, exit_code: int
+) -> dict[str, Any]:
+    """Classify launcher evidence into a bounded, path-free check result.
+
+    Only allow-listed numeric/enumerated facts are copied so raw launcher text
+    and private machine paths never reach the report. Missing or inconsistent
+    telemetry is REVIEW_REQUIRED; an observed editor crash is FAIL. Nothing here
+    implies visual, control-feel, frame-time, or gameplay Product Reality.
+    """
+    result: dict[str, Any] = {
+        "status": "REVIEW_REQUIRED",
+        "exit_code": exit_code,
+        "profile": "low_spec_development",
+        "product_reality_claimed": False,
+        "interpretation": (
+            "Bounded startup and process-memory facts only; not visual, control-feel, "
+            "frame-time, or gameplay acceptance."
+        ),
+    }
+    if not isinstance(evidence, dict):
+        result["reason"] = "low-spec startup evidence is missing or unreadable"
+        return result
+    if evidence.get("schema_version") != LOW_SPEC_EVIDENCE_SCHEMA_VERSION:
+        result["reason"] = "low-spec startup evidence schema is unsupported"
+        return result
+
+    commit = evidence.get("git_commit")
+    if isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{40}", commit):
+        result["commit"] = commit
+    startup = evidence.get("startup") if isinstance(evidence.get("startup"), dict) else {}
+    memory = evidence.get("memory") if isinstance(evidence.get("memory"), dict) else {}
+    cleanup = evidence.get("cleanup") if isinstance(evidence.get("cleanup"), dict) else {}
+
+    peak = _finite_number(memory.get("peak_working_set_mib"))
+    final = _finite_number(memory.get("final_working_set_mib"))
+    samples = memory.get("sample_count")
+    window = memory.get("sample_window_seconds")
+    seconds_to_window = _finite_number(startup.get("seconds_to_main_window"))
+    editor_exit = startup.get("exit_code")
+    result["startup"] = {
+        "status": _allow_listed_token(startup.get("status")),
+        "alive_through_sample_window": startup.get("alive_through_sample_window") is True,
+        "exited_during_sample_window": startup.get("exited_during_sample_window") is True,
+        "editor_exit_code": editor_exit if isinstance(editor_exit, int) and not isinstance(editor_exit, bool) else None,
+        "main_window_observed": startup.get("main_window_observed") is True,
+        "seconds_to_main_window": seconds_to_window,
+    }
+    result["memory"] = {
+        "metric": "editor_peak_working_set_mib",
+        "source": "UnrealEditor process WorkingSet64",
+        "scope": "process working set only; not total system RAM or shared-GPU memory",
+        "sample_window_seconds": window if isinstance(window, int) and not isinstance(window, bool) else None,
+        "sample_count": samples if isinstance(samples, int) and not isinstance(samples, bool) else 0,
+        "peak_working_set_mib": peak,
+        "final_working_set_mib": final,
+    }
+    result["cleanup"] = _allow_listed_token(cleanup.get("status"))
+    failure = _allow_listed_token(evidence.get("failure_reason"))
+    if failure:
+        result["failure_reason"] = failure
+
+    if commit != expected_commit:
+        result["reason"] = "low-spec startup evidence does not match the exact tested commit"
+        return result
+    if evidence.get("product_reality_claimed") is not False:
+        result["reason"] = "low-spec startup evidence did not disclaim Product Reality"
+        return result
+    if result["startup"]["exited_during_sample_window"] or result["startup"]["status"] == "fail":
+        result["status"] = "FAIL"
+        result["reason"] = "Unreal Editor exited during the low-spec startup sample window"
+        return result
+    if result["cleanup"] not in ("stopped", "already_exited"):
+        result["reason"] = "launched Unreal Editor was not confirmed stopped"
+        return result
+    if (
+        exit_code != 0
+        or result["startup"]["status"] != "pass"
+        or not result["startup"]["alive_through_sample_window"]
+    ):
+        result["reason"] = "low-spec startup did not complete its bounded sample window"
+        return result
+    if peak is None or peak <= 0 or result["memory"]["sample_count"] <= 0:
+        result["reason"] = "process-memory telemetry was unavailable"
+        return result
+
+    result["status"] = "PASS"
+    return result
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def run_unreal_low_spec_startup(
+    repo_root: Path,
+    unreal_root: Path,
+    log_dir: Path,
+    expected_commit: str,
+) -> dict[str, Any]:
+    script = repo_root / "tools" / "run_unattended_low_spec_startup.ps1"
+    if not script.is_file():
+        return {
+            "status": "REVIEW_REQUIRED",
+            "reason": "tools/run_unattended_low_spec_startup.ps1 is missing",
+            "product_reality_claimed": False,
+        }
+    if not _is_windows():
+        return {
+            "status": "REVIEW_REQUIRED",
+            "reason": "Low-spec startup check requires Windows",
+            "product_reality_claimed": False,
+        }
+
+    evidence_path = log_dir / "low-spec-startup.json"
+    log_path = log_dir / "low-spec-startup.log"
+    evidence_path.unlink(missing_ok=True)
+    code, duration = run_logged(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script),
+            "-UnrealRoot",
+            str(unreal_root),
+            "-ExpectedCommit",
+            expected_commit,
+            "-EvidencePath",
+            str(evidence_path),
+            "-UnrealLogPath",
+            str(log_dir / "low-spec-startup-unreal.log"),
+            "-SampleWindowSeconds",
+            str(LOW_SPEC_SAMPLE_WINDOW_SECONDS),
+        ],
+        cwd=repo_root,
+        log_path=log_path,
+        timeout_seconds=float(LOW_SPEC_SAMPLE_WINDOW_SECONDS + 240),
+    )
+    try:
+        evidence: Any = json.loads(evidence_path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        evidence = None
+    result = evaluate_low_spec_startup_evidence(
+        evidence, expected_commit=expected_commit, exit_code=code
+    )
+    result["duration_seconds"] = round(duration, 3)
+    result["log"] = str(log_path)
+    result["failure_tail"] = (
+        ""
+        if result["status"] == "PASS"
+        else log_tail(log_path, repo_root=repo_root, unreal_root=unreal_root)
+    )
+    return result
+
+
 def acquire_lock(state_dir: Path) -> tuple[int | None, bool]:
     state_dir.mkdir(parents=True, exist_ok=True)
     path = state_dir / LOCK_NAME
@@ -501,12 +674,22 @@ def aggregate_status(checks: dict[str, dict[str, Any]]) -> Status:
     return "PASS"
 
 
-def read_last_pass(state_dir: Path) -> str | None:
+def _read_marker(state_dir: Path, name: str) -> str | None:
     try:
-        value = (state_dir / LAST_PASS_MARKER).read_text(encoding="ascii").strip().lower()
+        value = (state_dir / name).read_text(encoding="ascii").strip().lower()
     except OSError:
         return None
     return value if re.fullmatch(r"[0-9a-f]{40}", value) else None
+
+
+def read_last_pass(state_dir: Path) -> str | None:
+    # A cached PASS requires both the headless-smoke marker and the low-spec
+    # startup marker for the same exact commit; markers written by earlier worker
+    # versions without low-spec evidence therefore force a full rerun.
+    smoke = _read_marker(state_dir, LAST_PASS_MARKER)
+    if smoke is None or _read_marker(state_dir, LOW_SPEC_PASS_MARKER) != smoke:
+        return None
+    return smoke
 
 
 def write_report(
@@ -586,7 +769,7 @@ def run_worker(
         report["tested_commit"] = target
         report["checks"]["cached_exact_commit"] = {
             "status": "PASS",
-            "reason": "This exact Foundation-green commit already passed unattended full preflight, UBT build, and headless Unreal smoke.",
+            "reason": "This exact Foundation-green commit already passed unattended full preflight, UBT build, and headless Unreal smoke, plus the bounded low-spec startup check.",
         }
         report["notes"].append("No rerun was needed; exact fully verified commit is unchanged.")
         report["completed_at_utc"] = utc_now()
@@ -655,12 +838,23 @@ def run_worker(
         repo_root, unreal_root, logs / "unreal-headless-smoke.log"
     )
     report["checks"]["unreal_headless_smoke"] = headless_smoke
+    if headless_smoke.get("status") != "PASS":
+        report["notes"].append(
+            "Low-spec startup check was not attempted because headless Unreal smoke did not pass."
+        )
+        report["completed_at_utc"] = utc_now()
+        report["result"] = aggregate_status(report["checks"])
+        return report
+
+    low_spec = run_unreal_low_spec_startup(repo_root, unreal_root, logs, target)
+    report["checks"]["unreal_low_spec_startup"] = low_spec
     report["completed_at_utc"] = utc_now()
     report["result"] = aggregate_status(report["checks"])
     if report["result"] == "PASS":
         (state_dir / LAST_PASS_MARKER).write_text(target + "\n", encoding="ascii")
+        (state_dir / LOW_SPEC_PASS_MARKER).write_text(target + "\n", encoding="ascii")
         report["notes"].append(
-            "Deterministic engineering gates and headless map/load smoke passed. Visual, interaction-feel, performance, and gameplay Product Reality remain human-only."
+            "Deterministic engineering gates, headless map/load smoke, and the bounded low-spec startup/process-memory check passed. Visual, interaction-feel, frame-time, and gameplay Product Reality remain human-only."
         )
     return report
 
