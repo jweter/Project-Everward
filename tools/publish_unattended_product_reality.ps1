@@ -41,7 +41,25 @@ function Get-FailureFingerprint {
         return "review_required"
     }
     if ($Status -ne "FAIL") { return "" }
-    $ExitCode = [string]$Check.exit_code
+    $Category = [string]$Check.failure_category
+    if (-not $Category) { $Category = [string]$Check.failure_reason }
+    $EditorFailure = (
+        $Category -in @("exited_before_startup", "exited_during_sample_window", "editor_exited_during_sample_window") -or
+        $Check.startup.exited_during_sample_window -eq $true
+    )
+    if ($EditorFailure) {
+        $NestedExit = $Check.startup.editor_exit_code
+        if ($null -ne $NestedExit -and [string]$NestedExit -match "^-?\d+$") {
+            $ExitCode = [string]$NestedExit
+        }
+        else {
+            $ExitCode = "unknown"
+        }
+    }
+    else {
+        $ExitCode = [string]$Check.exit_code
+    }
+    if ($Category -match "^[a-z_]{1,64}$") { return "$Category|exit=$ExitCode" }
     $Tail = [string]$Check.failure_tail
     if ($Tail -match "(?i)timeout") { return "timeout|exit=$ExitCode" }
     if ($Tail -match "(?i)cmake") { return "cmake|exit=$ExitCode" }

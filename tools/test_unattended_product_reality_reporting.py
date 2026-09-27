@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
+import subprocess
+import tempfile
 import unittest
 
 
@@ -52,3 +55,61 @@ def test_publisher_avoids_encoding_sensitive_punctuation_and_ambiguous_variable_
     script = (ROOT / "tools" / "publish_unattended_product_reality.ps1").read_text(encoding="utf-8")
     assert "—" not in script
     assert '"- **${Name}:** $Status"' in script
+
+
+def _fingerprint_function_source() -> str:
+    source = PUBLISHER.read_text(encoding="utf-8")
+    start = source.index("function Get-FailureFingerprint")
+    end = source.index("\nif (-not (Test-Path $Latest", start)
+    return source[start:end]
+
+
+@unittest.skipUnless(shutil.which("powershell.exe") or shutil.which("pwsh"), "PowerShell required")
+class FailureFingerprintBehaviorTests(unittest.TestCase):
+    def run_fingerprint(self, object_literal: str) -> str:
+        shell = shutil.which("powershell.exe") or shutil.which("pwsh")
+        assert shell is not None
+        with tempfile.TemporaryDirectory() as temp:
+            script = Path(temp) / "fingerprint.ps1"
+            script.write_text(
+                _fingerprint_function_source()
+                + "\n$Check = "
+                + object_literal
+                + "\nGet-FailureFingerprint $Check\n",
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        return completed.stdout.strip()
+
+    def test_editor_failure_uses_nested_editor_exit_code(self) -> None:
+        value = self.run_fingerprint(
+            '[pscustomobject]@{ status="FAIL"; exit_code=0; '
+            'failure_reason="editor_exited_during_sample_window"; '
+            'startup=[pscustomobject]@{ exited_during_sample_window=$true; editor_exit_code=3 }; '
+            'failure_tail="" }'
+        )
+        self.assertEqual(value, "editor_exited_during_sample_window|exit=3")
+
+    def test_editor_failure_without_nested_code_does_not_publish_wrapper_zero(self) -> None:
+        value = self.run_fingerprint(
+            '[pscustomobject]@{ status="FAIL"; exit_code=0; '
+            'failure_category="exited_before_startup"; '
+            'startup=[pscustomobject]@{ exited_during_sample_window=$false; editor_exit_code=$null }; '
+            'failure_tail="" }'
+        )
+        self.assertEqual(value, "exited_before_startup|exit=unknown")
+
+    def test_non_editor_failure_keeps_command_exit_code(self) -> None:
+        value = self.run_fingerprint(
+            '[pscustomobject]@{ status="FAIL"; exit_code=17; '
+            'failure_category=""; failure_reason=""; '
+            'startup=[pscustomobject]@{ exited_during_sample_window=$false; editor_exit_code=$null }; '
+            'failure_tail="cmake failed" }'
+        )
+        self.assertEqual(value, "cmake|exit=17")
