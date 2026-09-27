@@ -8,6 +8,23 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Get-ProcessTreeIds([int]$RootPid) {
+    $all = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
+    $ids = [System.Collections.Generic.HashSet[int]]::new()
+    [void]$ids.Add($RootPid)
+    $changed = $true
+    while ($changed) {
+        $changed = $false
+        foreach ($item in $all) {
+            if ($ids.Contains([int]$item.ParentProcessId) -and -not $ids.Contains([int]$item.ProcessId)) {
+                [void]$ids.Add([int]$item.ProcessId)
+                $changed = $true
+            }
+        }
+    }
+    return @($ids)
+}
+
 # Bounded unattended startup/memory probe. The launch contract mirrors the opt-in
 # `tools/run_phase2_first_playtest.ps1 -LowSpec -MeasureMemory` path exactly; a
 # regression test keeps the two command lists identical. The only unattended
@@ -132,13 +149,15 @@ catch {
 finally {
     if ($null -ne $Process -and -not $Process.HasExited) {
         $Evidence.cleanup.attempted = $true
+        $TreeIds = @(Get-ProcessTreeIds $Process.Id)
         try { & taskkill.exe /PID $Process.Id /T /F | Out-Null } catch {}
         try { $null = $Process.WaitForExit(30000) } catch {}
         if (-not $Process.HasExited) {
             try { Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue } catch {}
             try { $null = $Process.WaitForExit(10000) } catch {}
         }
-        $Evidence.cleanup.process_tree_terminated = $Process.HasExited
+        $Survivors = @($TreeIds | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+        $Evidence.cleanup.process_tree_terminated = ($Process.HasExited -and $Survivors.Count -eq 0)
     }
     if ($ExitCode -eq 0 -and ($Evidence.memory.sample_count -le 0 -or -not $Evidence.cleanup.process_tree_terminated)) { $ExitCode = 2 }
     $EvidenceDirectory = Split-Path -Parent $EvidencePath
