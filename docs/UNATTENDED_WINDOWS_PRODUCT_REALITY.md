@@ -61,9 +61,30 @@ The worker then:
 7. runs the repository-standard `python tools/quality_preflight.py --full` gate;
 8. only if full preflight passes, locates Unreal Engine 5.8 using the same explicit/env/registry/common-path model as the manual harness;
 9. builds `EverwardEditor Win64 Development` through UnrealBuildTool without launching Unreal Editor;
-10. writes exact-commit PASS / FAIL / REVIEW_REQUIRED evidence locally;
-11. caches a successful exact commit so an unchanged green build is not rebuilt on every idle episode;
-12. best-effort updates GitHub issue #243 with the latest sanitized status when GitHub CLI is authenticated.
+10. only if the build passes, runs the headless `-NullRHI` map/load smoke (`tools/run_unreal_headless_smoke.ps1`);
+11. only if headless smoke passes, runs the bounded low-spec startup/memory probe described below;
+12. writes exact-commit PASS / FAIL / REVIEW_REQUIRED evidence locally;
+13. caches a successful exact commit so an unchanged green build is not rebuilt on every idle episode;
+14. best-effort updates GitHub issue #243 with the latest sanitized status when GitHub CLI is authenticated.
+
+### Low-spec startup and memory evidence
+
+`tools/run_unattended_low_spec_startup.ps1` reuses the opt-in launch contract of `tools/run_phase2_first_playtest.ps1 -LowSpec -MeasureMemory`: the same windowed 1280x720 editor launch, the same `-ExecCmds` low-spec console commands, and the same `UnrealEditor` `WorkingSet64` peak sampled every 500 ms over the first 60 seconds. A regression test keeps the two command lists identical. The only unattended additions are `-Unattended` (no modal dialogs) and `-abslog` (the Unreal log is written to worker state, outside the checkout). Production/default settings, project config, scalability defaults, and simulation mechanics are not changed.
+
+The probe:
+
+- is skipped (REVIEW_REQUIRED) when an Unreal Editor is already running, so it never measures or disturbs a human session;
+- waits up to 900 seconds for the Unreal log line `Engine is initialized.` while sampling memory;
+- terminates its own editor process tree afterwards and records whether termination was confirmed;
+- writes a path-free evidence JSON (commit, profile, startup status, seconds to engine initialization, peak working set MiB, sample count, cleanup).
+
+Classification is fail-closed:
+
+- `PASS` only when the evidence commit equals the exact tested commit, the profile is low-spec, engine initialization was observed, memory samples exist, the process tree was confirmed terminated, and the probe exited zero;
+- `FAIL` when the editor exited before the evidence window completed;
+- `REVIEW_REQUIRED` for missing/unreadable/foreign evidence, commit mismatch, unavailable memory telemetry, unconfirmed cleanup, an initialization timeout, or a non-Windows host.
+
+The recorded memory is the editor process working set only, not total system RAM or shared-GPU memory. No memory threshold is enforced. A low-spec PASS is a startup/memory engineering fact; it is not visual, control-feel, frame-time, or gameplay Product Reality, and each check carries `product_reality_claimed: false`.
 
 The scheduled worker always exits zero to Task Scheduler. Test truth is in the evidence JSON, not in a retry storm. GitHub publication is presentation only and cannot change PASS/FAIL truth.
 
@@ -74,10 +95,14 @@ Default state lives outside the repository:
 ```text
 %LOCALAPPDATA%\Everward\unattended-worker\
   latest.json
-  last_passed_commit.txt
+  last_passed_low_spec_startup_commit.txt
   history\<timestamp>.json
   logs\<commit>\full-preflight.log
   logs\<commit>\unreal-build.log
+  logs\<commit>\unreal-headless-smoke.log
+  logs\<commit>\low-spec-startup.log
+  logs\<commit>\low-spec-startup.json
+  logs\<commit>\low-spec-startup-unreal.log
   preserved-playtests\<timestamp>\phase2-observations\...
 ```
 
@@ -90,6 +115,7 @@ The worker records:
 - canonical full-preflight status, exit code, duration, and local log;
 - Unreal Engine 5.8 discovery status;
 - UBT build status, exit code, duration, and local log;
+- headless smoke status and low-spec startup/memory facts for the exact tested commit;
 - a redacted failure tail that replaces the dedicated checkout, user profile, and Unreal installation roots;
 - the explicit human-only debt that remains.
 
@@ -158,7 +184,7 @@ The natural follow-on work for #240 is:
 2. script the opening deterministic gameplay chain: damaged awakening → target selection → scan → José approach → manipulator/mining → material gain → Fix_It repair;
 3. assert telemetry and state transitions from that chain automatically;
 4. add deterministic screenshots and asset/reference checks for gross visual regressions such as wireframe mode, missing HUD, missing probe/tools, or severe camera clipping;
-5. add instrumented startup/RAM/frame-time capture for the low-spec Product Reality target;
+5. add frame-time capture for the low-spec Product Reality target (startup and editor working-set capture now exist; see "Low-spec startup and memory evidence");
 6. feed deterministic worker evidence into the existing read-only mobile evidence surface;
 7. optionally use local Ollama to classify sanitized derived failure evidence, while keeping Python/tests/build tools as authority;
 8. retire each human checklist item as soon as an independent machine oracle exists.
