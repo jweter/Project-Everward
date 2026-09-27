@@ -157,6 +157,9 @@ finally {
             try { $null = $Process.WaitForExit(10000) } catch {}
         }
         $Survivors = @($TreeIds | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+        # PASS requires proof that the complete captured launch tree is gone, not only
+        # the UnrealEditor root. This is intentionally fail-closed when any descendant
+        # survives taskkill/Stop-Process cleanup.
         $Evidence.cleanup.process_tree_terminated = ($Process.HasExited -and $Survivors.Count -eq 0)
     }
     if ($ExitCode -eq 0 -and ($Evidence.memory.sample_count -le 0 -or -not $Evidence.cleanup.process_tree_terminated)) { $ExitCode = 2 }
