@@ -73,18 +73,71 @@ function Write-Evidence {
     $Evidence | ConvertTo-Json -Depth 8 | Set-Content -Path $EvidencePath -Encoding UTF8
 }
 
+function Get-ProcessTreeIds {
+    param([int]$RootPid)
+    $AllProcesses = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
+    $Ids = [System.Collections.Generic.HashSet[int]]::new()
+    [void]$Ids.Add($RootPid)
+    $Changed = $true
+    while ($Changed) {
+        $Changed = $false
+        foreach ($Item in $AllProcesses) {
+            if ($Ids.Contains([int]$Item.ParentProcessId) -and -not $Ids.Contains([int]$Item.ProcessId)) {
+                [void]$Ids.Add([int]$Item.ProcessId)
+                $Changed = $true
+            }
+        }
+    }
+    return @($Ids)
+}
+
+function Get-ProcessTreeSurvivors {
+    param([int[]]$ProcessIds)
+    return @($ProcessIds | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+}
+
 function Stop-EditorTree {
     param([System.Diagnostics.Process]$Process)
-    if ($Process.HasExited) { $Evidence.cleanup.status = "already_exited"; return }
-    try { [void]$Process.CloseMainWindow() } catch {}
-    if ($Process.WaitForExit($ShutdownGraceSeconds * 1000)) {
-        $Evidence.cleanup.status = "stopped"; $Evidence.cleanup.method = "close_main_window"; return
+    $TreeIds = @(Get-ProcessTreeIds -RootPid $Process.Id)
+
+    if ($Process.HasExited) {
+        $Survivors = @(Get-ProcessTreeSurvivors -ProcessIds $TreeIds)
+        if ($Survivors.Count -eq 0) {
+            $Evidence.cleanup.status = "already_exited"
+            return
+        }
     }
-    & taskkill.exe /PID $Process.Id /T /F | Out-Null
-    if ($Process.WaitForExit(15000)) {
-        $Evidence.cleanup.status = "stopped"; $Evidence.cleanup.method = "taskkill_tree"; return
+    else {
+        try { [void]$Process.CloseMainWindow() } catch {}
+        if ($Process.WaitForExit($ShutdownGraceSeconds * 1000)) {
+            $Survivors = @(Get-ProcessTreeSurvivors -ProcessIds $TreeIds)
+            if ($Survivors.Count -eq 0) {
+                $Evidence.cleanup.status = "stopped"
+                $Evidence.cleanup.method = "close_main_window"
+                return
+            }
+        }
+        else {
+            try { & taskkill.exe /PID $Process.Id /T /F | Out-Null } catch {}
+            try { $null = $Process.WaitForExit(15000) } catch {}
+        }
     }
-    $Evidence.cleanup.status = "failed"; $Evidence.cleanup.method = "taskkill_tree"
+
+    $Survivors = @(Get-ProcessTreeSurvivors -ProcessIds $TreeIds)
+    foreach ($Survivor in $Survivors) {
+        try { & taskkill.exe /PID $Survivor.Id /T /F | Out-Null } catch {}
+    }
+    if ($Survivors.Count -gt 0) { Start-Sleep -Milliseconds 500 }
+
+    $Survivors = @(Get-ProcessTreeSurvivors -ProcessIds $TreeIds)
+    if ($Process.HasExited -and $Survivors.Count -eq 0) {
+        $Evidence.cleanup.status = "stopped"
+        $Evidence.cleanup.method = "taskkill_tree"
+        return
+    }
+
+    $Evidence.cleanup.status = "failed"
+    $Evidence.cleanup.method = "taskkill_tree"
 }
 
 $EditorProcess = $null
