@@ -280,6 +280,14 @@ class LowSpecLauncherContractTests(unittest.TestCase):
         self.assertIn("taskkill.exe /PID $Process.Id /T /F", self.launcher)
         self.assertNotIn("Stop-Process -Name", self.launcher)
 
+    def test_launcher_confirms_full_captured_process_tree_before_cleanup_passes(self) -> None:
+        self.assertIn("function Get-ProcessTreeIds", self.launcher)
+        self.assertIn("Get-CimInstance Win32_Process", self.launcher)
+        self.assertIn("$TreeIds = @(Get-ProcessTreeIds -RootPid $Process.Id)", self.launcher)
+        self.assertIn("function Get-ProcessTreeSurvivors", self.launcher)
+        self.assertIn("$Survivors.Count -eq 0", self.launcher)
+        self.assertIn('$Evidence.cleanup.status = "failed"', self.launcher)
+
     def test_launcher_does_not_touch_production_settings_or_simulation(self) -> None:
         for forbidden in ("DefaultEngine.ini", "DefaultScalability", "GameUserSettings", "Set-Content -Path $ProjectPath", "src/simulation", "src\\simulation"):
             self.assertNotIn(forbidden, self.launcher)
