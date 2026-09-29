@@ -61,9 +61,11 @@ The worker then:
 7. runs the repository-standard `python tools/quality_preflight.py --full` gate;
 8. only if full preflight passes, locates Unreal Engine 5.8 using the same explicit/env/registry/common-path model as the manual harness;
 9. builds `EverwardEditor Win64 Development` through UnrealBuildTool without launching Unreal Editor;
-10. writes exact-commit PASS / FAIL / REVIEW_REQUIRED evidence locally;
-11. caches a successful exact commit so an unchanged green build is not rebuilt on every idle episode;
-12. best-effort updates GitHub issue #243 with the latest sanitized status when GitHub CLI is authenticated.
+10. if the build passes, runs a bounded headless (`-game -NullRHI`) Unreal smoke via `tools/run_unreal_headless_smoke.ps1` to confirm the project loads and exits with complete deterministic evidence;
+11. if headless smoke passes, runs the existing opt-in Low-Spec/MeasureMemory launch contract from `tools/run_phase2_first_playtest.ps1` in a bounded, automation-only mode (`-UnattendedBoundedExit`) that records whether the low-spec Editor started and its peak process working-set for the exact commit, then terminates the Editor process instead of leaving it running for a human;
+12. writes exact-commit PASS / FAIL / REVIEW_REQUIRED evidence locally;
+13. caches a successful exact commit so an unchanged green build is not rebuilt on every idle episode;
+14. best-effort updates GitHub issue #243 with the latest sanitized status when GitHub CLI is authenticated.
 
 The scheduled worker always exits zero to Task Scheduler. Test truth is in the evidence JSON, not in a retry storm. GitHub publication is presentation only and cannot change PASS/FAIL truth.
 
@@ -90,6 +92,8 @@ The worker records:
 - canonical full-preflight status, exit code, duration, and local log;
 - Unreal Engine 5.8 discovery status;
 - UBT build status, exit code, duration, and local log;
+- headless Unreal smoke status, exit code, duration, and local log;
+- bounded low-spec startup detection and peak Unreal Editor process working-set memory, with the sample window duration, for the exact tested commit;
 - a redacted failure tail that replaces the dedicated checkout, user profile, and Unreal installation roots;
 - the explicit human-only debt that remains.
 
@@ -110,12 +114,13 @@ Before reset/clean, current Phase-2 observation evidence is copied to local work
 
 The worker does not:
 
-- launch PIE or manipulate the Unreal UI in this first slice;
+- launch PIE or interactively manipulate the Unreal UI; the bounded low-spec startup check only observes process launch/exit and memory from outside the Editor, then terminates it;
 - modify authoritative simulation state to make a test pass;
 - modify player saves;
 - commit, push, or merge source code;
 - upload detailed local logs;
 - declare rendering, controls, art, frame-time, or gameplay feel correct from a successful compile;
+- treat bounded low-spec startup/memory evidence as visual, control-feel, or gameplay Product Reality;
 - replace Everward's existing deterministic simulation CI;
 - turn missing evidence into PASS.
 
@@ -158,7 +163,7 @@ The natural follow-on work for #240 is:
 2. script the opening deterministic gameplay chain: damaged awakening → target selection → scan → José approach → manipulator/mining → material gain → Fix_It repair;
 3. assert telemetry and state transitions from that chain automatically;
 4. add deterministic screenshots and asset/reference checks for gross visual regressions such as wireframe mode, missing HUD, missing probe/tools, or severe camera clipping;
-5. add instrumented startup/RAM/frame-time capture for the low-spec Product Reality target;
+5. instrumented low-spec startup/peak-working-set capture now runs after headless smoke (bounded, opt-in, exact-commit evidence only); frame-time capture for the low-spec target remains open;
 6. feed deterministic worker evidence into the existing read-only mobile evidence surface;
 7. optionally use local Ollama to classify sanitized derived failure evidence, while keeping Python/tests/build tools as authority;
 8. retire each human checklist item as soon as an independent machine oracle exists.
