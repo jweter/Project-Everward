@@ -4,7 +4,8 @@ param(
     [switch]$SkipBuild,
     [switch]$NoLaunch,
     [switch]$LowSpec,
-    [switch]$MeasureMemory
+    [switch]$MeasureMemory,
+    [switch]$UnattendedBoundedExit
 )
 
 $ErrorActionPreference = "Stop"
@@ -82,6 +83,7 @@ function Set-LowSpecMemoryEvidence {
 if (-not (Test-Path $ProjectPath)) { throw "Everward project not found at $ProjectPath" }
 if ($MeasureMemory -and -not $LowSpec) { throw "-MeasureMemory is currently restricted to -LowSpec evidence runs." }
 if ($MeasureMemory -and $NoLaunch) { throw "-MeasureMemory requires an Unreal Editor launch." }
+if ($UnattendedBoundedExit -and -not ($LowSpec -and $MeasureMemory)) { throw "-UnattendedBoundedExit requires both -LowSpec and -MeasureMemory." }
 
 $ResolvedUnrealRoot = Resolve-Unreal58Root -ExplicitRoot $UnrealRoot
 $BuildBat = Join-Path $ResolvedUnrealRoot "Engine\Build\BatchFiles\Build.bat"
@@ -133,9 +135,10 @@ try {
         }
         else { Write-Host "Launching Unreal Editor with log window..." }
         $EditorProcess = Start-Process -FilePath $EditorExe -ArgumentList $EditorArguments -PassThru
+        $EditorLaunchConfirmed = $false
         $LaunchDeadline = (Get-Date).AddSeconds(10)
         while ((Get-Date) -lt $LaunchDeadline) {
-            if (Get-Process -Name "UnrealEditor" -ErrorAction SilentlyContinue) { break }
+            if (Get-Process -Name "UnrealEditor" -ErrorAction SilentlyContinue) { $EditorLaunchConfirmed = $true; break }
             Start-Sleep -Milliseconds 200
         }
         if ($LowSpec -and $MeasureMemory) {
@@ -150,8 +153,24 @@ try {
             $PeakWorkingSetMiB = [Math]::Round($PeakWorkingSetBytes / 1MB, 1)
             Set-LowSpecMemoryEvidence -ObservationPath $ObservationPath -PeakWorkingSetMiB $PeakWorkingSetMiB -SampleWindowSeconds $SampleWindowSeconds
             Write-Host ("Measured UnrealEditor peak working set during the first {0}s: {1} MiB" -f $SampleWindowSeconds, $PeakWorkingSetMiB)
+            if ($UnattendedBoundedExit) {
+                $EditorProcess.Refresh()
+                $SidecarPath = Join-Path $RepoRoot "playtests\phase2\observations\unattended-low-spec-startup.json"
+                $Sidecar = [ordered]@{
+                    git_commit = $GitCommit
+                    editor_process_detected = [bool]($EditorLaunchConfirmed -and -not $EditorProcess.HasExited)
+                    peak_working_set_mib = $PeakWorkingSetMiB
+                    sample_window_seconds = $SampleWindowSeconds
+                    captured_at_utc = (Get-Date).ToUniversalTime().ToString("o")
+                }
+                $Sidecar | ConvertTo-Json | Set-Content -Path $SidecarPath -Encoding UTF8
+                Write-Host "Unattended bounded-exit mode: terminating the low-spec Editor process after the measurement window."
+                try { & taskkill.exe /PID $EditorProcess.Id /T /F | Out-Null } catch { Stop-Process -Id $EditorProcess.Id -Force -ErrorAction SilentlyContinue }
+            }
         }
-        Write-Host "Unreal Editor launched. Follow docs/PHASE2_FIRST_RUN_PLAYTEST.md and update the observation file as you test."
+        if (-not $UnattendedBoundedExit) {
+            Write-Host "Unreal Editor launched. Follow docs/PHASE2_FIRST_RUN_PLAYTEST.md and update the observation file as you test."
+        }
     }
     else { Write-Host "Editor launch skipped by request." }
     Write-Host ""; Write-Host "Validate the completed observation with:"; Write-Host "  python tools\validate_phase2_first_run_observation.py `"$ObservationPath`""
