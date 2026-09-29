@@ -61,9 +61,21 @@ The worker then:
 7. runs the repository-standard `python tools/quality_preflight.py --full` gate;
 8. only if full preflight passes, locates Unreal Engine 5.8 using the same explicit/env/registry/common-path model as the manual harness;
 9. builds `EverwardEditor Win64 Development` through UnrealBuildTool without launching Unreal Editor;
-10. writes exact-commit PASS / FAIL / REVIEW_REQUIRED evidence locally;
-11. caches a successful exact commit so an unchanged green build is not rebuilt on every idle episode;
-12. best-effort updates GitHub issue #243 with the latest sanitized status when GitHub CLI is authenticated.
+10. runs the repository-standard `tools/run_unreal_headless_smoke.ps1` map/load smoke;
+11. only if headless smoke passes, reuses the existing opt-in Low-Spec/MeasureMemory launch contract from
+    `tools/run_phase2_first_playtest.ps1` (`-LowSpec -MeasureMemory -UnattendedBoundedExit`) as a bounded,
+    self-terminating startup/memory check: it launches the Low-Spec Development profile, samples
+    `UnrealEditor` peak working set for the existing 60-second window, records exact-commit-bound evidence to a
+    local sidecar file, and always kills its own Editor process tree afterward so no Unreal process is left
+    running unattended;
+12. writes exact-commit PASS / FAIL / REVIEW_REQUIRED evidence locally;
+13. caches a successful exact commit so an unchanged green build is not rebuilt on every idle episode;
+14. best-effort updates GitHub issue #243 with the latest sanitized status when GitHub CLI is authenticated.
+
+The low-spec startup/memory check is bounded process telemetry only. Missing evidence, a commit mismatch, an
+undetected Editor process, or an Editor exit during the sample window all fail closed to `REVIEW_REQUIRED` or
+`FAIL`; a successful compile or a successful startup measurement is never converted into visual, control-feel,
+or gameplay Product Reality.
 
 The scheduled worker always exits zero to Task Scheduler. Test truth is in the evidence JSON, not in a retry storm. GitHub publication is presentation only and cannot change PASS/FAIL truth.
 
@@ -78,6 +90,9 @@ Default state lives outside the repository:
   history\<timestamp>.json
   logs\<commit>\full-preflight.log
   logs\<commit>\unreal-build.log
+  logs\<commit>\unreal-headless-smoke.log
+  logs\<commit>\low-spec-startup.log
+  logs\<commit>\low-spec-startup.json
   preserved-playtests\<timestamp>\phase2-observations\...
 ```
 
@@ -90,6 +105,9 @@ The worker records:
 - canonical full-preflight status, exit code, duration, and local log;
 - Unreal Engine 5.8 discovery status;
 - UBT build status, exit code, duration, and local log;
+- headless map/load smoke status, exit code, duration, and local log;
+- bounded low-spec startup/memory evidence (peak `UnrealEditor` working set over the fixed sample window),
+  bound to the exact tested commit, only after headless smoke passes;
 - a redacted failure tail that replaces the dedicated checkout, user profile, and Unreal installation roots;
 - the explicit human-only debt that remains.
 
@@ -116,6 +134,9 @@ The worker does not:
 - commit, push, or merge source code;
 - upload detailed local logs;
 - declare rendering, controls, art, frame-time, or gameplay feel correct from a successful compile;
+- treat a bounded low-spec startup/peak-working-set measurement as visual, control-feel, frame-time, or gameplay Product Reality;
+- leave its own low-spec `UnrealEditor` process running after measurement; it always terminates the process tree it started;
+- change production/default engine settings, `DefaultEngine.ini`/scalability/`GameUserSettings` state, or simulation mechanics to take this measurement; the Low-Spec profile remains opt-in-only, identical to the existing manual harness contract;
 - replace Everward's existing deterministic simulation CI;
 - turn missing evidence into PASS.
 
@@ -154,11 +175,11 @@ Human playtests should become milestone events rather than routine regression la
 
 The natural follow-on work for #240 is:
 
-1. add deterministic Unreal runtime/automation hooks for map load and adapter startup so the worker can verify more than compilation without human interaction;
+1. add deterministic Unreal runtime/automation hooks for map load and adapter startup so the worker can verify more than compilation without human interaction; (done: headless map/load smoke)
 2. script the opening deterministic gameplay chain: damaged awakening → target selection → scan → José approach → manipulator/mining → material gain → Fix_It repair;
 3. assert telemetry and state transitions from that chain automatically;
 4. add deterministic screenshots and asset/reference checks for gross visual regressions such as wireframe mode, missing HUD, missing probe/tools, or severe camera clipping;
-5. add instrumented startup/RAM/frame-time capture for the low-spec Product Reality target;
+5. add instrumented startup/RAM capture for the low-spec Product Reality target; (done: bounded low-spec startup/peak-working-set evidence; frame-time capture remains open)
 6. feed deterministic worker evidence into the existing read-only mobile evidence surface;
 7. optionally use local Ollama to classify sanitized derived failure evidence, while keeping Python/tests/build tools as authority;
 8. retire each human checklist item as soon as an independent machine oracle exists.

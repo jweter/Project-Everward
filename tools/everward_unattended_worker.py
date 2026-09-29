@@ -25,6 +25,7 @@ SENTINEL_NAME = "everward-unattended-worker"
 MANUAL_LOCK_NAME = "everward-manual-playtest.lock"
 LOCK_NAME = "worker.lock"
 LAST_PASS_MARKER = "last_passed_headless_smoke_commit.txt"
+LOW_SPEC_STARTUP_SIDECAR = "low-spec-startup.json"
 REPORT_SCHEMA_VERSION = 1
 
 
@@ -458,6 +459,131 @@ def run_unreal_headless_smoke(
     }
 
 
+def evaluate_low_spec_startup_evidence(evidence: Any, expected_commit: str) -> dict[str, Any]:
+    """Allow-listed evaluation of harness-produced low-spec startup evidence.
+
+    Only known scalar facts are read out of ``evidence``; unexpected keys (for
+    example a stray absolute path in a future harness revision) are never
+    copied into the returned result. ``product_reality_claimed`` from the raw
+    evidence is intentionally never trusted or echoed back.
+    """
+    if not isinstance(evidence, dict):
+        return {
+            "status": "REVIEW_REQUIRED",
+            "reason": "Low-spec startup evidence was not a JSON object.",
+        }
+
+    commit = str(evidence.get("git_commit") or "")
+    if not commit or commit.lower() != expected_commit.lower():
+        return {
+            "status": "REVIEW_REQUIRED",
+            "reason": "Low-spec startup evidence commit did not match the exact tested commit.",
+        }
+
+    if not evidence.get("editor_process_detected"):
+        return {
+            "status": "REVIEW_REQUIRED",
+            "reason": "Unreal Editor process was not detected during the low-spec startup window.",
+        }
+
+    if evidence.get("exited_during_sample_window"):
+        exit_code = evidence.get("exit_code")
+        return {
+            "status": "FAIL",
+            "reason": "UnrealEditor exited during the low-spec sample window.",
+            "exit_code": exit_code if isinstance(exit_code, int) else None,
+        }
+
+    peak = evidence.get("peak_working_set_mib")
+    window = evidence.get("sample_window_seconds")
+    if isinstance(peak, bool) or isinstance(window, bool) or not isinstance(peak, (int, float)) or not isinstance(window, (int, float)):
+        return {
+            "status": "REVIEW_REQUIRED",
+            "reason": "Low-spec startup memory telemetry was unavailable.",
+        }
+
+    return {
+        "status": "PASS",
+        "profile": "low_spec_development",
+        "peak_working_set_mib": peak,
+        "sample_window_seconds": window,
+        "interpretation": "process working set only; not visual, control-feel, or gameplay Product Reality",
+    }
+
+
+def run_low_spec_startup(
+    repo_root: Path,
+    unreal_root: Path,
+    tested_commit: str,
+    log_path: Path,
+    evidence_path: Path,
+) -> dict[str, Any]:
+    script = repo_root / "tools" / "run_phase2_first_playtest.ps1"
+    if not script.is_file():
+        return {
+            "status": "REVIEW_REQUIRED",
+            "reason": "tools/run_phase2_first_playtest.ps1 is missing",
+        }
+    if os.name != "nt":
+        return {"status": "REVIEW_REQUIRED", "reason": "Low-spec startup check requires Windows"}
+
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence_path.unlink(missing_ok=True)
+
+    code, duration = run_logged(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script),
+            "-UnrealRoot",
+            str(unreal_root),
+            "-SkipBuild",
+            "-LowSpec",
+            "-MeasureMemory",
+            "-UnattendedBoundedExit",
+            "-LowSpecEvidencePath",
+            str(evidence_path),
+        ],
+        cwd=repo_root,
+        log_path=log_path,
+        timeout_seconds=240.0,
+    )
+    if code != 0:
+        return {
+            "status": "FAIL",
+            "exit_code": code,
+            "duration_seconds": round(duration, 3),
+            "log": str(log_path),
+            "failure_tail": log_tail(log_path, repo_root=repo_root, unreal_root=unreal_root),
+        }
+
+    if not evidence_path.is_file():
+        return {
+            "status": "REVIEW_REQUIRED",
+            "reason": "Low-spec startup evidence file was not written.",
+            "duration_seconds": round(duration, 3),
+            "log": str(log_path),
+        }
+
+    try:
+        raw_evidence = json.loads(evidence_path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as exc:
+        return {
+            "status": "REVIEW_REQUIRED",
+            "reason": f"Low-spec startup evidence could not be parsed: {exc}",
+            "duration_seconds": round(duration, 3),
+            "log": str(log_path),
+        }
+
+    result = evaluate_low_spec_startup_evidence(raw_evidence, tested_commit)
+    result["duration_seconds"] = round(duration, 3)
+    result["log"] = str(log_path)
+    return result
+
+
 def acquire_lock(state_dir: Path) -> tuple[int | None, bool]:
     state_dir.mkdir(parents=True, exist_ok=True)
     path = state_dir / LOCK_NAME
@@ -655,12 +781,30 @@ def run_worker(
         repo_root, unreal_root, logs / "unreal-headless-smoke.log"
     )
     report["checks"]["unreal_headless_smoke"] = headless_smoke
+    if headless_smoke.get("status") != "PASS":
+        report["notes"].append(
+            "Low-spec startup/memory evidence was not attempted because headless Unreal smoke did not pass."
+        )
+        report["completed_at_utc"] = utc_now()
+        report["result"] = aggregate_status(report["checks"])
+        return report
+
+    low_spec_startup = run_low_spec_startup(
+        repo_root,
+        unreal_root,
+        synced,
+        logs / "low-spec-startup.log",
+        logs / LOW_SPEC_STARTUP_SIDECAR,
+    )
+    report["checks"]["low_spec_startup"] = low_spec_startup
+
     report["completed_at_utc"] = utc_now()
     report["result"] = aggregate_status(report["checks"])
     if report["result"] == "PASS":
         (state_dir / LAST_PASS_MARKER).write_text(target + "\n", encoding="ascii")
         report["notes"].append(
-            "Deterministic engineering gates and headless map/load smoke passed. Visual, interaction-feel, performance, and gameplay Product Reality remain human-only."
+            "Deterministic engineering gates, headless map/load smoke, and bounded low-spec startup/memory evidence "
+            "passed. Visual, interaction-feel, performance, and gameplay Product Reality remain human-only."
         )
     return report
 

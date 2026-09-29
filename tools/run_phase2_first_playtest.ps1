@@ -4,7 +4,9 @@ param(
     [switch]$SkipBuild,
     [switch]$NoLaunch,
     [switch]$LowSpec,
-    [switch]$MeasureMemory
+    [switch]$MeasureMemory,
+    [switch]$UnattendedBoundedExit,
+    [string]$LowSpecEvidencePath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -82,6 +84,8 @@ function Set-LowSpecMemoryEvidence {
 if (-not (Test-Path $ProjectPath)) { throw "Everward project not found at $ProjectPath" }
 if ($MeasureMemory -and -not $LowSpec) { throw "-MeasureMemory is currently restricted to -LowSpec evidence runs." }
 if ($MeasureMemory -and $NoLaunch) { throw "-MeasureMemory requires an Unreal Editor launch." }
+if ($UnattendedBoundedExit -and -not ($LowSpec -and $MeasureMemory)) { throw "-UnattendedBoundedExit requires both -LowSpec and -MeasureMemory." }
+if ($UnattendedBoundedExit -and -not $LowSpecEvidencePath) { throw "-UnattendedBoundedExit requires -LowSpecEvidencePath." }
 
 $ResolvedUnrealRoot = Resolve-Unreal58Root -ExplicitRoot $UnrealRoot
 $BuildBat = Join-Path $ResolvedUnrealRoot "Engine\Build\BatchFiles\Build.bat"
@@ -133,9 +137,10 @@ try {
         }
         else { Write-Host "Launching Unreal Editor with log window..." }
         $EditorProcess = Start-Process -FilePath $EditorExe -ArgumentList $EditorArguments -PassThru
+        $EditorProcessDetected = $false
         $LaunchDeadline = (Get-Date).AddSeconds(10)
         while ((Get-Date) -lt $LaunchDeadline) {
-            if (Get-Process -Name "UnrealEditor" -ErrorAction SilentlyContinue) { break }
+            if (Get-Process -Name "UnrealEditor" -ErrorAction SilentlyContinue) { $EditorProcessDetected = $true; break }
             Start-Sleep -Milliseconds 200
         }
         if ($LowSpec -and $MeasureMemory) {
@@ -147,11 +152,45 @@ try {
                 $PeakWorkingSetBytes = [Math]::Max($PeakWorkingSetBytes, $EditorProcess.WorkingSet64)
                 Start-Sleep -Milliseconds 500
             }
+            $ExitedDuringSampleWindow = [bool]$EditorProcess.HasExited
             $PeakWorkingSetMiB = [Math]::Round($PeakWorkingSetBytes / 1MB, 1)
             Set-LowSpecMemoryEvidence -ObservationPath $ObservationPath -PeakWorkingSetMiB $PeakWorkingSetMiB -SampleWindowSeconds $SampleWindowSeconds
             Write-Host ("Measured UnrealEditor peak working set during the first {0}s: {1} MiB" -f $SampleWindowSeconds, $PeakWorkingSetMiB)
+
+            if ($UnattendedBoundedExit) {
+                $ExitCodeValue = $null
+                if ($ExitedDuringSampleWindow) {
+                    try { $ExitCodeValue = $EditorProcess.ExitCode } catch { $ExitCodeValue = $null }
+                }
+                $BoundedEvidence = [ordered]@{
+                    schema_version = 1
+                    profile = "low_spec_development"
+                    git_commit = $GitCommit
+                    editor_process_detected = $EditorProcessDetected
+                    exited_during_sample_window = $ExitedDuringSampleWindow
+                    exit_code = $ExitCodeValue
+                    peak_working_set_mib = $PeakWorkingSetMiB
+                    sample_window_seconds = $SampleWindowSeconds
+                    product_reality_claimed = $false
+                    interpretation = "process working set only; not visual, control-feel, or gameplay Product Reality"
+                }
+                try {
+                    $BoundedEvidence | ConvertTo-Json -Depth 6 | Set-Content -Path $LowSpecEvidencePath -Encoding UTF8
+                }
+                finally {
+                    if (-not $EditorProcess.HasExited) {
+                        try { & taskkill.exe /PID $EditorProcess.Id /T /F | Out-Null } catch {}
+                        Start-Sleep -Milliseconds 250
+                    }
+                    if (-not $EditorProcess.HasExited) {
+                        try { Stop-Process -Id $EditorProcess.Id -Force -ErrorAction SilentlyContinue } catch {}
+                    }
+                }
+            }
         }
-        Write-Host "Unreal Editor launched. Follow docs/PHASE2_FIRST_RUN_PLAYTEST.md and update the observation file as you test."
+        if (-not $UnattendedBoundedExit) {
+            Write-Host "Unreal Editor launched. Follow docs/PHASE2_FIRST_RUN_PLAYTEST.md and update the observation file as you test."
+        }
     }
     else { Write-Host "Editor launch skipped by request." }
     Write-Host ""; Write-Host "Validate the completed observation with:"; Write-Host "  python tools\validate_phase2_first_run_observation.py `"$ObservationPath`""
