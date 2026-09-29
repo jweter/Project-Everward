@@ -61,9 +61,11 @@ The worker then:
 7. runs the repository-standard `python tools/quality_preflight.py --full` gate;
 8. only if full preflight passes, locates Unreal Engine 5.8 using the same explicit/env/registry/common-path model as the manual harness;
 9. builds `EverwardEditor Win64 Development` through UnrealBuildTool without launching Unreal Editor;
-10. writes exact-commit PASS / FAIL / REVIEW_REQUIRED evidence locally;
-11. caches a successful exact commit so an unchanged green build is not rebuilt on every idle episode;
-12. best-effort updates GitHub issue #243 with the latest sanitized status when GitHub CLI is authenticated.
+10. runs a headless Unreal automation smoke (`tools/run_unreal_headless_smoke.ps1`) that loads the map and exits deterministically without rendering;
+11. only if that headless smoke passes, runs a bounded, opt-in Low-Spec Development startup/memory check (`tools/run_unreal_low_spec_startup_check.ps1`) that launches the Editor with the same Low-Spec exec-command profile used by the manual `-LowSpec -MeasureMemory` harness, samples peak process working-set memory for a fixed 60-second window, and always terminates the process afterward so the machine is left idle;
+12. writes exact-commit PASS / FAIL / REVIEW_REQUIRED evidence locally, including the low-spec startup result and sanitized memory facts;
+13. caches a successful exact commit (full preflight, UBT build, and headless smoke) so an unchanged green build is not rebuilt on every idle episode;
+14. best-effort updates GitHub issue #243 with the latest sanitized status when GitHub CLI is authenticated.
 
 The scheduled worker always exits zero to Task Scheduler. Test truth is in the evidence JSON, not in a retry storm. GitHub publication is presentation only and cannot change PASS/FAIL truth.
 
@@ -74,10 +76,14 @@ Default state lives outside the repository:
 ```text
 %LOCALAPPDATA%\Everward\unattended-worker\
   latest.json
-  last_passed_commit.txt
+  last_passed_headless_smoke_commit.txt
   history\<timestamp>.json
   logs\<commit>\full-preflight.log
   logs\<commit>\unreal-build.log
+  logs\<commit>\unreal-headless-smoke.log
+  logs\<commit>\low-spec-startup.log
+  logs\low-spec-startup-<commit>.log
+  low-spec-startup\<commit>.json
   preserved-playtests\<timestamp>\phase2-observations\...
 ```
 
@@ -90,6 +96,8 @@ The worker records:
 - canonical full-preflight status, exit code, duration, and local log;
 - Unreal Engine 5.8 discovery status;
 - UBT build status, exit code, duration, and local log;
+- headless Unreal automation smoke status and local log;
+- low-spec startup result (pass/fail) and peak process working-set memory sampled over a bounded 60-second window, tagged with the exact tested commit;
 - a redacted failure tail that replaces the dedicated checkout, user profile, and Unreal installation roots;
 - the explicit human-only debt that remains.
 
@@ -116,6 +124,8 @@ The worker does not:
 - commit, push, or merge source code;
 - upload detailed local logs;
 - declare rendering, controls, art, frame-time, or gameplay feel correct from a successful compile;
+- treat a bounded low-spec startup/peak-working-set memory sample as a visual, control-feel, frame-time, or gameplay Product Reality verdict;
+- leave an Unreal Editor instance running after the low-spec startup check completes;
 - replace Everward's existing deterministic simulation CI;
 - turn missing evidence into PASS.
 
@@ -158,7 +168,7 @@ The natural follow-on work for #240 is:
 2. script the opening deterministic gameplay chain: damaged awakening → target selection → scan → José approach → manipulator/mining → material gain → Fix_It repair;
 3. assert telemetry and state transitions from that chain automatically;
 4. add deterministic screenshots and asset/reference checks for gross visual regressions such as wireframe mode, missing HUD, missing probe/tools, or severe camera clipping;
-5. add instrumented startup/RAM/frame-time capture for the low-spec Product Reality target;
+5. add instrumented startup/RAM/frame-time capture for the low-spec Product Reality target (bounded startup success/failure and peak process working-set memory are now captured after headless smoke; frame-time capture remains open);
 6. feed deterministic worker evidence into the existing read-only mobile evidence surface;
 7. optionally use local Ollama to classify sanitized derived failure evidence, while keeping Python/tests/build tools as authority;
 8. retire each human checklist item as soon as an independent machine oracle exists.

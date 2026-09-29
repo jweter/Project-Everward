@@ -458,6 +458,74 @@ def run_unreal_headless_smoke(
     }
 
 
+def run_unreal_low_spec_startup(
+    repo_root: Path, unreal_root: Path, log_path: Path, commit: str
+) -> dict[str, Any]:
+    script = repo_root / "tools" / "run_unreal_low_spec_startup_check.ps1"
+    if not script.is_file():
+        return {
+            "status": "REVIEW_REQUIRED",
+            "reason": "tools/run_unreal_low_spec_startup_check.ps1 is missing",
+        }
+    if os.name != "nt":
+        return {"status": "REVIEW_REQUIRED", "reason": "Low-spec startup check requires Windows"}
+
+    code, duration = run_logged(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script),
+            "-UnrealRoot",
+            str(unreal_root),
+        ],
+        cwd=repo_root,
+        log_path=log_path,
+        timeout_seconds=990.0,
+    )
+    result: dict[str, Any] = {
+        "status": "PASS" if code == 0 else "FAIL",
+        "exit_code": code,
+        "duration_seconds": round(duration, 3),
+        "log": str(log_path),
+        "failure_tail": ""
+        if code == 0
+        else log_tail(log_path, repo_root=repo_root, unreal_root=unreal_root),
+    }
+
+    evidence_path = default_state_dir() / "low-spec-startup" / f"{commit}.json"
+    try:
+        payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        if result["status"] == "PASS":
+            result["status"] = "REVIEW_REQUIRED"
+        result["reason"] = "Low-spec startup/memory evidence file was missing or unreadable."
+        return result
+
+    if payload.get("commit") != commit:
+        result["status"] = "REVIEW_REQUIRED"
+        result["reason"] = "Low-spec startup evidence commit did not match the tested commit."
+        return result
+
+    result["evidence"] = {
+        "startup_result": payload.get("startup_result"),
+        "peak_working_set_mib": payload.get("peak_working_set_mib"),
+        "sample_window_seconds": payload.get("sample_window_seconds"),
+        "profile": payload.get("profile"),
+        "interpretation": payload.get("interpretation"),
+    }
+    if payload.get("startup_result") != "pass":
+        if result["status"] == "PASS":
+            result["status"] = "REVIEW_REQUIRED"
+        result.setdefault(
+            "reason",
+            payload.get("reason") or "Low-spec startup evidence did not report success.",
+        )
+    return result
+
+
 def acquire_lock(state_dir: Path) -> tuple[int | None, bool]:
     state_dir.mkdir(parents=True, exist_ok=True)
     path = state_dir / LOCK_NAME
@@ -655,13 +723,25 @@ def run_worker(
         repo_root, unreal_root, logs / "unreal-headless-smoke.log"
     )
     report["checks"]["unreal_headless_smoke"] = headless_smoke
-    report["completed_at_utc"] = utc_now()
-    report["result"] = aggregate_status(report["checks"])
-    if report["result"] == "PASS":
+    if headless_smoke.get("status") == "PASS":
         (state_dir / LAST_PASS_MARKER).write_text(target + "\n", encoding="ascii")
         report["notes"].append(
             "Deterministic engineering gates and headless map/load smoke passed. Visual, interaction-feel, performance, and gameplay Product Reality remain human-only."
         )
+        low_spec_startup = run_unreal_low_spec_startup(
+            repo_root, unreal_root, logs / "low-spec-startup.log", target
+        )
+        report["checks"]["low_spec_startup"] = low_spec_startup
+        if low_spec_startup.get("status") != "PASS":
+            report["notes"].append(
+                "Low-spec startup/memory evidence did not reach PASS; no visual, control-feel, or gameplay Product Reality was inferred."
+            )
+    else:
+        report["notes"].append(
+            "Low-spec startup/memory evidence was not attempted because headless Unreal smoke did not pass."
+        )
+    report["completed_at_utc"] = utc_now()
+    report["result"] = aggregate_status(report["checks"])
     return report
 
 
