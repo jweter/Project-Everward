@@ -75,7 +75,7 @@ function Write-Evidence {
 
 function Get-ProcessTreeIds {
     param([int]$RootPid)
-    $AllProcesses = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
+    $AllProcesses = @(Get-CimInstance Win32_Process -ErrorAction Stop)
     $Ids = [System.Collections.Generic.HashSet[int]]::new()
     [void]$Ids.Add($RootPid)
     $Changed = $true
@@ -125,7 +125,7 @@ function Stop-EditorTree {
 
     $Survivors = @(Get-ProcessTreeSurvivors -ProcessIds $TreeIds)
     foreach ($Survivor in $Survivors) {
-        try { & taskkill.exe /PID $Survivor.Id /T /F | Out-Null } catch {}
+        try { & taskkill.exe /PID $Survivor /T /F | Out-Null } catch {}
     }
     if ($Survivors.Count -gt 0) { Start-Sleep -Milliseconds 500 }
 
