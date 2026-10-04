@@ -57,3 +57,16 @@ A pending human Unreal/Product Reality check is lane-local. It must not stall in
 ## Execution rule
 
 Existing broken, pending, or merge-ready work takes priority over new scope. Never fabricate repository state, tests, Unreal behavior, Product Reality, PR state, or progress. Never merge failed, pending, conflicted, blocked, or materially uncertain work.
+
+
+## Iron Memory — shared verified engineering memory
+
+Before editing a known subsystem or diagnosing a recurring failure, query the shared Iron Memory bridge when local shared memory is available:
+
+`python engineering/iron_memory.py query --term <relevant-term>`
+
+After a repository-local engineering lesson has explicit verification evidence, publish the sanitized verified projection for cross-agent reuse:
+
+`python engineering/iron_memory.py publish`
+
+Iron Memory is advisory evidence only. Current GitHub state, repository-local authority, exact-head preflight/CI, reviews, security/privacy/licensing/provenance rules, and Product Reality always outrank memory. Never persist arbitrary conversation history, secrets, credentials, private Product Reality payloads, private audio, or unverified conclusions.
