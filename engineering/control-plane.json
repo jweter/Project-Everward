@@ -456,5 +456,6 @@
     "min_system_reinvestment_fraction": 0.05,
     "max_system_reinvestment_fraction": 0.2,
     "rule": "use measured evidence to recommend bounded system reinvestment; recommendations are advisory and never override P0/P1, existing work, preflight, CI, architecture, security, privacy/provenance, or Product Reality gates"
-  }
+  },
+  "capability_graph": "engineering/capability-graph.json"
 }
