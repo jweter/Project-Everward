@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "repository": "jweter/Project-Everward",
+  "capabilities": [
+    {
+      "id": "phase2-one-probe-development-access",
+      "capability": "Advance Phase 2 One Probe while restoring a viable Product Reality loop on the current development machine without reducing final-game ambition or mechanics.",
+      "state": "PLANNED",
+      "completion_evidence": [
+        "docs/PROJECT_STATUS.md Phase 2 current phase and Product Reality state",
+        "docs/CURRENT_EXECUTION_PLAN.md current development-access priority and selection rule"
+      ],
+      "depends_on": [],
+      "slices": [
+        {
+          "id": "phase2-low-spec-play-mode-next",
+          "state": "PLANNED",
+          "objective": "Advance the earliest bounded issue #228 Low-Spec Play Mode / Emergency-Minimum development-access slice supported by current main so the integrated Unreal build can be exercised on the 16 GB integrated-graphics development machine while preserving full mechanical parity.",
+          "acceptance": [
+            "The change measurably reduces or bounds development-machine presentation/resource pressure through opt-in scalability behavior.",
+            "Emergency/Minimum and Low preserve mechanics, progression, saves, interactions, deterministic simulation, hazards, controls, HUD information, and universe state.",
+            "Simulation truth remains engine-independent; presentation settings do not become gameplay authority.",
+            "Portable deterministic tests cover the new behavior; Unreal-only Product Reality remains explicitly pending until locally verified."
+          ],
+          "allowed_paths": [
+            "Source/**",
+            "Config/**",
+            "Content/**",
+            "Tests/**",
+            "tests/**",
+            "engineering/**",
+            "docs/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "windows",
+            "offline"
+          ],
+          "runtime_requirements": []
+        }
+      ]
+    }
+  ],
+  "roadmap": [
+    "phase2-one-probe-development-access"
+  ]
+}
