@@ -585,8 +585,26 @@ boundary an actual trigger -- every registered body within sensor range
 accumulates slow passive evidence whenever sensors are powered, without
 requiring target selection or an active scan (**Status: implemented,
 Product Reality pending**; see `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`'s
-"Passive-observation trigger" section). Composition *estimation* with
-uncertainty and a decision-enabling discoveries UI remain unimplemented.
+"Passive-observation trigger" section). A further follow-on pass closed the
+"composition estimation with uncertainty" gap at the engine-independent
+layer: `composition_estimate.hpp`'s previously-standalone
+`CompositionEstimate`/`make_composition_estimate` (#319) is now wired into
+`ProbeRuntime::composition_estimate_for_target()` (forwarded by
+`DamageAwareProbeRuntime`), which reports a confidence-scaled estimate of a
+registered body's known material -- fraction and confidence equal to the
+scan's own accumulated `TargetKnowledgeState::confidence`, uncertainty equal
+to its complement -- well before `reveal_full_confidence_target_classifications()`
+reveals the deterministic classification outright at confidence 1.0. It
+fails closed to `std::nullopt` for a never-observed target, a plain
+reference body carrying no known `material_id`, or an unregistered target
+id, exactly as the deterministic reveal already does, and invents no new
+ground truth or ground-truth-independent guess (**Status: implemented,
+Product Reality pending**; no adapter/HUD surface or Unreal telemetry exists
+yet, so this is engine-independent `src/simulation/` work only -- see the new
+coverage in `software_policy_tests.cpp`). A decision-enabling discoveries UI
+remains unimplemented, and surfacing this estimate through
+`UProbeSimulationAdapter`/the `KNOWLEDGE` telemetry row is the next
+concrete step for this gap.
 
 Scanning must evolve from a countdown into increasing knowledge:
 

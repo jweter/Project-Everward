@@ -476,6 +476,67 @@ int main() {
         assert(unregistered_knowledge->classification.empty());
     }
 
+    // Slice 11 composition estimation with uncertainty: composition_estimate_
+    // for_target() reports a confidence-scaled estimate of a registered
+    // body's known material well before the scan reaches full confidence,
+    // narrowing uncertainty as confidence grows, and keeps agreeing with the
+    // deterministic reveal once reveal_full_confidence_target_classifications()
+    // takes over at confidence 1.0. A plain reference body with no known
+    // material, a never-observed target, and an unregistered target id all
+    // fail closed to std::nullopt rather than fabricating an estimate.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(
+            StaticSphereBody{"asteroid-a", {50.0, 0.0, 0.0}, 2.0, "iron_bearing_silicate_regolith"});
+        runtime.add_static_sphere_body(StaticSphereBody{"ref-b", {-50.0, 0.0, 0.0}, 2.0});
+        runtime.allocate_power(PowerSubsystem::Sensors, 100.0);
+
+        // Never observed: no knowledge state exists yet.
+        assert(!runtime.composition_estimate_for_target("asteroid-a").has_value());
+
+        runtime.start_scan("asteroid-a", 20.0);
+        (void)runtime.drain_events();
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 5);
+
+        auto mid_estimate = runtime.composition_estimate_for_target("asteroid-a");
+        assert(mid_estimate.has_value());
+        assert(mid_estimate->material_id == "iron_bearing_silicate_regolith");
+        auto mid_knowledge = runtime.target_knowledge_state("asteroid-a");
+        assert(mid_knowledge.has_value());
+        assert(mid_knowledge->level != KnowledgeLevel::Characterized);
+        assert(nearly_equal_local(mid_estimate->confidence, mid_knowledge->confidence));
+        assert(nearly_equal_local(mid_estimate->fraction, mid_knowledge->confidence));
+        assert(nearly_equal_local(mid_estimate->uncertainty, 1.0 - mid_knowledge->confidence));
+        assert(mid_estimate->uncertainty > 0.0);
+
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 5);
+
+        auto full_estimate = runtime.composition_estimate_for_target("asteroid-a");
+        assert(full_estimate.has_value());
+        assert(full_estimate->material_id == "iron_bearing_silicate_regolith");
+        assert(nearly_equal_local(full_estimate->confidence, 1.0));
+        assert(nearly_equal_local(full_estimate->fraction, 1.0));
+        assert(nearly_equal_local(full_estimate->uncertainty, 0.0));
+        auto full_knowledge = runtime.target_knowledge_state("asteroid-a");
+        assert(full_knowledge.has_value());
+        assert(full_knowledge->level == KnowledgeLevel::Characterized);
+        assert(full_knowledge->classification == full_estimate->material_id);
+
+        runtime.cancel_scan();
+        (void)runtime.drain_events();
+
+        // A plain reference body with no known material_id never produces an
+        // estimate, even once fully observed.
+        runtime.start_scan("ref-b", 20.0);
+        (void)runtime.drain_events();
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 10);
+        assert(runtime.target_knowledge_state("ref-b").has_value());
+        assert(!runtime.composition_estimate_for_target("ref-b").has_value());
+
+        // An id with no registered body at all also fails closed.
+        assert(!runtime.composition_estimate_for_target("unregistered-target").has_value());
+    }
+
     // Slice 11 passive-observation trigger: merely operating sensors near a
     // registered body now accumulates passive evidence through
     // advance_wall_ticks(), with no active scan or target selection

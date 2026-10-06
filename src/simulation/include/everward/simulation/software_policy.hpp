@@ -1,5 +1,6 @@
 #pragma once
 
+#include "everward/simulation/composition_estimate.hpp"
 #include "everward/simulation/compound_contact.hpp"
 #include "everward/simulation/core.hpp"
 #include "everward/simulation/target_selection.hpp"
@@ -289,6 +290,33 @@ public:
             const std::string& target_id) const {
         return core_.target_knowledge_state(target_id);
     }
+
+    // Slice 11 composition estimation with uncertainty: before an active
+    // scan's accumulated confidence reaches full, report a confidence-scaled
+    // estimate of the registered body's true material instead of nothing at
+    // all. Uncertainty narrows as confidence grows and only reaches zero
+    // once reveal_full_confidence_target_classifications() takes over the
+    // classification outright at confidence 1.0; this never substitutes for
+    // that authoritative reveal and never fabricates a material identity for
+    // a body that does not carry one. Fails closed to std::nullopt for an
+    // unobserved target or a plain reference body with no known composition,
+    // matching this codebase's other registered-id lookups.
+    [[nodiscard]] std::optional<CompositionEstimate> composition_estimate_for_target(
+            const std::string& target_id) const {
+        for (const StaticSphereBody& body : static_bodies_) {
+            if (body.body_id != target_id || body.material_id.empty()) {
+                continue;
+            }
+            const auto knowledge = core_.target_knowledge_state(target_id);
+            if (!knowledge.has_value() || knowledge->confidence <= 0.0) {
+                return std::nullopt;
+            }
+            const double confidence = std::clamp(knowledge->confidence, 0.0, 1.0);
+            return make_composition_estimate(body.material_id, confidence, 1.0 - confidence, confidence);
+        }
+        return std::nullopt;
+    }
+
     void consume_stored_energy_j(double joules) { core_.consume_stored_energy_j(joules); }
 
     void install_policy(SoftwarePolicy policy) {
