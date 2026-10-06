@@ -478,6 +478,10 @@ public:
             const std::string& target_id) const {
         return runtime_.target_knowledge_state(target_id);
     }
+    [[nodiscard]] std::optional<CompositionEstimate> composition_estimate_for_target(
+            const std::string& target_id) const {
+        return runtime_.composition_estimate_for_target(target_id);
+    }
     void consume_stored_energy_j(double joules) { runtime_.consume_stored_energy_j(joules); }
 
     void install_policy(SoftwarePolicy policy) { runtime_.install_policy(std::move(policy)); }
