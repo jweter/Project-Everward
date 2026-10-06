@@ -288,11 +288,11 @@ panel's background or the manipulator page drawn above it.
 
 ## Explicitly not complete in this pass
 
-- Only one registered body (`SCAN-001`) has a known `material_id` today; a
-  real composition/material *estimate* (uncertainty, partial/incorrect
-  readings, multiple possible materials) does not exist — classification is
-  a single deterministic ground-truth reveal gated on full confidence, not
-  a modeled estimation process.
+- Only one registered body (`SCAN-001`) has a known `material_id` today. An
+  active-scan-gated composition estimate now exposes confidence and uncertainty
+  before full characterization, but it still names the body's registered
+  ground-truth material; partial/incorrect readings and multiple possible
+  materials are not modeled yet.
 - A persistent discoveries catalogue (the `DISCOVERIES` row) now exists, but
   it is still read-only telemetry: no codex UI, no decision-enabling
   gameplay consequence, and no dedicated discoveries HUD page — only the
@@ -304,7 +304,7 @@ panel's background or the manipulator page drawn above it.
 ## Status
 
 Implemented in the parallel-safe lane; Product Reality pending. Does not by
-itself close Slice 11. The passive-observation trigger closes one of the
-three remaining Slice 11 gaps this document named (composition
-*estimation* with uncertainty and a decision-enabling discoveries UI
-remain later work).
+itself close Slice 11. Passive observation cannot reveal composition without
+active-scan evidence; the bounded confidence/uncertainty estimate is implemented.
+A richer multi-material/incorrect-reading model and a decision-enabling
+discoveries UI remain later work.

@@ -494,6 +494,14 @@ int main() {
         // Never observed: no knowledge state exists yet.
         assert(!runtime.composition_estimate_for_target("asteroid-a").has_value());
 
+        // Passive sensor evidence may create knowledge/confidence, but it must
+        // not disclose a registered body's exact ground-truth material.
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        auto passive_knowledge = runtime.target_knowledge_state("asteroid-a");
+        assert(passive_knowledge.has_value());
+        assert(passive_knowledge->active_scan_s == 0.0);
+        assert(!runtime.composition_estimate_for_target("asteroid-a").has_value());
+
         runtime.start_scan("asteroid-a", 20.0);
         (void)runtime.drain_events();
         runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 5);

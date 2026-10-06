@@ -308,7 +308,8 @@ public:
                 continue;
             }
             const auto knowledge = core_.target_knowledge_state(target_id);
-            if (!knowledge.has_value() || knowledge->confidence <= 0.0) {
+            if (!knowledge.has_value() || knowledge->confidence <= 0.0 ||
+                    knowledge->active_scan_s <= 0.0) {
                 return std::nullopt;
             }
             const double confidence = std::clamp(knowledge->confidence, 0.0, 1.0);
