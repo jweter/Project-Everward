@@ -189,6 +189,26 @@ The detailed target contract for Phase 2 state, events, commands, cadence, and t
 
 See `docs/PHASE2_KICKOFF_SCAFFOLD.md`, `ARCHITECTURE.md`, `SIMULATION_PHILOSOPHY.md`, `SAVE_FORMAT.md`, `ROADMAP.md`, and `PROJECT_STATUS.md`.
 
+## ADR-0013 — Third-party visual asset acquisition gate
+
+**Status:** ACCEPTED
+
+**Decision:** External 3D models, materials, textures, HDRIs, and similar visual content enter Everward through the fail-closed Asset Scout pipeline rather than direct agent download/import. Discovery is separate from production promotion. The default integration targets a locally self-hosted, tested revision of `arielshad/3d-asset-server`; using its public hosted endpoint is an explicit operator choice rather than a production dependency.
+
+**Consequences:**
+
+- search results are advisory and never constitute license approval;
+- automatic promotion is initially limited to the narrow provider/license allowlist in `assets/pipeline/policy.json`;
+- `review` and `rejected` verdicts cannot be bypassed through the Asset Scout CLI; widening policy requires a reviewed repository change;
+- downloaded candidates remain in ignored `assets/staging/` quarantine until technical QA passes;
+- promoted third-party content must be represented in `assets/third_party/asset_registry.json`, with provenance, license evidence, SHA-256 file hashes, and repository paths;
+- Unreal import jobs are generated from that registry and the Unreal importer verifies hashes before import;
+- public-repository redistribution constraints remain mandatory even when a license allows commercial use in a packaged game;
+- generic found assets may support environments, materials, industrial components, and references, but do not supersede Everward's canonical Prime probe design;
+- future polygon/material/texture budgets, Nanite/LOD analysis, scale/collision checks, and unattended Unreal import smoke tests should extend this registry rather than create parallel provenance systems.
+
+See `docs/ASSET_ACQUISITION_PIPELINE.md`, `docs/IP_AND_LICENSES.md`, and `assets/pipeline/policy.json`.
+
 ## ADR template
 
 Copy this section for future decisions:
