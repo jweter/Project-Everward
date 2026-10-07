@@ -538,3 +538,199 @@ def build_unreal_import_manifest(
 ) -> dict[str, Any]:
     registry = _read_json(registry_path)
     manifest = _manifest_from_registry(registry)
+    _write_json(output_path, manifest)
+    return manifest
+
+
+def promote_asset(
+    asset_dir: Path,
+    *,
+    registry_path: Path = DEFAULT_REGISTRY,
+    third_party_root: Path = DEFAULT_THIRD_PARTY_ROOT,
+    import_manifest_path: Path = DEFAULT_IMPORT_MANIFEST,
+    policy_path: Path = DEFAULT_POLICY,
+    unreal_destination_root: str = "/Game/ThirdParty",
+    repo_root: Path = REPO_ROOT,
+) -> dict[str, Any]:
+    """Promote a staged, auto-approved, QA-passing asset into tracked production input."""
+    provenance = _read_json(asset_dir / PROVENANCE_FILE)
+    qa = _read_json(asset_dir / QA_FILE)
+    policy = load_policy(policy_path)
+    details_for_verdict = {
+        "id": provenance.get("asset_id"),
+        "provider": provenance.get("provider"),
+        "license": provenance.get("license"),
+        "price": provenance.get("price"),
+        "downloadable": provenance.get("downloadable"),
+    }
+    verdict = evaluate_asset(details_for_verdict, policy)
+    if verdict.status != "approved" or provenance.get("verdict", {}).get("status") != "approved":
+        raise AssetPipelineError("Promotion requires a current and staged auto-approved licensing verdict")
+    if qa.get("status") != "pass":
+        raise AssetPipelineError("Promotion requires a passing qa.json")
+
+    asset_id = str(provenance["asset_id"])
+    slug = _safe_slug(asset_id)
+    destination_dir = third_party_root / slug
+    payload = asset_dir / "payload"
+    if destination_dir.exists():
+        shutil.rmtree(destination_dir)
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(payload, destination_dir / "payload", dirs_exist_ok=True)
+    _write_json(destination_dir / PROVENANCE_FILE, provenance)
+    _write_json(destination_dir / QA_FILE, qa)
+
+    repo_root = repo_root.resolve()
+    file_records: list[dict[str, Any]] = []
+    allowed_importables = {
+        str(ext).lower()
+        for ext in policy.get("technical_qa", {}).get("importable_extensions", sorted(IMPORTABLE_EXTENSIONS))
+    }
+    for path in sorted(p for p in (destination_dir / "payload").rglob("*") if p.is_file()):
+        resolved = path.resolve()
+        try:
+            repository_path = resolved.relative_to(repo_root).as_posix()
+        except ValueError as exc:
+            raise AssetPipelineError("Promotion destination must be inside the Everward repository") from exc
+        file_records.append(
+            {
+                "repository_path": repository_path,
+                "bytes": path.stat().st_size,
+                "sha256": _sha256(path),
+                "importable": path.suffix.lower() in allowed_importables,
+            }
+        )
+
+    registry = _read_json(registry_path)
+    _validate_registry_payload(registry)
+    entry = {
+        "asset_id": asset_id,
+        "provider": provenance.get("provider"),
+        "source_url": provenance.get("source_url"),
+        "license": provenance.get("license"),
+        "attribution": provenance.get("license", {}).get("attribution"),
+        "provenance_path": (destination_dir / PROVENANCE_FILE).resolve().relative_to(repo_root).as_posix(),
+        "qa_path": (destination_dir / QA_FILE).resolve().relative_to(repo_root).as_posix(),
+        "unreal_destination": f"{unreal_destination_root.rstrip('/')}/{slug}",
+        "files": file_records,
+    }
+    registry["assets"] = [item for item in registry["assets"] if item.get("asset_id") != asset_id] + [entry]
+    registry["assets"].sort(key=lambda item: item["asset_id"])
+    _validate_registry_payload(registry)
+    _write_json(registry_path, registry)
+    build_unreal_import_manifest(registry_path, import_manifest_path)
+    return entry
+
+
+def validate_registry(
+    registry_path: Path = DEFAULT_REGISTRY,
+    import_manifest_path: Path = DEFAULT_IMPORT_MANIFEST,
+) -> None:
+    registry = _read_json(registry_path)
+    expected = _manifest_from_registry(registry)
+    actual = _read_json(import_manifest_path)
+    if actual != expected:
+        raise AssetPipelineError("Unreal import manifest is stale; regenerate it from the registry")
+
+
+def _print_json(payload: Any) -> None:
+    print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    search = subparsers.add_parser("search", help="Search and classify free downloadable candidates")
+    search.add_argument("query")
+    search.add_argument("--type", dest="asset_type")
+    search.add_argument("--limit", type=int, default=20)
+    search.add_argument("--server", default=DEFAULT_SERVER)
+    search.add_argument("--output", type=Path)
+
+    inspect = subparsers.add_parser("inspect", help="Fetch one candidate and show Everward's licensing verdict")
+    inspect.add_argument("asset_id")
+    inspect.add_argument("--server", default=DEFAULT_SERVER)
+
+    stage = subparsers.add_parser("stage", help="Download an auto-approved candidate into ignored staging")
+    stage.add_argument("asset_id")
+    stage.add_argument("--format", dest="file_format")
+    stage.add_argument("--resolution")
+    stage.add_argument("--server", default=DEFAULT_SERVER)
+    stage.add_argument("--staging-root", type=Path, default=DEFAULT_STAGING_ROOT)
+
+    qa = subparsers.add_parser("qa", help="Run dependency-free technical QA over a staged asset")
+    qa.add_argument("asset_dir", type=Path)
+
+    promote = subparsers.add_parser("promote", help="Promote approved+QA-passing staged content")
+    promote.add_argument("asset_dir", type=Path)
+    promote.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    promote.add_argument("--third-party-root", type=Path, default=DEFAULT_THIRD_PARTY_ROOT)
+    promote.add_argument("--import-manifest", type=Path, default=DEFAULT_IMPORT_MANIFEST)
+
+    manifest = subparsers.add_parser("manifest", help="Regenerate Unreal import jobs from the registry")
+    manifest.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    manifest.add_argument("--output", type=Path, default=DEFAULT_IMPORT_MANIFEST)
+
+    validate = subparsers.add_parser("validate", help="Validate the tracked registry and Unreal import manifest")
+    validate.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    validate.add_argument("--import-manifest", type=Path, default=DEFAULT_IMPORT_MANIFEST)
+
+    args = parser.parse_args(argv)
+    api_key = os.environ.get("ASSET_SERVER_API_KEY")
+    try:
+        if args.command == "search":
+            result = search_assets(
+                args.query,
+                asset_type=args.asset_type,
+                limit=args.limit,
+                server=args.server,
+                policy_path=args.policy,
+                api_key=api_key,
+            )
+            if args.output:
+                _write_json(args.output, result)
+            _print_json(result)
+        elif args.command == "inspect":
+            asset = get_asset(args.asset_id, server=args.server, api_key=api_key)
+            asset["everward_verdict"] = evaluate_asset(asset, load_policy(args.policy)).as_dict()
+            _print_json(asset)
+        elif args.command == "stage":
+            staged = stage_asset(
+                args.asset_id,
+                file_format=args.file_format,
+                resolution=args.resolution,
+                server=args.server,
+                policy_path=args.policy,
+                staging_root=args.staging_root,
+                api_key=api_key,
+            )
+            print(staged)
+        elif args.command == "qa":
+            _print_json(run_qa(args.asset_dir, policy_path=args.policy))
+        elif args.command == "promote":
+            _print_json(
+                promote_asset(
+                    args.asset_dir,
+                    registry_path=args.registry,
+                    third_party_root=args.third_party_root,
+                    import_manifest_path=args.import_manifest,
+                    policy_path=args.policy,
+                )
+            )
+        elif args.command == "manifest":
+            _print_json(build_unreal_import_manifest(args.registry, args.output))
+        elif args.command == "validate":
+            validate_registry(args.registry, args.import_manifest)
+            print("Everward asset registry: OK")
+        else:
+            raise AssertionError(args.command)
+    except AssetPipelineError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
