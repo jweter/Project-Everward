@@ -358,3 +358,183 @@ def stage_asset(
         payload_dir = asset_dir / "payload"
         payload_dir.mkdir()
         download_path.replace(payload_dir / download_path.name)
+
+    provenance = {
+        "schema_version": 1,
+        "asset_id": asset_id,
+        "provider": _provider_for(details),
+        "source_url": details.get("url"),
+        "asset_server": server,
+        "asset_server_compatibility": policy.get("asset_server_compatibility", {}),
+        "license": dict(_license(details)),
+        "price": details.get("price"),
+        "downloadable": details.get("downloadable"),
+        "verdict": verdict.as_dict(),
+        "requested_format": file_format,
+        "requested_resolution": resolution,
+        "staged_at_utc": datetime.now(timezone.utc).isoformat(),
+    }
+    _write_json(asset_dir / PROVENANCE_FILE, provenance)
+    return asset_dir
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _inspect_gltf(path: Path) -> tuple[list[str], list[str]]:
+    failures: list[str] = []
+    warnings: list[str] = []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return [f"{path.name}: invalid glTF JSON ({exc})"], []
+    version = str(data.get("asset", {}).get("version", ""))
+    if not version.startswith("2"):
+        failures.append(f"{path.name}: expected glTF 2.x, found {version or 'unknown'}")
+    if not data.get("meshes"):
+        warnings.append(f"{path.name}: contains no meshes")
+    for section in ("buffers", "images"):
+        for item in data.get(section, []):
+            uri = item.get("uri")
+            if uri and not str(uri).startswith("data:") and not (path.parent / uri).exists():
+                failures.append(f"{path.name}: missing referenced {section[:-1]} {uri}")
+    return failures, warnings
+
+
+def _inspect_glb(path: Path) -> tuple[list[str], list[str]]:
+    try:
+        header = path.read_bytes()[:12]
+    except OSError as exc:
+        return [f"{path.name}: cannot read GLB ({exc})"], []
+    if len(header) < 12 or header[:4] != b"glTF":
+        return [f"{path.name}: invalid GLB header"], []
+    version = int.from_bytes(header[4:8], "little")
+    declared = int.from_bytes(header[8:12], "little")
+    actual = path.stat().st_size
+    failures: list[str] = []
+    if version != 2:
+        failures.append(f"{path.name}: expected GLB version 2, found {version}")
+    if declared != actual:
+        failures.append(f"{path.name}: GLB declared length {declared} != actual {actual}")
+    return failures, []
+
+
+def run_qa(asset_dir: Path, *, policy_path: Path = DEFAULT_POLICY) -> dict[str, Any]:
+    """Perform dependency-free safety and importability checks over staging."""
+    policy = load_policy(policy_path)
+    provenance = _read_json(asset_dir / PROVENANCE_FILE)
+    if provenance.get("verdict", {}).get("status") != "approved":
+        raise AssetPipelineError("QA refuses staging content without an approved licensing verdict")
+
+    payload = asset_dir / "payload"
+    if not payload.is_dir():
+        raise AssetPipelineError(f"Missing staged payload directory: {payload}")
+
+    qa_policy = policy.get("technical_qa", {})
+    max_file_bytes = int(qa_policy.get("max_file_bytes", 536_870_912))
+    allowed_importables = {
+        str(ext).lower() for ext in qa_policy.get("importable_extensions", sorted(IMPORTABLE_EXTENSIONS))
+    }
+
+    failures: list[str] = []
+    warnings: list[str] = []
+    files: list[dict[str, Any]] = []
+    importable_count = 0
+
+    for path in sorted(p for p in payload.rglob("*") if p.is_file()):
+        if path.is_symlink():
+            failures.append(f"{path.relative_to(payload)}: symbolic links are not allowed")
+            continue
+        relative = path.relative_to(payload).as_posix()
+        extension = path.suffix.lower()
+        size = path.stat().st_size
+        if extension in DANGEROUS_EXTENSIONS:
+            failures.append(f"{relative}: executable/script extension is forbidden")
+        if size > max_file_bytes:
+            failures.append(f"{relative}: file size {size} exceeds {max_file_bytes}")
+        if extension in allowed_importables:
+            importable_count += 1
+        if extension == ".gltf":
+            f, w = _inspect_gltf(path)
+            failures.extend(f"{relative}: {msg}" for msg in f)
+            warnings.extend(f"{relative}: {msg}" for msg in w)
+        elif extension == ".glb":
+            f, w = _inspect_glb(path)
+            failures.extend(f"{relative}: {msg}" for msg in f)
+            warnings.extend(f"{relative}: {msg}" for msg in w)
+        files.append(
+            {
+                "path": relative,
+                "bytes": size,
+                "sha256": _sha256(path),
+                "importable": extension in allowed_importables,
+            }
+        )
+
+    if not files:
+        failures.append("payload contains no files")
+    if importable_count == 0:
+        failures.append("payload contains no recognized Unreal-importable files")
+
+    result = {
+        "schema_version": 1,
+        "asset_id": provenance.get("asset_id"),
+        "status": "pass" if not failures else "fail",
+        "failures": failures,
+        "warnings": warnings,
+        "files": files,
+        "checked_at_utc": datetime.now(timezone.utc).isoformat(),
+    }
+    _write_json(asset_dir / QA_FILE, result)
+    return result
+
+
+def _validate_registry_payload(registry: Mapping[str, Any]) -> None:
+    if registry.get("schema_version") != 1:
+        raise AssetPipelineError("Asset registry schema_version must be 1")
+    entries = registry.get("assets")
+    if not isinstance(entries, list):
+        raise AssetPipelineError("Asset registry assets must be a list")
+    seen: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            raise AssetPipelineError("Asset registry entries must be objects")
+        asset_id = str(entry.get("asset_id") or "")
+        if not asset_id or asset_id in seen:
+            raise AssetPipelineError(f"Asset registry contains missing/duplicate id: {asset_id!r}")
+        seen.add(asset_id)
+        if entry.get("license", {}).get("commercialUse") is not True:
+            raise AssetPipelineError(f"{asset_id}: commercial-use evidence is not confirmed")
+        if not entry.get("files"):
+            raise AssetPipelineError(f"{asset_id}: registry entry has no files")
+
+
+def _manifest_from_registry(registry: Mapping[str, Any]) -> dict[str, Any]:
+    _validate_registry_payload(registry)
+    imports: list[dict[str, Any]] = []
+    for entry in registry["assets"]:
+        destination = str(entry.get("unreal_destination") or "")
+        for file_record in entry.get("files", []):
+            if file_record.get("importable"):
+                imports.append(
+                    {
+                        "asset_id": entry["asset_id"],
+                        "source": file_record["repository_path"],
+                        "destination": destination,
+                        "sha256": file_record["sha256"],
+                    }
+                )
+    return {"schema_version": 1, "imports": imports}
+
+
+def build_unreal_import_manifest(
+    registry_path: Path = DEFAULT_REGISTRY,
+    output_path: Path = DEFAULT_IMPORT_MANIFEST,
+) -> dict[str, Any]:
+    registry = _read_json(registry_path)
+    manifest = _manifest_from_registry(registry)
