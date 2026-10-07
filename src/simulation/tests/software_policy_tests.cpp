@@ -494,6 +494,14 @@ int main() {
         // Never observed: no knowledge state exists yet.
         assert(!runtime.composition_estimate_for_target("asteroid-a").has_value());
 
+        // Passive sensor evidence may create knowledge/confidence, but it must
+        // not disclose a registered body's exact ground-truth material.
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond);
+        auto passive_knowledge = runtime.target_knowledge_state("asteroid-a");
+        assert(passive_knowledge.has_value());
+        assert(passive_knowledge->active_scan_s == 0.0);
+        assert(!runtime.composition_estimate_for_target("asteroid-a").has_value());
+
         runtime.start_scan("asteroid-a", 20.0);
         (void)runtime.drain_events();
         runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 5);
@@ -555,6 +563,25 @@ int main() {
         assert(nearly_equal_local(knowledge->passive_observation_s, 60.0));
         assert(knowledge->active_scan_s == 0.0);
         assert(nearly_equal_local(knowledge->confidence, 0.5));
+    }
+
+    // Passive observation may saturate confidence, but without any active-scan
+    // evidence it must never reveal exact registered-body composition.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(
+            StaticSphereBody{"passive-ore", {200.0, 0.0, 0.0}, 2.0, "iron_bearing_silicate_regolith"});
+        runtime.allocate_power(PowerSubsystem::Sensors, 100.0);
+
+        runtime.advance_wall_ticks(SimulationClock::TicksPerSecond * 120);
+
+        auto knowledge = runtime.target_knowledge_state("passive-ore");
+        assert(knowledge.has_value());
+        assert(knowledge->active_scan_s == 0.0);
+        assert(nearly_equal_local(knowledge->confidence, 1.0));
+        assert(knowledge->level == KnowledgeLevel::Observed);
+        assert(knowledge->classification.empty());
+        assert(!runtime.composition_estimate_for_target("passive-ore").has_value());
     }
 
     // No passive observation happens below the same minimum sensor power an
