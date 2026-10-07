@@ -178,3 +178,183 @@ def evaluate_asset(asset: Mapping[str, Any], policy: Mapping[str, Any]) -> Verdi
         reasons.append("free status is not explicitly confirmed")
     if downloadable is not True:
         reasons.append("asset is not directly downloadable through the approved server")
+    if not license_name:
+        reasons.append("license name is missing")
+    if attribution is True:
+        reasons.append("attribution is required and must be reviewed before promotion")
+
+    auto = policy.get("auto_approve", {})
+    providers = {str(x).lower() for x in auto.get("providers", [])}
+    licenses = {str(x).lower() for x in auto.get("licenses", [])}
+    if (
+        provider in providers
+        and license_name.lower() in licenses
+        and commercial is True
+        and is_free is True
+        and downloadable is True
+        and attribution is False
+    ):
+        return Verdict("approved", (f"{provider} + {license_name} is in the auto-approval allowlist",))
+
+    if reasons:
+        return Verdict("review", tuple(reasons))
+    return Verdict("review", ("provider/license combination is not in the auto-approval allowlist",))
+
+
+def search_assets(
+    query: str,
+    *,
+    asset_type: str | None = None,
+    limit: int = 20,
+    server: str = DEFAULT_SERVER,
+    policy_path: Path = DEFAULT_POLICY,
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    policy = load_policy(policy_path)
+    params: dict[str, Any] = {
+        "q": query,
+        "free": "true",
+        "downloadable": "true",
+        "limit": limit,
+    }
+    if asset_type:
+        params["type"] = asset_type
+    payload = _http_json(_server_url(server, "/v1/search", params), api_key)
+    decorated: list[dict[str, Any]] = []
+    for raw in payload.get("results", []):
+        if not isinstance(raw, Mapping):
+            continue
+        candidate = dict(raw)
+        candidate["everward_verdict"] = evaluate_asset(raw, policy).as_dict()
+        decorated.append(candidate)
+    return {
+        "schema_version": 1,
+        "query": query,
+        "server": server,
+        "results": decorated,
+        "providers": payload.get("providers", []),
+    }
+
+
+def get_asset(asset_id: str, *, server: str = DEFAULT_SERVER, api_key: str | None = None) -> dict[str, Any]:
+    quoted = urllib.parse.quote(asset_id, safe=":")
+    return _http_json(_server_url(server, f"/v1/assets/{quoted}"), api_key)
+
+
+def _safe_slug(value: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-._").lower()
+    if not slug:
+        raise AssetPipelineError("Asset id cannot be converted to a safe path")
+    return slug[:120]
+
+
+def _filename_from_headers(headers: Any, fallback_url: str) -> str:
+    disposition = headers.get("Content-Disposition")
+    if disposition:
+        match = re.search(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', disposition, re.IGNORECASE)
+        if match:
+            return Path(urllib.parse.unquote(match.group(1))).name
+    path_name = Path(urllib.parse.urlparse(fallback_url).path).name
+    return path_name or "asset-download.bin"
+
+
+def _safe_extract_zip(archive: Path, destination: Path, *, max_extracted_bytes: int) -> list[Path]:
+    extracted: list[Path] = []
+    root = destination.resolve()
+    total = 0
+    with zipfile.ZipFile(archive) as bundle:
+        for member in bundle.infolist():
+            if member.is_dir():
+                continue
+            unix_mode = (member.external_attr >> 16) & 0o170000
+            if unix_mode == 0o120000:
+                raise AssetPipelineError(f"Refusing symlink in zip: {member.filename}")
+            total += member.file_size
+            if total > max_extracted_bytes:
+                raise AssetPipelineError(
+                    f"Refusing archive expanding beyond {max_extracted_bytes} bytes"
+                )
+            member_path = Path(member.filename)
+            if member_path.is_absolute() or ".." in member_path.parts:
+                raise AssetPipelineError(f"Refusing unsafe zip member: {member.filename}")
+            target = (destination / member_path).resolve()
+            if root not in target.parents and target != root:
+                raise AssetPipelineError(f"Refusing zip path escape: {member.filename}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with bundle.open(member, "r") as source, target.open("wb") as output:
+                shutil.copyfileobj(source, output)
+            extracted.append(target)
+    return extracted
+
+
+def stage_asset(
+    asset_id: str,
+    *,
+    file_format: str | None = None,
+    resolution: str | None = None,
+    server: str = DEFAULT_SERVER,
+    policy_path: Path = DEFAULT_POLICY,
+    staging_root: Path = DEFAULT_STAGING_ROOT,
+    api_key: str | None = None,
+) -> Path:
+    """Download an auto-approved asset into ignored staging with provenance."""
+    policy = load_policy(policy_path)
+    details = get_asset(asset_id, server=server, api_key=api_key)
+    verdict = evaluate_asset(details, policy)
+    if verdict.status != "approved":
+        raise AssetPipelineError(
+            f"{asset_id} is not eligible for automatic staging: {verdict.status}: {'; '.join(verdict.reasons)}"
+        )
+
+    params: dict[str, str] = {}
+    if file_format:
+        params["format"] = file_format
+    if resolution:
+        params["resolution"] = resolution
+    quoted = urllib.parse.quote(asset_id, safe=":")
+    url = _server_url(server, f"/v1/assets/{quoted}/download", params)
+
+    asset_dir = staging_root / _safe_slug(asset_id)
+    if asset_dir.exists():
+        shutil.rmtree(asset_dir)
+    asset_dir.mkdir(parents=True, exist_ok=True)
+
+    headers = {"Accept": "*/*", "User-Agent": "Everward-Asset-Scout/1"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:  # noqa: S310 - explicit configured server
+            final_url = response.geturl()
+            filename = _filename_from_headers(response.headers, final_url)
+            download_path = asset_dir / filename
+            max_bytes = int(policy.get("technical_qa", {}).get("max_download_bytes", 1_073_741_824))
+            written = 0
+            with download_path.open("wb") as handle:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > max_bytes:
+                        raise AssetPipelineError(f"Download exceeds policy limit of {max_bytes} bytes")
+                    handle.write(chunk)
+    except Exception as exc:
+        shutil.rmtree(asset_dir, ignore_errors=True)
+        if isinstance(exc, AssetPipelineError):
+            raise
+        raise AssetPipelineError(f"Asset download failed for {asset_id}: {exc}") from exc
+
+    if zipfile.is_zipfile(download_path):
+        extracted_dir = asset_dir / "payload"
+        extracted_dir.mkdir()
+        _safe_extract_zip(
+            download_path,
+            extracted_dir,
+            max_extracted_bytes=int(policy.get("technical_qa", {}).get("max_extracted_bytes", 2_147_483_648)),
+        )
+        download_path.unlink()
+    else:
+        payload_dir = asset_dir / "payload"
+        payload_dir.mkdir()
+        download_path.replace(payload_dir / download_path.name)
