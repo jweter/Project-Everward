@@ -6,7 +6,15 @@ This file is the human-readable shipping-notice index. The detailed working prov
 
 ## Current shipping components
 
-None recorded yet. Everward is in pre-production and the production engine has not been selected.
+None recorded yet. Everward is in pre-production; Unreal Engine is the accepted production direction, but no third-party asset has yet been admitted to the shipping-component list.
+
+## Development-only tooling
+
+| Component | Revision | Purpose | License | Shipped |
+|---|---|---|---|---|
+| `arielshad/3d-asset-server` | `5914a8fd280b79d00fc6b0783c7e7d7b6affd654` | External asset search/download development service, installed locally by script rather than vendored into Everward | Apache-2.0 | No |
+
+The development tool's Apache-2.0 license applies to that software only. Models, textures, materials, HDRIs, and other content discovered through it retain their own licenses and must pass Everward's asset provenance gate independently.
 
 ## Required record for each shipped component
 

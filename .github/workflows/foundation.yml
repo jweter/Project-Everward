@@ -33,6 +33,9 @@ jobs:
       - name: Validate canonical Prime Probe reference assets
         run: python tools/validate_reference_assets.py
 
+      - name: Validate third-party asset registry
+        run: python tools/everward_asset_scout.py validate
+
       - name: Build production simulation core
         run: cmake -S src/simulation -B build/simulation -DCMAKE_BUILD_TYPE=Release
 

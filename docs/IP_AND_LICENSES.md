@@ -42,6 +42,16 @@ Relevant categories include:
 - AI-assisted assets where used,
 - build/runtime libraries.
 
+## Machine-readable third-party asset gate
+
+Third-party visual asset acquisition is governed by `docs/ASSET_ACQUISITION_PIPELINE.md`, `assets/pipeline/policy.json`, and the canonical machine-readable registry at `assets/third_party/asset_registry.json`.
+
+The initial automatic path is deliberately narrower than the set of content a commercial game might legally use: only directly downloadable assets that explicitly report commercial use, free status, no attribution requirement, an allowlisted CC0 license label, and an allowlisted provider can move automatically from discovery to staging. Unknown, attribution-bearing, royalty-free, per-listing, or otherwise non-allowlisted terms require explicit review rather than an agent-side override.
+
+`assets/staging/` is quarantine, not production. Promotion requires a current approved licensing verdict and passing technical QA. Because this repository is public, commercial-use permission alone is insufficient when the supplier forbids redistribution of source assets; such material must not be committed merely because it may be usable in a packaged game.
+
+Everward currently interoperates with the Apache-2.0 `arielshad/3d-asset-server` as development-only discovery/download tooling, pinned by the setup script to tested revision `5914a8fd280b79d00fc6b0783c7e7d7b6affd654`. The server's software license does not grant rights to any discovered asset; each asset retains its own recorded license and provenance requirements.
+
 ## Engine licenses
 
 Engine choice remains open. Record the exact production-engine version and applicable license terms after the engine decision. Do not assume that an engine's license automatically covers third-party assets or plugins distributed with it.

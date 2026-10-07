@@ -1,0 +1,38 @@
+{
+  "asset_server_compatibility": {
+    "api": "HTTP /v1 search/assets/download",
+    "repository": "arielshad/3d-asset-server",
+    "tested_commit": "5914a8fd280b79d00fc6b0783c7e7d7b6affd654"
+  },
+  "auto_approve": {
+    "licenses": [
+      "CC0",
+      "CC0 1.0",
+      "CC0-1.0"
+    ],
+    "providers": [
+      "polyhaven",
+      "ambientcg",
+      "kenney",
+      "texturecan"
+    ]
+  },
+  "schema_version": 1,
+  "technical_qa": {
+    "importable_extensions": [
+      ".fbx",
+      ".glb",
+      ".gltf",
+      ".obj",
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".tga",
+      ".exr",
+      ".hdr"
+    ],
+    "max_download_bytes": 1073741824,
+    "max_extracted_bytes": 2147483648,
+    "max_file_bytes": 536870912
+  }
+}

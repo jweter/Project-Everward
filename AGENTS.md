@@ -44,6 +44,12 @@ Preserve deterministic simulation ownership of game truth, player agency, evolut
 
 Do not simplify away core systems merely for implementation convenience. Do not invent major mechanics outside documented direction.
 
+## Third-party asset acquisition rule
+
+External models, materials, textures, HDRIs, and other third-party visual assets must enter through `tools/everward_asset_scout.py` and the rules in `docs/ASSET_ACQUISITION_PIPELINE.md`. Search results are advisory, not approval.
+
+Autonomous agents may search widely but must not bypass an `everward_verdict=review`, commit quarantined staging content, or promote content without approved provenance and passing QA. A convenient marketplace asset must not redefine the canonical Prime Generation-1 probe design. The tracked asset registry and Unreal import manifest are the machine-readable authority for promoted third-party visual content.
+
 ## Product Reality automation rule
 
 **Zero humans for facts a computer can measure.**

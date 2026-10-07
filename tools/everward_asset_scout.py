@@ -1,0 +1,736 @@
+#!/usr/bin/env python3
+"""Everward third-party asset discovery, licensing, QA, and promotion gate.
+
+The pipeline intentionally keeps network discovery separate from production
+promotion. Search results are advisory. Only policy-approved, directly
+downloadable assets can enter staging, and only staging assets that pass local
+technical QA can enter the tracked third-party asset registry.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import shutil
+import sys
+import urllib.parse
+import urllib.request
+import zipfile
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_POLICY = REPO_ROOT / "assets" / "pipeline" / "policy.json"
+DEFAULT_REGISTRY = REPO_ROOT / "assets" / "third_party" / "asset_registry.json"
+DEFAULT_IMPORT_MANIFEST = REPO_ROOT / "assets" / "pipeline" / "unreal_import_manifest.json"
+DEFAULT_STAGING_ROOT = REPO_ROOT / "assets" / "staging"
+DEFAULT_THIRD_PARTY_ROOT = REPO_ROOT / "assets" / "third_party"
+DEFAULT_SERVER = os.environ.get("EVERWARD_ASSET_SERVER_URL", "http://127.0.0.1:8787")
+
+PROVENANCE_FILE = "provenance.json"
+QA_FILE = "qa.json"
+IMPORTABLE_EXTENSIONS = {
+    ".fbx",
+    ".glb",
+    ".gltf",
+    ".obj",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".tga",
+    ".exr",
+    ".hdr",
+}
+DANGEROUS_EXTENSIONS = {
+    ".exe",
+    ".dll",
+    ".com",
+    ".msi",
+    ".bat",
+    ".cmd",
+    ".ps1",
+    ".vbs",
+    ".js",
+    ".mjs",
+    ".cjs",
+    ".py",
+    ".pyw",
+    ".sh",
+    ".app",
+    ".scr",
+}
+
+
+class AssetPipelineError(RuntimeError):
+    """A fail-closed asset-pipeline error."""
+
+
+@dataclass(frozen=True)
+class Verdict:
+    status: str
+    reasons: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"status": self.status, "reasons": list(self.reasons)}
+
+
+def _read_json(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AssetPipelineError(f"Unable to read valid JSON from {path}: {exc}") from exc
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def load_policy(path: Path = DEFAULT_POLICY) -> dict[str, Any]:
+    policy = _read_json(path)
+    if policy.get("schema_version") != 1:
+        raise AssetPipelineError("Unsupported asset policy schema_version; expected 1")
+    return policy
+
+
+def _server_url(base_url: str, path: str, params: Mapping[str, Any] | None = None) -> str:
+    base = base_url.rstrip("/")
+    query = ""
+    if params:
+        query = "?" + urllib.parse.urlencode(
+            [(key, item) for key, value in params.items() for item in (value if isinstance(value, list) else [value])]
+        )
+    return f"{base}{path}{query}"
+
+
+def _http_json(url: str, api_key: str | None = None) -> dict[str, Any]:
+    headers = {"Accept": "application/json", "User-Agent": "Everward-Asset-Scout/1"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 - URL is explicit operator configuration
+            body = response.read()
+    except Exception as exc:  # urllib surfaces several transport subclasses
+        raise AssetPipelineError(f"Asset server request failed: {url}: {exc}") from exc
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise AssetPipelineError(f"Asset server returned invalid JSON: {url}") from exc
+    if not isinstance(payload, dict):
+        raise AssetPipelineError(f"Asset server returned non-object JSON: {url}")
+    return payload
+
+
+def _provider_for(asset: Mapping[str, Any]) -> str:
+    provider = str(asset.get("provider") or "").strip().lower()
+    if provider:
+        return provider
+    asset_id = str(asset.get("id") or "")
+    if ":" in asset_id:
+        return asset_id.split(":", 1)[0].lower()
+    return ""
+
+
+def _license(asset: Mapping[str, Any]) -> Mapping[str, Any]:
+    value = asset.get("license")
+    return value if isinstance(value, Mapping) else {}
+
+
+def _free(asset: Mapping[str, Any]) -> bool | None:
+    price = asset.get("price")
+    if isinstance(price, Mapping) and "free" in price:
+        return bool(price.get("free"))
+    if "free" in asset:
+        return bool(asset.get("free"))
+    return None
+
+
+def evaluate_asset(asset: Mapping[str, Any], policy: Mapping[str, Any]) -> Verdict:
+    """Return the conservative licensing/acquisition verdict for an asset."""
+    reasons: list[str] = []
+    asset_id = str(asset.get("id") or "").strip()
+    provider = _provider_for(asset)
+    license_info = _license(asset)
+    license_name = str(license_info.get("name") or "").strip()
+    commercial = license_info.get("commercialUse")
+    attribution = license_info.get("attributionRequired")
+    downloadable = asset.get("downloadable")
+    is_free = _free(asset)
+
+    if not asset_id or not provider:
+        return Verdict("rejected", ("missing stable asset id/provider",))
+    if commercial is False:
+        return Verdict("rejected", ("license explicitly forbids commercial use",))
+    if is_free is False:
+        return Verdict("rejected", ("asset is not free under current policy",))
+
+    if commercial is not True:
+        reasons.append("commercial-use permission is not explicitly confirmed")
+    if is_free is not True:
+        reasons.append("free status is not explicitly confirmed")
+    if downloadable is not True:
+        reasons.append("asset is not directly downloadable through the approved server")
+    if not license_name:
+        reasons.append("license name is missing")
+    if attribution is True:
+        reasons.append("attribution is required and must be reviewed before promotion")
+
+    auto = policy.get("auto_approve", {})
+    providers = {str(x).lower() for x in auto.get("providers", [])}
+    licenses = {str(x).lower() for x in auto.get("licenses", [])}
+    if (
+        provider in providers
+        and license_name.lower() in licenses
+        and commercial is True
+        and is_free is True
+        and downloadable is True
+        and attribution is False
+    ):
+        return Verdict("approved", (f"{provider} + {license_name} is in the auto-approval allowlist",))
+
+    if reasons:
+        return Verdict("review", tuple(reasons))
+    return Verdict("review", ("provider/license combination is not in the auto-approval allowlist",))
+
+
+def search_assets(
+    query: str,
+    *,
+    asset_type: str | None = None,
+    limit: int = 20,
+    server: str = DEFAULT_SERVER,
+    policy_path: Path = DEFAULT_POLICY,
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    policy = load_policy(policy_path)
+    params: dict[str, Any] = {
+        "q": query,
+        "free": "true",
+        "downloadable": "true",
+        "limit": limit,
+    }
+    if asset_type:
+        params["type"] = asset_type
+    payload = _http_json(_server_url(server, "/v1/search", params), api_key)
+    decorated: list[dict[str, Any]] = []
+    for raw in payload.get("results", []):
+        if not isinstance(raw, Mapping):
+            continue
+        candidate = dict(raw)
+        candidate["everward_verdict"] = evaluate_asset(raw, policy).as_dict()
+        decorated.append(candidate)
+    return {
+        "schema_version": 1,
+        "query": query,
+        "server": server,
+        "results": decorated,
+        "providers": payload.get("providers", []),
+    }
+
+
+def get_asset(asset_id: str, *, server: str = DEFAULT_SERVER, api_key: str | None = None) -> dict[str, Any]:
+    quoted = urllib.parse.quote(asset_id, safe=":")
+    return _http_json(_server_url(server, f"/v1/assets/{quoted}"), api_key)
+
+
+def _safe_slug(value: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-._").lower()
+    if not slug:
+        raise AssetPipelineError("Asset id cannot be converted to a safe path")
+    return slug[:120]
+
+
+def _filename_from_headers(headers: Any, fallback_url: str) -> str:
+    disposition = headers.get("Content-Disposition")
+    if disposition:
+        match = re.search(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', disposition, re.IGNORECASE)
+        if match:
+            return Path(urllib.parse.unquote(match.group(1))).name
+    path_name = Path(urllib.parse.urlparse(fallback_url).path).name
+    return path_name or "asset-download.bin"
+
+
+def _safe_extract_zip(archive: Path, destination: Path, *, max_extracted_bytes: int) -> list[Path]:
+    extracted: list[Path] = []
+    root = destination.resolve()
+    total = 0
+    with zipfile.ZipFile(archive) as bundle:
+        for member in bundle.infolist():
+            if member.is_dir():
+                continue
+            unix_mode = (member.external_attr >> 16) & 0o170000
+            if unix_mode == 0o120000:
+                raise AssetPipelineError(f"Refusing symlink in zip: {member.filename}")
+            total += member.file_size
+            if total > max_extracted_bytes:
+                raise AssetPipelineError(
+                    f"Refusing archive expanding beyond {max_extracted_bytes} bytes"
+                )
+            member_path = Path(member.filename)
+            if member_path.is_absolute() or ".." in member_path.parts:
+                raise AssetPipelineError(f"Refusing unsafe zip member: {member.filename}")
+            target = (destination / member_path).resolve()
+            if root not in target.parents and target != root:
+                raise AssetPipelineError(f"Refusing zip path escape: {member.filename}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with bundle.open(member, "r") as source, target.open("wb") as output:
+                shutil.copyfileobj(source, output)
+            extracted.append(target)
+    return extracted
+
+
+def stage_asset(
+    asset_id: str,
+    *,
+    file_format: str | None = None,
+    resolution: str | None = None,
+    server: str = DEFAULT_SERVER,
+    policy_path: Path = DEFAULT_POLICY,
+    staging_root: Path = DEFAULT_STAGING_ROOT,
+    api_key: str | None = None,
+) -> Path:
+    """Download an auto-approved asset into ignored staging with provenance."""
+    policy = load_policy(policy_path)
+    details = get_asset(asset_id, server=server, api_key=api_key)
+    verdict = evaluate_asset(details, policy)
+    if verdict.status != "approved":
+        raise AssetPipelineError(
+            f"{asset_id} is not eligible for automatic staging: {verdict.status}: {'; '.join(verdict.reasons)}"
+        )
+
+    params: dict[str, str] = {}
+    if file_format:
+        params["format"] = file_format
+    if resolution:
+        params["resolution"] = resolution
+    quoted = urllib.parse.quote(asset_id, safe=":")
+    url = _server_url(server, f"/v1/assets/{quoted}/download", params)
+
+    asset_dir = staging_root / _safe_slug(asset_id)
+    if asset_dir.exists():
+        shutil.rmtree(asset_dir)
+    asset_dir.mkdir(parents=True, exist_ok=True)
+
+    headers = {"Accept": "*/*", "User-Agent": "Everward-Asset-Scout/1"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:  # noqa: S310 - explicit configured server
+            final_url = response.geturl()
+            filename = _filename_from_headers(response.headers, final_url)
+            download_path = asset_dir / filename
+            max_bytes = int(policy.get("technical_qa", {}).get("max_download_bytes", 1_073_741_824))
+            written = 0
+            with download_path.open("wb") as handle:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > max_bytes:
+                        raise AssetPipelineError(f"Download exceeds policy limit of {max_bytes} bytes")
+                    handle.write(chunk)
+    except Exception as exc:
+        shutil.rmtree(asset_dir, ignore_errors=True)
+        if isinstance(exc, AssetPipelineError):
+            raise
+        raise AssetPipelineError(f"Asset download failed for {asset_id}: {exc}") from exc
+
+    if zipfile.is_zipfile(download_path):
+        extracted_dir = asset_dir / "payload"
+        extracted_dir.mkdir()
+        _safe_extract_zip(
+            download_path,
+            extracted_dir,
+            max_extracted_bytes=int(policy.get("technical_qa", {}).get("max_extracted_bytes", 2_147_483_648)),
+        )
+        download_path.unlink()
+    else:
+        payload_dir = asset_dir / "payload"
+        payload_dir.mkdir()
+        download_path.replace(payload_dir / download_path.name)
+
+    provenance = {
+        "schema_version": 1,
+        "asset_id": asset_id,
+        "provider": _provider_for(details),
+        "source_url": details.get("url"),
+        "asset_server": server,
+        "asset_server_compatibility": policy.get("asset_server_compatibility", {}),
+        "license": dict(_license(details)),
+        "price": details.get("price"),
+        "downloadable": details.get("downloadable"),
+        "verdict": verdict.as_dict(),
+        "requested_format": file_format,
+        "requested_resolution": resolution,
+        "staged_at_utc": datetime.now(timezone.utc).isoformat(),
+    }
+    _write_json(asset_dir / PROVENANCE_FILE, provenance)
+    return asset_dir
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _inspect_gltf(path: Path) -> tuple[list[str], list[str]]:
+    failures: list[str] = []
+    warnings: list[str] = []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return [f"{path.name}: invalid glTF JSON ({exc})"], []
+    version = str(data.get("asset", {}).get("version", ""))
+    if not version.startswith("2"):
+        failures.append(f"{path.name}: expected glTF 2.x, found {version or 'unknown'}")
+    if not data.get("meshes"):
+        warnings.append(f"{path.name}: contains no meshes")
+    for section in ("buffers", "images"):
+        for item in data.get(section, []):
+            uri = item.get("uri")
+            if uri and not str(uri).startswith("data:") and not (path.parent / uri).exists():
+                failures.append(f"{path.name}: missing referenced {section[:-1]} {uri}")
+    return failures, warnings
+
+
+def _inspect_glb(path: Path) -> tuple[list[str], list[str]]:
+    try:
+        header = path.read_bytes()[:12]
+    except OSError as exc:
+        return [f"{path.name}: cannot read GLB ({exc})"], []
+    if len(header) < 12 or header[:4] != b"glTF":
+        return [f"{path.name}: invalid GLB header"], []
+    version = int.from_bytes(header[4:8], "little")
+    declared = int.from_bytes(header[8:12], "little")
+    actual = path.stat().st_size
+    failures: list[str] = []
+    if version != 2:
+        failures.append(f"{path.name}: expected GLB version 2, found {version}")
+    if declared != actual:
+        failures.append(f"{path.name}: GLB declared length {declared} != actual {actual}")
+    return failures, []
+
+
+def run_qa(asset_dir: Path, *, policy_path: Path = DEFAULT_POLICY) -> dict[str, Any]:
+    """Perform dependency-free safety and importability checks over staging."""
+    policy = load_policy(policy_path)
+    provenance = _read_json(asset_dir / PROVENANCE_FILE)
+    if provenance.get("verdict", {}).get("status") != "approved":
+        raise AssetPipelineError("QA refuses staging content without an approved licensing verdict")
+
+    payload = asset_dir / "payload"
+    if not payload.is_dir():
+        raise AssetPipelineError(f"Missing staged payload directory: {payload}")
+
+    qa_policy = policy.get("technical_qa", {})
+    max_file_bytes = int(qa_policy.get("max_file_bytes", 536_870_912))
+    allowed_importables = {
+        str(ext).lower() for ext in qa_policy.get("importable_extensions", sorted(IMPORTABLE_EXTENSIONS))
+    }
+
+    failures: list[str] = []
+    warnings: list[str] = []
+    files: list[dict[str, Any]] = []
+    importable_count = 0
+
+    for path in sorted(p for p in payload.rglob("*") if p.is_file()):
+        if path.is_symlink():
+            failures.append(f"{path.relative_to(payload)}: symbolic links are not allowed")
+            continue
+        relative = path.relative_to(payload).as_posix()
+        extension = path.suffix.lower()
+        size = path.stat().st_size
+        if extension in DANGEROUS_EXTENSIONS:
+            failures.append(f"{relative}: executable/script extension is forbidden")
+        if size > max_file_bytes:
+            failures.append(f"{relative}: file size {size} exceeds {max_file_bytes}")
+        if extension in allowed_importables:
+            importable_count += 1
+        if extension == ".gltf":
+            f, w = _inspect_gltf(path)
+            failures.extend(f"{relative}: {msg}" for msg in f)
+            warnings.extend(f"{relative}: {msg}" for msg in w)
+        elif extension == ".glb":
+            f, w = _inspect_glb(path)
+            failures.extend(f"{relative}: {msg}" for msg in f)
+            warnings.extend(f"{relative}: {msg}" for msg in w)
+        files.append(
+            {
+                "path": relative,
+                "bytes": size,
+                "sha256": _sha256(path),
+                "importable": extension in allowed_importables,
+            }
+        )
+
+    if not files:
+        failures.append("payload contains no files")
+    if importable_count == 0:
+        failures.append("payload contains no recognized Unreal-importable files")
+
+    result = {
+        "schema_version": 1,
+        "asset_id": provenance.get("asset_id"),
+        "status": "pass" if not failures else "fail",
+        "failures": failures,
+        "warnings": warnings,
+        "files": files,
+        "checked_at_utc": datetime.now(timezone.utc).isoformat(),
+    }
+    _write_json(asset_dir / QA_FILE, result)
+    return result
+
+
+def _validate_registry_payload(registry: Mapping[str, Any]) -> None:
+    if registry.get("schema_version") != 1:
+        raise AssetPipelineError("Asset registry schema_version must be 1")
+    entries = registry.get("assets")
+    if not isinstance(entries, list):
+        raise AssetPipelineError("Asset registry assets must be a list")
+    seen: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            raise AssetPipelineError("Asset registry entries must be objects")
+        asset_id = str(entry.get("asset_id") or "")
+        if not asset_id or asset_id in seen:
+            raise AssetPipelineError(f"Asset registry contains missing/duplicate id: {asset_id!r}")
+        seen.add(asset_id)
+        if entry.get("license", {}).get("commercialUse") is not True:
+            raise AssetPipelineError(f"{asset_id}: commercial-use evidence is not confirmed")
+        if not entry.get("files"):
+            raise AssetPipelineError(f"{asset_id}: registry entry has no files")
+
+
+def _manifest_from_registry(registry: Mapping[str, Any]) -> dict[str, Any]:
+    _validate_registry_payload(registry)
+    imports: list[dict[str, Any]] = []
+    for entry in registry["assets"]:
+        destination = str(entry.get("unreal_destination") or "")
+        for file_record in entry.get("files", []):
+            if file_record.get("importable"):
+                imports.append(
+                    {
+                        "asset_id": entry["asset_id"],
+                        "source": file_record["repository_path"],
+                        "destination": destination,
+                        "sha256": file_record["sha256"],
+                    }
+                )
+    return {"schema_version": 1, "imports": imports}
+
+
+def build_unreal_import_manifest(
+    registry_path: Path = DEFAULT_REGISTRY,
+    output_path: Path = DEFAULT_IMPORT_MANIFEST,
+) -> dict[str, Any]:
+    registry = _read_json(registry_path)
+    manifest = _manifest_from_registry(registry)
+    _write_json(output_path, manifest)
+    return manifest
+
+
+def promote_asset(
+    asset_dir: Path,
+    *,
+    registry_path: Path = DEFAULT_REGISTRY,
+    third_party_root: Path = DEFAULT_THIRD_PARTY_ROOT,
+    import_manifest_path: Path = DEFAULT_IMPORT_MANIFEST,
+    policy_path: Path = DEFAULT_POLICY,
+    unreal_destination_root: str = "/Game/ThirdParty",
+    repo_root: Path = REPO_ROOT,
+) -> dict[str, Any]:
+    """Promote a staged, auto-approved, QA-passing asset into tracked production input."""
+    provenance = _read_json(asset_dir / PROVENANCE_FILE)
+    qa = _read_json(asset_dir / QA_FILE)
+    policy = load_policy(policy_path)
+    details_for_verdict = {
+        "id": provenance.get("asset_id"),
+        "provider": provenance.get("provider"),
+        "license": provenance.get("license"),
+        "price": provenance.get("price"),
+        "downloadable": provenance.get("downloadable"),
+    }
+    verdict = evaluate_asset(details_for_verdict, policy)
+    if verdict.status != "approved" or provenance.get("verdict", {}).get("status") != "approved":
+        raise AssetPipelineError("Promotion requires a current and staged auto-approved licensing verdict")
+    if qa.get("status") != "pass":
+        raise AssetPipelineError("Promotion requires a passing qa.json")
+
+    asset_id = str(provenance["asset_id"])
+    slug = _safe_slug(asset_id)
+    destination_dir = third_party_root / slug
+    payload = asset_dir / "payload"
+    if destination_dir.exists():
+        shutil.rmtree(destination_dir)
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(payload, destination_dir / "payload", dirs_exist_ok=True)
+    _write_json(destination_dir / PROVENANCE_FILE, provenance)
+    _write_json(destination_dir / QA_FILE, qa)
+
+    repo_root = repo_root.resolve()
+    file_records: list[dict[str, Any]] = []
+    allowed_importables = {
+        str(ext).lower()
+        for ext in policy.get("technical_qa", {}).get("importable_extensions", sorted(IMPORTABLE_EXTENSIONS))
+    }
+    for path in sorted(p for p in (destination_dir / "payload").rglob("*") if p.is_file()):
+        resolved = path.resolve()
+        try:
+            repository_path = resolved.relative_to(repo_root).as_posix()
+        except ValueError as exc:
+            raise AssetPipelineError("Promotion destination must be inside the Everward repository") from exc
+        file_records.append(
+            {
+                "repository_path": repository_path,
+                "bytes": path.stat().st_size,
+                "sha256": _sha256(path),
+                "importable": path.suffix.lower() in allowed_importables,
+            }
+        )
+
+    registry = _read_json(registry_path)
+    _validate_registry_payload(registry)
+    entry = {
+        "asset_id": asset_id,
+        "provider": provenance.get("provider"),
+        "source_url": provenance.get("source_url"),
+        "license": provenance.get("license"),
+        "attribution": provenance.get("license", {}).get("attribution"),
+        "provenance_path": (destination_dir / PROVENANCE_FILE).resolve().relative_to(repo_root).as_posix(),
+        "qa_path": (destination_dir / QA_FILE).resolve().relative_to(repo_root).as_posix(),
+        "unreal_destination": f"{unreal_destination_root.rstrip('/')}/{slug}",
+        "files": file_records,
+    }
+    registry["assets"] = [item for item in registry["assets"] if item.get("asset_id") != asset_id] + [entry]
+    registry["assets"].sort(key=lambda item: item["asset_id"])
+    _validate_registry_payload(registry)
+    _write_json(registry_path, registry)
+    build_unreal_import_manifest(registry_path, import_manifest_path)
+    return entry
+
+
+def validate_registry(
+    registry_path: Path = DEFAULT_REGISTRY,
+    import_manifest_path: Path = DEFAULT_IMPORT_MANIFEST,
+) -> None:
+    registry = _read_json(registry_path)
+    expected = _manifest_from_registry(registry)
+    actual = _read_json(import_manifest_path)
+    if actual != expected:
+        raise AssetPipelineError("Unreal import manifest is stale; regenerate it from the registry")
+
+
+def _print_json(payload: Any) -> None:
+    print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    search = subparsers.add_parser("search", help="Search and classify free downloadable candidates")
+    search.add_argument("query")
+    search.add_argument("--type", dest="asset_type")
+    search.add_argument("--limit", type=int, default=20)
+    search.add_argument("--server", default=DEFAULT_SERVER)
+    search.add_argument("--output", type=Path)
+
+    inspect = subparsers.add_parser("inspect", help="Fetch one candidate and show Everward's licensing verdict")
+    inspect.add_argument("asset_id")
+    inspect.add_argument("--server", default=DEFAULT_SERVER)
+
+    stage = subparsers.add_parser("stage", help="Download an auto-approved candidate into ignored staging")
+    stage.add_argument("asset_id")
+    stage.add_argument("--format", dest="file_format")
+    stage.add_argument("--resolution")
+    stage.add_argument("--server", default=DEFAULT_SERVER)
+    stage.add_argument("--staging-root", type=Path, default=DEFAULT_STAGING_ROOT)
+
+    qa = subparsers.add_parser("qa", help="Run dependency-free technical QA over a staged asset")
+    qa.add_argument("asset_dir", type=Path)
+
+    promote = subparsers.add_parser("promote", help="Promote approved+QA-passing staged content")
+    promote.add_argument("asset_dir", type=Path)
+    promote.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    promote.add_argument("--third-party-root", type=Path, default=DEFAULT_THIRD_PARTY_ROOT)
+    promote.add_argument("--import-manifest", type=Path, default=DEFAULT_IMPORT_MANIFEST)
+
+    manifest = subparsers.add_parser("manifest", help="Regenerate Unreal import jobs from the registry")
+    manifest.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    manifest.add_argument("--output", type=Path, default=DEFAULT_IMPORT_MANIFEST)
+
+    validate = subparsers.add_parser("validate", help="Validate the tracked registry and Unreal import manifest")
+    validate.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    validate.add_argument("--import-manifest", type=Path, default=DEFAULT_IMPORT_MANIFEST)
+
+    args = parser.parse_args(argv)
+    api_key = os.environ.get("ASSET_SERVER_API_KEY")
+    try:
+        if args.command == "search":
+            result = search_assets(
+                args.query,
+                asset_type=args.asset_type,
+                limit=args.limit,
+                server=args.server,
+                policy_path=args.policy,
+                api_key=api_key,
+            )
+            if args.output:
+                _write_json(args.output, result)
+            _print_json(result)
+        elif args.command == "inspect":
+            asset = get_asset(args.asset_id, server=args.server, api_key=api_key)
+            asset["everward_verdict"] = evaluate_asset(asset, load_policy(args.policy)).as_dict()
+            _print_json(asset)
+        elif args.command == "stage":
+            staged = stage_asset(
+                args.asset_id,
+                file_format=args.file_format,
+                resolution=args.resolution,
+                server=args.server,
+                policy_path=args.policy,
+                staging_root=args.staging_root,
+                api_key=api_key,
+            )
+            print(staged)
+        elif args.command == "qa":
+            _print_json(run_qa(args.asset_dir, policy_path=args.policy))
+        elif args.command == "promote":
+            _print_json(
+                promote_asset(
+                    args.asset_dir,
+                    registry_path=args.registry,
+                    third_party_root=args.third_party_root,
+                    import_manifest_path=args.import_manifest,
+                    policy_path=args.policy,
+                )
+            )
+        elif args.command == "manifest":
+            _print_json(build_unreal_import_manifest(args.registry, args.output))
+        elif args.command == "validate":
+            validate_registry(args.registry, args.import_manifest)
+            print("Everward asset registry: OK")
+        else:
+            raise AssertionError(args.command)
+    except AssetPipelineError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
