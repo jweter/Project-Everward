@@ -45,3 +45,7 @@ benchmark-results/local/
 
 # Private Product Reality source evidence
 private/product-reality-inbox/
+
+# Local third-party asset acquisition tooling and quarantine
+.tools/
+/assets/staging/
