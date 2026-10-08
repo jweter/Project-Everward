@@ -4,6 +4,7 @@ param(
     [switch]$SkipBuild,
     [switch]$NoLaunch,
     [switch]$LowSpec,
+    [switch]$EmergencyMinimum,
     [switch]$MeasureMemory
 )
 
@@ -80,7 +81,9 @@ function Set-LowSpecMemoryEvidence {
 }
 
 if (-not (Test-Path $ProjectPath)) { throw "Everward project not found at $ProjectPath" }
-if ($MeasureMemory -and -not $LowSpec) { throw "-MeasureMemory is currently restricted to -LowSpec evidence runs." }
+if ($LowSpec -and $EmergencyMinimum) { throw "Choose only one of -LowSpec or -EmergencyMinimum." }
+$ConstrainedProfile = $LowSpec -or $EmergencyMinimum
+if ($MeasureMemory -and -not $ConstrainedProfile) { throw "-MeasureMemory requires -LowSpec or -EmergencyMinimum." }
 if ($MeasureMemory -and $NoLaunch) { throw "-MeasureMemory requires an Unreal Editor launch." }
 
 $ResolvedUnrealRoot = Resolve-Unreal58Root -ExplicitRoot $UnrealRoot
@@ -104,12 +107,13 @@ try {
     Write-Host ""; Write-Host "Everward Phase 2 first-run harness"
     Write-Host "  Repo:       $RepoRoot"; Write-Host "  Commit:     $GitCommit"; Write-Host "  Unreal 5.8: $ResolvedUnrealRoot"; Write-Host "  Evidence:   $ObservationPath"
     if ($LowSpec) { Write-Host "  Profile:    Low-Spec Development (720p / 30 FPS / reduced presentation cost)" }
+    if ($EmergencyMinimum) { Write-Host "  Profile:    Emergency / Minimum (540p / 30 FPS / minimum presentation cost)" }
     Write-Host ""
 
     if (-not $SkipBuild) {
         Write-Host "Building EverwardEditor (Win64 Development)..."
         $BuildArguments = @("EverwardEditor", "Win64", "Development", $ProjectPath, "-WaitMutex", "-NoHotReloadFromIDE")
-        if ($LowSpec) { $BuildArguments += "-MaxParallelActions=2" }
+        if ($ConstrainedProfile) { $BuildArguments += "-MaxParallelActions=2" }
         & $BuildBat @BuildArguments
         $BuildExitCode = $LASTEXITCODE
         if ($BuildExitCode -ne 0) {
@@ -118,7 +122,7 @@ try {
             throw "EverwardEditor build failed with exit code $BuildExitCode. Observation recorded at $ObservationPath"
         }
         $BuildNotes = "EverwardEditor Win64 Development build completed successfully via Unreal Engine 5.8 Build.bat."
-        if ($LowSpec) { $BuildNotes += " Low-Spec Development mode constrained UnrealBuildTool to at most 2 parallel actions." }
+        if ($ConstrainedProfile) { $BuildNotes += " Constrained presentation mode limited UnrealBuildTool to at most 2 parallel actions." }
         Set-ObservationCheck -ObservationPath $ObservationPath -CheckId "unreal_cpp_build" -Status "pass" -Notes $BuildNotes
         Write-Host "Build passed and was recorded in the observation file."
     }
@@ -131,6 +135,12 @@ try {
             $EditorArguments += @("-WINDOWED", "-ResX=1280", "-ResY=720", "-ExecCmds=`"$LowSpecCommands`"")
             Write-Host "Launching Unreal Editor in opt-in Low-Spec Development mode..."
         }
+        elseif ($EmergencyMinimum) {
+            # Mirrors unreal/Config/EmergencyMinimum.ini without changing saved settings or gameplay.
+            $EmergencyCommands = @("t.MaxFPS 30", "r.ScreenPercentage 50", "sg.ViewDistanceQuality 0", "sg.AntiAliasingQuality 0", "sg.ShadowQuality 0", "sg.GlobalIlluminationQuality 0", "sg.ReflectionQuality 0", "sg.PostProcessQuality 0", "sg.TextureQuality 0", "sg.EffectsQuality 0", "sg.FoliageQuality 0", "sg.ShadingQuality 0", "r.Streaming.PoolSize 256", "r.Streaming.LimitPoolSizeToVRAM 1", "r.VolumetricFog 0", "r.MotionBlurQuality 0", "r.BloomQuality 0", "r.DepthOfFieldQuality 0", "r.LensFlareQuality 0") -join ","
+            $EditorArguments += @("-WINDOWED", "-ResX=960", "-ResY=540", "-ExecCmds=`"$EmergencyCommands`"")
+            Write-Host "Launching Unreal Editor in opt-in Emergency / Minimum mode..."
+        }
         else { Write-Host "Launching Unreal Editor with log window..." }
         $EditorProcess = Start-Process -FilePath $EditorExe -ArgumentList $EditorArguments -PassThru
         $LaunchDeadline = (Get-Date).AddSeconds(10)
@@ -138,7 +148,7 @@ try {
             if (Get-Process -Name "UnrealEditor" -ErrorAction SilentlyContinue) { break }
             Start-Sleep -Milliseconds 200
         }
-        if ($LowSpec -and $MeasureMemory) {
+        if ($ConstrainedProfile -and $MeasureMemory) {
             $SampleWindowSeconds = 60
             $MemoryDeadline = (Get-Date).AddSeconds($SampleWindowSeconds)
             $PeakWorkingSetBytes = 0L
