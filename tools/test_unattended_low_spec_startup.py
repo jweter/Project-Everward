@@ -304,7 +304,7 @@ class LowSpecLauncherContractTests(unittest.TestCase):
         text = HARNESS_PATH.read_text(encoding="utf-8")
         self.assertIn("[switch]$LowSpec", text)
         self.assertIn("[switch]$MeasureMemory", text)
-        self.assertIn('-MeasureMemory is currently restricted to -LowSpec evidence runs.', text)
+        self.assertIn('-MeasureMemory requires -LowSpec or -EmergencyMinimum.', text)
 
 
 if __name__ == "__main__":
