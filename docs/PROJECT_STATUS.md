@@ -1891,3 +1891,13 @@ Scheduled development follows `AGENT_DEVELOPMENT_POLICY.md`, `CURRENT_EXECUTION_
 - public visibility does not grant an open-source license;
 - default branch: `main`;
 - substantive development: branch + pull request, not direct-to-main.
+
+### Self Repair planner foundation (Slice 14 groundwork, #164)
+
+New engine-independent `self_repair.hpp` (`SelfRepairPlanner`) implements the staged "restore capability before restoring perfection" policy from `STARTER_AWAKENING_AND_SELF_REPAIR.md` as a deterministic, side-effect-free recommendation over `ComponentIntegritySnapshot`:
+
+- priority 1 core/thermal below minimum operation, then offline/sub-minimum systems, then weakest-first staging through 25/50/75/100%;
+- each step reports material, energy, duration, affordability and exact shortfalls (no silent substitution);
+- `apply()` never lowers integrity; `is_fully_restored()` expresses the 100% departure gate.
+
+Costs are provisional design constants. **Implemented, Product Reality pending**: not yet wired to mined-material stock, power draw, the tick, HUD, or an Unreal build; does not complete #164 or Slice 14. Verified: `everward_self_repair_tests`, full ctest (34/34), `tools/quality_preflight.py --full`.
