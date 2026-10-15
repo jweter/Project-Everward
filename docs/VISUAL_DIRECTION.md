@@ -27,6 +27,14 @@ The long-term screenshot target is:
 
 The player should be able to watch mining equipment operating against a gas giant, cross a ring plane, orbit a cryovolcanic moon, approach a neutron star, or stare into a black-hole accretion environment and feel that the universe itself justified the journey.
 
+## Continuous craft is mandatory, not deferred
+
+`CONTINUOUS_VISUAL_QUALITY.md` is the canonical Phase-2+ production and acceptance standard. Art direction, mechanical animation, PBR materials, realistic lighting, authored environmental composition, sound feedback, and HUD legibility advance continuously **with working gameplay**. Phase 22 is the later comprehensive maturation phase, not the point at which Everward starts looking like a game.
+
+The first visual acceptance checkpoint is **Visual Milestone 01 — A Beautiful, Believable Awakening**: an unedited capture of the real Prime Gen-1 damaged-awakening, physically reachable mining, resource-funded `Fix_It` repair and visibly restored capability. The canonical probe identity must remain intact; the scene's story/atmosphere must emerge from verified game state, not a separate cinematic mockup.
+
+Artwork, purchased models, shaders, concept images and AI critique can accelerate production, but cannot substitute for working Unreal integration and repeatable Product Reality evidence.
+
 ## Scalability promise
 
 Everward's cinematic ambition must scale down gracefully rather than becoming a hardware gate on gameplay.
