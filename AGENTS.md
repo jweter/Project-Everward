@@ -10,8 +10,9 @@ Before selecting or implementing substantial work, read:
 2. `docs/UNATTENDED_VERIFICATION.md` — unattended-first verification policy; routine objective testing is machine-owned and Jeremy is optional milestone acceptance rather than a recurring Unreal test executor.
 3. The current phase/vertical-slice plan and design documents referenced by `docs/PROJECT_STATUS.md`, especially `docs/PHASE2_VERTICAL_SLICE_PLAN.md` while Phase 2 is active.
 4. `docs/INDUSTRY_REALITY_CHECK.md` — the current repo-specific gap analysis versus commercial game-development expectations.
-5. Relevant playtest evidence, issues, PRs, tests, and architecture documents for the system being changed.
-6. `docs/QUANTUM_SCIENCE_CANON.md` when proposing quantum sensing, communication, materials, computation, or quantum-physics lore/mechanics.
+5. `docs/CONTINUOUS_VISUAL_QUALITY.md` — the mandatory continuous experiential-production track, first awakening visual milestone, asset-to-game pipeline, evidence rules, and graphical-tier contract.
+6. Relevant playtest evidence, issues, PRs, tests, and architecture documents for the system being changed.
+7. `docs/QUANTUM_SCIENCE_CANON.md` when proposing quantum sensing, communication, materials, computation, or quantum-physics lore/mechanics.
 
 For Windows/Product Reality automation, also read `docs/UNATTENDED_WINDOWS_PRODUCT_REALITY.md`.
 
@@ -43,6 +44,12 @@ Use it to:
 Preserve deterministic simulation ownership of game truth, player agency, evolution/probe extensibility, documented design pillars, and the separation between simulation correctness and Unreal presentation.
 
 Do not simplify away core systems merely for implementation convenience. Do not invent major mechanics outside documented direction.
+
+## Continuous visual-quality rule
+
+Treat player-facing craft as a Phase-2+ production responsibility, not a cosmetic task deferred until Phase 22. For relevant slices, follow `docs/CONTINUOUS_VISUAL_QUALITY.md`: preserve canonical Prime Probe A, build art/animation/HUD/audio feedback around authoritative gameplay, capture reproducible in-Unreal results, and compare those results to prior accepted builds and art references.
+
+**Visual Milestone 01 — A Beautiful, Believable Awakening** is an integrated *gameplay* checkpoint, not a marketing-only scene. Do not equate code tests, concept images, or staged renders with proven visual quality; distinguish planned, implemented, Unreal-verified, and artistically accepted states. Continue automated objective checks, reserving the owner for genuinely subjective milestone decisions rather than routine testing.
 
 ## Third-party asset acquisition rule
 
