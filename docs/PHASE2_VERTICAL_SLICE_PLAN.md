@@ -4,6 +4,14 @@ This document is the detailed execution plan beneath `ROADMAP.md` for turning Ev
 
 The master roadmap remains authoritative for phase boundaries. This plan refines the work inside late Phase 2, Phase 3, and the beginning of Phase 4.
 
+## Continuous visual and gameplay-quality companion track
+
+Follow `CONTINUOUS_VISUAL_QUALITY.md` throughout the slices below. **Visual Milestone 01 — A Beautiful, Believable Awakening** is a cross-slice integrated presentation checkpoint, not an additional unrelated feature phase and not a pretext to advance past incomplete mechanics.
+
+As the actual opening gameplay becomes available, make each slice look and feel credible using progressively better Prime A embodiment, lighting/materials, articulated action, scanner/mining cues, damaged-system feedback, `Fix_It` repair response, HUD clarity, and sound. Record screenshots and short clips from a pinned Unreal scenario, maintain graphical-tier parity, automate objective checks, and reserve owner review for subjective milestone art/feel acceptance.
+
+An asset/model/mockup alone is not a passing game. An engine-independent green test alone is not a passing visual milestone. Existing Product Reality, earliest-incomplete-slice, and parallel-safe-lane rules remain authoritative.
+
 ## Development rule
 
 Prefer one small vertical slice at a time:

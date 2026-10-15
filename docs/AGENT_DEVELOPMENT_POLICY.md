@@ -109,6 +109,20 @@ Before reporting Everward as blocked, parked, or waiting, inspect the current Ph
 
 Do not spend consecutive scheduled runs merely waiting for a laptop or Unreal test. Keep Product Reality debt visible, preserve the earliest incomplete slice as the completion priority, and continue accumulating dependency-safe implementation behind it without claiming the blocked slice accepted.
 
+## 5A. Continuous experiential-production contract
+
+Player-facing progress means the actual Unreal build becomes more understandable, tactile, atmospheric, and appealing, **not only that more source tests pass**. Read `CONTINUOUS_VISUAL_QUALITY.md` when planning gameplay, Unreal presentation, content/asset, visual, audio, HUD, or environment slices.
+
+- Preserve the earliest incomplete gameplay milestone. Add phase-compatible presentation/feedback improvements to that mechanic instead of generating separate art-only showcase scenes.
+- Prefer a bounded change that improves a player's real action, world-readability or perceivable mechanical consequence, including state-driven visual and audio feedback.
+- Use a consistent, reproducible Unreal scenario and collect before/after captures/metadata where feasible. Fail closed when visual evidence is unavailable; do not claim aesthetic acceptance based solely on unit tests.
+- Apply canonical Prime Gen-1 design, commercial asset provenance, graphic-tier parity and current laptop resource constraints. Low-spec hardware does not authorize deleting mechanics or redefining the high-end art target.
+- Give machines ownership of objective regression, image/camera capture, instrumentation and diagnostic retries. A human is optional only for genuinely subjective art/game-feel milestone acceptance.
+- Report separately: planned, implemented, verified in Unreal, and artistically accepted. Identify the next visual/game-feel deficiency as well as the next functional dependency.
+- Progress **Visual Milestone 01 — A Beautiful, Believable Awakening** incrementally beside the damaged-start -> scan -> mine -> resource -> `Fix_It` repair flow; do not clear its gate until an integrated unedited gameplay capture and all acceptance evidence exist.
+
+This requirement does not override the P0–P6 priority system, existing CI and merge policy, unattended test safety, or phase gate sequencing. It makes experiential quality part of the definition of done for player-visible work.
+
 ## 6. Priority order
 
 Use this order unless an explicit repository decision states otherwise:
