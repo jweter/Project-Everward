@@ -81,6 +81,16 @@ Player must be able to observe, scan, move, inspect systems, manage power, under
 
 The Unreal layer presents authoritative simulation state and submits commands; it must never become the owner of mechanical truth. See ADR-0002, ADR-0012, `PHASE2_KICKOFF_SCAFFOLD.md`, `PHASE2_VERTICAL_SLICE_PLAN.md`, and `PROJECT_STATUS.md`.
 
+### Cross-phase continuous visual quality and experiential production
+
+**Effective immediately in Phase 2 and every later gameplay phase.** Everward must develop a compelling player experience and correct simulation together. Visual/audio/animation/HUD craft are not postponed until the late production phases. Each meaningful player-facing slice should improve the working Unreal experience, including readable consequences, environment composition, credible materials/lighting, mechanical movement, and appropriate audio where applicable.
+
+The accepted production standard is `CONTINUOUS_VISUAL_QUALITY.md`. It establishes the repeatable art-to-asset-to-Unreal pipeline, before/after gameplay capture, automated visual/performance assessment, low-spec parity, and periodic human milestone review of genuinely subjective qualities. The agents' definition of done differentiates **implemented**, **verified in Unreal**, and **artistically accepted**.
+
+**Visual Milestone 01 — A Beautiful, Believable Awakening** is now the first integrated experiential quality checkpoint. Build and refine the *actual* damaged Prime Gen-1 / `Fix_It` recovery scene: atmospheric world composition, recognizable probe, credible lighting and material responses, articulated mining, clear scanner/HUD feedback, and a visibly consequential resource-funded repair. Acceptance requires an unedited, reproducible Unreal gameplay capture at gameplay and cinematic camera distances, correct mechanics, documented hardware/settings/performance, and appropriately limited subjective art review. A concept render or simulated green test alone never clears this gate.
+
+The milestone proceeds as bounded visual improvements alongside the earliest incomplete gameplay slice; it does **not** authorize skipping missing mechanics, overriding Product Reality gates, replacing Probe A, or creating an entirely separate showcase demo. A physically plausible icy moon below a giant planet is a possible visual composition, not fixed world canon. The existing unattended-first test policy remains in force.
+
 ### Cross-phase graphics scalability and development-access requirement
 
 Beginning in Phase 2, Everward must support a deliberate presentation scalability path rather than treating current development hardware limits as a reason to reduce the game's long-term ambition.
@@ -371,6 +381,8 @@ No missing feature should still be required to prove the fundamental game.
 Alpha must also demonstrate that the full gameplay loop remains available across the supported graphics ladder, with Low/Minimum using cheaper presentation rather than missing systems.
 
 ## Phase 22 — Visual Production
+
+This is the comprehensive final art/content maturation phase, **not the first time production-quality presentation may be built**. The continuous visual-quality track starts in Phase 2 under `CONTINUOUS_VISUAL_QUALITY.md` and must already have established an integrated art pipeline and Visual Milestone 01 in the playable opening.
 
 Aggressively improve Unreal-based stars, planets, atmospheres, rings, particles, structures, probes, lighting, shaders, transitions, camera, HUD, repair/reconstruction/replacement feedback, and photo mode.
 
