@@ -14,6 +14,14 @@ The canonical smart-navigation/accessibility contract is defined in [`JOSE_TAKE_
 
 The canonical graphics scalability contract is defined in [`GRAPHICS_SCALABILITY_STANDARD.md`](GRAPHICS_SCALABILITY_STANDARD.md). Everward must preserve full-game mechanical parity from Emergency / Minimum through Ultra / Cinematic: lower settings reduce presentation cost, never gameplay scope.
 
+## Continuous experiential quality: required in the active Phase-2 queue
+
+Read `CONTINUOUS_VISUAL_QUALITY.md` alongside the current phase plan. **Visual Milestone 01 — A Beautiful, Believable Awakening** is the first integrated visual/animation/audio/HUD acceptance checkpoint. It strengthens, rather than replaces, the canonical damaged-awakening, mining, material, `Fix_It` and staged recovery loop.
+
+Do not defer all art and atmosphere to Phase 22. Incrementally improve the **same real Unreal gameplay scenario**, preserving Prime Probe A, simulation-owned consequences, and low-spec mechanical parity. Start with stable in-game Prime framing/silhouette, coherent lighting and starter-world composition, modular damage/material details, physical manipulator feedback, scan/mining/repair effects and clear sound/HUD responses as their mechanics become available.
+
+Agents must capture reproducible in-engine visual evidence where possible, distinguish **implemented vs Unreal-verified vs artistic acceptance**, and use unattended verification before requesting subjective milestone feedback from the owner. A visually beautiful standalone render does not count as gameplay quality. Continue following the earliest incomplete gameplay slice and safety/CI priorities; do not claim milestone completion before its integrated unedited gameplay capture.
+
 ## Selection rule
 
 When choosing the next Everward development task:
