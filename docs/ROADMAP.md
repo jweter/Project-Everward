@@ -1,5 +1,10 @@
 # Everward Roadmap
 
+## Owner-approved first playable priority (2026-10-25)
+
+Prioritize one coherent, actually playable **Unreal Engine** One Probe loop over disconnected subsystem expansion: control the probe, observe/scan, gather resources, apply them to a meaningful construction/repair/progression action, and complete a repeatable objective. Preserve the existing simulation authority, physicality, visual scalability and Phase 2 gates. This is a milestone emphasis, not permission to skip Product Reality or replace the established Phase 2 roadmap. Decompose missing seams into small dependency-ready tasks and verify in the actual engine. See `docs/OWNER_APPROVED_ROADMAP_2026-10-25.md`.
+
+
 This is the master development roadmap. It preserves the core identity of physical travel, delayed information, resource-driven industry, probe genealogy, autonomous descendants, deterministic simulation, historical state, observation-driven research, and the transition from one machine to a distributed civilization.
 
 The player is explicitly the probe. The roadmap is sequenced to prove the game from the inside out rather than beginning with late-game spectacle.
