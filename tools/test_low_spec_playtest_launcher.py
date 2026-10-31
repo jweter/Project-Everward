@@ -36,6 +36,10 @@ class LowSpecPlaytestLauncherTests(unittest.TestCase):
         self.assertLess(low_spec_index, exec_cmds_index)
         self.assertLess(exec_cmds_index, else_index)
 
+    def test_emergency_minimum_profile_is_explicit(self) -> None:
+        for expected in ("[switch]$EmergencyMinimum", "if ($LowSpec -and $EmergencyMinimum)", "-ResX=960", "-ResY=540", "r.ScreenPercentage 50", "r.Streaming.PoolSize 256"):
+            self.assertIn(expected, self.launcher)
+
 
 if __name__ == "__main__":
     unittest.main()
