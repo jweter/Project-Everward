@@ -23,9 +23,25 @@ $EditorExe = Join-Path $UnrealRoot "Engine\Binaries\Win64\UnrealEditor.exe"
 $SampleWindowSeconds = [Math]::Min([Math]::Max($SampleWindowSeconds, 30), 300)
 $ShutdownGraceSeconds = 30
 
-# Keep identical to the -LowSpec branch of run_phase2_first_playtest.ps1.
-# tools/test_unattended_low_spec_startup.py enforces parity.
-$LowSpecCommands = @("t.MaxFPS 30", "r.ScreenPercentage 65", "sg.ViewDistanceQuality 0", "sg.AntiAliasingQuality 0", "sg.ShadowQuality 0", "sg.GlobalIlluminationQuality 0", "sg.ReflectionQuality 0", "sg.PostProcessQuality 0", "sg.TextureQuality 0", "sg.EffectsQuality 0", "sg.FoliageQuality 0", "r.Streaming.PoolSize 384")
+# Single source of truth shared with the -LowSpec branch of run_phase2_first_playtest.ps1:
+# unreal/Config/LowSpecPlay.ini. tools/test_unattended_low_spec_startup.py enforces parity.
+function Get-PresentationProfileCommands {
+    param([Parameter(Mandatory)][string]$ProfilePath)
+    if (-not (Test-Path $ProfilePath -PathType Leaf)) { throw "Presentation profile not found: $ProfilePath" }
+    $InSection = $false; $Commands = New-Object System.Collections.Generic.List[string]
+    foreach ($Line in Get-Content -Path $ProfilePath -Encoding UTF8) {
+        $Text = $Line.Trim()
+        if ($Text -eq "" -or $Text.StartsWith(";")) { continue }
+        if ($Text.StartsWith("[")) { $InSection = ($Text -eq "[ConsoleVariables]"); continue }
+        if ($InSection -and $Text.Contains("=")) {
+            $Key, $Value = $Text.Split("=", 2)
+            $Commands.Add(("{0} {1}" -f $Key.Trim(), $Value.Trim()))
+        }
+    }
+    if ($Commands.Count -eq 0) { throw "No console variables found in $ProfilePath" }
+    return ,$Commands.ToArray()
+}
+$LowSpecCommands = Get-PresentationProfileCommands -ProfilePath (Join-Path $RepoRoot "unreal\Config\LowSpecPlay.ini")
 $LowSpecLaunchArguments = @("-WINDOWED", "-ResX=1280", "-ResY=720")
 $UnattendedArguments = @("-Unattended", "-NoSplash", "-NoSound")
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
-import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -49,13 +48,6 @@ def passing_evidence() -> dict:
         "product_reality_claimed": False,
         "failure_reason": None,
     }
-
-
-def harness_low_spec_commands() -> str:
-    text = HARNESS_PATH.read_text(encoding="utf-8")
-    match = re.search(r"\$LowSpecCommands = (@\([^)]*\))", text)
-    assert match is not None
-    return match.group(1)
 
 
 class LowSpecStartupEvidenceTests(unittest.TestCase):
@@ -259,7 +251,11 @@ class LowSpecLauncherContractTests(unittest.TestCase):
         cls.launcher = LAUNCHER_PATH.read_text(encoding="utf-8")
 
     def test_launcher_reuses_manual_low_spec_contract_exactly(self) -> None:
-        self.assertIn(f"$LowSpecCommands = {harness_low_spec_commands()}", self.launcher)
+        manual = HARNESS_PATH.read_text(encoding="utf-8")
+        expected = '$LowSpecCommands = Get-PresentationProfileCommands -ProfilePath (Join-Path $RepoRoot "unreal\\Config\\LowSpecPlay.ini")'
+        self.assertIn(expected, manual)
+        self.assertIn(expected, self.launcher)
+        self.assertNotIn("r.ScreenPercentage 65", self.launcher)
         for expected in ('"-WINDOWED"', '"-ResX=1280"', '"-ResY=720"', "WorkingSet64", "editor_peak_working_set_mib"):
             self.assertIn(expected, self.launcher)
         self.assertIn("process working set only; not total system RAM or shared-GPU memory", self.launcher)
