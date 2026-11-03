@@ -25,6 +25,24 @@ if ((Test-Path $DedicatedSentinel -PathType Leaf) -and (Test-Path $WorkerRegistr
     catch { Write-Warning "Everward unattended worker registration failed: $($_.Exception.Message). Manual playtest will continue." }
 }
 
+function Get-PresentationProfileCommands {
+    # Reads [ConsoleVariables] from a presentation profile .ini so launchers and profiles cannot drift.
+    param([Parameter(Mandatory)][string]$ProfilePath)
+    if (-not (Test-Path $ProfilePath -PathType Leaf)) { throw "Presentation profile not found: $ProfilePath" }
+    $InSection = $false; $Commands = New-Object System.Collections.Generic.List[string]
+    foreach ($Line in Get-Content -Path $ProfilePath -Encoding UTF8) {
+        $Text = $Line.Trim()
+        if ($Text -eq "" -or $Text.StartsWith(";")) { continue }
+        if ($Text.StartsWith("[")) { $InSection = ($Text -eq "[ConsoleVariables]"); continue }
+        if ($InSection -and $Text.Contains("=")) {
+            $Key, $Value = $Text.Split("=", 2)
+            $Commands.Add(("{0} {1}" -f $Key.Trim(), $Value.Trim()))
+        }
+    }
+    if ($Commands.Count -eq 0) { throw "No console variables found in $ProfilePath" }
+    return ($Commands -join ",")
+}
+
 function Resolve-Unreal58Root {
     param([string]$ExplicitRoot)
     $Candidates = New-Object System.Collections.Generic.List[string]
@@ -131,13 +149,13 @@ try {
     if (-not $NoLaunch) {
         $EditorArguments = @("`"$ProjectPath`"", "-log")
         if ($LowSpec) {
-            $LowSpecCommands = @("t.MaxFPS 30", "r.ScreenPercentage 65", "sg.ViewDistanceQuality 0", "sg.AntiAliasingQuality 0", "sg.ShadowQuality 0", "sg.GlobalIlluminationQuality 0", "sg.ReflectionQuality 0", "sg.PostProcessQuality 0", "sg.TextureQuality 0", "sg.EffectsQuality 0", "sg.FoliageQuality 0", "r.Streaming.PoolSize 384") -join ","
+            $LowSpecCommands = Get-PresentationProfileCommands -ProfilePath (Join-Path $RepoRoot "unreal\Config\LowSpecPlay.ini")
             $EditorArguments += @("-WINDOWED", "-ResX=1280", "-ResY=720", "-ExecCmds=`"$LowSpecCommands`"")
             Write-Host "Launching Unreal Editor in opt-in Low-Spec Development mode..."
         }
         elseif ($EmergencyMinimum) {
-            # Mirrors unreal/Config/EmergencyMinimum.ini without changing saved settings or gameplay.
-            $EmergencyCommands = @("t.MaxFPS 30", "r.ScreenPercentage 50", "sg.ViewDistanceQuality 0", "sg.AntiAliasingQuality 0", "sg.ShadowQuality 0", "sg.GlobalIlluminationQuality 0", "sg.ReflectionQuality 0", "sg.PostProcessQuality 0", "sg.TextureQuality 0", "sg.EffectsQuality 0", "sg.FoliageQuality 0", "sg.ShadingQuality 0", "r.Streaming.PoolSize 256", "r.Streaming.LimitPoolSizeToVRAM 1", "r.VolumetricFog 0", "r.MotionBlurQuality 0", "r.BloomQuality 0", "r.DepthOfFieldQuality 0", "r.LensFlareQuality 0") -join ","
+            # Single source of truth: unreal/Config/EmergencyMinimum.ini (presentation-only CVars).
+            $EmergencyCommands = Get-PresentationProfileCommands -ProfilePath (Join-Path $RepoRoot "unreal\Config\EmergencyMinimum.ini")
             $EditorArguments += @("-WINDOWED", "-ResX=960", "-ResY=540", "-ExecCmds=`"$EmergencyCommands`"")
             Write-Host "Launching Unreal Editor in opt-in Emergency / Minimum mode..."
         }

@@ -16,18 +16,33 @@ class LowSpecPlaytestLauncherTests(unittest.TestCase):
         self.assertIn("Low-Spec Development", self.launcher)
 
     def test_low_spec_mode_bounds_build_and_render_cost(self) -> None:
-        for expected in (
-            "-MaxParallelActions=2",
-            "-WINDOWED",
-            "-ResX=1280",
-            "-ResY=720",
-            "t.MaxFPS 30",
-            "r.ScreenPercentage 65",
-            "sg.ShadowQuality 0",
-            "sg.GlobalIlluminationQuality 0",
-            "r.Streaming.PoolSize 384",
-        ):
+        for expected in ("-MaxParallelActions=2", "-WINDOWED", "-ResX=1280", "-ResY=720"):
             self.assertIn(expected, self.launcher)
+
+    def test_launcher_reads_profiles_instead_of_duplicating_cvars(self) -> None:
+        self.assertIn("function Get-PresentationProfileCommands", self.launcher)
+        self.assertIn("LowSpecPlay.ini", self.launcher)
+        self.assertIn("EmergencyMinimum.ini", self.launcher)
+        for hardcoded in ("r.ScreenPercentage 65", "r.Streaming.PoolSize 384", "sg.ShadowQuality 0"):
+            self.assertNotIn(hardcoded, self.launcher)
+
+    def test_profiles_bound_render_and_memory_cost(self) -> None:
+        import configparser
+
+        config_dir = Path(__file__).resolve().parents[1] / "unreal" / "Config"
+        expected = {
+            "LowSpecPlay.ini": ("30", "65", "384"),
+            "EmergencyMinimum.ini": ("30", "50", "256"),
+        }
+        for name, (fps, pct, pool) in expected.items():
+            parser = configparser.ConfigParser(strict=True)
+            parser.optionxform = str
+            parser.read(config_dir / name, encoding="utf-8")
+            v = parser["ConsoleVariables"]
+            with self.subTest(profile=name):
+                self.assertEqual((v["t.MaxFPS"], v["r.ScreenPercentage"], v["r.Streaming.PoolSize"]), (fps, pct, pool))
+                for key in ("sg.ShadowQuality", "sg.GlobalIlluminationQuality", "sg.ReflectionQuality", "r.VolumetricFog"):
+                    self.assertEqual(v[key], "0")
 
     def test_default_launch_path_does_not_apply_low_spec_commands_unconditionally(self) -> None:
         low_spec_index = self.launcher.index("if ($LowSpec) {", self.launcher.index("$EditorArguments"))
@@ -37,7 +52,7 @@ class LowSpecPlaytestLauncherTests(unittest.TestCase):
         self.assertLess(exec_cmds_index, else_index)
 
     def test_emergency_minimum_profile_is_explicit(self) -> None:
-        for expected in ("[switch]$EmergencyMinimum", "if ($LowSpec -and $EmergencyMinimum)", "-ResX=960", "-ResY=540", "r.ScreenPercentage 50", "r.Streaming.PoolSize 256"):
+        for expected in ("[switch]$EmergencyMinimum", "if ($LowSpec -and $EmergencyMinimum)", "-ResX=960", "-ResY=540"):
             self.assertIn(expected, self.launcher)
 
 
