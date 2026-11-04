@@ -1,0 +1,36 @@
+name: Procedural Mechanical Modeling Pilot
+
+on:
+  pull_request:
+    paths:
+      - 'tools/procedural_mechanics/**'
+      - 'docs/PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md'
+      - '.github/workflows/procedural-mechanics.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/procedural_mechanics/**'
+      - 'docs/PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md'
+      - '.github/workflows/procedural-mechanics.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-mechanism-contract:
+    name: Deterministic arm mechanism and source validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # No npm install, Chromium, FFmpeg, model inference or paid services.
+      # The full 3D build is a separate optional, locally reviewed pilot.
+      - name: Check studio JavaScript syntax
+        run: node --check tools/procedural_mechanics/prime-arm/main.js
+      - name: Check math source syntax
+        run: node --check tools/procedural_mechanics/prime-arm/model.mjs
+      - name: Test deterministic mechanism
+        run: node --test tools/procedural_mechanics/prime-arm/model.test.mjs
