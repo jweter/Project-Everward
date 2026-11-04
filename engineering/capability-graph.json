@@ -51,7 +51,7 @@
         },
         {
           "id": "inventory-playable-mechanics",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 3,
           "objective": "Inventory the playable mechanics that exist at the baseline (player-as-probe movement, scanning/observation, resource collection, construction or progression, objective loop) from current source, tests and docs/PROJECT_STATUS.md, and record the smallest missing dependency for one coherent first loop in docs/FIRST_PLAYABLE_LOOP_INVENTORY.md with file-level evidence.",
           "acceptance": [
@@ -76,7 +76,10 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/348 merged (capable-builder pull request)"
+          ]
         },
         {
           "id": "first-loop-integration-slice",
