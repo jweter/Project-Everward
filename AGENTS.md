@@ -51,6 +51,12 @@ Treat player-facing craft as a Phase-2+ production responsibility, not a cosmeti
 
 **Visual Milestone 01 — A Beautiful, Believable Awakening** is an integrated *gameplay* checkpoint, not a marketing-only scene. Do not equate code tests, concept images, or staged renders with proven visual quality; distinguish planned, implemented, Unreal-verified, and artistically accepted states. Continue automated objective checks, reserving the owner for genuinely subjective milestone decisions rather than routine testing.
 
+## Procedural mechanical modeling and teardown rule
+
+For player-facing equipment, motion, modular hardware, repair, fabrication, or evolution art, evaluate the reference-driven parametric production workflow in [docs/PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md](docs/PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md). This is an authorized **isolated, phase-compatible production method**; its primary pilot is the mining manipulator. Use it to generate and compare measurable mechanisms, reusable assemblies, cutaways, disassembly and correction evidence before eligible Unreal asset integration. Prefer the already-approved canonical Prime Probe A reference over model invention.
+
+The Three.js teardown studio is not Everward's simulation, game engine, or an accepted rig. Do not silently install or execute upstream scripts, ship browser/runtime dependencies, promote unreviewed geometry, claim generated art is Unreal-ready, or represent the model's scripted animation as authoritative physics. Record generation provenance, test reproducibility, and preserve Low/Emergency performance parity. Keep Iron God owner controls and existing unattended work untouched.
+
 ## Third-party asset acquisition rule
 
 External models, materials, textures, HDRIs, and other third-party visual assets must enter through `tools/everward_asset_scout.py` and the rules in `docs/ASSET_ACQUISITION_PIPELINE.md`. Search results are advisory, not approval.
