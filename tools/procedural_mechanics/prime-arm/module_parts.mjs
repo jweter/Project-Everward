@@ -51,7 +51,7 @@ export const MODULES = Object.freeze({
       {kind:'cylinder', bottom:0.25, top:0.31, height:0.12,
         center:[0,0,0.18], segments:12, material:'alloy'},
       {kind:'cylinder', bottom:0.31, top:0.02, height:0.34,
-        center:[0,0,0.32], segments:12, material:'tool'},
+        center:[0,0,0.33], segments:12, material:'tool'},
     ],
   },
 });
