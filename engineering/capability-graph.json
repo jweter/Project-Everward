@@ -48,6 +48,106 @@
           "verification": [
             "https://github.com/jweter/Project-Everward/pull/343 merged (capable-builder pull request)"
           ]
+        },
+        {
+          "id": "inventory-playable-mechanics",
+          "state": "PLANNED",
+          "capability_level": 3,
+          "objective": "Inventory the playable mechanics that exist at the baseline (player-as-probe movement, scanning/observation, resource collection, construction or progression, objective loop) from current source, tests and docs/PROJECT_STATUS.md, and record the smallest missing dependency for one coherent first loop in docs/FIRST_PLAYABLE_LOOP_INVENTORY.md with file-level evidence.",
+          "acceptance": [
+            "Every claim in the inventory cites a source path or test that exists at the baseline; nothing is assumed.",
+            "The document names exactly one smallest missing loop dependency and why it precedes the others.",
+            "Only documentation changes; no gameplay, content or config change.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "docs/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "windows",
+            "offline"
+          ],
+          "runtime_requirements": []
+        },
+        {
+          "id": "first-loop-integration-slice",
+          "state": "PLANNED",
+          "capability_level": 4,
+          "depends_on": [
+            "inventory-playable-mechanics"
+          ],
+          "objective": "Implement the one bounded gameplay integration slice that closes the smallest missing loop dependency named in docs/FIRST_PLAYABLE_LOOP_INVENTORY.md, with portable deterministic tests and native Unreal checks where the runner has them.",
+          "acceptance": [
+            "The change closes exactly the dependency the inventory names and is traceable to it.",
+            "Simulation truth stays engine-independent; presentation does not become gameplay authority.",
+            "Portable deterministic tests cover the new behavior; Unreal-only Product Reality stays explicitly pending until locally verified.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "Source/**",
+            "Config/**",
+            "Content/**",
+            "Tests/**",
+            "tests/**",
+            "engineering/**",
+            "docs/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "windows",
+            "offline"
+          ],
+          "runtime_requirements": []
+        },
+        {
+          "id": "first-loop-verification",
+          "state": "PLANNED",
+          "capability_level": 3,
+          "depends_on": [
+            "first-loop-integration-slice"
+          ],
+          "objective": "Verify the complete first loop end to end (movement, scanning, collection, construction/progression, repeatable objective) in editor or runtime and record reproducible evidence in docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md, listing any step that cannot yet be verified on the runner and why.",
+          "acceptance": [
+            "Each loop step has a reproducible command or procedure and its observed result.",
+            "A step that cannot be verified on the runner is listed as pending, never reported as passed.",
+            "Only documentation and tests change; no gate is weakened."
+          ],
+          "allowed_paths": [
+            "docs/**",
+            "Tests/**",
+            "tests/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "windows",
+            "offline"
+          ],
+          "runtime_requirements": []
         }
       ]
     }
