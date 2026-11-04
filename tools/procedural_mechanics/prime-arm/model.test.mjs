@@ -2,58 +2,80 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DESIGN, forwardKinematics, poseAt} from './model.mjs';
 
-const epsilon = 1e-11;
-test('straight arm has a predictable finite full extension', () => {
-  const out = forwardKinematics({shoulderRad: 0, elbowRad: 0, wristRad: 0});
-  assert.ok(Math.abs(out.tip.x) < epsilon);
-  assert.ok(Math.abs(out.tip.y + out.maximumReachM) < epsilon);
-  assert.ok(Math.abs(out.nominalReachM - out.maximumReachM) < epsilon);
+const near = (a, b, epsilon = 1e-11) => Math.abs(a - b) < epsilon;
+const distance = (a, b) => Math.hypot(...a.map((x, i) => x - b[i]));
+test('both shoulders agree with the C++-derived 3D contract', () => {
+  const port = forwardKinematics({arm:'port'});
+  const starboard = forwardKinematics({arm:'starboard'});
+  assert.deepEqual(port.shoulder, [1.2, -1.05, -0.92]);
+  assert.deepEqual(starboard.shoulder, [1.2, 1.05, -0.92]);
+  assert.equal(port.maximumExtensionFromShoulderM, 4.09);
+  assert.equal(port.toolTipRadiusM, 0.17);
 });
 
-test('right angle at shoulder agrees with coordinate convention', () => {
-  const out = forwardKinematics({
-    shoulderRad: Math.PI / 2, elbowRad: 0, wristRad: 0,
-  });
-  assert.ok(Math.abs(out.tip.x - out.maximumReachM) < epsilon);
-  assert.ok(Math.abs(out.tip.y) < epsilon);
-});
-
-test('every film frame has finite joints and a physical nominal reach', () => {
-  for (let n = 0; n <= 24 * 120; n++) {
-    const p = poseAt(n / 120);
-    const {shoulderRad, elbowRad, wristRad} = p.angles;
-    assert.ok(shoulderRad >= DESIGN.shoulderMinRad && shoulderRad <= DESIGN.shoulderMaxRad);
-    assert.ok(elbowRad >= DESIGN.elbowMinRad && elbowRad <= DESIGN.elbowMaxRad);
-    assert.ok(wristRad >= DESIGN.wristMinRad && wristRad <= DESIGN.wristMaxRad);
-    for (const c of [p.tip.x, p.tip.y, p.wrist.x, p.wrist.y, p.nominalReachM, p.explosionFraction]) {
-      assert.ok(Number.isFinite(c));
-    }
-    assert.ok(p.nominalReachM <= p.maximumReachM + epsilon);
-    assert.ok(p.explosionFraction >= 0 && p.explosionFraction <= 1);
+test('probe-local tool contact is on the real composed wrist orientation', () => {
+  for (const arm of ['port', 'starboard']) {
+    const p = forwardKinematics({arm, deploymentFraction: 1, anglesDegrees: {shoulder:0,elbow:0,wrist:0}});
+    assert.ok(near(distance(p.shoulder, p.elbow), DESIGN.link_m.upper));
+    assert.ok(near(distance(p.elbow, p.wrist), DESIGN.link_m.forearm));
+    assert.ok(near(distance(p.wrist, p.toolTip), DESIGN.link_m.tool_tip_from_wrist));
+    assert.ok(distance(p.shoulder, p.toolTip) <= p.maximumExtensionFromShoulderM + 1e-10);
   }
 });
 
-test('render timeline is repeatable and has no hidden state', () => {
-  const first = [0, 1.25, 8.5, 11, 17, 23.9].map(poseAt);
-  const second = [0, 1.25, 8.5, 11, 17, 23.9].map(poseAt);
+test('3D parity surfaces never emit NaN and rotations remain orthonormal', () => {
+  for (const arm of ['port', 'starboard']) {
+    for (let d = 0; d <= 10; d++) {
+      const p = forwardKinematics({
+        arm, deploymentFraction: d / 10,
+        anglesDegrees: {shoulder: 25, elbow: 85, wrist: -70},
+      });
+      assert.equal(p.rotations.shoulder.length, 9);
+      for (const xyz of [p.elbow, p.wrist, p.toolTip]) {
+        assert.equal(xyz.length, 3);
+        assert.ok(xyz.every(Number.isFinite));
+      }
+      for (const m of Object.values(p.rotations)) {
+        for (let row = 0; row < 3; row++) {
+          const sq = [0, 1, 2].reduce((v, col) => v + m[row * 3 + col] ** 2, 0);
+          assert.ok(near(sq, 1), 'Rotation row must remain unit length');
+        }
+      }
+    }
+  }
+});
+
+test('24-second studio poses are deterministic, within C++ limits and render-only', () => {
+  const check = [0, 3, 8, 10, 12, 16, 18, 24, 29];
+  const first = check.map(poseAt);
+  const second = check.map(poseAt);
   assert.deepEqual(first, second);
   assert.deepEqual(poseAt(5), poseAt(29));
-});
-
-test('exploded demonstration opens and closes while starting intact', () => {
   assert.equal(poseAt(0).explosionFraction, 0);
-  assert.equal(poseAt(8).explosionFraction, 0);
   assert.equal(poseAt(12).explosionFraction, 1);
   assert.equal(poseAt(18).explosionFraction, 0);
-  assert.equal(poseAt(23).explosionFraction, 0);
+  for (const p of first) {
+    assert.equal(p.presentationOnly, true);
+    for (const arm of ['port', 'starboard']) {
+      assert.ok(p.arms[arm].toolTip.every(Number.isFinite));
+      for (const joint of ['shoulder', 'elbow', 'wrist']) {
+        const [min, max] = DESIGN.joint_limits_degrees[joint];
+        assert.ok(p.arms[arm].anglesDegrees[joint] >= min);
+        assert.ok(p.arms[arm].anglesDegrees[joint] <= max);
+      }
+    }
+  }
 });
 
-test('invalid times and nonfinite joints fail explicitly', () => {
-  for (const t of [-1, Number.NaN, Infinity]) {
-    assert.throws(() => poseAt(t), RangeError);
+test('invalid, unsafe, nonfinite and unknown arm inputs fail rather than fabricating values', () => {
+  for (const arm of ['unknown', '', null]) assert.throws(() => forwardKinematics({arm}), RangeError);
+  for (const t of [-1, NaN, Infinity]) assert.throws(() => poseAt(t), RangeError);
+  for (const val of [-91, 91, NaN]) {
+    assert.throws(
+      () => forwardKinematics({anglesDegrees:{shoulder:val, elbow:0, wrist:0}}),
+      RangeError,
+    );
   }
-  assert.throws(
-    () => forwardKinematics({shoulderRad: 0, elbowRad: NaN, wristRad: 0}),
-    RangeError,
-  );
+  assert.throws(() => forwardKinematics({anglesDegrees:{shoulder:0, elbow:151, wrist:0}}), RangeError);
+  assert.throws(() => forwardKinematics({deploymentFraction:NaN}), RangeError);
 });

@@ -1,228 +1,207 @@
 /**
- * Standalone, exploratory Everward arm engineering film/studio built for the
- * pinned elvarofficial/teardown build system. NOT production game geometry.
- * Build: node .tools/teardown/sims/build.mjs ./tools/procedural_mechanics/prime-arm
- * No imports from Everward's simulation runtime and no network calls.
+ * Everward mechanical bridge v0.1 — dual-arm 3D engineering studio.
+ * Explicitly NOT a simulation actor, certified physics or imported Unreal art.
+ * Built by the pinned elvarofficial/teardown kit after isolated tool review:
+ * node .tools/teardown/sims/build.mjs ./tools/procedural_mechanics/prime-arm
  */
 import * as THREE from 'three';
 import {runSim} from 'teardown-kit/runtime.js';
 import {DESIGN, poseAt} from './model.mjs';
+import {MODULES, PALETTE} from './module_parts.mjs';
 
-const SETTINGS = {
-  duration: 24,
-  fps: 30,
-  theme: 'light',
-  hud: {enabled: false, title: 'EVERWARD', subtitle: 'MECHANICAL STUDY'},
-  director: {enabled: false},
+const RAD = Math.PI/180;
+const SETTINGS={
+  duration:24,fps:30,theme:'light',
+  hud:{enabled:false,title:'EVERWARD',subtitle:'MECHANICAL BRIDGE V0.1'},
+  director:{enabled:false},
 };
-const mat = (color, metalness = 0.55, roughness = 0.45) =>
-  new THREE.MeshStandardMaterial({color, metalness, roughness});
-const shell = mat(0xa2aab1, 0.7);
-const inner = mat(0x394852, 0.6);
-const brace = mat(0x64757b, 0.75);
-const bronze = mat(0xb78343, 0.68);
-const caution = mat(0xd89b3a, 0.4);
-const black = mat(0x162028, 0.45);
-const cylinder = (radius, height, material, segments = 16) => {
-  const mesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius, radius, height, segments),
-    material,
+const PAINT=Object.fromEntries(Object.entries(PALETTE).map(([key,p])=>
+  [key,new THREE.MeshStandardMaterial({
+    color:new THREE.Color(...p.baseColor.slice(0,3)),
+    metalness:p.metallic,roughness:p.roughness,
+  })]));
+function meshPart(p) {
+  let geo;
+  if(p.kind==='box') geo=new THREE.BoxGeometry(...p.size);
+  else {
+    geo=new THREE.CylinderGeometry(p.top,p.bottom,p.height,p.segments,1);
+    // Three CylinderGeometry axis is Y; Everward toolhead local axis is Z.
+    geo.rotateX(Math.PI/2);
+  }
+  const mesh=new THREE.Mesh(geo,PAINT[p.material]);
+  mesh.position.set(...p.center);
+  return mesh;
+}
+function component(key) {
+  const module=new THREE.Group();
+  module.name=MODULES[key].name;
+  MODULES[key].parts.forEach((p,i)=>{
+    const child=meshPart(p);
+    child.name=module.name+'_detail_'+String(i+1).padStart(2,'0');
+    module.add(child);
+  });
+  return module;
+}
+function makeArm(stage,side) {
+  const shoulder=new THREE.Group();
+  shoulder.name='EW_'+side+'_ShoulderPivot';
+  stage.add(shoulder);
+  const mount=new THREE.Mesh(
+    new THREE.SphereGeometry(0.30,12,8),PAINT.rib);
+  mount.name='EW_'+side+'_ShoulderHousing';
+  shoulder.add(mount);
+
+  const upper=component('upper');
+  upper.position.set(DESIGN.link_m.upper/2,0,0);
+  upper.scale.set(DESIGN.link_m.upper,0.18,0.18);
+  shoulder.add(upper);
+  const elbow=new THREE.Group();
+  elbow.name='EW_'+side+'_ElbowPivot';
+  elbow.position.x=DESIGN.link_m.upper;
+  shoulder.add(elbow);
+  const jointRing=new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.19,0.30,12),PAINT.trim);
+  jointRing.rotation.x=Math.PI/2;
+  elbow.add(jointRing);
+
+  const forearm=component('forearm');
+  forearm.position.set(DESIGN.link_m.forearm/2,0,0);
+  forearm.scale.set(DESIGN.link_m.forearm,0.16,0.16);
+  elbow.add(forearm);
+  const wrist=new THREE.Group();
+  wrist.name='EW_'+side+'_WristPivot';
+  wrist.position.x=DESIGN.link_m.forearm;
+  elbow.add(wrist);
+  const wristRing=new THREE.Mesh(new THREE.SphereGeometry(0.17,12,8),PAINT.trim);
+  wrist.add(wristRing);
+
+  const tool=component('tool');
+  tool.position.set(0.38,0,0);
+  tool.rotation.y=Math.PI/2;
+  tool.scale.set(0.34,0.34,0.82);
+  wrist.add(tool);
+  const marker=new THREE.Mesh(new THREE.SphereGeometry(0.045,10,8),PAINT.trim);
+  marker.name='EW_'+side+'_ToolTip_Contact_Marker';
+  marker.position.x=DESIGN.link_m.tool_tip_from_wrist;
+  wrist.add(marker);
+  return {shoulder,elbow,wrist,upper,forearm,tool,marker};
+}
+function setMatrixQuaternion(object,m) {
+  const mat=new THREE.Matrix4().set(
+    m[0],m[1],m[2],0,
+    m[3],m[4],m[5],0,
+    m[6],m[7],m[8],0,
+    0,0,0,1,
   );
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-};
-const block = (w, h, d, material) => {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-};
-
-function link(parent, length, radius, label) {
-  const group = new THREE.Group();
-  group.name = label;
-  parent.add(group);
-  const shaft = cylinder(radius, length, shell);
-  shaft.position.y = -length / 2;
-  group.add(shaft);
-  for (const sign of [-1, 1]) {
-    const rib = block(radius * 0.34, length * 0.9, radius * 0.72, brace);
-    rib.position.set(sign * radius * 0.87, -length / 2, 0);
-    group.add(rib);
-  }
-  const conduit = cylinder(radius * 0.13, length * 0.89, black, 8);
-  conduit.position.set(0, -length / 2, radius * 1.08);
-  group.add(conduit);
-  const ferrule = cylinder(radius * 1.28, radius * 0.6, bronze);
-  ferrule.position.y = -length + radius * 0.3;
-  group.add(ferrule);
-  return group;
+  object.quaternion.setFromRotationMatrix(mat);
 }
-function hinge(parent, label) {
-  const joint = new THREE.Group();
-  joint.name = label;
-  parent.add(joint);
-  const core = cylinder(0.225, 0.28, inner, 20);
-  core.rotation.x = Math.PI / 2;
-  joint.add(core);
-  for (const side of [-1, 1]) {
-    const bearing = cylinder(0.18, 0.045, bronze, 20);
-    bearing.rotation.x = Math.PI / 2;
-    bearing.position.z = side * 0.164;
-    joint.add(bearing);
-  }
-  return joint;
-}
-function readout(container) {
-  const panel = document.createElement('div');
-  panel.setAttribute('role', 'status');
-  panel.style.cssText = [
-    'position:fixed', 'left:20px', 'bottom:22px', 'z-index:9',
-    'padding:12px 16px', 'background:rgba(16,23,29,.88)',
-    'color:#e7ebeb', 'font:13px/1.6 monospace',
-    'border:1px solid #6c7c83', 'pointer-events:none', 'white-space:pre',
+function panel() {
+  const el=document.createElement('div');
+  el.setAttribute('role','status');
+  el.style.cssText=[
+    'position:fixed','z-index:9','left:14px','bottom:14px',
+    'background:rgba(18,29,34,.86)','border:1px solid #6f8185',
+    'color:#e9f0f0','font:12px/1.5 monospace','padding:11px 15px',
+    'white-space:pre','pointer-events:none',
   ].join(';');
-  container.append(panel);
-  return panel;
+  document.body.append(el);
+  return el;
 }
 
-runSim(SETTINGS, async ({canvas, capture}) => {
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xe8ebeb);
-  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-  const renderer = new THREE.WebGLRenderer({
-    canvas, antialias: false, alpha: false, preserveDrawingBuffer: true,
-    powerPreference: 'low-power',
+runSim(SETTINGS,async({canvas,capture})=>{
+  const scene=new THREE.Scene();
+  scene.background=new THREE.Color(0xe8eced);
+  const renderer=new THREE.WebGLRenderer({
+    canvas,antialias:false,preserveDrawingBuffer:true,powerPreference:'low-power',
   });
   renderer.setPixelRatio(1);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x667380, 2.1));
-  const key = new THREE.DirectionalLight(0xffffff, 3.1);
-  key.position.set(3, 5, 6);
-  scene.add(key);
-  const fill = new THREE.DirectionalLight(0xc8dbe9, 1.2);
-  fill.position.set(-5, 0, -4);
-  scene.add(fill);
-
-  const stage = new THREE.Group();
-  stage.name = 'Everward_Prime_Arm_Exploratory_Study';
-  stage.position.set(0, 0.9, 0);
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  const camera=new THREE.PerspectiveCamera(38,1,.1,120);
+  camera.up.set(0,0,1);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x617078,2.0));
+  const key=new THREE.DirectionalLight(0xffffff,2.8);
+  key.position.set(5,4,9);scene.add(key);
+  const fill=new THREE.DirectionalLight(0xadc0d7,1.0);
+  fill.position.set(-5,-6,2);scene.add(fill);
+  const stage=new THREE.Group();
+  stage.name='EV-0001_ProbeLocal_Arm_Study';
   scene.add(stage);
-  const mount = block(0.7, 0.45, 0.58, inner);
-  mount.position.y = 0.18;
-  stage.add(mount);
-  const baseCollar = cylinder(0.35, 0.12, bronze);
-  stage.add(baseCollar);
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(2.35,2.35,0.25),PAINT.rib);
+  frame.position.set(0.6,0,-0.83);
+  frame.name='REFERENCE_ONLY_ProbeMountSection';
+  stage.add(frame);
+  const arms={
+    port:makeArm(stage,'port'),
+    starboard:makeArm(stage,'starboard'),
+  };
 
-  const shoulder = hinge(stage, 'ARM_SHOULDER');
-  const upper = link(shoulder, DESIGN.upperM, DESIGN.upperRadiusM, 'ARM_UPPER_LINK');
-  const elbow = hinge(upper, 'ARM_ELBOW');
-  elbow.position.y = -DESIGN.upperM;
-  const forearm = link(elbow, DESIGN.forearmM, DESIGN.forearmRadiusM, 'ARM_FOREARM_LINK');
-  const wrist = hinge(forearm, 'ARM_WRIST');
-  wrist.position.y = -DESIGN.forearmM;
-  const tool = new THREE.Group();
-  tool.name = 'ARM_REPLACEABLE_TOOL_MOUNT';
-  wrist.add(tool);
-  const toolBody = cylinder(0.125, DESIGN.toolM * 0.67, brace);
-  toolBody.position.y = -DESIGN.toolM * 0.33;
-  tool.add(toolBody);
-  const drill = new THREE.Mesh(
-    new THREE.ConeGeometry(0.135, DESIGN.toolM * 0.34, 12),
-    black,
-  );
-  drill.position.y = -DESIGN.toolM * 0.83;
-  drill.rotation.z = Math.PI;
-  drill.name = 'ARM_SAMPLE_DRILL';
-  tool.add(drill);
-  const beacon = cylinder(0.16, 0.04, caution);
-  beacon.position.y = -0.07;
-  tool.add(beacon);
-
-  const panel = readout(canvas.parentElement || document.body);
-  const controls = document.createElement('div');
-  controls.style.cssText = [
-    'position:fixed', 'top:18px', 'right:20px', 'z-index:10',
-    'display:flex', 'gap:8px',
-  ].join(';');
-  const modes = {forceExplode: false, forceIsolate: false, azimuth: null};
-  for (const [name, flag] of [['Explode parts', 'forceExplode'], ['Isolate tool', 'forceIsolate']]) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = name;
-    button.style.cssText = 'padding:8px 11px;background:#27343b;color:white;border:0;cursor:pointer;font:12px monospace';
-    button.addEventListener('click', () => {
-      if (!capture) {
-        modes[flag] = !modes[flag];
-        button.setAttribute('aria-pressed', String(modes[flag]));
-      }
+  const output=panel();
+  const toggles={explode:false,toolOnly:false,orbit:null};
+  if(!capture){
+    const bar=document.createElement('div');
+    bar.style.cssText='position:fixed;top:15px;right:15px;z-index:10;display:flex;gap:8px';
+    for(const [label,key] of [['Explode components','explode'],['Isolate tools','toolOnly']]){
+      const btn=document.createElement('button');
+      btn.type='button';btn.textContent=label;
+      btn.style.cssText='padding:8px 11px;border:0;background:#283e49;color:white;cursor:pointer';
+      btn.addEventListener('click',()=>{
+        toggles[key]=!toggles[key];
+        btn.setAttribute('aria-pressed',String(toggles[key]));
+      });
+      bar.append(btn);
+    }
+    document.body.append(bar);
+    let pointer=null;
+    canvas.addEventListener('pointerdown',e=>{
+      pointer=e.clientX;canvas.setPointerCapture?.(e.pointerId);
     });
-    if (capture) button.hidden = true;
-    controls.append(button);
+    canvas.addEventListener('pointermove',e=>{
+      if(pointer===null)return;
+      toggles.orbit=(toggles.orbit??0.5)+(e.clientX-pointer)*0.006;
+      pointer=e.clientX;
+    });
+    for(const event of ['pointerup','pointercancel'])
+      canvas.addEventListener(event,()=>{pointer=null;});
   }
-  document.body.append(controls);
-
-  if (!capture) {
-    let lastX = null;
-    canvas.addEventListener('pointerdown', (e) => {
-      lastX = e.clientX;
-      canvas.setPointerCapture?.(e.pointerId);
-    });
-    canvas.addEventListener('pointermove', (e) => {
-      if (lastX === null) return;
-      modes.azimuth = (modes.azimuth ?? 0.45) + (e.clientX - lastX) * 0.008;
-      lastX = e.clientX;
-    });
-    canvas.addEventListener('pointerup', () => { lastX = null; });
-    canvas.addEventListener('pointercancel', () => { lastX = null; });
-  }
-
-  function resize() {
-    const w = Math.max(1, canvas.clientWidth || window.innerWidth || 1280);
-    const h = Math.max(1, canvas.clientHeight || window.innerHeight || 720);
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+  function resize(){
+    const w=Math.max(1,canvas.clientWidth||window.innerWidth||1280);
+    const h=Math.max(1,canvas.clientHeight||window.innerHeight||720);
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h;camera.updateProjectionMatrix();
   }
   resize();
   return {
     resize,
-    render(t) {
-      const p = poseAt(t);
-      const exploded = modes.forceExplode && !capture ? 1 : p.explosionFraction;
-      shoulder.rotation.z = p.angles.shoulderRad;
-      elbow.rotation.z = p.angles.elbowRad;
-      wrist.rotation.z = p.angles.wristRad;
-      elbow.position.x = exploded * 0.36;
-      wrist.position.z = exploded * 0.32;
-      // Keep the tool visible when isolating it; hiding the upper
-      // link group would otherwise hide all of its descendants.
-      const isToolPart = (mesh) => {
-        let node = mesh;
-        while (node) {
-          if (node === tool) return true;
-          node = node.parent;
+    render(t){
+      const frame=poseAt(t);
+      const exploded=toggles.explode&&!capture?1:frame.explosionFraction;
+      for(const side of ['port','starboard']){
+        const p=frame.arms[side],a=arms[side];
+        a.shoulder.position.set(...p.shoulder);
+        setMatrixQuaternion(a.shoulder,p.rotations.shoulder);
+        a.elbow.rotation.set(0,p.anglesDegrees.elbow*RAD,0);
+        a.wrist.rotation.set(0,p.anglesDegrees.wrist*RAD,0);
+        // Visual offset of individual meshes only. Does not modify
+        // the FK reference or physics-derived pivot chain.
+        a.upper.position.y=exploded*.28;
+        a.forearm.position.z=exploded*.25;
+        a.tool.position.y=exploded*.35;
+        for(const key of ['upper','forearm','tool']){
+          a[key].visible=!toggles.toolOnly||key==='tool';
         }
-        return false;
-      };
-      const isolate = modes.forceIsolate && !capture;
-      stage.traverse((mesh) => {
-        if (mesh.isMesh) mesh.visible = !isolate || isToolPart(mesh);
-      });
-      drill.rotation.y = t * 5;
-      const angle = modes.azimuth !== null && !capture ? modes.azimuth : 0.55 + 0.5 * Math.sin(t * 0.11);
-      camera.position.set(6.4 * Math.sin(angle), -0.63, 6.4 * Math.cos(angle));
-      camera.lookAt(0, -0.85, 0);
-      panel.textContent =
-        'EVERWARD / PRIME ARM — EXPERIMENTAL ENGINEERING STUDY\n' +
-        'NOT CANONICAL DIMENSIONS / NOT GAMEPLAY PHYSICS\n' +
-        'Shoulder ' + p.angles.shoulderRad.toFixed(3) + ' rad  Elbow ' +
-        p.angles.elbowRad.toFixed(3) + ' rad  Wrist ' +
-        p.angles.wristRad.toFixed(3) + ' rad\n' +
-        'Nominal tip (' + p.tip.x.toFixed(3) + ', ' + p.tip.y.toFixed(3) +
-        ') m   Exploded ' + (exploded * 100).toFixed(0) + '%';
-      renderer.render(scene, camera);
+        a.marker.visible=!toggles.toolOnly;
+      }
+      const az=toggles.orbit!==null&&!capture?toggles.orbit:0.6+t*.035;
+      camera.position.set(7.8*Math.cos(az),9*Math.sin(az),5.2);
+      camera.lookAt(2.25,0,-1.4);
+      const port=frame.arms.port,starboard=frame.arms.starboard;
+      const fmt=(v)=>v.map(x=>x.toFixed(2)).join(', ');
+      output.textContent=
+        'EVERWARD / PRIME GEN-1 — MECHANICAL BRIDGE STUDY\n'+
+        'ILLUSTRATIVE ASSET. NOT UE5.8 PRODUCT REALITY.\n'+
+        'PORT TOOL TIP m:      ['+fmt(port.toolTip)+']\n'+
+        'STARBOARD TOOL TIP m: ['+fmt(starboard.toolTip)+']\n'+
+        'Tool contact sphere '+port.toolTipRadiusM.toFixed(2)+' m  |  Exploded '+(exploded*100).toFixed(0)+'%';
+      renderer.render(scene,camera);
       return {};
     },
   };
