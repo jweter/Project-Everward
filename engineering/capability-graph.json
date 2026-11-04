@@ -14,7 +14,7 @@
       "slices": [
         {
           "id": "phase2-low-spec-play-mode-next",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "objective": "Advance the earliest bounded issue #228 Low-Spec Play Mode / Emergency-Minimum development-access slice supported by current main so the integrated Unreal build can be exercised on the 16 GB integrated-graphics development machine while preserving full mechanical parity.",
           "acceptance": [
             "The change measurably reduces or bounds development-machine presentation/resource pressure through opt-in scalability behavior.",
@@ -44,7 +44,10 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/343 merged (capable-builder pull request)"
+          ]
         }
       ]
     }
