@@ -26,6 +26,10 @@ The game's permanent high-end visual promise remains: **"Pause. Hide HUD. Take s
 - Astronomy, local gravity, lighting, and physical materials should be credible within the game's rules. Visible impacts, manipulation, mining, repair, and motion must derive from authoritative state.
 - Mood may be spacious, quiet, lonely, and sometimes almost motionless; cinematic quality does not require constant particles, bloom, or visual noise.
 
+## Reference-driven procedural mechanical production
+
+Adopt the controlled methodology in [PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md](PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md) whenever parametric mechanisms, modular machine geometry, accessible cutaways, exploding/reassembling parts, or repeatable render/compare/correct cycles improve a real gameplay asset. Start with the actual mining-arm geometry/reach problem, then expand to Prime A, Fix_It repair, engineering HUD, worker drones and fabrication as their prerequisite mechanics mature. The isolated Three.js pilot is a design tool; import to Unreal and acceptance in an unedited playtest remain separate gates.
+
 ## A repeatable asset-to-game production pipeline
 
 1. **Art brief and target:** identify the game mechanic, canonical reference, visual composition, required visual cues, camera distances, target platform/preset, and success/failure evidence.
