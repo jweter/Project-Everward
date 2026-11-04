@@ -149,6 +149,18 @@ function buildGlb(mode) {
     const primitives=[];
     for (const spec of mod.parts) {
       const geo=spec.kind==='box'?box(spec):cylinder(spec);
+      // The independently imported unit modules have no parent scene
+      // transform. Convert native Z-up into glTF Y-up in their vertices so
+      // Unreal/Blender's Y-up -> Z-up import restores local +X/+Z axes.
+      // The assembled preview instead applies the conversion once at root.
+      if (mode === 'modules') {
+        for (const points of [geo.positions, geo.normals]) {
+          for (let i = 0; i < points.length; i += 3) {
+            const y=points[i+1], z=points[i+2];
+            points[i+1]=z;points[i+2]=-y;
+          }
+        }
+      }
       primitives.push({
         attributes:{
           POSITION:accessor(geo.positions,'VEC3',5126,34962,true),
