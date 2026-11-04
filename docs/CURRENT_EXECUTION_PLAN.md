@@ -22,6 +22,10 @@ Do not defer all art and atmosphere to Phase 22. Incrementally improve the **sam
 
 Agents must capture reproducible in-engine visual evidence where possible, distinguish **implemented vs Unreal-verified vs artistic acceptance**, and use unattended verification before requesting subjective milestone feedback from the owner. A visually beautiful standalone render does not count as gameplay quality. Continue following the earliest incomplete gameplay slice and safety/CI priorities; do not claim milestone completion before its integrated unedited gameplay capture.
 
+## Procedural mechanical production — parallel-safe adoption
+
+The authorized 2026-11-04 procedural modeling/teardown initiative is governed by [PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md](PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md). An isolated parametric mining-arm studio and deterministic tests form the first development artifact. Next, obtain a reproducible low-spec offline capture, verify accurate tip/joint transforms against Unreal collision/tool interaction, evaluate Blender/Unreal component export, and only then admit an integrated rig. Reuse these methods for Prime A, Fix_It, worker drones, industrial structures, engineering overlays, manufacturing, recycling and successors as phase-compatible work. Do not treat this initiative as permission to bypass the current earliest gameplay slice, human Product Reality, Iron God controls or its separate scheduler.
+
 ## Selection rule
 
 When choosing the next Everward development task:
