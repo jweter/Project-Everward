@@ -101,3 +101,26 @@ Use LLMs to suggest components or debug geometry, but require deterministic nume
 This studio strengthens **existing Phase-2 mining, manipulator and Fix_It work**. It does **not** justify pausing that gameplay path to generate disconnected demos, replacing Unreal, or rebuilding every model before the first playable loop works. Begin with one arm and one repair-visible component, measure the benefit over ordinary Blender authoring, then reuse whatever is empirically faster and more robust.
 
 **Decision gate:** GO for iterative procedural mechanism *research and isolated prototypes now*; **CONDITIONAL** for studio pipeline adoption; **NO-GO for shipping the upstream Three.js runtime as part of Everward** unless a new architecture decision provides compelling contrary evidence.
+
+## Companion executable Three.js studio (PR #344)
+
+The repo now also includes the standalone, low-complexity **`tools/procedural_mechanics/prime-arm/`** pilot. Unlike the separate Python GLB proof above, this source follows upstream teardown's actual `runSim` build contract. The two pilots are complementary and neither is accepted Unreal content.
+
+- `model.mjs` implements deterministic 2D planar shoulder–elbow–wrist forward kinematics, physical nominal reach and an independent explosion fraction with explicitly **illustrative provisional dimensions**.
+- `model.test.mjs` checks straight-arm reach, right-angle orientation, finite joint limits, repeatability, clean explosion timing and bad inputs using Node's built-in test runner. CI is path-scoped and requires **no external packages or browser**.
+- `main.js` creates an actual articulated Three.js assembly with named components, rotating joints/tool, an animated exploded state, isolated tool view, manual camera drag, a deterministic orbit for capture, and a small numeric panel. This is a **development studio**; its animation is not gameplay physics.
+
+Run the tests without installing anything (Node 22 recommended):
+
+```sh
+node --test tools/procedural_mechanics/prime-arm/model.test.mjs
+node --check tools/procedural_mechanics/prime-arm/main.js
+```
+
+Only after isolated upstream review and permission to install its packages, pin [elvarofficial/teardown](https://github.com/elvarofficial/teardown) at `a91262ac1109051e014662d42ecb0b7bc1f113b1` under ignored `.tools/teardown/`. Then the isolated build command is:
+
+```sh
+node .tools/teardown/sims/build.mjs ./tools/procedural_mechanics/prime-arm
+```
+
+Output: ignored `teardown-out/dist/prime-arm.html`. **No upstream executable, dependencies, Chromium or installer are checked into Everward or installed by the pilot.** The real HTML build, low-spec capture, GLB bridge and Unreal 5.8 playability are still **pending**, not certified by the pure mathematical unit tests. The next action should verify the browser-rendered pose, correct any wrong hinge geometry, and map its numeric tip location to the live Unreal mining tool before authoring cosmetic detail.
