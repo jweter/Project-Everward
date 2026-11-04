@@ -12,6 +12,10 @@ As the actual opening gameplay becomes available, make each slice look and feel 
 
 An asset/model/mockup alone is not a passing game. An engine-independent green test alone is not a passing visual milestone. Existing Product Reality, earliest-incomplete-slice, and parallel-safe-lane rules remain authoritative.
 
+## Procedural arm and mechanical presentation workstream
+
+Use [PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md](PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md) to prototype numeric joint mechanisms, tool mounts, canonical silhouettes, optional cutaways and repair states. The first bounded deliverable is a mining-arm parametric study whose tool-tip location can be compared with **the actual Unreal tool and collision contact**. A stand-alone Three.js studio may be built or rendered in isolation but cannot clear the Unreal mining/repair Product Reality gate. Promote visual production assets only after appropriate bridge, provenance, tier and gameplay checks. These methods also seed later drone, industry and successor art without scheduling those later features ahead of the opening loop.
+
 ## Development rule
 
 Prefer one small vertical slice at a time:
