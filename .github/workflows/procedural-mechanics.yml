@@ -42,3 +42,9 @@ jobs:
         run: node --test tools/procedural_mechanics/prime-arm/*.test.mjs
       - name: Check Unreal optional asset integration contract
         run: python tools/procedural_mechanics/prime-arm/test_unreal_bridge_surface.py
+      - name: Preserve existing scan, mining, inventory and Fix_It source contracts
+        shell: bash
+        run: |
+          python tools/test_phase2_scan_to_mining_surface.py
+          python tools/test_phase2_material_inventory_surface.py
+          python tools/test_phase2_fix_it_playable_unreal.py
