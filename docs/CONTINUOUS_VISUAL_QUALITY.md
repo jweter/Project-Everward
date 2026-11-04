@@ -37,6 +37,11 @@ The game's permanent high-end visual promise remains: **"Pause. Hide HUD. Take s
 7. **Experiential feedback:** implement responsive manipulation, thrusters, impacts, mining, sensor presentation, HUD transitions, machine-sonification, and sound. Every important mechanical action must communicate cause and effect.
 8. **Evidence and refinement:** capture gameplay, compare against approved references and last accepted build, diagnose shortcomings, improve one focused slice, and repeat.
 
+
+## Procedural Mechanism Studio (gated optional track)
+
+`PROCEDURAL_MECHANISM_STUDIO.md` defines an approved *experimental process* for reference-driven procedural parts, state-linked articulation, exploded/cutaway repair views, modular drone families and automated visual QA. Its first priority is Prime A's physically accurate mining manipulator and tool interfaces in the actual Phase-2 gameplay path. Reuse the same mechanical state for pose, HUD and inspection, but keep the authoritative simulation separate from geometry/rendering. Only promote assets after measured Unreal, collision, LOD, licensing and low-spec performance checks. Render-only success is not player-facing acceptance.
+
 ## First production checkpoint: Visual Milestone 01 — A Beautiful, Believable Awakening
 
 **Status:** planned; not accepted or claimed complete.
