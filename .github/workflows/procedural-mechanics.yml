@@ -4,33 +4,41 @@ on:
   pull_request:
     paths:
       - 'tools/procedural_mechanics/**'
-      - 'docs/PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md'
+      - 'unreal/Source/Everward/EverwardProbePawn.cpp'
+      - 'unreal/Source/Everward/EverwardProbePawn.h'
+      - 'docs/PROCEDURAL_MECHANISM_STUDIO.md'
       - '.github/workflows/procedural-mechanics.yml'
   push:
     branches: [main]
     paths:
       - 'tools/procedural_mechanics/**'
-      - 'docs/PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md'
+      - 'unreal/Source/Everward/EverwardProbePawn.cpp'
+      - 'unreal/Source/Everward/EverwardProbePawn.h'
+      - 'docs/PROCEDURAL_MECHANISM_STUDIO.md'
       - '.github/workflows/procedural-mechanics.yml'
 
 permissions:
   contents: read
 
 jobs:
-  isolated-mechanism-contract:
-    name: Deterministic arm mechanism and source validation
+  mechanical-bridge-contract:
+    name: 3D C++/JS kinematics, modular GLB and Unreal surface contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      # No npm install, Chromium, FFmpeg, model inference or paid services.
-      # The full 3D build is a separate optional, locally reviewed pilot.
-      - name: Check studio JavaScript syntax
-        run: node --check tools/procedural_mechanics/prime-arm/main.js
-      - name: Check math source syntax
-        run: node --check tools/procedural_mechanics/prime-arm/model.mjs
-      - name: Test deterministic mechanism
-        run: node --test tools/procedural_mechanics/prime-arm/model.test.mjs
+      # C++ oracle compiles directly against this repository's authority,
+      # with no external packages, Blender, paid services or browsers.
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          node --check tools/procedural_mechanics/prime-arm/main.js
+          node --check tools/procedural_mechanics/prime-arm/model.mjs
+          node --check tools/procedural_mechanics/prime-arm/export_glb.mjs
+      - name: Run independent C++/JS 3D parity and GLB tests
+        run: node --test tools/procedural_mechanics/prime-arm/*.test.mjs
+      - name: Check Unreal optional asset integration contract
+        run: python tools/procedural_mechanics/prime-arm/test_unreal_bridge_surface.py
