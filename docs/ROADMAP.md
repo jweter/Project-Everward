@@ -62,6 +62,10 @@ Proved long-duration headless deterministic simulation.
 
 **Gate:** satisfied by the real `decision_ready` Unreal evidence artifact. Residual GPU/rendering risk remains tracked but does not block Phase 2.
 
+## Cross-phase production capability — procedural mechanical design and teardown (2026-11-04)
+
+An owner-authorized **reference-driven parametric asset pipeline** now accompanies Phase 2+ visual development. See [PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md](PROCEDURAL_MECHANICAL_MODELING_AND_TEARDOWN.md). Pilot first on the mineable, controllable Prime Gen-1 manipulator; use numeric mechanisms, modular geometry, exploded/cutaway views and repeatable reference-frame correction. Prove Blender/Unreal transfer and Product Reality before claiming an accepted asset. Later apply to repairing and reconstructing systems, drones, manufacturing/recycling, upgrade visualization, successor generations, tutorials and unattended visual QA. Three.js and upstream teardown remain **isolated development tools**, not the production renderer, authoritative physics or a shortcut around the first playable loop.
+
 ## Phase 2 — One Probe
 
 **Status:** **ACTIVE.** Production implementation began in PR #68 after the Phase 1 exit gate passed.
