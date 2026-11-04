@@ -11,6 +11,7 @@ class USceneComponent;
 class USphereComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
+class UStaticMesh;
 enum class EEverwardManipulatorArmId : uint8;
 enum class EEverwardManipulatorJoint : uint8;
 
@@ -40,6 +41,11 @@ public:
         EEverwardManipulatorJoint Joint);
 
 private:
+    // Optional unit-normalized GLB -> Unreal static mesh replacements. Existing
+    // component pivots, centimetre transforms, collisions, commands and
+    // simulation telemetry remain unchanged. Missing assets use the original
+    // BasicShapes fallback, so no upstream tools ship with the game.
+    void ApplyProceduralArmMeshesIfAssigned();
     void ApplyPrimeFunctionalMaterials();
     void UpdateManipulatorVisuals();
     void BeginOrCancelCameraAlignedRighting();
@@ -110,6 +116,17 @@ private:
     TObjectPtr<USceneComponent> StarboardWristPivot;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe|Manipulators", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UStaticMeshComponent> StarboardToolHead;
+
+    // Designed for normalized zero-origin 1m mesh modules from
+    // tools/procedural_mechanics/prime-arm/export_glb.mjs. Set these after
+    // importing and validating the GLB in Unreal Editor. Nothing is loaded
+    // or changed in a default build; these do not create gameplay actors.
+    UPROPERTY(EditAnywhere, Category="Everward|Probe|ProceduralArm")
+    TSoftObjectPtr<UStaticMesh> ProceduralUpperArmMesh;
+    UPROPERTY(EditAnywhere, Category="Everward|Probe|ProceduralArm")
+    TSoftObjectPtr<UStaticMesh> ProceduralForearmMesh;
+    UPROPERTY(EditAnywhere, Category="Everward|Probe|ProceduralArm")
+    TSoftObjectPtr<UStaticMesh> ProceduralMiningToolMesh;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Everward|Probe", meta=(AllowPrivateAccess="true"))
     TObjectPtr<UProbeSimulationAdapter> SimulationAdapter;
