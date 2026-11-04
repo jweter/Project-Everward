@@ -51,6 +51,11 @@ Treat player-facing craft as a Phase-2+ production responsibility, not a cosmeti
 
 **Visual Milestone 01 — A Beautiful, Believable Awakening** is an integrated *gameplay* checkpoint, not a marketing-only scene. Do not equate code tests, concept images, or staged renders with proven visual quality; distinguish planned, implemented, Unreal-verified, and artistically accepted states. Continue automated objective checks, reserving the owner for genuinely subjective milestone decisions rather than routine testing.
 
+
+## Procedural Mechanism Studio — gated capability
+
+For manipulator, probe-hardware, drone, engineering-cutaway, repair/evolution, or machine-visualization tasks, read `docs/PROCEDURAL_MECHANISM_STUDIO.md`. Adopt the reference-driven / mathematical-model / modular geometry / render–compare–correct pattern where it improves the current playable slice. Start with the mining-arm pilot; this is a complementary production technique, **not** authority to install a global Claude skill, replace Unreal, modify other repos or Iron God, or bypass asset, physics, licensing, CI, owner-control or Product Reality gates. Treat GLB validation, Blender validation, Unreal validation and artistic acceptance as separate evidence statuses. Do not let isolated concept demos displace the earliest broken gameplay loop.
+
 ## Third-party asset acquisition rule
 
 External models, materials, textures, HDRIs, and other third-party visual assets must enter through `tools/everward_asset_scout.py` and the rules in `docs/ASSET_ACQUISITION_PIPELINE.md`. Search results are advisory, not approval.

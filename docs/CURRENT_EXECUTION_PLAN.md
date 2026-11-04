@@ -14,6 +14,11 @@ The canonical smart-navigation/accessibility contract is defined in [`JOSE_TAKE_
 
 The canonical graphics scalability contract is defined in [`GRAPHICS_SCALABILITY_STANDARD.md`](GRAPHICS_SCALABILITY_STANDARD.md). Everward must preserve full-game mechanical parity from Emergency / Minimum through Ultra / Cinematic: lower settings reduce presentation cost, never gameplay scope.
 
+
+### Parallel-compatible procedural mechanism experiment
+
+Use `docs/PROCEDURAL_MECHANISM_STUDIO.md` for isolated, reference-driven mining-arm and repair-visible component prototypes. The experiment should feed **current** Prime A mining/manipulator / Fix_It playability rather than create an unrelated art demo. Keep production priority and owner-control intact; promote only after validated Blender/Unreal import, true tool-tip reach/collision, state-driven interaction, visual QA and low-spec evidence. Existing gameplay blockers still take precedence.
+
 ## Continuous experiential quality: required in the active Phase-2 queue
 
 Read `CONTINUOUS_VISUAL_QUALITY.md` alongside the current phase plan. **Visual Milestone 01 — A Beautiful, Believable Awakening** is the first integrated visual/animation/audio/HUD acceptance checkpoint. It strengthens, rather than replaces, the canonical damaged-awakening, mining, material, `Fix_It` and staged recovery loop.
