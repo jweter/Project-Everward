@@ -5,6 +5,7 @@
 #include "Components/SceneComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputCoreTypes.h"
@@ -184,8 +185,36 @@ AEverwardProbePawn::AEverwardProbePawn()
 void AEverwardProbePawn::BeginPlay()
 {
     Super::BeginPlay();
+    // Replace only optional visual assets. Existing component transforms and
+    // simulation-owned joint state, mining physics and collisions are retained.
+    ApplyProceduralArmMeshesIfAssigned();
     ApplyPrimeFunctionalMaterials();
     UpdateManipulatorVisuals();
+}
+
+void AEverwardProbePawn::ApplyProceduralArmMeshesIfAssigned()
+{
+    auto ApplyModule = [](const TSoftObjectPtr<UStaticMesh>& Source,
+                          UStaticMeshComponent* Port,
+                          UStaticMeshComponent* Starboard,
+                          const TCHAR* Label)
+    {
+        if (Source.IsNull()) return; // default BasicShapes remain untouched
+        UStaticMesh* Mesh = Source.LoadSynchronous();
+        if (Mesh == nullptr)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Everward procedural arm: missing %s visual mesh; using defaults"), Label);
+            return;
+        }
+        // Never rewrite location/rotation/scale: the imported meshes are
+        // normalized unit modules, aligned to the current arm's component
+        // local axes. These existing transforms already match C++ contact.
+        if (Port != nullptr) Port->SetStaticMesh(Mesh);
+        if (Starboard != nullptr) Starboard->SetStaticMesh(Mesh);
+    };
+    ApplyModule(ProceduralUpperArmMesh, PortUpperArm, StarboardUpperArm, TEXT("upper"));
+    ApplyModule(ProceduralForearmMesh, PortForearm, StarboardForearm, TEXT("forearm"));
+    ApplyModule(ProceduralMiningToolMesh, PortToolHead, StarboardToolHead, TEXT("tool"));
 }
 
 void AEverwardProbePawn::ApplyPrimeFunctionalMaterials()
