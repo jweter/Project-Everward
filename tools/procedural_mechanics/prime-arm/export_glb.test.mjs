@@ -58,6 +58,14 @@ test('exported normalized mesh catalog can be round-tripped and is repeatable',(
   }
 });
 
+test('normalized mining tool apex reaches C++-defined 0.79m contact point after Unreal mounting',()=>{
+  const cone=MODULES.tool.parts.at(-1);
+  assert.equal(cone.kind,'cylinder');
+  const tipLocalZ=cone.center[2]+cone.height/2;
+  const tipFromWrist=0.38+tipLocalZ*0.82;
+  assert.ok(Math.abs(tipFromWrist-DESIGN.link_m.tool_tip_from_wrist)<1e-12);
+});
+
 test('unit components are zero-origin independently importable assets',()=>{
   const tmp=mkdtempSync(path.join(os.tmpdir(),'everward-arm-parts-'));
   try{
