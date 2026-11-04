@@ -124,3 +124,11 @@ node .tools/teardown/sims/build.mjs ./tools/procedural_mechanics/prime-arm
 ```
 
 Output: ignored `teardown-out/dist/prime-arm.html`. **No upstream executable, dependencies, Chromium or installer are checked into Everward or installed by the pilot.** The real HTML build, low-spec capture, GLB bridge and Unreal 5.8 playability are still **pending**, not certified by the pure mathematical unit tests. The next action should verify the browser-rendered pose, correct any wrong hinge geometry, and map its numeric tip location to the live Unreal mining tool before authoring cosmetic detail.
+
+## Mechanical Bridge v0.1 — actively implemented in PR #350
+
+See [`tools/procedural_mechanics/prime-arm/README.md`](../tools/procedural_mechanics/prime-arm/README.md) and [Issue #345](https://github.com/jweter/Project-Everward/issues/345) for the executable, acceptance-gated bridge. It supersedes only the **standalone 2D procedural pilot** described earlier in this document, not the original independent Python GLB feasibility example or the full game's design.
+
+The implementation now uses the exact **two-arm 3D** pivot, fold and mining tip contract from the existing C++ headers. An independent C++ oracle and Node tests compare sampled 3D elbow/wrist/tool-tip coordinates at the same commit, preventing a pretty-but-disconnected arm. An original, dependency-free, normalized modular GLB exporter produces upper, forearm and mining-tool static-mesh modules, a pivoted assembly and a checksum manifest. The Unreal pawn can optionally substitute imported modules under its existing telemetry-driven pivots, leaving authority and collision unchanged.
+
+**Evidence still required:** exact-head CI, actual bundled Three.js capture, Blender/Unreal import, UnrealBuildTool compile, functional mining-contact and Fix_It loop, Low/Emergency memory and frame-time profiling, and artistic Product Reality. The PR is not a permission to treat a mesh, GLB validator or code test as a completed gameplay feature.
