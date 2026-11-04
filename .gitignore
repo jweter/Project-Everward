@@ -49,3 +49,6 @@ private/product-reality-inbox/
 # Local third-party asset acquisition tooling and quarantine
 .tools/
 /assets/staging/
+
+# Standalone procedural teardown development render output
+/teardown-out/
