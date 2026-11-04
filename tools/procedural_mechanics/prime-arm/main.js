@@ -196,9 +196,20 @@ runSim(SETTINGS, async ({canvas, capture}) => {
       wrist.rotation.z = p.angles.wristRad;
       elbow.position.x = exploded * 0.36;
       wrist.position.z = exploded * 0.32;
-      tool.visible = !(modes.forceIsolate && !capture);
-      upper.visible = !(modes.forceIsolate && !capture);
-      forearm.visible = !(modes.forceIsolate && !capture);
+      // Keep the tool visible when isolating it; hiding the upper
+      // link group would otherwise hide all of its descendants.
+      const isToolPart = (mesh) => {
+        let node = mesh;
+        while (node) {
+          if (node === tool) return true;
+          node = node.parent;
+        }
+        return false;
+      };
+      const isolate = modes.forceIsolate && !capture;
+      stage.traverse((mesh) => {
+        if (mesh.isMesh) mesh.visible = !isolate || isToolPart(mesh);
+      });
       drill.rotation.y = t * 5;
       const angle = modes.azimuth !== null && !capture ? modes.azimuth : 0.55 + 0.5 * Math.sin(t * 0.11);
       camera.position.set(6.4 * Math.sin(angle), -0.63, 6.4 * Math.cos(angle));
