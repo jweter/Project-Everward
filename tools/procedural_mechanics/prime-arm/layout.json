@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "source": {
+    "arm_layout": "src/simulation/include/everward/simulation/manipulator_hull_contact.hpp",
+    "tip": "src/simulation/include/everward/simulation/manipulator_tool_contact.hpp",
+    "limits": "src/simulation/include/everward/simulation/manipulator.hpp",
+    "unreal": "unreal/Source/Everward/EverwardProbePawn.cpp"
+  },
+  "units": "metres",
+  "coordinate_system": "Everward probe local: +X forward, +Y starboard, +Z up",
+  "shoulder_m": {
+    "port": [
+      1.2,
+      -1.05,
+      -0.92
+    ],
+    "starboard": [
+      1.2,
+      1.05,
+      -0.92
+    ]
+  },
+  "link_m": {
+    "upper": 1.8,
+    "forearm": 1.5,
+    "tool_tip_from_wrist": 0.79
+  },
+  "sample_radius_m": {
+    "arm": 0.12,
+    "tool_tip": 0.17
+  },
+  "fold_pitch_degrees": {
+    "stowed": -102,
+    "deployed": -38
+  },
+  "fold_roll_degrees": {
+    "stowed": 8,
+    "deployed": 24
+  },
+  "joint_limits_degrees": {
+    "shoulder": [
+      -90,
+      90
+    ],
+    "elbow": [
+      0,
+      150
+    ],
+    "wrist": [
+      -180,
+      180
+    ]
+  },
+  "prototype_note": "Generated reference contract, checked against C++ oracle in CI; do not edit numeric fields without updating authoritative C++."
+}
