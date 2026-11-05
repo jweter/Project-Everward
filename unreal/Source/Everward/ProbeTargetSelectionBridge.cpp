@@ -2,6 +2,7 @@
 
 #include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/jose_autopilot.hpp"
+#include "everward/simulation/starter_restoration.hpp"
 #include "everward/simulation/target_cycle_runtime.hpp"
 
 #include <string>
@@ -45,6 +46,34 @@ FEverwardTargetSelectionStatus UProbeSimulationAdapter::GetSelectedTargetStatus(
     Status.SurfaceRangeMeters = Selection.surface_range_m;
     Status.ClosingSpeedMetersPerSecond = Selection.closing_speed_mps;
     Status.ApproachMotion = ToApproachMotion(Selection.approach_motion);
+    return Status;
+}
+
+FEverwardStarterRestorationStatus UProbeSimulationAdapter::GetStarterRestorationStatus() const
+{
+    // Read-only, recomputed live from authoritative component integrity.
+    FEverwardStarterRestorationStatus Status;
+    if (Core == nullptr)
+    {
+        return Status;
+    }
+
+    const everward::simulation::StarterRestorationStatus Restoration =
+        everward::simulation::evaluate_starter_restoration(*Core);
+    Status.bSatisfied = Restoration.satisfied;
+    Status.WeakestPendingIntegrity = Restoration.weakest_pending_integrity;
+    for (size_t Index = 0; Index < Restoration.pending_count; ++Index)
+    {
+        FString Name;
+        switch (Restoration.pending[Index])
+        {
+            case everward::simulation::PowerSubsystem::Sensors: Name = TEXT("SENSORS"); break;
+            case everward::simulation::PowerSubsystem::Propulsion: Name = TEXT("PROPULSION"); break;
+            case everward::simulation::PowerSubsystem::Computation: Name = TEXT("COMPUTATION"); break;
+            case everward::simulation::PowerSubsystem::Thermal: Name = TEXT("THERMAL"); break;
+        }
+        Status.PendingSubsystems.Add(Name);
+    }
     return Status;
 }
 

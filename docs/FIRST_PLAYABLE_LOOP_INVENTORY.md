@@ -51,3 +51,13 @@ Open points for the implementing slice, not decided here: whether power and ther
 - Static reading of source, tests and docs only. No Unreal build, playtest, or in-engine run was performed.
 - Test names are cited as present, not re-run for this document; the canonical preflight is run for the PR.
 - "Repeatable" (the roadmap's wording for the objective) is unaddressed: no repeat mechanic exists, and the inventory does not assume one.
+
+## Slice delivered: starter restoration objective status
+
+Traceability: `engineering/capability-graph.json#phase2-one-probe-development-access/first-loop-integration-slice`.
+
+- Simulation truth: `src/simulation/include/everward/simulation/starter_restoration.hpp` (`evaluate_starter_restoration`), read-only, derived from component integrity with `SelfRepairPlanner::is_fully_restored`.
+- Presentation mirror: `UProbeSimulationAdapter::GetStarterRestorationStatus()` (`ProbeTargetSelectionBridge.cpp`), no gameplay authority.
+- Portable tests: `src/simulation/tests/starter_restoration_tests.cpp`.
+- Scope decision: the objective covers the four integrity-tracked subsystems only; power/thermal stability and "repeatable" remain open.
+- **Pending (not verified):** Unreal compile of the adapter accessor and any in-engine/HUD use. No UBT was available on the runner.
