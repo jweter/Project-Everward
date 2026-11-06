@@ -156,6 +156,14 @@ The engine-independent simulation owns which audio-perception capabilities the p
 
 The first implementation is intentionally a capability contract, not a finished sound engine. Future Unreal work can bind actual assets, procedural synthesis, music systems, spatialization, and mixing to these authoritative layers without hard-coding progression into presentation.
 
+## Production execution contract (2026-11-05)
+
+The creative canon above is already established. Implementation belongs in [Generative Audio Production Plan](GENERATIVE_AUDIO_PRODUCTION_PLAN.md), using the A0–A5 dependency sequence. **A0/A1** add source-verified event/alert/tactile mining and Fix_It cues to the active opening scene; **A2/A3** add earned scientific perception and a bounded algorithmic composer; lineage music and neural generation remain later-gated research.
+
+Use actual authoritative source event IDs, a stable playback seed, explicit parameter/mix buses and captured Unreal sound to demonstrate each stage. MetaSounds/Quartz/Audio Modulation are candidate Unreal 5.8 production tools, not evidence that an audio implementation already exists. Critical alerts always have visual/text equivalents. Off by default for Gen-1 musical scoring remains a valid artistic choice.
+
+**No audio source may decide mining success, sensor discovery, repair costs, lineage inheritance or player death.** Quality criteria include false-event exclusion, interrupted-loop cleanup, fatigue, dynamic range, pause/time-acceleration behavior, low-spec performance and commercial provenance.
+
 ## Implementation principle
 
 Mechanical game state determines the context. The audio system reacts to that state; it does not determine simulation outcomes.
