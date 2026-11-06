@@ -8,6 +8,8 @@ The numbered phases remain the **feature-order authority**. Effective for all cu
 
 This additive overlay does not mark any phase completed, supersede the existing reversible parallel-safe lane, or permit paid tooling, production branch bypass or owner-control changes.
 
+**Tracked implementation:** [P0/P1 Production Execution Backlog (2026-11-05)](PRODUCTION_PRIORITY_BACKLOG_2026-11-05.md) reconciles current acceptance issues with new #355–#360 without duplicating #351. Priorities remain constrained by live repo state and Phase 2's earliest incomplete player journey.
+
 
 ## Owner-approved first playable priority (2026-10-25)
 
