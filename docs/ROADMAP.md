@@ -1,5 +1,14 @@
 # Everward Roadmap
 
+## Continuous production-readiness overlay — approved direction (2026-11-05)
+
+The numbered phases remain the **feature-order authority**. Effective for all current and future player-facing slices, a second **R0–R6 experience-gate layer** governs player outcome, UX/onboarding, Prime A art/animation, tactile and evolving audio, accessibility, persistence, performance, unattended Unreal verification and appropriately bounded subjective player review. See [Production Quality Gates](PRODUCTION_QUALITY_GATES.md) and [November 2026 professional review synthesis](PRODUCTION_REVIEW_INTEGRATION_2026-11-05.md).
+
+**P0 remains the earliest incomplete damaged-awakening → scan → mine → spend material/power → Fix_It → restored capability → repeatable objective chain.** The 2026-11-05 report's gap inventory predates merged PR #351 (starter-restoration objective implementation); implementation must be reevaluated, not duplicated, and **Unreal Product Reality remains a separate acceptance gate**. The four ongoing disciplines are gameplay/simulation, visual/player experience, objective QA/player evidence and audio/evolving sensorium.
+
+This additive overlay does not mark any phase completed, supersede the existing reversible parallel-safe lane, or permit paid tooling, production branch bypass or owner-control changes.
+
+
 ## Owner-approved first playable priority (2026-10-25)
 
 Prioritize one coherent, actually playable **Unreal Engine** One Probe loop over disconnected subsystem expansion: control the probe, observe/scan, gather resources, apply them to a meaningful construction/repair/progression action, and complete a repeatable objective. Preserve the existing simulation authority, physicality, visual scalability and Phase 2 gates. This is a milestone emphasis, not permission to skip Product Reality or replace the established Phase 2 roadmap. Decompose missing seams into small dependency-ready tasks and verify in the actual engine. See `docs/OWNER_APPROVED_ROADMAP_2026-10-25.md`.
