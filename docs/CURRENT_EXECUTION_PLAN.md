@@ -2,6 +2,17 @@
 
 This file is the durable pointer used by human and automated development to select the next player-visible Everward work.
 
+## Professional production integration: P0/P1 order (2026-11-05)
+
+The owner-authorized [P0/P1 Production Backlog](PRODUCTION_PRIORITY_BACKLOG_2026-11-05.md) is the **cross-disciplinary quality and execution overlay** from the professional game development/gap reports. Use [Production Quality Gates](PRODUCTION_QUALITY_GATES.md) for status/evidence and [Generative Audio Production Plan](GENERATIVE_AUDIO_PRODUCTION_PLAN.md) for A0–A5. These do not replace the phase plan, create permission to merge, or authorize claims of verified gameplay.
+
+**First:** inspect latest main/current PRs/CI and the actual unattended Unreal/Product Reality debt under #159/#168. PR #351 has since implemented a source-level starter-restoration objective; confirm it in Unreal instead of duplicating code. The earliest broken scan→mine→store→Fix_It→restored capability loop always outranks deferred features.
+
+**Parallel-safe P0:** #355 essential audio event/silence contract, #360 genuine tool/repair cues, #356 one physical material-processing/fabrication chain, where dependencies allow. Existing #345 arm art and #165 contextual HUD remain central, not finished by a static model.
+
+**P1:** #357 novice first-hour experience, #358 measured frame/audio budget, #359 offline adaptive/sonification pilot, and existing #160 build/packaging work. Do not presume the P1 audio composer exists merely because the planning PR merges. Recheck issue state when selecting a packet.
+
+
 ## Authoritative detailed plan
 
 Use [`PHASE2_VERTICAL_SLICE_PLAN.md`](PHASE2_VERTICAL_SLICE_PLAN.md) as the detailed execution sequence for late Phase 2, Phase 3, and the beginning of Phase 4.
