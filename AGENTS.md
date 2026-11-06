@@ -12,6 +12,7 @@ Before selecting or implementing substantial work, read:
 4. `docs/INDUSTRY_REALITY_CHECK.md` — the current repo-specific gap analysis versus commercial game-development expectations.
 4a. `docs/PRODUCTION_QUALITY_GATES.md` — the cross-disciplinary definition of a player-ready slice, evidence states, R0–R6 experience gates and non-displacement rules.
 4b. `docs/PRODUCTION_REVIEW_INTEGRATION_2026-11-05.md` — dated reconciliation of the professional game design and gap reports with subsequent repository changes.
+4c. `docs/GENERATIVE_AUDIO_PRODUCTION_PLAN.md` — for any audio, sound, sonification, musical motif, or MetaSounds/Quartz work; preserve Gen-1 near-silence and authoritative event gating.
 5. `docs/CONTINUOUS_VISUAL_QUALITY.md` — the mandatory continuous experiential-production track, first awakening visual milestone, asset-to-game pipeline, evidence rules, and graphical-tier contract.
 6. Relevant playtest evidence, issues, PRs, tests, and architecture documents for the system being changed.
 7. `docs/QUANTUM_SCIENCE_CANON.md` when proposing quantum sensing, communication, materials, computation, or quantum-physics lore/mechanics.
