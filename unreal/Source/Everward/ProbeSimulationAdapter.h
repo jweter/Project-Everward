@@ -215,6 +215,18 @@ struct EVERWARD_API FEverwardTargetSelectionStatus
     UPROPERTY(BlueprintReadOnly, Category="Everward|Target") EEverwardApproachMotion ApproachMotion = EEverwardApproachMotion::HoldingRange;
 };
 
+// Read-only mirror of everward::simulation::StarterRestorationStatus
+// (docs/FIRST_PLAYABLE_LOOP_INVENTORY.md). Presentation only; the objective
+// is derived in simulation from authoritative component integrity.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardStarterRestorationStatus
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Objective") bool bSatisfied = false;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Objective") TArray<FString> PendingSubsystems;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Objective") double WeakestPendingIntegrity = 1.0;
+};
+
 // Slice 11 ("Science as gameplay") foundation: unknown -> observed ->
 // characterized, matching everward::simulation::KnowledgeLevel exactly.
 // Composition/material classification (the "characterized" driver) is now
@@ -423,6 +435,7 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Mining") FEverwardMiningStatus GetMiningStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Telemetry") TArray<FEverwardMaterialInventoryEntry> GetStoredMaterialInventory() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;
+    UFUNCTION(BlueprintPure, Category="Everward|Objective") FEverwardStarterRestorationStatus GetStarterRestorationStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetKnowledgeStatus GetSelectedTargetKnowledgeStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") TArray<FEverwardDiscoveredTarget> GetDiscoveredTargets() const;
     UFUNCTION(BlueprintPure, Category="Everward|Tractor") FEverwardTractorFieldStatus GetTractorFieldStatus() const;
