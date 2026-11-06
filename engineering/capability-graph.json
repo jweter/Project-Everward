@@ -83,7 +83,7 @@
         },
         {
           "id": "first-loop-integration-slice",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 4,
           "depends_on": [
             "inventory-playable-mechanics"
@@ -119,7 +119,10 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/351 merged (capable-builder pull request)"
+          ]
         },
         {
           "id": "first-loop-verification",
