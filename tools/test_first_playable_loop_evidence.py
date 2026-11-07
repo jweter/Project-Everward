@@ -1,6 +1,6 @@
 """Guard the first-playable-loop evidence record against over-claiming.
 
-Run with: python3 -m unittest discover -s tests -p "test_first_playable_loop_evidence.py"
+Run with: python3 -m unittest discover -s tools -p "test_first_playable_loop_evidence.py"
 """
 
 from __future__ import annotations
