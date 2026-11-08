@@ -2,6 +2,14 @@
 
 **Status: plugin downloaded and staged ONLY in an isolated local test clone. No login, agent-service installation, live Unreal editor test, session or gameplay acceptance yet.** See [PR #369](https://github.com/jweter/Project-Everward/pull/369) for independent fail-closed gameplay evidence; [PR #370](https://github.com/jweter/Project-Everward/pull/370) for authoritative scan/material events. Do not collapse those into a claim that an AI player actually tested the game.
 
+## 2026-11-08 operational update — OWNER-ONLY paid runs
+
+**Current verified state:** Aura v1.0.0 was installed in the **real** Azathoth Everward checkout at `%USERPROFILE%\Documents\Project-Everward\unreal\Plugins\Autopilot\`; its editor modules loaded in UE5.8.1. Jeremy completed account setup and manually initiated the first genuine exploration on 2026-11-08. Run `20261108-084846` executed 3 episodes/666 decisions, reported approximately $4.45 estimated model usage, and found multiple first-playable blockers. See [#372](https://github.com/jweter/Project-Everward/issues/372) and the comment on [PR #371](https://github.com/jweter/Project-Everward/pull/371).
+
+**New binding owner policy supersedes outdated feasibility steps below:** **Jeremy alone initiates every Aura session; Claude, ChatGPT, Iron God and scheduled/unattended workers must never start or schedule paid Aura testing.** Do not run `autopilot connect claude` for autonomous access or create any service-based test triggering. AI development agents may read completed reports (with owner-authorized access), convert them into measurable roadmap slices, fix game code, and use existing unpaid native/Unreal regression tests. Lack of a new Aura run never blocks independent development. Full operating procedure: `docs/integrations/OWNER_RUN_AURA_REPORT_TO_ROADMAP.md`.
+
+**The remainder of this file records the original installation experiment and earlier proposals, not authorization to automate Aura.** All older clauses suggesting Claude-submitted Aura scenarios, an Iron God Aura worker, a ChatGPT-driven local Aura runner or ongoing API/model spending are **withdrawn** by this update.
+
 ## Why this rather than more isolated feature PRs
 
 Reduce manual testing while improving the actual Phase 2 first-playable loop. Autopilot should **play the real game** and identify camera, accessibility, controls, mining reach, input discoverability and Fix_It problems. The independent Unreal simulation + native functional assertions must prove material/energy/sensor/integrity state, regardless of anything an LLM reports. Successful PR CI, an Autopilot report, and genuine player-visible acceptance are separate gates.
