@@ -2,6 +2,10 @@
 
 Routine engineering verification is machine-owned. Jeremy is not a recurring test executor and must not be placed inside ordinary implementation, regression, Unreal/build, Product Reality, or promotion loops when objective evidence can be automated or collected by an unattended worker.
 
+## Paid exploratory Aura exception — owner-only
+
+The unattended-machine testing policy applies to **local deterministic/native Unreal tests**, not paid Aura Autopilot sessions. By owner decision on 2026-11-08, **only Jeremy operates Aura**; no agent, CI, scheduled job, desktop automation, or unattended worker may launch, control, schedule, retry, or automatically consume Aura credits. Completed owner-run Aura reports become evidence for agents to convert into scoped defects, roadmap slices and free/local regression tests. Do not ask Jeremy to rerun Aura for every fix or mark independent development blocked until he elects a future exploratory run. See `docs/integrations/OWNER_RUN_AURA_REPORT_TO_ROADMAP.md`.
+
 ## Default verification path
 
 `change -> FAST_GATE -> exact-head preflight -> CI -> unattended Unreal/environment verification -> structured evidence -> automated diagnosis/repair -> re-verification -> promotion -> optional Jeremy milestone acceptance`

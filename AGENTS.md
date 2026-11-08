@@ -43,6 +43,12 @@ Use it to:
 - keep scanning, manipulation/mining, inventory/resources, self-repair, and restored-capability progression connected as a coherent player loop rather than isolated systems;
 - update the assessment when major verified Product Reality materially changes its conclusions or score.
 
+## Owner-only Aura Autopilot cost boundary (2026-11-08)
+
+**Only Jeremy initiates Aura Autopilot sessions.** No Claude, Codex, ChatGPT, Iron God, scheduled worker, CI job, MCP tool, desktop command, or script may launch, run, retry, schedule, or pay for Aura tests, even if Aura is installed and logged in. Do not integrate Aura calls into automated QA or enable a global Claude/MCP route to spend credits. The owner separately chooses each paid exploratory run. This supersedes earlier proposals for agent-operated Aura.
+
+**Agents must use owner-provided completed Aura results for development.** Read existing local sanitized evidence when authorized, record run provenance/estimated cost, classify reproduced defects separately from speculation and test-harness errors, file/update concise issue and measurable roadmap slices, implement fixes, and verify with *non-Aura* deterministic C++/Unreal tests and existing free local workers. Ordinary engineering progress must not depend on another Aura run. See `docs/integrations/OWNER_RUN_AURA_REPORT_TO_ROADMAP.md` and current playtest findings [#372](https://github.com/jweter/Project-Everward/issues/372).
+
 ## Core engineering invariants
 
 Preserve deterministic simulation ownership of game truth, player agency, evolution/probe extensibility, documented design pillars, and the separation between simulation correctness and Unreal presentation.
