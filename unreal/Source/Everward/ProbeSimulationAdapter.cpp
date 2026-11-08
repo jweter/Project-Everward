@@ -1,7 +1,9 @@
 #include "ProbeSimulationAdapter.h"
 
 #include "EverwardPhase2TestEnvironment.h"
+#include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "PlaytestRecorderActor.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -373,6 +375,16 @@ void UProbeSimulationAdapter::TickComponent(
             LastScanLifecycleNotice.bCancelled =
                 Event.type == everward::simulation::DomainEventType::ScanCancelled;
             LastScanLifecycleNotice.Detail = UTF8_TO_TCHAR(Event.detail.c_str());
+
+            // These are actual simulation domain events, not inferred from a
+            // successful input command or an agent's narrative. A cancelled
+            // scan never emits scan_completed.
+            RecordSimulationPlaytestEvent(
+                LastScanLifecycleNotice.bCompleted ? TEXT("scan_completed") : TEXT("scan_cancelled"),
+                FString::Printf(
+                    TEXT("simulation_tick=%lld;detail=%s"),
+                    static_cast<long long>(Event.tick),
+                    *LastScanLifecycleNotice.Detail));
         }
     }
 
@@ -978,6 +990,24 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::RecordCommandResult(FName C
     Result.Detail = Detail;
     LastCommandResult = Result;
     return Result;
+}
+
+void UProbeSimulationAdapter::RecordSimulationPlaytestEvent(
+    const FString& EventName, const FString& Detail) const
+{
+    // Best-effort evidence only. Never create an actor, alter Core, or make a
+    // command's result conditional on whether the recorder is available.
+    UWorld* World = GetWorld();
+    if (World == nullptr)
+    {
+        return;
+    }
+
+    for (TActorIterator<APlaytestRecorderActor> It(World); It; ++It)
+    {
+        It->RecordPlaytestEvent(EventName, Detail);
+        return;
+    }
 }
 
 void UProbeSimulationAdapter::SyncOwnerTransformFromSimulation()
