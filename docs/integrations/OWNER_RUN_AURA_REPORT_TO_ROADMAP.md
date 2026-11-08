@@ -4,6 +4,12 @@
 
 **The development engine remains autonomous without Aura:** after Jeremy finishes a session and makes the report available, Claude/ChatGPT/Iron God may *read* the existing local report and related existing Unreal playtest records, analyze source, prioritize work, author tests, implement repairs, perform normal free/local C++ and UE objective tests, open issues/PRs, and verify results. Never let lack of a new Aura session block ordinary development.
 
+## Before a manually initiated Aura run: Unreal MCP evidence preflight
+
+The owner has now connected to **official Unreal MCP from a local terminal**. For future paid exploratory runs, first verify the *current* editor connection with an actual read-only MCP result, record exact build/map/dirty-tree and reachable starting-state evidence, and ensure the Everward recorder is ready. During the owner-run session, do **not** issue concurrent Unreal MCP operations that could disrupt Aura's control of PIE. After completion, reconcile existing Aura report **plus** authoritative Unreal recorder/events and optional MCP postflight. Details: `UNREAL_MCP_AURA_PLAYTEST_EVIDENCE_WORKFLOW_2026-11-08.md`.
+
+An MCP connection itself does not supply a continuous gameplay trace or justify a factual acceptance claim; missing MCP capability is recorded as missing evidence. MCP preflight and report consumption are **not authorization for any agent to invoke the paid Aura service**. Jeremy may choose to test without a completed MCP preflight; such a run must be labelled accordingly rather than hidden or automatically repeated.
+
 ## Evidence chain
 
 1. **Jeremy runs Aura manually, on his schedule.** If he wants help forming a bounded prompt, produce a draft for him to run; never submit it to Aura. He owns any account/credit-cost decision, optional video/data-sharing choice, and stopping the session.
