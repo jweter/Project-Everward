@@ -184,6 +184,9 @@ struct EVERWARD_API FEverwardManipulatorArmState
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator") bool bIsDeployed = false;
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator") bool bIsDeploying = false;
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator") bool bIsStowing = false;
+    // Issue #372 F6: true only when the rig would accept a joint command (fully deployed, not moving). bIsDeployed stays
+    // true until a stow completes, so it alone must not decide whether joint control is offered.
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator") bool bAcceptsJointCommands = false;
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator") double DeploymentFraction = 0.0;
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator") double ShoulderDegrees = 0.0;
     UPROPERTY(BlueprintReadOnly, Category="Everward|Manipulator") double ElbowDegrees = 0.0;
@@ -560,6 +563,11 @@ public:
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandClearSoftwarePolicy();
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandDeployManipulatorArm(EEverwardManipulatorArmId ArmId);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandStowManipulatorArm(EEverwardManipulatorArmId ArmId);
+    // Issue #372 P1-2: one key per arm. A press during a stow redeploys; a press during a deploy stows; otherwise the
+    // press inverts the resting state (decided by everward::simulation::arm_toggle_command).
+    UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandToggleManipulatorArmDeployment(EEverwardManipulatorArmId ArmId);
+    // Issue #372 P2-1: a selection cursor over Count entries, always inside [0, Count - 1] (0 when empty).
+    UFUNCTION(BlueprintPure, Category="Everward|HUD") static int32 BoundedSelectionIndex(int32 Index, int32 Delta, int32 Count);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandSetManipulatorJointTargetDegrees(EEverwardManipulatorArmId ArmId, EEverwardManipulatorJoint Joint, double TargetDegrees);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandAttachManipulatorTool(EEverwardManipulatorArmId ArmId);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandDetachManipulatorTool(EEverwardManipulatorArmId ArmId);

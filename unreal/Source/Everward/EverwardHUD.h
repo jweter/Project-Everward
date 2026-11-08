@@ -26,6 +26,7 @@ public:
 
     UFUNCTION(BlueprintPure, Category="Everward|HUD")
     int32 GetSelectedCapabilityIndex() const;
+    int32 InstalledCapabilityCount() const;
 
     UFUNCTION(BlueprintCallable, Category="Everward|HUD")
     void ToggleControlsReference();

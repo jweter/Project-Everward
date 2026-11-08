@@ -596,16 +596,10 @@ void AEverwardPlayerController::ToggleManipulatorArmDeployment(EEverwardManipula
         }
 
         // A single key toggles direction rather than requiring separate
-        // deploy/stow keys per arm. Mid-transition presses reverse cleanly
-        // (ManipulatorRig::begin_deploy/begin_stow both support this).
-        if (ArmState.bIsDeployed || ArmState.bIsDeploying)
-        {
-            (void)Adapter->CommandStowManipulatorArm(ArmId);
-        }
-        else
-        {
-            (void)Adapter->CommandDeployManipulatorArm(ArmId);
-        }
+        // deploy/stow keys per arm. Mid-transition presses reverse cleanly; the
+        // adapter decides the direction from the motion in progress (issue #372
+        // P1-2: bIsDeployed stays true until a stow completes, so it cannot).
+        (void)Adapter->CommandToggleManipulatorArmDeployment(ArmId);
         return;
     }
 }
