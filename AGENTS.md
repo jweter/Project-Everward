@@ -49,6 +49,10 @@ For every **owner-chosen Aura** playtest, the engineering preparation should fir
 
 **This does NOT grant Aura execution authority to AI or Iron God.** MCP setup/preflight may be automated only with owner/editor-lock safeguards; Aura initiation and spending remain exclusively Jeremy's choice. Absent a successful MCP preflight, record the evidence gap rather than fabricate a connection, force a new paid run or block unrelated native testing.
 
+## No new paid Aura playtesting until all first-run issues are verified closed
+
+**Mandatory owner gate:** [Issue #378](https://github.com/jweter/Project-Everward/issues/378) requires **ALL G01–G13** to be independently completed (or proven not to be a bug with source/Unreal evidence) **before any agent recommends another owner-run paid Aura session**. Neither the closed historical #372 nor merging the mining fix #375 clears this gate; actual Unreal scan→mine→Fix_It verification, scan/arm/HUD fixes, collision, save/load, power-policy, test harness and recorder/MCP acceptance all remain in scope. No future paid Aura test is needed or permitted as a regression gate. Continue development using C++/native Unreal/local worker tests without Aura.
+
 ## Owner-only Aura Autopilot cost boundary (2026-11-08)
 
 **Only Jeremy initiates Aura Autopilot sessions.** No Claude, Codex, ChatGPT, Iron God, scheduled worker, CI job, MCP tool, desktop command, or script may launch, run, retry, schedule, or pay for Aura tests, even if Aura is installed and logged in. Do not integrate Aura calls into automated QA or enable a global Claude/MCP route to spend credits. The owner separately chooses each paid exploratory run. This supersedes earlier proposals for agent-operated Aura.
