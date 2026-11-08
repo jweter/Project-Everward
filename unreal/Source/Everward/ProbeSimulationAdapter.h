@@ -311,6 +311,21 @@ struct EVERWARD_API FEverwardTractorFieldStatus
     UPROPERTY(BlueprintReadOnly, Category="Everward|Tractor") FString Detail;
 };
 
+// Read-only mirror of everward::simulation::MiningStagingSolution (issue #372 P0-1): where the probe must be, and how
+// the selected arm must be posed, for the tool tip to sit inside mining reach of a deposit. Authors no mining credit;
+// MiningSystem (the G command) remains the only judge of reach.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardMiningStagingSolution
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining") bool bHasSolution = false;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining") FVector ProbePositionMeters = FVector::ZeroVector;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining") double ShoulderDegrees = 0.0;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining") double ElbowDegrees = 0.0;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining") double WristDegrees = 0.0;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Mining") double ToolSurfaceGapMeters = 0.0;
+};
+
 USTRUCT(BlueprintType)
 struct EVERWARD_API FEverwardManipulatorReachStatus
 {
@@ -432,6 +447,9 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Policy") FEverwardSoftwarePolicyStatus GetSoftwarePolicyStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Manipulator") TArray<FEverwardManipulatorArmState> GetManipulatorArmStates() const;
     UFUNCTION(BlueprintPure, Category="Everward|Manipulator") FEverwardManipulatorReachStatus GetManipulatorReachStatus(EEverwardManipulatorArmId ArmId) const;
+    // Computed from the arm's real kinematics at the probe's current attitude; fails closed (bHasSolution false) when
+    // the target is unknown or no collision-free pose reaches it. Costs a few milliseconds: call on demand, not per tick.
+    UFUNCTION(BlueprintCallable, Category="Everward|Mining") FEverwardMiningStagingSolution GetMiningStagingSolution(EEverwardManipulatorArmId ArmId, const FString& TargetBodyId) const;
     UFUNCTION(BlueprintPure, Category="Everward|Mining") FEverwardMiningStatus GetMiningStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Telemetry") TArray<FEverwardMaterialInventoryEntry> GetStoredMaterialInventory() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;

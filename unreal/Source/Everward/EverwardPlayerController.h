@@ -94,6 +94,13 @@ private:
 
     int32 SelectedMiningTargetIndex = 0;
     bool bAutoApproachMiningTarget = false;
+    // The staging pose solved when P engaged (issue #372 P0-1): where the probe stops and the selected arm's joints.
+    FVector AutoApproachStagingPointMeters = FVector::ZeroVector;
+    double AutoApproachShoulderDegrees = 0.0;
+    double AutoApproachElbowDegrees = 0.0;
+    double AutoApproachWristDegrees = 0.0;
+    double AutoApproachToolGapMeters = 0.0;
+    void AlignSelectedArmToMiningPose();
 
     bool bJoseAutopilotEngaged = false;
     FString JoseDestinationTargetId;
@@ -121,8 +128,6 @@ private:
     double ManipulatorJointAdjustmentDegrees = 5.0;
     UPROPERTY(EditAnywhere, Category="Everward|Mining", meta=(ClampMin="0.1"))
     double AutoApproachSpeedMetersPerSecond = 2.0;
-    UPROPERTY(EditAnywhere, Category="Everward|Mining", meta=(ClampMin="0.1"))
-    double AutoApproachSideStandoffMeters = 6.5;
     UPROPERTY(EditAnywhere, Category="Everward|Mining", meta=(ClampMin="0.01"))
     double AutoApproachStopToleranceMeters = 0.25;
     UPROPERTY(EditAnywhere, Category="Everward|Autopilot", meta=(ClampMin="0.1"))
