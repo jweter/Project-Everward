@@ -12,12 +12,14 @@
 #include "everward/simulation/manipulator.hpp"
 #include "everward/simulation/manipulator_hull_contact.hpp"
 #include "everward/simulation/manipulator_reach.hpp"
+#include "everward/simulation/mining_staging.hpp"
 #include "everward/simulation/manipulator_collection.hpp"
 #include "everward/simulation/manipulator_grasp.hpp"
 #include "everward/simulation/manipulator_move.hpp"
 #include "everward/simulation/manipulator_release.hpp"
 #include "everward/simulation/save_data.hpp"
 
+#include <algorithm>
 #include <exception>
 #include <string>
 
@@ -633,6 +635,33 @@ FEverwardManipulatorReachStatus UProbeSimulationAdapter::GetManipulatorReachStat
     Result.bInReach = Reach->in_reach;
     Result.WristRangeToSurfaceMeters = Reach->wrist_range_to_surface_m;
     Result.RemainingDistanceMeters = Reach->remaining_distance_m;
+    return Result;
+}
+
+FEverwardMiningStagingSolution UProbeSimulationAdapter::GetMiningStagingSolution(EEverwardManipulatorArmId ArmId, const FString& TargetBodyId) const
+{
+    FEverwardMiningStagingSolution Result;
+    if (Core == nullptr) return Result;
+
+    const std::string TargetId(TCHAR_TO_UTF8(*TargetBodyId));
+    const std::vector<everward::simulation::StaticSphereBody>& Bodies = Core->static_bodies();
+    const auto Target = std::find_if(Bodies.begin(), Bodies.end(), [&TargetId](const everward::simulation::StaticSphereBody& Body) {
+        return Body.body_id == TargetId;
+    });
+    if (Target == Bodies.end()) return Result;
+
+    const everward::simulation::ProbeStateSnapshot& State = Core->snapshot();
+    const auto Solution = everward::simulation::mining_staging_solution(
+        ToSimulationManipulatorArmId(ArmId), *Target, State.attitude_degrees, State.position_m,
+        everward::simulation::ProbeCompoundCollisionEnvelope{}, Bodies);
+    if (!Solution.has_value()) return Result;
+
+    Result.bHasSolution = true;
+    Result.ProbePositionMeters = FVector(Solution->probe_position_m.x, Solution->probe_position_m.y, Solution->probe_position_m.z);
+    Result.ShoulderDegrees = Solution->angles.shoulder_degrees;
+    Result.ElbowDegrees = Solution->angles.elbow_degrees;
+    Result.WristDegrees = Solution->angles.wrist_degrees;
+    Result.ToolSurfaceGapMeters = Solution->tool_surface_gap_m;
     return Result;
 }
 
