@@ -85,7 +85,7 @@ class UnrealAIProfileTests(unittest.TestCase):
                            capture_output=True, text=True)
             project = primary / "unreal" / "Everward.uproject"
             project.parent.mkdir()
-            original = '{"FileVersion": 3, "Modules": []}\\n'
+            original = '{"FileVersion": 3, "Modules": []}\n'
             project.write_text(original, encoding="utf-8")
             subprocess.run(["git", "-C", str(primary), "add", "."], check=True,
                            capture_output=True, text=True)
@@ -104,7 +104,7 @@ class UnrealAIProfileTests(unittest.TestCase):
             self.assertEqual({e["Name"] for e in configured["Plugins"]}, set(PLUGIN_NAMES))
             second = subprocess.run(invocation, text=True, capture_output=True, check=False)
             self.assertEqual(second.returncode, 2)
-            self.assertIn("dirty", second.stderr.lower()) if "dirty" in second.stderr.lower() else self.assertIn("edited project descriptor", second.stderr.lower())
+            self.assertIn("edited project descriptor", second.stderr.lower())
 
 
 if __name__ == "__main__":
