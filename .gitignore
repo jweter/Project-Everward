@@ -55,3 +55,6 @@ private/product-reality-inbox/
 
 # Local experimental Unreal MCP client configuration (never commit)
 .mcp.json
+
+# Locally staged experimental Aura binaries, never commit or ship
+/unreal/Plugins/Autopilot/

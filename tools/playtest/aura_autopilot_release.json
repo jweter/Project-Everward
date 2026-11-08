@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "product": "Aura Autopilot",
+  "upstream_repository": "https://github.com/ramenvr/autopilot",
+  "upstream_tag": "v1.0.0-9e0fbb0",
+  "release_date_utc": "2026-11-06T21:51:06Z",
+  "archive_filename": "Autopilot-Unreal5.8-Win64.zip",
+  "download_url": "https://github.com/ramenvr/autopilot/releases/download/v1.0.0-9e0fbb0/Autopilot-Unreal5.8-Win64.zip",
+  "sha256": "1e5954087c5d70b03bb25a5d22b92420fe87966131b928fa07402db0002c8e8e",
+  "archive_bytes": 50625623,
+  "engine_version": "5.8",
+  "platform": "Windows-Win64",
+  "license": "Apache-2.0",
+  "shipping_ban": true,
+  "allowed_install_scope": "User-authorized isolated Everward-Aura-Pilot clone only",
+  "service_installation_approved": false,
+  "model_api_spending_approved": false,
+  "auto_share_runs": false,
+  "account_login_requires_user_action": true,
+  "semantic_note": "Package checksum and archive structure verified on Azathoth 2026-11-08; no engine smoke, gameplay run, account login, or API key setup implied."
+}
