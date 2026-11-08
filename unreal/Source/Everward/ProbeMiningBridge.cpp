@@ -181,6 +181,21 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandMineBootstrapTarget(
         }
     }
 
+    if (!Result.accepted)
+    {
+        // Rejections are diagnostics, never success. Preserve the exact
+        // simulation reason so an unattended agent can reproduce a blocked
+        // reach/tool/survey/storage attempt without guessing from the HUD.
+        const FString TargetIdText = UTF8_TO_TCHAR(TargetId.c_str());
+        RecordSimulationPlaytestEvent(
+            TEXT("mining_attempt_rejected"),
+            FString::Printf(
+                TEXT("target=%s;reason=%s;simulation_tick=%lld"),
+                *TargetIdText,
+                UTF8_TO_TCHAR(Result.detail.c_str()),
+                static_cast<long long>(Core->tick())));
+    }
+
     LastAutomationNotice.Sequence = ++AutomationSequence;
     LastAutomationNotice.bRejected = !Result.accepted;
     LastAutomationNotice.Detail = UTF8_TO_TCHAR(Result.detail.c_str());
