@@ -43,6 +43,16 @@ Use it to:
 - keep scanning, manipulation/mining, inventory/resources, self-repair, and restored-capability progression connected as a coherent player loop rather than isolated systems;
 - update the assessment when major verified Product Reality materially changes its conclusions or score.
 
+## MCP-first playtest evidence protocol
+
+For every **owner-chosen Aura** playtest, the engineering preparation should first confirm official **Unreal MCP** connectivity with a **real read-only editor tool response** and capture the exact build/map/source provenance and available starting state. During the owner-run Aura session, no competing client may control Unreal through MCP; collect Everward-owned recorder events/telemetry. Afterwards, correlate the Aura report, recorder timeline, Unreal/MCP pre/post snapshots and current source before opening small, independently testable defects. Details and fail-closed status handling: `docs/integrations/UNREAL_MCP_AURA_PLAYTEST_EVIDENCE_WORKFLOW_2026-11-08.md`.
+
+**This does NOT grant Aura execution authority to AI or Iron God.** MCP setup/preflight may be automated only with owner/editor-lock safeguards; Aura initiation and spending remain exclusively Jeremy's choice. Absent a successful MCP preflight, record the evidence gap rather than fabricate a connection, force a new paid run or block unrelated native testing.
+
+## No new paid Aura playtesting until all first-run issues are verified closed
+
+**Mandatory owner gate:** [Issue #378](https://github.com/jweter/Project-Everward/issues/378) requires **ALL G01–G13** to be independently completed (or proven not to be a bug with source/Unreal evidence) **before any agent recommends another owner-run paid Aura session**. Neither the closed historical #372 nor merging the mining fix #375 clears this gate; actual Unreal scan→mine→Fix_It verification, scan/arm/HUD fixes, collision, save/load, power-policy, test harness and recorder/MCP acceptance all remain in scope. No future paid Aura test is needed or permitted as a regression gate. Continue development using C++/native Unreal/local worker tests without Aura.
+
 ## Owner-only Aura Autopilot cost boundary (2026-11-08)
 
 **Only Jeremy initiates Aura Autopilot sessions.** No Claude, Codex, ChatGPT, Iron God, scheduled worker, CI job, MCP tool, desktop command, or script may launch, run, retry, schedule, or pay for Aura tests, even if Aura is installed and logged in. Do not integrate Aura calls into automated QA or enable a global Claude/MCP route to spend credits. The owner separately chooses each paid exploratory run. This supersedes earlier proposals for agent-operated Aura.

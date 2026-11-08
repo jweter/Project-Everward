@@ -20,11 +20,21 @@ Treat `docs/INDUSTRY_REALITY_CHECK.md` as a durable quality-gap baseline, not as
 
 `docs/QUANTUM_SCIENCE_CANON.md` is additive future-science canon, not permission to displace the current phase/milestone. Quantum-themed features must identify a real physical mechanism, measurable quantity, limitation/noise source, gameplay decision, classical fallback, and Product Reality test. Entanglement must not be used for faster-than-light messaging, quantum teleportation must not become macroscopic matter transport, and quantum computation must not be treated as infinite/general-purpose acceleration.
 
+## Hard stop on future Aura testing until first-run repair gate passes
+
+The owner explicitly requires **every** finding from 2026-11-08 fixed or conclusively disproven, and objectively verified in Unreal, *before he will consider another paid Aura playtest*. Use [issue #378](https://github.com/jweter/Project-Everward/issues/378) as the mandatory G01–G13 release gate, not merely closed #372. Prioritize implementation and non-Aura regression acceptance; don't suggest an additional Aura run or make it necessary for a PR. The merged #375 mining fix still requires true Unreal gameplay verification. Only the owner may ever decide to execute paid Aura after the gate clears.
+
 ## Owner-only Aura playtesting
 
 **Do not invoke Aura Autopilot or connect its CLI/MCP/service to autonomous Claude or Iron God workflows.** Aura consumes owner-controlled credits; only Jeremy manually chooses and runs a session in Unreal. Account presence, prior successful onboarding, installed plugin and existing report are NOT consent for another run. Never schedule, retry, or auto-start Aura.
 
 You *may* analyze completed owner-provided reports, create focused issues/PRs, debug the root causes, and perform standard unpaid simulation/Unreal tests to verify fixes. Do not make a new Aura run a prerequisite for finishing independent engineering work. Read `docs/integrations/OWNER_RUN_AURA_REPORT_TO_ROADMAP.md` and issue #372 before development driven by the first Aura run.
+
+## Owner-run playtest: Unreal MCP before, evidence reconciliation after
+
+Read `docs/integrations/UNREAL_MCP_AURA_PLAYTEST_EVIDENCE_WORKFLOW_2026-11-08.md` before advising or processing a future Aura playtest. The owner reports successful connection from a local terminal; this is an **owner-observed milestone**, not proof that every future session's editor/tool handshake works. Verify a real read-only Unreal MCP operation before the next chosen test and record actual map/version/SHA/dirty state and available initial state. Then **stop MCP control requests** while the owner runs Aura. Afterward, compare independent recorder/telemetry/state changes and the finished Aura report before assigning cause, classifying defects and generating bounded roadmap/repair PRs.
+
+Never initiate Aura, run its MCP/CLI or spend Aura credits. Native local Unreal tests and conventional CI remain the free regression path; no new paid Aura run is required to finish a fix.
 
 ## Official Unreal MCP connection on Azathoth
 
