@@ -20,6 +20,10 @@ Treat `docs/INDUSTRY_REALITY_CHECK.md` as a durable quality-gap baseline, not as
 
 `docs/QUANTUM_SCIENCE_CANON.md` is additive future-science canon, not permission to displace the current phase/milestone. Quantum-themed features must identify a real physical mechanism, measurable quantity, limitation/noise source, gameplay decision, classical fallback, and Product Reality test. Entanglement must not be used for faster-than-light messaging, quantum teleportation must not become macroscopic matter transport, and quantum computation must not be treated as infinite/general-purpose acceleration.
 
+## Hard stop on future Aura testing until first-run repair gate passes
+
+The owner explicitly requires **every** finding from 2026-11-08 fixed or conclusively disproven, and objectively verified in Unreal, *before he will consider another paid Aura playtest*. Use [issue #378](https://github.com/jweter/Project-Everward/issues/378) as the mandatory G01–G13 release gate, not merely closed #372. Prioritize implementation and non-Aura regression acceptance; don't suggest an additional Aura run or make it necessary for a PR. The merged #375 mining fix still requires true Unreal gameplay verification. Only the owner may ever decide to execute paid Aura after the gate clears.
+
 ## Owner-only Aura playtesting
 
 **Do not invoke Aura Autopilot or connect its CLI/MCP/service to autonomous Claude or Iron God workflows.** Aura consumes owner-controlled credits; only Jeremy manually chooses and runs a session in Unreal. Account presence, prior successful onboarding, installed plugin and existing report are NOT consent for another run. Never schedule, retry, or auto-start Aura.
