@@ -4,6 +4,10 @@
 
 **The development engine remains autonomous without Aura:** after Jeremy finishes a session and makes the report available, Claude/ChatGPT/Iron God may *read* the existing local report and related existing Unreal playtest records, analyze source, prioritize work, author tests, implement repairs, perform normal free/local C++ and UE objective tests, open issues/PRs, and verify results. Never let lack of a new Aura session block ordinary development.
 
+## Immediate override: complete all first-run defects before any new Aura run
+
+The owner has explicitly required **complete correction and independent Unreal verification of the entire 2026-11-08 first-playtest finding list before another paid Aura run**. The detailed authoritative release gate is [#378](https://github.com/jweter/Project-Everward/issues/378), items G01–G13. This supersedes any earlier suggestion to re-run after just the mining geometry fix, a single passing PR, or first Unreal MCP connectivity. Continue free/local deterministic engineering and native Unreal tests; **do not propose or trigger paid Aura re-testing while any G-item remains open**. Even after closure, Jeremy alone decides whether to conduct an exploratory run.
+
 ## Before a manually initiated Aura run: Unreal MCP evidence preflight
 
 The owner has now connected to **official Unreal MCP from a local terminal**. For future paid exploratory runs, first verify the *current* editor connection with an actual read-only MCP result, record exact build/map/dirty-tree and reachable starting-state evidence, and ensure the Everward recorder is ready. During the owner-run session, do **not** issue concurrent Unreal MCP operations that could disrupt Aura's control of PIE. After completion, reconcile existing Aura report **plus** authoritative Unreal recorder/events and optional MCP postflight. Details: `UNREAL_MCP_AURA_PLAYTEST_EVIDENCE_WORKFLOW_2026-11-08.md`.
