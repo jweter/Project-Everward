@@ -560,7 +560,7 @@ void AEverwardHUD::DrawHUD()
         int32 ManipulatorRows = 0;
         for (const FEverwardManipulatorArmState& Arm : ManipulatorArms)
         {
-            ManipulatorRows += Arm.bIsDeployed ? 4 : 2;
+            ManipulatorRows += Arm.bAcceptsJointCommands ? 4 : 2;
         }
         if (bShowReachRow)
         {
@@ -585,9 +585,12 @@ void AEverwardHUD::DrawHUD()
                 Margin + S(16.0f), ArmY, HudFont, ReadableTextScale(HudScale, 0.96f), false);
             ArmY += LineHeight;
 
-            if (!Arm.bIsDeployed)
+            // Issue #372 F6: joint rows only when the rig would accept a joint command.
+            if (!Arm.bAcceptsJointCommands)
             {
-                DrawText(TEXT("    DEPLOY ARM TO COMMAND JOINTS"), MutedColor,
+                DrawText(Arm.bIsStowing ? TEXT("    ARM STOWING - PRESS ITS KEY AGAIN TO REDEPLOY")
+                             : Arm.bIsDeploying ? TEXT("    ARM DEPLOYING - JOINTS UNLOCK WHEN FULLY DEPLOYED")
+                             : TEXT("    DEPLOY ARM TO COMMAND JOINTS"), MutedColor,
                     Margin + S(16.0f), ArmY, HudFont, ReadableTextScale(HudScale, 0.90f), false);
                 ArmY += LineHeight;
                 continue;
@@ -1014,14 +1017,22 @@ void AEverwardHUD::ToggleSystemsPanel()
     bSystemsExpanded = !bSystemsExpanded;
 }
 
+int32 AEverwardHUD::InstalledCapabilityCount() const
+{
+    const AEverwardProbePawn* Probe = PlayerOwner != nullptr ? Cast<AEverwardProbePawn>(PlayerOwner->GetPawn()) : nullptr;
+    const UProbeSimulationAdapter* Adapter = Probe != nullptr ? Probe->GetSimulationAdapter() : nullptr;
+    return Adapter != nullptr ? Adapter->GetInstalledCapabilities().Num() : 0;
+}
+
+// Issue #372 P2-1: bounded at input time, whether or not the Systems panel is open (it used to clamp only when drawn).
 void AEverwardHUD::SelectNextCapability()
 {
-    ++SelectedCapabilityIndex;
+    SelectedCapabilityIndex = UProbeSimulationAdapter::BoundedSelectionIndex(SelectedCapabilityIndex, +1, InstalledCapabilityCount());
 }
 
 void AEverwardHUD::SelectPreviousCapability()
 {
-    SelectedCapabilityIndex = FMath::Max(0, SelectedCapabilityIndex - 1);
+    SelectedCapabilityIndex = UProbeSimulationAdapter::BoundedSelectionIndex(SelectedCapabilityIndex, -1, InstalledCapabilityCount());
 }
 
 bool AEverwardHUD::IsSystemsPanelExpanded() const

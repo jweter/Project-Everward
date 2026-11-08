@@ -93,8 +93,12 @@ class Phase2ManipulatorArmSurfaceTests(unittest.TestCase):
         self.assertIn("ToggleStarboardManipulatorArm", self.controller_h)
         self.assertIn("ToggleManipulatorTool", self.controller_h)
         self.assertIn("GetManipulatorArmStates", self.controller_cpp)
-        self.assertIn("CommandDeployManipulatorArm", self.controller_cpp)
-        self.assertIn("CommandStowManipulatorArm", self.controller_cpp)
+        # Issue #372 P1-2: the controller asks the adapter to toggle; the adapter picks deploy or stow from the motion
+        # in progress (arm_toggle_command) and issues the same two authoritative commands.
+        self.assertIn("CommandToggleManipulatorArmDeployment", self.controller_cpp)
+        self.assertIn("arm_toggle_command", self.adapter_cpp)
+        self.assertIn("CommandDeployManipulatorArm(ArmId)", self.adapter_cpp)
+        self.assertIn("CommandStowManipulatorArm(ArmId)", self.adapter_cpp)
         self.assertIn("CommandAttachManipulatorTool", self.controller_cpp)
         self.assertIn("CommandDetachManipulatorTool", self.controller_cpp)
 

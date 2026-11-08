@@ -13,6 +13,7 @@
 #include "everward/simulation/manipulator_hull_contact.hpp"
 #include "everward/simulation/manipulator_reach.hpp"
 #include "everward/simulation/mining_staging.hpp"
+#include "everward/simulation/first_loop_controls.hpp"
 #include "everward/simulation/manipulator_collection.hpp"
 #include "everward/simulation/manipulator_grasp.hpp"
 #include "everward/simulation/manipulator_move.hpp"
@@ -119,6 +120,7 @@ FEverwardManipulatorArmState ToUnrealManipulatorArmState(
     Out.bIsDeployed = State.is_deployed;
     Out.bIsDeploying = State.is_deploying;
     Out.bIsStowing = State.is_stowing;
+    Out.bAcceptsJointCommands = everward::simulation::arm_accepts_joint_commands(State.is_deployed, State.is_deploying, State.is_stowing);
     Out.DeploymentFraction = State.deployment_fraction;
     Out.ShoulderDegrees = State.angles.shoulder_degrees;
     Out.ElbowDegrees = State.angles.elbow_degrees;
@@ -387,6 +389,14 @@ void UProbeSimulationAdapter::TickComponent(
             LastScanLifecycleNotice.bCancelled =
                 Event.type == everward::simulation::DomainEventType::ScanCancelled;
             LastScanLifecycleNotice.Detail = UTF8_TO_TCHAR(Event.detail.c_str());
+
+            // Issue #372 P1-1: a completed survey is durable. Latch it here, on the real ScanCompleted event for the
+            // bootstrap deposit, so a later scan that is cancelled (which replaces the notice above) cannot take it away.
+            if (everward::simulation::scan_event_completes_survey(
+                    Event, TCHAR_TO_UTF8(AEverwardPhase2TestEnvironment::BootstrapScanTargetId)))
+            {
+                bBootstrapResourceSurveyed = true;
+            }
 
             // These are actual simulation domain events, not inferred from a
             // successful input command or an agent's narrative. A cancelled
@@ -799,6 +809,20 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandDeployManipulatorArm
             FString::Printf(TEXT("%s arm deploying"), ManipulatorArmName(ArmId)));
     }
     catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandToggleManipulatorArmDeployment(EEverwardManipulatorArmId ArmId)
+{
+    if (Manipulators == nullptr) return RecordCommandResult(FName(TEXT("toggle_manipulator_arm")), false, TEXT("manipulator unavailable"));
+    const everward::simulation::ManipulatorArmState& State = Manipulators->arm(ToSimulationManipulatorArmId(ArmId));
+    return everward::simulation::arm_toggle_command(State) == everward::simulation::ArmToggleCommand::Stow
+        ? CommandStowManipulatorArm(ArmId)
+        : CommandDeployManipulatorArm(ArmId);
+}
+
+int32 UProbeSimulationAdapter::BoundedSelectionIndex(int32 Index, int32 Delta, int32 Count)
+{
+    return everward::simulation::bounded_selection(Index, Delta, Count);
 }
 
 FEverwardProbeCommandResult UProbeSimulationAdapter::CommandStowManipulatorArm(EEverwardManipulatorArmId ArmId)
