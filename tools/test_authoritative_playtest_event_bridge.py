@@ -37,8 +37,14 @@ class AuthoritativePlaytestEventBridgeTests(unittest.TestCase):
         self.assertIn('TEXT("mining_reach_verified")', delta_gate)
         self.assertIn("Result.tool_surface_gap_m", delta_gate)
         self.assertIn("Core->tick()", delta_gate)
+        self.assertIn('TEXT("mining_geometry_contact")', delta_gate)
+        self.assertIn("GeometryContactToleranceMeters = 0.025", delta_gate)
+        self.assertIn("Result.tool_surface_gap_m >= -0.02", delta_gate)
+        self.assertIn("Result.tool_surface_gap_m <= GeometryContactToleranceMeters", delta_gate)
         self.assertNotIn('TEXT("mining_contact")', MINING)
         self.assertLess(delta_gate.index('TEXT("mining_reach_verified")'),
+                        delta_gate.index('TEXT("mining_geometry_contact")'))
+        self.assertLess(delta_gate.index('TEXT("mining_geometry_contact")'),
                         delta_gate.index('TEXT("material_collected")'))
 
     def test_rejected_mining_records_diagnostic_never_false_extraction(self):
@@ -47,6 +53,7 @@ class AuthoritativePlaytestEventBridgeTests(unittest.TestCase):
         self.assertIn("Result.detail.c_str()", reject)
         self.assertNotIn('TEXT("material_collected")', reject)
         self.assertNotIn('TEXT("mining_reach_verified")', reject)
+        self.assertNotIn('TEXT("mining_geometry_contact")', reject)
 
     def test_bridge_optional_nonblocking_and_does_not_change_simulation_state(self):
         self.assertIn("void RecordSimulationPlaytestEvent(const FString& EventName, const FString& Detail) const;", ADAPTER_HEADER)
@@ -64,6 +71,8 @@ class AuthoritativePlaytestEventBridgeTests(unittest.TestCase):
         self.assertIn("MiningSystem::kGeneration1ToolWorkingReachM", MINING)
         self.assertIn('"Reach" means within the Gen-1', MINING)
         self.assertNotIn('TEXT("mining_contact")', MINING)
+        self.assertIn('TEXT("mining_geometry_contact")', MINING)
+        self.assertIn("Result.tool_surface_gap_m <= GeometryContactToleranceMeters", MINING)
 
 
 if __name__ == "__main__":
