@@ -159,6 +159,77 @@
           "verification": [
             "https://github.com/jweter/Project-Everward/pull/363 merged (capable-builder pull request)"
           ]
+        },
+        {
+          "id": "first-loop-chained-simulation-test",
+          "state": "PLANNED",
+          "capability_level": 3,
+          "depends_on": [
+            "first-loop-verification"
+          ],
+          "objective": "Add one engine-independent C++ simulation test that chains wake, scan, collect, repair (Fix_It) and starter restoration in a single deterministic simulation run, closing the 'chained proof not claimed' limit in docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md, and update that document's limits to cite it. Roadmap: docs/OWNER_APPROVED_ROADMAP_2026-10-25.md#next-slices item 3.",
+          "acceptance": [
+            "The test runs under the existing src/simulation CMake/ctest harness and is deterministic across repeated runs.",
+            "It reaches starter restoration only through scan, collection and Fix_It consuming stored material and energy; no state is injected to skip a step.",
+            "Evidence doc is updated truthfully; in-engine steps remain PENDING.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "src/simulation/**",
+            "tests/**",
+            "Tests/**",
+            "docs/**",
+            "tools/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "offline"
+          ],
+          "runtime_requirements": []
+        },
+        {
+          "id": "first-loop-repeatable-objective",
+          "state": "PLANNED",
+          "capability_level": 4,
+          "depends_on": [
+            "first-loop-chained-simulation-test"
+          ],
+          "objective": "Implement the smallest engine-independent repeatable objective that follows starter restoration (evidence step 9: currently one-time status only) in src/simulation, deterministic and saved/loaded with existing save data, with portable tests. Do not add a fabrication module (Slice 13) in this slice. Roadmap: docs/OWNER_APPROVED_ROADMAP_2026-10-25.md#first-playable-unreal-milestone.",
+          "acceptance": [
+            "A second objective cycle can be triggered and completed deterministically from simulation state after restoration.",
+            "Objective state round-trips through save/load and keeps backward compatibility with existing saves.",
+            "Simulation truth stays engine-independent; presentation is not gameplay authority; Unreal Product Reality stays PENDING.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "src/simulation/**",
+            "tests/**",
+            "Tests/**",
+            "docs/**",
+            "tools/**",
+            "engineering/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "offline"
+          ],
+          "runtime_requirements": []
         }
       ]
     }
