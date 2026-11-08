@@ -52,3 +52,6 @@ private/product-reality-inbox/
 
 # Standalone procedural teardown development render output
 /teardown-out/
+
+# Local experimental Unreal MCP client configuration (never commit)
+.mcp.json
