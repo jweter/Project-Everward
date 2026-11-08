@@ -4,6 +4,14 @@
 
 **Owner-only payment boundary remains absolute.** Jeremy alone starts, operates and ends Aura. No Claude, ChatGPT, Iron God, scheduled job, CI, MCP adapter or autonomous worker can start, control, retry, schedule, or incur fees for Aura. Unreal MCP is an independent local editor bridge, **not** Aura MCP. Offline analysis of a completed owner run, and *non-Aura* deterministic tests, remain authorized. See `OWNER_RUN_AURA_REPORT_TO_ROADMAP.md`.
 
+## HARD GATE before any *future* paid Aura playtest (owner direction 2026-11-08)
+
+**As of this instruction, NO additional paid Aura playtest is in scope.** The owner requires **EVERY item** from the first run fixed or conclusively ruled out with independently measured evidence **before** another paid exploration can even be proposed. Full authoritative checklist: [Issue #378 — Aura Retest Release Gate](https://github.com/jweter/Project-Everward/issues/378), items **G01 through G13**.
+
+The MCP preflight/postflight procedure below is a *future capability*, **not** a reason to run Aura now. During the current engineering cycle, implement and execute the same MCP/recorder/Unreal tests using **free local native tests only**. Close all G-items with targeted regression and actual in-editor evidence at the accepted exact candidate build; merge and verify fixes with no unresolved critical behavior. If evidence disproves a suspected bug, document why, including the correct hull/test methodology. Issue #372's prior closure and merged PR #375 do not satisfy unverified G-items.
+
+**Only after all G01–G13 pass** may an optional new owner-run exploratory session be discussed. Even when issue #378 is closed, Jeremy personally controls timing, approval and all paid Aura execution; no agent ever runs Aura.
+
 ## Why use both sources?
 
 - **Unreal MCP (editor source of truth):** Discover the opened project, map and available read-only inspection tools, capture the target build/level/config and preconditions; when supported, inspect actor positions and game/simulation state. After the run, inspect the same build and available level state. MCP's evidence is a snapshot, not automatically continuous gameplay telemetry.
