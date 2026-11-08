@@ -15,7 +15,7 @@ from collections.abc import Mapping
 PLUGIN_NAMES = (
     "PCG",
     "ModelContextProtocol",
-    "ToolsetRegistry",
+    "AllToolsets",
     "PCGToolset",
     "SemanticSearch",
 )
