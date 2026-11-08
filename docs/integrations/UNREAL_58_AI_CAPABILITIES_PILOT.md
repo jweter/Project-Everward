@@ -14,7 +14,7 @@ Authoritative baseline: AGENTS.md, docs/PROJECT_STATUS.md, docs/UNATTENDED_VERIF
 | Capability | UE plugin declaration | Official documentation |
 | --- | --- | --- |
 | Unreal MCP server | ModelContextProtocol | https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor |
-| MCP tool dispatch | AllToolsets (ToolsetRegistry dependency automatic) | Same Unreal MCP documentation; narrower individual toolsets may later replace AllToolsets |
+| MCP tool dispatch (scoped) | EditorToolset + AutomationTestToolset (ToolsetRegistry dependency automatic) | Individual toolsets are sufficient for initial editor inspection and test automation; the AllToolsets aggregator is intentionally excluded |
 | Procedural content | PCG | https://dev.epicgames.com/documentation/unreal-engine/procedural-content-generation-overview |
 | PCG via MCP | PCGToolset | https://dev.epicgames.com/documentation/unreal-engine/working-with-pcg-and-llms-using-unreal-mcp-in-unreal-engine |
 | Semantic Content Browser search | SemanticSearch | https://dev.epicgames.com/documentation/unreal-engine/semantic-search-in-unreal-enigne |
@@ -23,12 +23,19 @@ Unreal MCP is experimental, exposes a loopback HTTP server with no authenticatio
 
 Semantic Search is experimental. It uses an **OpenAI-compatible vision captioning /chat/completions endpoint plus /embeddings**, is not inherently offline/free, and Epic documents that configured API keys are stored in plaintext in editor per-user settings. Saving an asset may trigger auto-reindexing. **Do not enter API keys, use a paid remote provider, index private assets, or start uncached indexing automatically.** It can stay staged but unconfigured; review provider compatibility, local-capable vision/embedding models, total RAM, and explicit owner cost approval before testing. Search is optional to completing Phase 2 gameplay.
 
+## Verified hardware plugin inventory — Azathoth, 2026-11-08
+
+Read-only inspection confirmed installed UE_5.8 plugin descriptors for ModelContextProtocol, ToolsetRegistry, EditorToolset, AutomationTestToolset, AllToolsets, PCGToolset, PCG, SemanticSearch, PythonScriptPlugin, EditorScriptingUtilities, GeometryScripting and FunctionalTestingEditor. The MCP, PCGToolset and SemanticSearch plugins are experimental and disabled by default; PCG is enabled by default. This verifies files **on disk only**, not that the editor has loaded or tested them.
+
+The AllToolsets aggregator declares broad dependencies on roughly twenty-one distinct toolsets, including physics, animation, AI, Niagara, UI and other state-changing tools. The sandbox stage utility deliberately excludes AllToolsets and opts for narrower EditorToolset + AutomationTestToolset + PCGToolset. This is a reduction in exposure **not a security sandbox**; every MCP tool can still access editor state and requires an isolated worktree, agent allowlist, serialized calls and auditable action logs.
+
+No editor launched, server started, keys configured, third-party packages installed or production assets modified during this inventory.
 ## Non-destructive setup contract
 
 tools/unreal_ai_profile.py is a standard-library Python tool. No package installers, external processes or editor launch are built into it. It supports:
 
 1. Inspect the production or disposable project descriptor without changes: python tools/unreal_ai_profile.py --mode inspect
-2. After creating an **isolated linked Git worktree** on a feature branch, deliberately stage the five Epic plugin declarations in that worktree only: python tools/unreal_ai_profile.py --mode stage --ack-isolated-worktree --project unreal/Everward.uproject
+2. After creating an **isolated linked Git worktree** on a feature branch, deliberately stage the six scoped Epic plugin declarations in that worktree only: python tools/unreal_ai_profile.py --mode stage --ack-isolated-worktree --project unreal/Everward.uproject
 3. The tool refuses stage on main/master, the primary checkout, a non-linked checkout, missing/dirty uproject or missing explicit acknowledgement. This stages JSON plugin declarations only; it does not start the editor or server and does not validate that installed 5.8 plugins exist.
 4. Run python -m unittest discover -s tools -p test_unreal_ai_profile.py -v, then normal repo preflight.
 
