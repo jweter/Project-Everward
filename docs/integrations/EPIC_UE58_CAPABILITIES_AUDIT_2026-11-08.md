@@ -75,6 +75,17 @@ Suggested scorecard columns: feature, player-outcome dependency, existing covera
 5. Test **Geometry Scripting / Modeling Mode** on the canonical Prime A arm and equipment components; scale up only if asset quality and round-trip pivots improve.
 6. Add contact-driven **Niagara / MetaSounds** and contextual UI once mechanics produce truthful events; defer Mass/StateTree/World Partition until their underlying gameplay systems exist.
 
+## Follow-on: real AI game playtesting and durable native QA
+
+**2026-11-08 source verification:** The public [Aura Autopilot](https://github.com/ramenvr/autopilot) project is Apache-2.0 and documents Unreal 5.4–5.8 compatibility with editor PIE control and optional Claude/Codex integration. Its onboarding starts a model/agent service and may require an Aura account or a TypeSafe BYOK key; do not conflate open-source software with zero-cost or private operation. The vendor's reported benchmark is not Everward-specific.
+
+**Decision:** build test-owned truth first, then visual play agent. PR [#369](https://github.com/jweter/Project-Everward/pull/369) adds a fail-closed recorded-session evidence gate and a staged Unreal native-testing plan without installing Autopilot or modifying the existing Windows worker. The test fixture is synthetic and its pass is not evidence of a playable game. It is intentionally independent of the experimental official editor MCP pilot in [#367](https://github.com/jweter/Project-Everward/pull/367).
+
+Read-only inspection of Azathoth's installed UE_5.8 plugin descriptors confirms official ModelContextProtocol, ToolsetRegistry, AllToolsets, EditorToolset, AutomationTestToolset, PCGToolset, PCG, SemanticSearch, GeometryScripting, PythonScriptPlugin and FunctionalTestingEditor on disk. Presence is not proof of editor activation. Avoid exposing the broad AllToolsets aggregator initially.
+
+Use this dependency order: exact-head C++ and native Unreal Functional/Automation test -> independent adapter assertions and recorder event stream -> bounded real-input PIE session -> optional isolated Aura exploratory run -> issue/fix/CI/Unreal re-test -> gameplay Product Reality. Only the independent functional assertions can certify mechanical outcomes; subjective feel remains a milestone review.
+
+Official Epic references: [Automation Tests](https://dev.epicgames.com/documentation/unreal-engine/automation-test-framework-in-unreal-engine), [Gauntlet](https://dev.epicgames.com/documentation/unreal-engine/running-gauntlet-tests-in-unreal-engine), [PIE](https://dev.epicgames.com/documentation/unreal-engine/ineditor-testing-play-and-simulate-in-unreal-engine).
 ## Scope of this audit
 
 This is a broad **targeted, first-pass audit** of the highest-value documented UE5.8 subsystems for Everward, not a page-by-page crawl of Epic's entire documentation and not proof any subsystem was installed or tested. Continue with deeper subsystem-specific audits only when the roadmap reaches their dependency gates. Every follow-on should link to an actual roadmap item and measured outcome.
