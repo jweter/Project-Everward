@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "id": "phase2_first_repair",
+  "goal": "In one genuine Unreal PIE/packaged session, detect a real target, make tool contact, gain named material, and recover a damaged subsystem using Fix_It.",
+  "required_events": [
+    "fix_it_awakened",
+    "scan_completed",
+    "mining_contact",
+    "material_collected",
+    "fix_it_repair_started",
+    "fix_it_repair_completed"
+  ],
+  "required_assertions": [
+    "selected_target_confirmed",
+    "actual_tip_surface_contact",
+    "stored_material_increased",
+    "repair_consumed_material_and_energy",
+    "component_integrity_increased"
+  ],
+  "source_of_truth": "everward::simulation through UProbeSimulationAdapter and FixItRepairExecutor; no synthetic HUD/agent self-report as proof",
+  "notes": "The scan_completed, mining_contact and material_collected events are NOT confirmed to be emitted by the production recorder yet. The authoritative_assertions.json producer is also NOT implemented. Expect REVIEW_REQUIRED until engine instrumentation and true UI/playback verification exist."
+}
