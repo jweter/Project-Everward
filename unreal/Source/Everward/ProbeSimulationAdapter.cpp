@@ -366,6 +366,16 @@ void UProbeSimulationAdapter::TickComponent(
             LastAutomationNotice.Detail = UTF8_TO_TCHAR(Event.detail.c_str());
         }
 
+        if (Event.type == everward::simulation::DomainEventType::ScanStarted)
+        {
+            RecordSimulationPlaytestEvent(
+                TEXT("scan_started"),
+                FString::Printf(
+                    TEXT("simulation_tick=%lld;detail=%s"),
+                    static_cast<long long>(Event.tick),
+                    UTF8_TO_TCHAR(Event.detail.c_str())));
+        }
+
         if (Event.type == everward::simulation::DomainEventType::ScanCompleted ||
             Event.type == everward::simulation::DomainEventType::ScanCancelled)
         {
