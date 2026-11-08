@@ -126,7 +126,7 @@
         },
         {
           "id": "first-loop-verification",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 3,
           "depends_on": [
             "first-loop-integration-slice"
@@ -155,7 +155,10 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/363 merged (capable-builder pull request)"
+          ]
         }
       ]
     }
