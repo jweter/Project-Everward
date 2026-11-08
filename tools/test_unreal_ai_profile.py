@@ -75,5 +75,37 @@ class UnrealAIProfileTests(unittest.TestCase):
                 require_linked_isolated_worktree(project)
 
 
+    def test_staging_works_only_in_separate_linked_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            primary = root / "primary"
+            sandbox = root / "pilot"
+            primary.mkdir()
+            subprocess.run(["git", "init", "-b", "main", str(primary)], check=True,
+                           capture_output=True, text=True)
+            project = primary / "unreal" / "Everward.uproject"
+            project.parent.mkdir()
+            original = '{"FileVersion": 3, "Modules": []}\\n'
+            project.write_text(original, encoding="utf-8")
+            subprocess.run(["git", "-C", str(primary), "add", "."], check=True,
+                           capture_output=True, text=True)
+            subprocess.run(["git", "-C", str(primary), "-c", "user.name=pilot-test",
+                            "-c", "user.email=pilot@example.invalid", "commit", "-m", "fixture"],
+                           check=True, capture_output=True, text=True)
+            subprocess.run(["git", "-C", str(primary), "worktree", "add", "-b",
+                            "pilot/ue-ai", str(sandbox)], check=True, capture_output=True, text=True)
+            staged = sandbox / "unreal" / "Everward.uproject"
+            invocation = [sys.executable, str(SCRIPT), "--project", str(staged),
+                          "--mode", "stage", "--ack-isolated-worktree"]
+            first = subprocess.run(invocation, text=True, capture_output=True, check=False)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertEqual(project.read_text(encoding="utf-8"), original)
+            configured = json.loads(staged.read_text(encoding="utf-8"))
+            self.assertEqual({e["Name"] for e in configured["Plugins"]}, set(PLUGIN_NAMES))
+            second = subprocess.run(invocation, text=True, capture_output=True, check=False)
+            self.assertEqual(second.returncode, 2)
+            self.assertIn("dirty", second.stderr.lower()) if "dirty" in second.stderr.lower() else self.assertIn("edited project descriptor", second.stderr.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
