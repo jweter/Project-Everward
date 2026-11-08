@@ -563,6 +563,9 @@ private:
     static constexpr double TractorMaxForceNewtons = 5000.0;
 
     FEverwardProbeCommandResult RecordCommandResult(FName CommandId, bool bAccepted, const FString& Detail);
+    // Read-only bridge to the existing non-blocking Unreal playtest recorder.
+    // Never lets evidence capture decide whether a gameplay action succeeds.
+    void RecordSimulationPlaytestEvent(const FString& EventName, const FString& Detail) const;
     void SyncOwnerTransformFromSimulation();
     // Called once per elapsed fixed step from inside TickComponent()'s own
     // accumulator loop -- see SetControlledHoverGovernorEngaged()'s comment.
