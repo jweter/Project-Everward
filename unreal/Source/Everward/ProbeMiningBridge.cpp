@@ -129,6 +129,7 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandMineBootstrapTarget(
     }
 
     const auto& Snapshot = Core->snapshot();
+    const double StorageBeforeKilograms = Snapshot.storage_used_kg;
     const everward::simulation::MiningAttemptResult Result = Mining.mine_once(
         TargetId,
         *Manipulators,
@@ -148,6 +149,36 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandMineBootstrapTarget(
         Core->add_stored_material_kg(Result.extracted_kg, Result.material_id);
         BootstrapExtractedMaterialKilograms += Result.extracted_kg;
         BootstrapDepositRemainingKilograms = Result.remaining_deposit_kg;
+
+        // Only report an actual successful simulated extraction after Core's
+        // authoritative storage increased. "Reach" means within the Gen-1
+        // working-distance tolerance, NOT visual or physical touching; true
+        // contact requires an independent stricter Unreal assertion.
+        const double StorageAfterKilograms = Core->snapshot().storage_used_kg;
+        if (Result.extracted_kg > 0.0 && StorageAfterKilograms > StorageBeforeKilograms)
+        {
+            const FString TargetIdText = UTF8_TO_TCHAR(TargetId.c_str());
+            const FString MaterialIdText = UTF8_TO_TCHAR(Result.material_id.c_str());
+            RecordSimulationPlaytestEvent(
+                TEXT("mining_reach_verified"),
+                FString::Printf(
+                    TEXT("target=%s;arm=%s;tool_surface_gap_m=%.4f;reach_limit_m=%.4f;simulation_tick=%lld"),
+                    *TargetIdText,
+                    Result.arm == everward::simulation::ManipulatorArmId::Port ? TEXT("port") : TEXT("starboard"),
+                    Result.tool_surface_gap_m,
+                    everward::simulation::MiningSystem::kGeneration1ToolWorkingReachM,
+                    static_cast<long long>(Core->tick())));
+            RecordSimulationPlaytestEvent(
+                TEXT("material_collected"),
+                FString::Printf(
+                    TEXT("target=%s;material_id=%s;mined_kg=%.4f;storage_before_kg=%.4f;storage_after_kg=%.4f;simulation_tick=%lld"),
+                    *TargetIdText,
+                    *MaterialIdText,
+                    Result.extracted_kg,
+                    StorageBeforeKilograms,
+                    StorageAfterKilograms,
+                    static_cast<long long>(Core->tick())));
+        }
     }
 
     LastAutomationNotice.Sequence = ++AutomationSequence;
