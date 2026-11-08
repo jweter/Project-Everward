@@ -168,6 +168,25 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandMineBootstrapTarget(
                     Result.tool_surface_gap_m,
                     everward::simulation::MiningSystem::kGeneration1ToolWorkingReachM,
                     static_cast<long long>(Core->tick())));
+            // An accepted reach of up to 0.55 m is NOT contact. A separate
+            // strictly gated geometric-contact signal exists only when the
+            // authoritative spherical tool/target surfaces are <= 25 mm
+            // apart (and not penetrative). Real mesh/visual alignment must
+            // still be verified by an independent Unreal functional test.
+            constexpr double GeometryContactToleranceMeters = 0.025;
+            if (Result.tool_surface_gap_m >= -0.02 &&
+                Result.tool_surface_gap_m <= GeometryContactToleranceMeters)
+            {
+                RecordSimulationPlaytestEvent(
+                    TEXT("mining_geometry_contact"),
+                    FString::Printf(
+                        TEXT("target=%s;arm=%s;tool_surface_gap_m=%.4f;contact_tolerance_m=%.4f;simulation_tick=%lld"),
+                        *TargetIdText,
+                        Result.arm == everward::simulation::ManipulatorArmId::Port ? TEXT("port") : TEXT("starboard"),
+                        Result.tool_surface_gap_m,
+                        GeometryContactToleranceMeters,
+                        static_cast<long long>(Core->tick())));
+            }
             RecordSimulationPlaytestEvent(
                 TEXT("material_collected"),
                 FString::Printf(
