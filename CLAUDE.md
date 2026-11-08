@@ -26,6 +26,12 @@ Treat `docs/INDUSTRY_REALITY_CHECK.md` as a durable quality-gap baseline, not as
 
 You *may* analyze completed owner-provided reports, create focused issues/PRs, debug the root causes, and perform standard unpaid simulation/Unreal tests to verify fixes. Do not make a new Aura run a prerequisite for finishing independent engineering work. Read `docs/integrations/OWNER_RUN_AURA_REPORT_TO_ROADMAP.md` and issue #372 before development driven by the first Aura run.
 
+## Owner-run playtest: Unreal MCP before, evidence reconciliation after
+
+Read `docs/integrations/UNREAL_MCP_AURA_PLAYTEST_EVIDENCE_WORKFLOW_2026-11-08.md` before advising or processing a future Aura playtest. The owner reports successful connection from a local terminal; this is an **owner-observed milestone**, not proof that every future session's editor/tool handshake works. Verify a real read-only Unreal MCP operation before the next chosen test and record actual map/version/SHA/dirty state and available initial state. Then **stop MCP control requests** while the owner runs Aura. Afterward, compare independent recorder/telemetry/state changes and the finished Aura report before assigning cause, classifying defects and generating bounded roadmap/repair PRs.
+
+Never initiate Aura, run its MCP/CLI or spend Aura credits. Native local Unreal tests and conventional CI remain the free regression path; no new paid Aura run is required to finish a fix.
+
 ## Official Unreal MCP connection on Azathoth
 
 Before using the official **Unreal MCP** connection, read `docs/integrations/CLAUDE_UNREAL_MCP_CONNECTION_HANDOFF_2026-11-08.md`. The project-scoped local `.mcp.json` in `C:\\Users\\jerem\\Documents\\Project-Everward` already points to `http://127.0.0.1:8000/mcp`, and UE5.8 plugin declarations are enabled **in the real local project's dirty checkout**. At the last check, `claude mcp get unreal-mcp` reported **Pending approval**, and no editor/server was running. An actual tool-call handshake is still REQUIRED before claiming the integration works. Start the server on demand from Unreal and obtain normal Claude project trust; do not enable auto-start or `--dangerously-skip-permissions`.
