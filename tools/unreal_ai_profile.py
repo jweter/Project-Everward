@@ -12,17 +12,19 @@ import subprocess
 import sys
 from collections.abc import Mapping
 
+# Minimal editor-capability surface; never turn on the broad AllToolsets aggregator.
 PLUGIN_NAMES = (
     "PCG",
     "ModelContextProtocol",
-    "AllToolsets",
+    "EditorToolset",
+    "AutomationTestToolset",
     "PCGToolset",
     "SemanticSearch",
 )
 
 
 def proposed_descriptor(existing: Mapping[str, object]) -> dict[str, object]:
-    """Return an opt-in sandbox descriptor with five editor feature plugins enabled."""
+    """Return a narrowly scoped opt-in sandbox descriptor."""
     if not isinstance(existing.get("Modules"), list):
         raise ValueError("Not a valid Unreal project descriptor: Modules is missing")
     result = dict(existing)
@@ -38,6 +40,8 @@ def proposed_descriptor(existing: Mapping[str, object]) -> dict[str, object]:
         name = str(entry["Name"])
         if name in seen:
             raise ValueError(f"Duplicate plugin declaration: {name}")
+        if name == "AllToolsets" and entry.get("Enabled") is True:
+            raise ValueError("AllToolsets is too broad for this scoped pilot")
         seen.add(name)
         if name in PLUGIN_NAMES:
             entry["Enabled"] = True
