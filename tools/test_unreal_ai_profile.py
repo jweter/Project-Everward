@@ -31,7 +31,14 @@ class UnrealAIProfileTests(unittest.TestCase):
         self.assertEqual(after["Plugins"][0], previous["Plugins"][0])
         self.assertEqual(after["Plugins"][1]["Enabled"], True)
         self.assertTrue(after["Plugins"][1]["Optional"])
-        self.assertEqual(len(after["Plugins"]), 6)
+        self.assertEqual(len(after["Plugins"]), 7)
+
+    def test_refuses_broad_alltoolsets_and_keeps_disabled_entry(self) -> None:
+        with self.assertRaisesRegex(ValueError, "too broad"):
+            proposed_descriptor({"Modules": [], "Plugins": [{"Name": "AllToolsets", "Enabled": True}]})
+        narrowed = proposed_descriptor({"Modules": [], "Plugins": [{"Name": "AllToolsets", "Enabled": False}]})
+        self.assertFalse(narrowed["Plugins"][0]["Enabled"])
+        self.assertNotIn("AllToolsets", PLUGIN_NAMES)
 
     def test_rejects_bad_plugin_entries_and_no_modules(self) -> None:
         with self.assertRaises(ValueError):
