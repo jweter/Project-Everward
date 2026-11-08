@@ -2,6 +2,12 @@
 
 **Owner direction:** build a human-out-of-the-loop game testing pipeline that joins development, authentic playable action, authoritative mechanical assertions, evidence capture, issue triage, deterministic reproduction and re-test. Preserve the Iron God supervisor, owner control gates, local-first/free builder preference and Phase-2 first playable priority. **Status 2026-11-08: evidence contract implemented on isolated branch, live interactive game agent / new native Unreal test authoring NOT yet implemented or Unreal verified.**
 
+## 2026-11-08 owner cost-control update
+
+A real owner-invoked Aura Autopilot exploration has now completed: run `20261108-084846`, 3 episodes and 666 decisions, estimated $4.45 model usage. Findings are indexed in [#372](https://github.com/jweter/Project-Everward/issues/372). The original assumptions below about whether Aura was installed/tested have been superseded by this evidence.
+
+**This design's interactive playtester lane is now strictly OWNER-TRIGGERED when it uses Aura.** Jeremy alone elects to spend money and starts Aura manually in the editor. Claude, ChatGPT, Iron God, CI and unattended workers may NOT start, schedule, retry, or control Aura through CLI/MCP/agent service. They should *consume completed owner-run reports*, fix the causes in small verified roadmap slices, and run independent **non-Aura native/local** tests. An offline scripted input test remains suitable for automatic unattended verification. See `docs/integrations/OWNER_RUN_AURA_REPORT_TO_ROADMAP.md`.
+
 ## Do both — sequence matters
 
 **Lane A — objective native QA first.** Test C++ simulation with CTest (already present), run Unreal native Automation Test Framework / Functional Testing against an exact build in a disposable/approved project, collect real-state results, and optionally use Gauntlet as an orchestrator for editor/packaged sessions. Preserve the existing scheduled Windows worker's checkout safety, idle guard, build and headless startup contract. Do not replace working checks before measured equivalence.
