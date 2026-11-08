@@ -20,6 +20,12 @@ Treat `docs/INDUSTRY_REALITY_CHECK.md` as a durable quality-gap baseline, not as
 
 `docs/QUANTUM_SCIENCE_CANON.md` is additive future-science canon, not permission to displace the current phase/milestone. Quantum-themed features must identify a real physical mechanism, measurable quantity, limitation/noise source, gameplay decision, classical fallback, and Product Reality test. Entanglement must not be used for faster-than-light messaging, quantum teleportation must not become macroscopic matter transport, and quantum computation must not be treated as infinite/general-purpose acceleration.
 
+## Owner-only Aura playtesting
+
+**Do not invoke Aura Autopilot or connect its CLI/MCP/service to autonomous Claude or Iron God workflows.** Aura consumes owner-controlled credits; only Jeremy manually chooses and runs a session in Unreal. Account presence, prior successful onboarding, installed plugin and existing report are NOT consent for another run. Never schedule, retry, or auto-start Aura.
+
+You *may* analyze completed owner-provided reports, create focused issues/PRs, debug the root causes, and perform standard unpaid simulation/Unreal tests to verify fixes. Do not make a new Aura run a prerequisite for finishing independent engineering work. Read `docs/integrations/OWNER_RUN_AURA_REPORT_TO_ROADMAP.md` and issue #372 before development driven by the first Aura run.
+
 ## Engineering Priorities
 
 Prefer, in order:
