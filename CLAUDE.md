@@ -26,6 +26,12 @@ Treat `docs/INDUSTRY_REALITY_CHECK.md` as a durable quality-gap baseline, not as
 
 You *may* analyze completed owner-provided reports, create focused issues/PRs, debug the root causes, and perform standard unpaid simulation/Unreal tests to verify fixes. Do not make a new Aura run a prerequisite for finishing independent engineering work. Read `docs/integrations/OWNER_RUN_AURA_REPORT_TO_ROADMAP.md` and issue #372 before development driven by the first Aura run.
 
+## Official Unreal MCP connection on Azathoth
+
+Before using the official **Unreal MCP** connection, read `docs/integrations/CLAUDE_UNREAL_MCP_CONNECTION_HANDOFF_2026-11-08.md`. The project-scoped local `.mcp.json` in `C:\\Users\\jerem\\Documents\\Project-Everward` already points to `http://127.0.0.1:8000/mcp`, and UE5.8 plugin declarations are enabled **in the real local project's dirty checkout**. At the last check, `claude mcp get unreal-mcp` reported **Pending approval**, and no editor/server was running. An actual tool-call handshake is still REQUIRED before claiming the integration works. Start the server on demand from Unreal and obtain normal Claude project trust; do not enable auto-start or `--dangerously-skip-permissions`.
+
+Keep `AllToolsets` disabled, prefer read-first toolset discovery, and serialize requests. Do not modify production maps/assets on the stale local `main` working tree; use an approved isolated worktree for write operations. **Unreal MCP is not Aura MCP**: Aura remains **owner-only** for paid sessions and must never be called through an agent, MCP, CLI, scheduler or worker. Current issue [#372](https://github.com/jweter/Project-Everward/issues/372) records the first Aura playtest findings for unpaid engineering follow-up.
+
 ## Engineering Priorities
 
 Prefer, in order:
