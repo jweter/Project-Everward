@@ -40,6 +40,6 @@ python3 -m unittest tools/test_phase2_<name>.py        # per-step names below
 
 ## Limits
 
-- Portable tests exercise each step's simulation truth in isolation. This slice did not add or run a single test chaining wake, scan, collect, repair and restore in one simulation; that chained proof is not claimed.
+- Per-step portable tests exercise each step's simulation truth in isolation. `src/simulation/tests/first_loop_chained_tests.cpp` (ctest `everward_first_loop_chained_tests`) additionally chains damaged wake, a real runtime scan, mining/collection, Fix_It repair (consuming stored material and energy) and starter restoration in one deterministic simulation run, executed twice and compared exactly. The only direct state writes are the documented damaged-wake integrity values; material arrives only via mining. This is simulation-level proof only: the in-engine chain (step 10) remains PENDING.
 - "Complete first loop verified in editor or runtime" is **not** achieved. Steps 8 to 10 stay pending, and so does every in-engine item above.
 - Remaining Product Reality debt: Unreal build and packaging, controls/HUD usability, in-engine playtest of the loop, fabrication (Slice 13), and a repeatable objective.
