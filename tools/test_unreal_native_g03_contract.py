@@ -10,12 +10,13 @@ RUNNER = ROOT / "tools" / "run_unreal_native_g03.ps1"
 
 
 class G03NativeContractTests(unittest.TestCase):
-    def test_two_native_unreal_automation_tests_are_registered(self) -> None:
+    def test_three_native_unreal_automation_tests_are_registered(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
-        self.assertEqual(source.count("IMPLEMENT_SIMPLE_AUTOMATION_TEST("), 2)
+        self.assertEqual(source.count("IMPLEMENT_SIMPLE_AUTOMATION_TEST("), 3)
         for name in (
             "Everward.G03.Native.ScanSurveyPersistsAfterCancel",
             "Everward.G03.Native.MiningRejectsWithoutSurveyAndTool",
+            "Everward.G03.Native.ArmToggleReversesAndJointControlsStayHonest",
         ):
             self.assertIn(name, source)
         self.assertIn("WITH_DEV_AUTOMATION_TESTS", source)
@@ -30,6 +31,7 @@ class G03NativeContractTests(unittest.TestCase):
             "CommandStartScan(", "CommandCancelScan(", "CommandMineBootstrapTarget(",
             "GetMiningStatus()", "GetStoredMaterialInventory()",
             "GetProbeTelemetry()", "GetSimulationTick()", "TickTestWorld(",
+            "CommandToggleManipulatorArmDeployment(", "bAcceptsJointCommands",
         ):
             self.assertIn(symbol, source)
         self.assertIn("After.ExtractedMaterialKilograms", source)

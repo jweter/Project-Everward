@@ -21,9 +21,14 @@ approved unattended Windows evidence during normal engineering.
   native game-world actor and issues an actual mining command. Without survey
   and a deployed/attached tool it must reject. Deposit, extracted kilograms,
   authoritative storage and material inventory must not change.
+- `Everward.G03.Native.ArmToggleReversesAndJointControlsStayHonest`
+  creates a real Unreal probe actor and checks deploy/stow reversals in
+  both directions, intermediate animation-state telemetry, denial of joint
+  commands during transitions, accepted joint commands only when fully
+  deployed, and correct final stowed state (partial G06/F6 coverage).
 
 **These are not synthetic JSON tests or direct C++ simulation-core tests.**
-They exercise the Unreal module and actual actor/component lifecycle. The
+They exercise the Unreal module and actual actor/component lifecycle. Native arm reversal covers G06 adapter behavior, not the player key binding. The
 source also includes cheap Python contract tests; those verify source
 registration and runner safeguards only, **not Unreal execution**.
 
@@ -43,7 +48,7 @@ availability, absence of competing Unreal/editor/build processes, a
 10-GiB initial free-RAM gate and a continuous 7-GiB memory floor during
 compilation and test execution. It uses `UnrealEditor-Cmd.exe`, not Aura; stores
 private logs and the real Unreal Automation JSON report under
-`%LOCALAPPDATA%\Everward\native-g03\<sha>\<timestamp>\`; requires two
+`%LOCALAPPDATA%\Everward\native-g03\<sha>\<timestamp>\`; requires three
 named tests and a passing aggregate report; rejects any missing evidence.
 The engine's existing owner control and other worker leases take priority.
 This script does not register/schedule a new Windows task or modify the

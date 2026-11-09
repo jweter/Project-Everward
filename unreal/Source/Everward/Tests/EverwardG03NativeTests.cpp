@@ -157,4 +157,88 @@ bool FEverwardG03RejectedMiningTest::RunTest(const FString& Parameters)
         Adapter->GetStoredMaterialInventory().IsEmpty());
     return !HasAnyErrors();
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FEverwardG03ArmToggleTest,
+    "Everward.G03.Native.ArmToggleReversesAndJointControlsStayHonest",
+    EverwardNativeFlags)
+
+bool FEverwardG03ArmToggleTest::RunTest(const FString& Parameters)
+{
+    FEverwardNativeTestFixture Fixture;
+    if (!Fixture.Start(this)) return false;
+    UProbeSimulationAdapter* Adapter = Fixture.Adapter;
+    const EEverwardManipulatorArmId Arm = EEverwardManipulatorArmId::Port;
+
+    auto ArmState = [Adapter, Arm](FEverwardManipulatorArmState& Out) {
+        const TArray<FEverwardManipulatorArmState> States =
+            Adapter->GetManipulatorArmStates();
+        for (const FEverwardManipulatorArmState& State : States)
+        {
+            if (State.ArmId == Arm)
+            {
+                Out = State;
+                return true;
+            }
+        }
+        return false;
+    };
+
+    FEverwardManipulatorArmState State;
+    if (!TestTrue(TEXT("Port arm state is available"), ArmState(State))) return false;
+    TestFalse(TEXT("Port arm begins stowed"), State.bIsDeployed);
+    TestFalse(TEXT("Stowed arm refuses joint controls"), State.bAcceptsJointCommands);
+
+    if (!TestTrue(TEXT("Toggle starts deployment"),
+        Adapter->CommandToggleManipulatorArmDeployment(Arm).bAccepted)) return false;
+    if (!TestTrue(TEXT("Deploying state is readable"), ArmState(State))) return false;
+    TestTrue(TEXT("First toggle points toward deployed"), State.bIsDeploying);
+    TestFalse(TEXT("Joint controls disabled while deploying"), State.bAcceptsJointCommands);
+    TestFalse(TEXT("Joint command rejected during deployment"),
+        Adapter->CommandSetManipulatorJointTargetDegrees(
+            Arm, EEverwardManipulatorJoint::Shoulder, 5.0).bAccepted);
+
+    if (!Fixture.TickFor(0.20f, this)) return false;
+    if (!TestTrue(TEXT("Toggle reverses mid-deployment to stow"),
+        Adapter->CommandToggleManipulatorArmDeployment(Arm).bAccepted)) return false;
+    if (!TestTrue(TEXT("Stowing state is readable"), ArmState(State))) return false;
+    TestTrue(TEXT("Second toggle reverses deployment"), State.bIsStowing);
+    TestFalse(TEXT("Joint controls disabled while stowing"), State.bAcceptsJointCommands);
+
+    if (!Fixture.TickFor(0.10f, this)) return false;
+    if (!TestTrue(TEXT("Toggle reverses mid-stow back to deploy"),
+        Adapter->CommandToggleManipulatorArmDeployment(Arm).bAccepted)) return false;
+    if (!TestTrue(TEXT("Redeploy state is readable"), ArmState(State))) return false;
+    TestTrue(TEXT("Third toggle reverses stowing"), State.bIsDeploying);
+    // 2.2 s in two bounded calls: a full deploy or stow takes exactly 2.0 s (kDeployStowDurationS), and the fixture's float32
+    // 0.02 s step makes 100 frames total 1.99999995 s, which would leave the arm a hair short of its end state.
+    if (!Fixture.TickFor(1.5f, this) || !Fixture.TickFor(0.7f, this)) return false;
+    if (!TestTrue(TEXT("Final deployed state is readable"), ArmState(State))) return false;
+    TestTrue(TEXT("Arm fully deploys after reversal"),
+        State.bIsDeployed && !State.bIsDeploying && !State.bIsStowing);
+    TestTrue(TEXT("Joint controls enabled only when fully deployed"),
+        State.bAcceptsJointCommands);
+    TestTrue(TEXT("Fully deployed arm accepts neutral joint command"),
+        Adapter->CommandSetManipulatorJointTargetDegrees(
+            Arm, EEverwardManipulatorJoint::Shoulder, 0.0).bAccepted);
+
+    if (!TestTrue(TEXT("Resting deployment toggles to stow"),
+        Adapter->CommandToggleManipulatorArmDeployment(Arm).bAccepted)) return false;
+    if (!TestTrue(TEXT("Final stow transition state readable"), ArmState(State))) return false;
+    TestTrue(TEXT("Stowing state is signaled"), State.bIsStowing);
+    TestFalse(TEXT("Stow disables joint controls even if deployed flag remains true"),
+        State.bAcceptsJointCommands);
+    TestFalse(TEXT("Joint command rejected during full-arm stow"),
+        Adapter->CommandSetManipulatorJointTargetDegrees(
+            Arm, EEverwardManipulatorJoint::Shoulder, 5.0).bAccepted);
+
+    // 2.2 s in two bounded calls: a full deploy or stow takes exactly 2.0 s (kDeployStowDurationS), and the fixture's float32
+    // 0.02 s step makes 100 frames total 1.99999995 s, which would leave the arm a hair short of its end state.
+    if (!Fixture.TickFor(1.5f, this) || !Fixture.TickFor(0.7f, this)) return false;
+    if (!TestTrue(TEXT("Completed stow state readable"), ArmState(State))) return false;
+    TestFalse(TEXT("Arm eventually fully stows"), State.bIsDeployed);
+    TestFalse(TEXT("No stale stow transition remains"), State.bIsStowing);
+    TestFalse(TEXT("Joint commands remain unavailable when stowed"),
+        State.bAcceptsJointCommands);
+    return !HasAnyErrors();
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

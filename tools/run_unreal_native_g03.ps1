@@ -97,11 +97,12 @@ $Parsed = $Raw | ConvertFrom-Json
 if ($null -eq $Parsed.failed -or $null -eq $Parsed.succeeded) {
     throw "G03 Automation report missing numeric pass/fail totals. Evidence: $Evidence"
 }
-if ([int]$Parsed.failed -ne 0 -or [int]$Parsed.succeeded -lt 2 -or
+if ([int]$Parsed.failed -ne 0 -or [int]$Parsed.succeeded -lt 3 -or
     $Raw -notmatch 'Everward.G03.Native.ScanSurveyPersistsAfterCancel' -or
-    $Raw -notmatch 'Everward.G03.Native.MiningRejectsWithoutSurveyAndTool') {
+    $Raw -notmatch 'Everward.G03.Native.MiningRejectsWithoutSurveyAndTool' -or
+    $Raw -notmatch 'Everward.G03.Native.ArmToggleReversesAndJointControlsStayHonest') {
     throw "G03 expected native tests did not both pass. Evidence: $Evidence"
 }
-Write-Output "UNREAL_VERIFIED (native G03 subset only): 2 Everward game-world automation tests passed on exact source $Head"
+Write-Output "UNREAL_VERIFIED (native G03 subset only): 3 Everward game-world automation tests passed on exact source $Head"
 Write-Output "Evidence: $Evidence"
 Write-Output 'This does NOT certify G01/G02 mining success, real key-input path, HUD, Fix_It, or paid Aura milestone acceptance.'
