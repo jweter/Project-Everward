@@ -1,9 +1,9 @@
 // G03: free native Unreal runtime/actor tests, never paid Aura testing.
 // Uses real UWorld, AEverwardProbePawn and UProbeSimulationAdapter lifecycle.
 // G01/G02 full controller-input / contact / repair evidence remains separate.
-#include "EverwardPhase2TestEnvironment.h"
-#include "EverwardProbePawn.h"
-#include "ProbeSimulationAdapter.h"
+#include "../EverwardPhase2TestEnvironment.h"
+#include "../EverwardProbePawn.h"
+#include "../ProbeSimulationAdapter.h"
 #include "Engine/World.h"
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
