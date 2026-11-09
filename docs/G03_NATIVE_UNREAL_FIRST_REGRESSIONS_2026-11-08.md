@@ -29,17 +29,19 @@ registration and runner safeguards only, **not Unreal execution**.
 
 ## Run on an approved idle Windows worker after exact-head UnrealBuildTool compile
 
-The working native editor binaries must first be built for the **exact same**
-clean Git SHA under Unreal Engine 5.8. Do not infer this from prior builds or
-from a green portable Foundation CI run.
+The opt-in runner **first builds EverwardEditor from the same clean Git SHA**
+using UnrealBuildTool with only one parallel compile action; it aborts on
+failure or memory pressure. A previous binary or green portable Foundation
+CI does not count as compilation evidence for this checkout.
 
 ```powershell
 powershell -NoProfile -File tools\run_unreal_native_g03.ps1
 ```
 
 The opt-in runner checks repository provenance, clean HEAD, Unreal 5.8
-availability, absence of competing Unreal/editor/build processes and a
-conservative free-RAM floor. It uses `UnrealEditor-Cmd.exe`, not Aura; stores
+availability, absence of competing Unreal/editor/build processes, a
+10-GiB initial free-RAM gate and a continuous 7-GiB memory floor during
+compilation and test execution. It uses `UnrealEditor-Cmd.exe`, not Aura; stores
 private logs and the real Unreal Automation JSON report under
 `%LOCALAPPDATA%\Everward\native-g03\<sha>\<timestamp>\`; requires two
 named tests and a passing aggregate report; rejects any missing evidence.

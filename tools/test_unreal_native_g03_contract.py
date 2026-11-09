@@ -55,7 +55,10 @@ class G03NativeContractTests(unittest.TestCase):
         self.assertNotIn("aura run", source.lower())
         self.assertIn("MinimumFreeMemoryGiB", source)
         self.assertIn("UnrealBuildTool", source)
-        self.assertIn("taskkill.exe /PID $Process.Id", source)
+        self.assertIn("taskkill.exe /PID $Running.Id", source)
+        self.assertIn("Wait-Guarded $BuildProc", source)
+        self.assertIn("Wait-Guarded $Process", source)
+        self.assertIn("Build.bat", source)
         self.assertIn("exact-HEAD", source)
 
 
