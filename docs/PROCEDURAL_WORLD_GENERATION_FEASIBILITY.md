@@ -62,7 +62,7 @@ Use status labels `PROPOSED`, `IMPLEMENTED`, `VERIFIED_IN_UNREAL`, `ARTISTICALLY
 ## Longer-term scope after prototype validation
 
 - **Asteroids and mining fields:** 3D shape families, fractures, cavities, geological layering, ore/mineral concentrations and actual mining state.
-- **Planetary/mmoon environment families:** cratered rock, ice, fractured surfaces, volcanic features, atmospheric/thermal variation and rare formations with science-informed material rules.
+- **Planetary/moon environment families:** cratered rock, ice, fractured surfaces, volcanic features, atmospheric/thermal variation and rare formations with science-informed material rules.
 - **System-scale environments:** stars, moons, planets, belts, rings, eccentric orbits and anomalies where the visual presentation follows existing astronomy mechanics.
 - **Unique discovery:** seed-consistent landmarks and material signatures; progressively improved scanning reveals information, rather than a decorative random landscape immediately revealing all facts.
 - **Streaming and persistence:** lazy region generation, spatial/temporal level of detail, asset pooling and compact save deltas for very long campaigns.
