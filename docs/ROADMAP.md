@@ -326,7 +326,9 @@ The full canonical doctrine is defined in [`UNBOUNDED_MACHINE_CONTROL_AND_INDUST
 
 Implement deterministic region generation, stellar populations, planetary diversity, rare systems, extreme objects, spatial distribution, and region persistence.
 
-**Gate:** player can travel continuously outward without authored-world boundaries.
+Scale the evidence-backed [Procedural World Generation Feasibility](PROCEDURAL_WORLD_GENERATION_FEASIBILITY.md) experiments from bounded Phase-2/3 asteroid and icy-moon scenes to lazy whole-region, orbital and system-scale generation. Establish reproducible astronomical identity, science-informed geology/material composition, persistent observed/mined changes, distinctive landmarks, navigable terrain, mining-compatible 3D geometry, scalable detail/streaming, and measurable Unreal performance. Never confuse a renderer's generated decoration with authoritative simulation state. **Do not treat the research prototype as delivery of full procedural expansion.**
+
+**Gate:** player can travel continuously outward without authored-world boundaries; same-seed/generated-state replay, modified-world persistence, physically correct scanning/mining, and multi-preset performance are independently demonstrated.
 
 ## Phase 12 — Generational Progression
 
