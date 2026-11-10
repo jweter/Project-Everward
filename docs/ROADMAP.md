@@ -107,6 +107,16 @@ The accepted production standard is `CONTINUOUS_VISUAL_QUALITY.md`. It establish
 
 The milestone proceeds as bounded visual improvements alongside the earliest incomplete gameplay slice; it does **not** authorize skipping missing mechanics, overriding Product Reality gates, replacing Probe A, or creating an entirely separate showcase demo. A physically plausible icy moon below a giant planet is a possible visual composition, not fixed world canon. The existing unattended-first test policy remains in force.
 
+### Cross-phase procedural world-generation feasibility (gated research; 2026-11-09)
+
+Everward should systematically investigate procedurally generated **3D asteroids, small icy-moon terrain, and distance-sensitive environmental detail** as a route to a visually varied, physically meaningful universe. This extends the existing [world-building craft playbook](WORLD_BUILDING_CRAFT_PLAYBOOK.md), [continuous visual-quality policy](CONTINUOUS_VISUAL_QUALITY.md), deterministic region/save contracts, and the [UE 5.8 PCG pilot](integrations/UNREAL_58_AI_CAPABILITIES_PILOT.md); it does **not** introduce a second engine or supersede its already scoped local mining-patch milestone.
+
+**Research entry point:** [Procedural World Generation Feasibility](PROCEDURAL_WORLD_GENERATION_FEASIBILITY.md) (**status: proposed roadmap experiments, not implemented or Unreal-verified**). The sequence is (0) complete/reconcile the existing reversible PCG local mineral-patch pilot when dependency-ready; (1) deterministic irregular asteroid and mineable deposit; (2) small seeded icy-moon terrain region; (3) measured LOD/streaming detail transitions. Later Phase 11 may generalize from these evidence-backed parts to planets, orbital environments, asteroid fields, star systems and near-inexhaustible region traversal.
+
+Generation must project **simulation-owned** astronomical, geological, composition, resource, and mining state into Unreal geometry/materials, not make visually convenient mesh placement a substitute for physics, resources, mining/contact or persistence. Preserve identical underlying mechanics across Emergency/Low and higher graphical presets, stable seeds/IDs/versioned regeneration, save/reload of observed and modified regions, licensed/provenanced inputs, performance budgets, and actual engine Product Reality evidence.
+
+The external hobby-engine example that prompted this investigation is **inspiration only**, not an engine switch, verified production dependency, or evidence of redistributable source. Its potential custom shaders/C++ techniques, offline Python tooling, and Scratch-style visual programming can be revisited separately; the block-editor idea belongs to future probe/drone policy authoring, not the immediate world-rendering critical path. The damaged-awakening -> scan -> mine -> stored resources -> Fix_It -> restored capability gate continues to outrank all optional PCG work.
+
 ### Cross-phase graphics scalability and development-access requirement
 
 Beginning in Phase 2, Everward must support a deliberate presentation scalability path rather than treating current development hardware limits as a reason to reduce the game's long-term ambition.
@@ -316,7 +326,9 @@ The full canonical doctrine is defined in [`UNBOUNDED_MACHINE_CONTROL_AND_INDUST
 
 Implement deterministic region generation, stellar populations, planetary diversity, rare systems, extreme objects, spatial distribution, and region persistence.
 
-**Gate:** player can travel continuously outward without authored-world boundaries.
+Scale the evidence-backed [Procedural World Generation Feasibility](PROCEDURAL_WORLD_GENERATION_FEASIBILITY.md) experiments from bounded Phase-2/3 asteroid and icy-moon scenes to lazy whole-region, orbital and system-scale generation. Establish reproducible astronomical identity, science-informed geology/material composition, persistent observed/mined changes, distinctive landmarks, navigable terrain, mining-compatible 3D geometry, scalable detail/streaming, and measurable Unreal performance. Never confuse a renderer's generated decoration with authoritative simulation state. **Do not treat the research prototype as delivery of full procedural expansion.**
+
+**Gate:** player can travel continuously outward without authored-world boundaries; same-seed/generated-state replay, modified-world persistence, physically correct scanning/mining, and multi-preset performance are independently demonstrated.
 
 ## Phase 12 — Generational Progression
 
