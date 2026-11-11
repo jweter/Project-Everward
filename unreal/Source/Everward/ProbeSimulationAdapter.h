@@ -599,6 +599,12 @@ public:
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandCollectGraspedTarget(EEverwardManipulatorArmId ArmId);
     // Starts the next repeatable restoration objective cycle; rejected while one is already Active.
     UFUNCTION(BlueprintCallable, Category="Everward|Objective") FEverwardProbeCommandResult CommandTriggerNextRestorationCycle();
+#if WITH_DEV_AUTOMATION_TESTS
+    // Test-only: sets one subsystem's integrity through the same authoritative
+    // setter Fix_It's damaged awakening uses. Adds no damage or repair rule and is
+    // compiled out of shipping builds. Fraction must be in [0, 1].
+    FEverwardProbeCommandResult TestOnlySetSubsystemIntegrity(EEverwardPowerSubsystem Subsystem, double Fraction);
+#endif
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandSaveGame();
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandLoadGame();
     UFUNCTION(BlueprintCallable, Category="Everward|Simulation") void SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond);

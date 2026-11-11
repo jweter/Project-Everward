@@ -963,6 +963,21 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandCollectGraspedTarget
     catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+FEverwardProbeCommandResult UProbeSimulationAdapter::TestOnlySetSubsystemIntegrity(
+    EEverwardPowerSubsystem Subsystem, double Fraction)
+{
+    const FName CommandId(TEXT("test_only_set_subsystem_integrity"));
+    if (Core == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    try
+    {
+        Core->set_subsystem_integrity(ToSimulationPowerSubsystem(Subsystem), Fraction);
+        return RecordCommandResult(CommandId, true, FString::Printf(TEXT("integrity set to %.2f"), Fraction));
+    }
+    catch (const std::exception& Error) { return RecordCommandResult(CommandId, false, UTF8_TO_TCHAR(Error.what())); }
+}
+#endif
+
 FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSaveGame()
 {
     // Wires save_data.hpp's capture/serialize path (already ctest-verified
