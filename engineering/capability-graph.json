@@ -200,7 +200,7 @@
         },
         {
           "id": "first-loop-repeatable-objective",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 4,
           "depends_on": [
             "first-loop-chained-simulation-test"
@@ -232,7 +232,10 @@
             "local",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/388 merged (capable-builder pull request)"
+          ]
         }
       ]
     }
