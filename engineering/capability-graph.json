@@ -273,6 +273,108 @@
             "offline"
           ],
           "runtime_requirements": []
+        },
+        {
+          "id": "first-loop-objective-hud",
+          "state": "PLANNED",
+          "capability_level": 3,
+          "depends_on": [
+            "first-loop-repeatable-objective-unreal-wiring"
+          ],
+          "objective": "Show the mirrored repeatable restoration objective cycle on the existing EverwardHUD (unreal/Source/Everward/EverwardHUD.cpp/.h) using UProbeSimulationAdapter::GetRestorationObjectiveCycleStatus() and GetStarterRestorationStatus(): cycle state (Idle/Active/Completed), completed-cycle count, and pending subsystems, with an input binding in EverwardPlayerController that calls CommandTriggerNextRestorationCycle(). Presentation only; simulation stays authoritative. Roadmap: docs/OWNER_APPROVED_ROADMAP_2026-10-25.md#first-playable-unreal-milestone.",
+          "acceptance": [
+            "EverwardHUD draws cycle state, CompletedCycles and PendingSubsystems from the adapter mirror each frame and shows a trigger hint only when the cycle is not Active.",
+            "EverwardPlayerController binds a documented input to adapter->CommandTriggerNextRestorationCycle() and surfaces a rejected re-trigger through the existing last-command-result path; it does not reimplement cycle rules.",
+            "A native Unreal automation test under unreal/Source/Everward/Tests drives the controller binding through the adapter and asserts the HUD-facing status matches the adapter mirror (no Aura).",
+            "docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md step 9 records the HUD/trigger wiring; in-editor play stays PENDING until run on a runner with Unreal and a display.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "unreal/Source/**",
+            "docs/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "windows",
+            "offline"
+          ],
+          "runtime_requirements": []
+        },
+        {
+          "id": "first-loop-objective-damage-repair-native-test",
+          "state": "PLANNED",
+          "capability_level": 3,
+          "depends_on": [
+            "first-loop-repeatable-objective-unreal-wiring"
+          ],
+          "objective": "Prove in-engine that the mirrored cycle completes: add a bounded, test-only way to apply a deterministic impact to a probe component through the existing damage runtime (reusing impact_damage.hpp and FixItRuntimeActor repair, no new damage or repair model), then a native automation test that triggers the cycle, damages a subsystem so starter restoration is unsatisfied, repairs it, and asserts the adapter mirror reaches Completed with CompletedCycles == 1 and that a second trigger starts a fresh Active cycle. Roadmap: docs/OWNER_APPROVED_ROADMAP_2026-10-25.md#first-playable-unreal-milestone.",
+          "acceptance": [
+            "The test-only damage hook is compiled out of shipping builds (WITH_DEV_AUTOMATION_TESTS or equivalent) and reuses existing impact/repair code paths; it adds no gameplay rule.",
+            "Native test Everward.G03.Native.RestorationObjectiveCycleCompletes: Idle -> trigger -> Active; after damage the DamageObserved latch is true and the cycle stays Active; after repair the cycle is Completed with CompletedCycles == 1; the next trigger returns to Active with the latch cleared.",
+            "The portable ctest everward_objective_cycle_tests still passes unchanged.",
+            "docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md step 9 records the in-engine completion evidence, marked PENDING until the native test has actually been run in Unreal.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "unreal/Source/**",
+            "src/simulation/**",
+            "docs/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "windows",
+            "offline"
+          ],
+          "runtime_requirements": []
+        },
+        {
+          "id": "first-loop-progression-slice",
+          "state": "PLANNED",
+          "capability_level": 4,
+          "depends_on": [
+            "first-loop-objective-hud"
+          ],
+          "objective": "Close the roadmap's 'meaningful construction or progression' requirement for the first playable loop with the smallest engine-independent progression rule in src/simulation: completing a restoration objective cycle grants a bounded, persisted progression reward (for example one unit of an already-defined material or a capability unlock flag) that the next cycle can use, round-trips through save_data.hpp, and has portable ctest coverage. Reuse existing material/inventory types; do not invent fabrication (Slice 13 stays out of scope). Roadmap: docs/OWNER_APPROVED_ROADMAP_2026-10-25.md#first-playable-unreal-milestone.",
+          "acceptance": [
+            "A new or extended header under src/simulation/include/everward/simulation defines the progression reward from RestorationObjectiveCycle::completed_cycles without mutating cycle rules; it uses existing material/inventory types.",
+            "Portable ctest covers: no reward before the first completion, exactly one reward per completed cycle, no reward for a re-trigger rejected while Active, and save/load round-trip of the reward state.",
+            "docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md gains a progression row marked PASSED (portable) with the Unreal mirror PENDING.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "src/simulation/**",
+            "docs/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "windows",
+            "offline"
+          ],
+          "runtime_requirements": []
         }
       ]
     }
