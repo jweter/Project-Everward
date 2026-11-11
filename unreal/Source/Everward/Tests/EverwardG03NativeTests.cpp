@@ -244,8 +244,8 @@ bool FEverwardG03ArmToggleTest::RunTest(const FString& Parameters)
 
 // First-playable-loop step 9: the in-engine mirror of the engine-independent repeatable objective cycle
 // (src/simulation/include/everward/simulation/objective_cycle.hpp). Rules stay in simulation; this only checks
-// that the adapter forwards to them and mirrors the result. Driving damage then repair to Completed in-engine
-// is covered by the portable ctest objective_cycle suite and stays PENDING here until an in-engine damage path exists.
+// that the adapter forwards to them and mirrors the result. The damage-then-repair completion path is covered by
+// the portable ctest objective_cycle suite and in-engine by RestorationObjectiveCycleCompletes below.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FEverwardG03RestorationObjectiveCycleTest,
     "Everward.G03.Native.RestorationObjectiveCycleMirror",
@@ -296,6 +296,58 @@ bool FEverwardG03RestorationObjectiveCycleTest::RunTest(const FString& Parameter
     TestTrue(TEXT("Load restores the saved Idle cycle"), Cycle.State == EEverwardRestorationObjectiveCycleState::Idle);
     TestEqual(TEXT("Load restores the saved completed-cycle count"), Cycle.CompletedCycles, 0);
     TestFalse(TEXT("Load restores the saved damage latch"), Cycle.bDamageObservedThisCycle);
+    return !HasAnyErrors();
+}
+
+// First-playable-loop step 9, completion path: damage then repair drives the mirrored cycle to Completed in-engine.
+// Damage and repair both go through the authoritative integrity setter (TestOnlySetSubsystemIntegrity, compiled out
+// of shipping builds); the cycle rules themselves stay in simulation. PENDING until run in Unreal.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FEverwardG03RestorationObjectiveCycleCompletesTest,
+    "Everward.G03.Native.RestorationObjectiveCycleCompletes",
+    EverwardNativeFlags)
+
+bool FEverwardG03RestorationObjectiveCycleCompletesTest::RunTest(const FString& Parameters)
+{
+    FEverwardNativeTestFixture Fixture;
+    if (!Fixture.Start(this)) return false;
+    UProbeSimulationAdapter* Adapter = Fixture.Adapter;
+
+    if (!TestTrue(TEXT("Trigger starts the first cycle"),
+        Adapter->CommandTriggerNextRestorationCycle().bAccepted)) return false;
+    FEverwardRestorationObjectiveCycleStatus Cycle = Adapter->GetRestorationObjectiveCycleStatus();
+    TestTrue(TEXT("Cycle is Active"), Cycle.State == EEverwardRestorationObjectiveCycleState::Active);
+    TestFalse(TEXT("No damage latched before damage"), Cycle.bDamageObservedThisCycle);
+
+    // Damage a subsystem: starter restoration becomes unsatisfied, the latch sets, the cycle stays Active.
+    if (!TestTrue(TEXT("Damage hook accepted"),
+        Adapter->TestOnlySetSubsystemIntegrity(EEverwardPowerSubsystem::Thermal, 0.5).bAccepted)) return false;
+    if (!Fixture.TickFor(0.20f, this)) return false;
+    TestFalse(TEXT("Damaged probe is not restored"), Adapter->GetStarterRestorationStatus().bSatisfied);
+    Cycle = Adapter->GetRestorationObjectiveCycleStatus();
+    TestTrue(TEXT("Cycle stays Active while damaged"), Cycle.State == EEverwardRestorationObjectiveCycleState::Active);
+    TestTrue(TEXT("Damage latch is set"), Cycle.bDamageObservedThisCycle);
+    TestEqual(TEXT("Nothing completed while damaged"), Cycle.CompletedCycles, 0);
+
+    // Repair: the probe is restored again, so the cycle completes exactly once.
+    if (!TestTrue(TEXT("Repair hook accepted"),
+        Adapter->TestOnlySetSubsystemIntegrity(EEverwardPowerSubsystem::Thermal, 1.0).bAccepted)) return false;
+    if (!Fixture.TickFor(0.20f, this)) return false;
+    TestTrue(TEXT("Repaired probe is restored"), Adapter->GetStarterRestorationStatus().bSatisfied);
+    Cycle = Adapter->GetRestorationObjectiveCycleStatus();
+    TestTrue(TEXT("Cycle is Completed after repair"), Cycle.State == EEverwardRestorationObjectiveCycleState::Completed);
+    TestEqual(TEXT("Exactly one cycle completed"), Cycle.CompletedCycles, 1);
+    if (!Fixture.TickFor(0.20f, this)) return false;
+    TestEqual(TEXT("Completed does not count again while ticking"),
+        Adapter->GetRestorationObjectiveCycleStatus().CompletedCycles, 1);
+
+    // The next trigger starts a fresh Active cycle with the latch cleared and the count kept.
+    if (!TestTrue(TEXT("Next trigger accepted after Completed"),
+        Adapter->CommandTriggerNextRestorationCycle().bAccepted)) return false;
+    Cycle = Adapter->GetRestorationObjectiveCycleStatus();
+    TestTrue(TEXT("Fresh cycle is Active"), Cycle.State == EEverwardRestorationObjectiveCycleState::Active);
+    TestFalse(TEXT("Fresh cycle clears the damage latch"), Cycle.bDamageObservedThisCycle);
+    TestEqual(TEXT("Completed count is kept"), Cycle.CompletedCycles, 1);
     return !HasAnyErrors();
 }
 #endif // WITH_DEV_AUTOMATION_TESTS
