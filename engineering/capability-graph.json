@@ -314,7 +314,7 @@
         },
         {
           "id": "first-loop-objective-damage-repair-native-test",
-          "state": "VERIFIED_COMPLETE",
+          "state": "PLANNED",
           "capability_level": 3,
           "depends_on": [
             "first-loop-repeatable-objective-unreal-wiring"
@@ -345,11 +345,7 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": [],
-          "verification": [
-            "https://github.com/jweter/Project-Everward/pull/393 merged 2026-11-11T21:44:20Z as the squash of head 5cf79a3399787775effeeaca53c84d131279384e (6/6 required checks passed at the exact head): TestOnlySetSubsystemIntegrity (WITH_DEV_AUTOMATION_TESTS, compiled out of shipping) and native test Everward.G03.Native.RestorationObjectiveCycleCompletes (trigger -> damage latches -> repair -> Completed, CompletedCycles == 1 -> next trigger starts a fresh Active cycle).",
-            "Deviation recorded: repair in the test restores integrity through the authoritative set_subsystem_integrity setter, not Fix_It's timed repair executor. The Unreal compile and native run are PENDING; docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md step 9 says so."
-          ]
+          "runtime_requirements": []
         },
         {
           "id": "first-loop-progression-slice",
