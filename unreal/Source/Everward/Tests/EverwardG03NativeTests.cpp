@@ -241,4 +241,51 @@ bool FEverwardG03ArmToggleTest::RunTest(const FString& Parameters)
         State.bAcceptsJointCommands);
     return !HasAnyErrors();
 }
+
+// First-playable-loop step 9: the in-engine mirror of the engine-independent repeatable objective cycle
+// (src/simulation/include/everward/simulation/objective_cycle.hpp). Rules stay in simulation; this only checks
+// that the adapter forwards to them and mirrors the result. Driving damage then repair to Completed in-engine
+// is covered by the portable ctest objective_cycle suite and stays PENDING here until an in-engine damage path exists.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FEverwardG03RestorationObjectiveCycleTest,
+    "Everward.G03.Native.RestorationObjectiveCycleMirror",
+    EverwardNativeFlags)
+
+bool FEverwardG03RestorationObjectiveCycleTest::RunTest(const FString& Parameters)
+{
+    FEverwardNativeTestFixture Fixture;
+    if (!Fixture.Start(this)) return false;
+    UProbeSimulationAdapter* Adapter = Fixture.Adapter;
+
+    FEverwardRestorationObjectiveCycleStatus Cycle = Adapter->GetRestorationObjectiveCycleStatus();
+    TestTrue(TEXT("Cycle starts Idle"), Cycle.State == EEverwardRestorationObjectiveCycleState::Idle);
+    TestEqual(TEXT("No cycle completed yet"), Cycle.CompletedCycles, 0);
+    TestFalse(TEXT("No damage observed before a cycle starts"), Cycle.bDamageObservedThisCycle);
+
+    // Advancing while Idle is a no-op: nothing triggers a cycle implicitly.
+    if (!Fixture.TickFor(0.20f, this)) return false;
+    TestTrue(TEXT("Ticking while Idle leaves the cycle Idle"),
+        Adapter->GetRestorationObjectiveCycleStatus().State == EEverwardRestorationObjectiveCycleState::Idle);
+
+    if (!TestTrue(TEXT("Trigger starts the first cycle"),
+        Adapter->CommandTriggerNextRestorationCycle().bAccepted))
+    {
+        return false;
+    }
+    Cycle = Adapter->GetRestorationObjectiveCycleStatus();
+    TestTrue(TEXT("Triggered cycle is Active"), Cycle.State == EEverwardRestorationObjectiveCycleState::Active);
+    TestFalse(TEXT("Re-trigger while Active is rejected"),
+        Adapter->CommandTriggerNextRestorationCycle().bAccepted);
+
+    // A fully restored probe that never took damage must not trivially complete the cycle.
+    TestTrue(TEXT("Fresh probe reports starter restoration satisfied"),
+        Adapter->GetStarterRestorationStatus().bSatisfied);
+    if (!Fixture.TickFor(0.50f, this)) return false;
+    Cycle = Adapter->GetRestorationObjectiveCycleStatus();
+    TestTrue(TEXT("Undamaged probe leaves the cycle Active"),
+        Cycle.State == EEverwardRestorationObjectiveCycleState::Active);
+    TestEqual(TEXT("No completion without observed damage"), Cycle.CompletedCycles, 0);
+    TestFalse(TEXT("Damage latch stays clear without damage"), Cycle.bDamageObservedThisCycle);
+    return !HasAnyErrors();
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

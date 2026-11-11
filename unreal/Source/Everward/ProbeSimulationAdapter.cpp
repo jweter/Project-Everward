@@ -309,6 +309,7 @@ void UProbeSimulationAdapter::TickComponent(
         // once, so calling all three governors unconditionally here is safe.
         AdvanceControlledDescentGovernorFixedStep();
         AdvanceJoseAutopilotGovernorFixedStep();
+        AdvanceRestorationObjectiveCycleFixedStep();
 
         if (Manipulators != nullptr)
         {

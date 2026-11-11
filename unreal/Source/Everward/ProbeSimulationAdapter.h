@@ -230,6 +230,28 @@ struct EVERWARD_API FEverwardStarterRestorationStatus
     UPROPERTY(BlueprintReadOnly, Category="Everward|Objective") double WeakestPendingIntegrity = 1.0;
 };
 
+// Mirrors everward::simulation::RestorationObjectiveCycleState
+// (src/simulation/include/everward/simulation/objective_cycle.hpp) exactly.
+UENUM(BlueprintType)
+enum class EEverwardRestorationObjectiveCycleState : uint8
+{
+    Idle UMETA(DisplayName="Idle"),
+    Active UMETA(DisplayName="Active"),
+    Completed UMETA(DisplayName="Completed")
+};
+
+// Read-only mirror of everward::simulation::RestorationObjectiveCycle
+// (first-playable-loop step 9). Presentation only: the cycle rules live in
+// objective_cycle.hpp and are never reimplemented here.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardRestorationObjectiveCycleStatus
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Objective") EEverwardRestorationObjectiveCycleState State = EEverwardRestorationObjectiveCycleState::Idle;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Objective") int32 CompletedCycles = 0;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Objective") bool bDamageObservedThisCycle = false;
+};
+
 // Slice 11 ("Science as gameplay") foundation: unknown -> observed ->
 // characterized, matching everward::simulation::KnowledgeLevel exactly.
 // Composition/material classification (the "characterized" driver) is now
@@ -457,6 +479,7 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Telemetry") TArray<FEverwardMaterialInventoryEntry> GetStoredMaterialInventory() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Objective") FEverwardStarterRestorationStatus GetStarterRestorationStatus() const;
+    UFUNCTION(BlueprintPure, Category="Everward|Objective") FEverwardRestorationObjectiveCycleStatus GetRestorationObjectiveCycleStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetKnowledgeStatus GetSelectedTargetKnowledgeStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") TArray<FEverwardDiscoveredTarget> GetDiscoveredTargets() const;
     UFUNCTION(BlueprintPure, Category="Everward|Tractor") FEverwardTractorFieldStatus GetTractorFieldStatus() const;
@@ -574,6 +597,8 @@ public:
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandGraspSelectedTarget(EEverwardManipulatorArmId ArmId);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandReleaseGraspedTarget(EEverwardManipulatorArmId ArmId);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandCollectGraspedTarget(EEverwardManipulatorArmId ArmId);
+    // Starts the next repeatable restoration objective cycle; rejected while one is already Active.
+    UFUNCTION(BlueprintCallable, Category="Everward|Objective") FEverwardProbeCommandResult CommandTriggerNextRestorationCycle();
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandSaveGame();
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandLoadGame();
     UFUNCTION(BlueprintCallable, Category="Everward|Simulation") void SetProbeVelocityMetersPerSecond(FVector VelocityMetersPerSecond);
@@ -601,6 +626,16 @@ private:
     // SetJoseAutopilotGovernorEngaged()'s comments.
     void AdvanceControlledDescentGovernorFixedStep();
     void AdvanceJoseAutopilotGovernorFixedStep();
+    // Forwards the latest authoritative restoration status to
+    // objective_cycle.hpp once per elapsed fixed step; a no-op unless Active.
+    void AdvanceRestorationObjectiveCycleFixedStep();
+
+    // Plain-data copy of everward::simulation::RestorationObjectiveCycle; the
+    // header cannot include simulation types, so the .cpp round-trips it
+    // through the real struct and objective_cycle.hpp functions.
+    uint8 RestorationCycleState = 0;
+    uint32 RestorationCompletedCycles = 0;
+    bool bRestorationDamageObservedThisCycle = false;
 
     double FixedStepAccumulatorSeconds = 0.0;
     double TractorStepAccumulatorSeconds = 0.0;
