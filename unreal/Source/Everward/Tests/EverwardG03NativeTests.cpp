@@ -267,6 +267,9 @@ bool FEverwardG03RestorationObjectiveCycleTest::RunTest(const FString& Parameter
     TestTrue(TEXT("Ticking while Idle leaves the cycle Idle"),
         Adapter->GetRestorationObjectiveCycleStatus().State == EEverwardRestorationObjectiveCycleState::Idle);
 
+    // Save while Idle so a later load must bring the cycle back to Idle (review finding: cycle state is persisted).
+    if (!TestTrue(TEXT("Idle probe state can be saved"), Adapter->CommandSaveGame().bAccepted)) return false;
+
     if (!TestTrue(TEXT("Trigger starts the first cycle"),
         Adapter->CommandTriggerNextRestorationCycle().bAccepted))
     {
@@ -286,6 +289,13 @@ bool FEverwardG03RestorationObjectiveCycleTest::RunTest(const FString& Parameter
         Cycle.State == EEverwardRestorationObjectiveCycleState::Active);
     TestEqual(TEXT("No completion without observed damage"), Cycle.CompletedCycles, 0);
     TestFalse(TEXT("Damage latch stays clear without damage"), Cycle.bDamageObservedThisCycle);
+
+    // Loading the earlier save must replace the later in-session cycle state, not keep it.
+    if (!TestTrue(TEXT("Earlier save loads"), Adapter->CommandLoadGame().bAccepted)) return false;
+    Cycle = Adapter->GetRestorationObjectiveCycleStatus();
+    TestTrue(TEXT("Load restores the saved Idle cycle"), Cycle.State == EEverwardRestorationObjectiveCycleState::Idle);
+    TestEqual(TEXT("Load restores the saved completed-cycle count"), Cycle.CompletedCycles, 0);
+    TestFalse(TEXT("Load restores the saved damage latch"), Cycle.bDamageObservedThisCycle);
     return !HasAnyErrors();
 }
 #endif // WITH_DEV_AUTOMATION_TESTS

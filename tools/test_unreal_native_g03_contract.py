@@ -42,6 +42,15 @@ class G03NativeContractTests(unittest.TestCase):
         self.assertNotIn("Core->", source)
         self.assertNotIn("MiningSystem::mine_once", source)
 
+    def test_objective_cycle_is_persisted_through_save_data(self) -> None:
+        adapter = (ROOT / "unreal" / "Source" / "Everward" / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
+        self.assertIn("capture_probe_save_data(*Core, Rig, Cycle)", adapter)
+        self.assertIn("LoadedCycle = Data.restoration_objective_cycle;", adapter)
+        for field in ("RestorationCycleState", "RestorationCompletedCycles", "bRestorationDamageObservedThisCycle"):
+            self.assertIn(f"{field} = ", adapter.split("probe state loaded")[0].split("Core = NewCore;")[1], field)
+        native = SOURCE.read_text(encoding="utf-8")
+        self.assertIn("Load restores the saved Idle cycle", native)
+
     def test_runner_requires_a_real_unreal_report(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")
         for required in (
