@@ -10,13 +10,14 @@ RUNNER = ROOT / "tools" / "run_unreal_native_g03.ps1"
 
 
 class G03NativeContractTests(unittest.TestCase):
-    def test_three_native_unreal_automation_tests_are_registered(self) -> None:
+    def test_four_native_unreal_automation_tests_are_registered(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
-        self.assertEqual(source.count("IMPLEMENT_SIMPLE_AUTOMATION_TEST("), 3)
+        self.assertEqual(source.count("IMPLEMENT_SIMPLE_AUTOMATION_TEST("), 4)
         for name in (
             "Everward.G03.Native.ScanSurveyPersistsAfterCancel",
             "Everward.G03.Native.MiningRejectsWithoutSurveyAndTool",
             "Everward.G03.Native.ArmToggleReversesAndJointControlsStayHonest",
+            "Everward.G03.Native.RestorationObjectiveCycleMirror",
         ):
             self.assertIn(name, source)
         self.assertIn("WITH_DEV_AUTOMATION_TESTS", source)
@@ -32,6 +33,7 @@ class G03NativeContractTests(unittest.TestCase):
             "GetMiningStatus()", "GetStoredMaterialInventory()",
             "GetProbeTelemetry()", "GetSimulationTick()", "TickTestWorld(",
             "CommandToggleManipulatorArmDeployment(", "bAcceptsJointCommands",
+            "CommandTriggerNextRestorationCycle(", "GetRestorationObjectiveCycleStatus()",
         ):
             self.assertIn(symbol, source)
         self.assertIn("After.ExtractedMaterialKilograms", source)
@@ -39,6 +41,15 @@ class G03NativeContractTests(unittest.TestCase):
         self.assertIn("TelemetryAfter.StorageUsedKilograms", source)
         self.assertNotIn("Core->", source)
         self.assertNotIn("MiningSystem::mine_once", source)
+
+    def test_objective_cycle_is_persisted_through_save_data(self) -> None:
+        adapter = (ROOT / "unreal" / "Source" / "Everward" / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
+        self.assertIn("capture_probe_save_data(*Core, Rig, Cycle)", adapter)
+        self.assertIn("LoadedCycle = Data.restoration_objective_cycle;", adapter)
+        for field in ("RestorationCycleState", "RestorationCompletedCycles", "bRestorationDamageObservedThisCycle"):
+            self.assertIn(f"{field} = ", adapter.split("probe state loaded")[0].split("Core = NewCore;")[1], field)
+        native = SOURCE.read_text(encoding="utf-8")
+        self.assertIn("Load restores the saved Idle cycle", native)
 
     def test_runner_requires_a_real_unreal_report(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")

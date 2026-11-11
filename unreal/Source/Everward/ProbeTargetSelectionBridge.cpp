@@ -2,6 +2,7 @@
 
 #include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/jose_autopilot.hpp"
+#include "everward/simulation/objective_cycle.hpp"
 #include "everward/simulation/starter_restoration.hpp"
 #include "everward/simulation/target_cycle_runtime.hpp"
 
@@ -75,6 +76,59 @@ FEverwardStarterRestorationStatus UProbeSimulationAdapter::GetStarterRestoration
         Status.PendingSubsystems.Add(Name);
     }
     return Status;
+}
+
+namespace
+{
+everward::simulation::RestorationObjectiveCycle ToSimulationCycle(uint8 State, uint32 Completed, bool bDamageObserved)
+{
+    everward::simulation::RestorationObjectiveCycle Cycle;
+    Cycle.state = static_cast<everward::simulation::RestorationObjectiveCycleState>(State);
+    Cycle.completed_cycles = Completed;
+    Cycle.damage_observed_this_cycle = bDamageObserved;
+    return Cycle;
+}
+}
+
+FEverwardRestorationObjectiveCycleStatus UProbeSimulationAdapter::GetRestorationObjectiveCycleStatus() const
+{
+    // Read-only mirror; objective_cycle.hpp stays the only authority.
+    FEverwardRestorationObjectiveCycleStatus Status;
+    Status.State = static_cast<EEverwardRestorationObjectiveCycleState>(RestorationCycleState);
+    Status.CompletedCycles = static_cast<int32>(RestorationCompletedCycles);
+    Status.bDamageObservedThisCycle = bRestorationDamageObservedThisCycle;
+    return Status;
+}
+
+FEverwardProbeCommandResult UProbeSimulationAdapter::CommandTriggerNextRestorationCycle()
+{
+    if (Core == nullptr)
+    {
+        return RecordCommandResult(FName(TEXT("trigger_next_restoration_cycle")), false, TEXT("Simulation core unavailable"));
+    }
+    everward::simulation::RestorationObjectiveCycle Cycle =
+        ToSimulationCycle(RestorationCycleState, RestorationCompletedCycles, bRestorationDamageObservedThisCycle);
+    const bool bStarted = everward::simulation::trigger_next_restoration_cycle(Cycle);
+    RestorationCycleState = static_cast<uint8>(Cycle.state);
+    RestorationCompletedCycles = Cycle.completed_cycles;
+    bRestorationDamageObservedThisCycle = Cycle.damage_observed_this_cycle;
+    return RecordCommandResult(
+        FName(TEXT("trigger_next_restoration_cycle")), bStarted,
+        bStarted ? TEXT("Restoration objective cycle started") : TEXT("A restoration objective cycle is already active"));
+}
+
+void UProbeSimulationAdapter::AdvanceRestorationObjectiveCycleFixedStep()
+{
+    if (Core == nullptr || RestorationCycleState != static_cast<uint8>(EEverwardRestorationObjectiveCycleState::Active))
+    {
+        return;
+    }
+    everward::simulation::RestorationObjectiveCycle Cycle =
+        ToSimulationCycle(RestorationCycleState, RestorationCompletedCycles, bRestorationDamageObservedThisCycle);
+    everward::simulation::advance_restoration_cycle(Cycle, *Core);
+    RestorationCycleState = static_cast<uint8>(Cycle.state);
+    RestorationCompletedCycles = Cycle.completed_cycles;
+    bRestorationDamageObservedThisCycle = Cycle.damage_observed_this_cycle;
 }
 
 FEverwardTargetKnowledgeStatus UProbeSimulationAdapter::GetSelectedTargetKnowledgeStatus() const

@@ -18,6 +18,7 @@
 #include "everward/simulation/manipulator_grasp.hpp"
 #include "everward/simulation/manipulator_move.hpp"
 #include "everward/simulation/manipulator_release.hpp"
+#include "everward/simulation/objective_cycle.hpp"
 #include "everward/simulation/save_data.hpp"
 
 #include <algorithm>
@@ -309,6 +310,7 @@ void UProbeSimulationAdapter::TickComponent(
         // once, so calling all three governors unconditionally here is safe.
         AdvanceControlledDescentGovernorFixedStep();
         AdvanceJoseAutopilotGovernorFixedStep();
+        AdvanceRestorationObjectiveCycleFixedStep();
 
         if (Manipulators != nullptr)
         {
@@ -974,10 +976,15 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSaveGame()
     {
         everward::simulation::SaveGameV1 Save;
         Save.simulation_tick = Core->tick();
-        Save.probes.push_back(
-            Manipulators != nullptr
-                ? everward::simulation::capture_probe_save_data(*Core, *Manipulators)
-                : everward::simulation::capture_probe_save_data(*Core));
+        // The repeatable objective cycle lives in this adapter as plain data (see the header); it is
+        // persisted through save_data.hpp's restoration_objective_cycle field, never a second format.
+        everward::simulation::RestorationObjectiveCycle Cycle;
+        Cycle.state = static_cast<everward::simulation::RestorationObjectiveCycleState>(RestorationCycleState);
+        Cycle.completed_cycles = RestorationCompletedCycles;
+        Cycle.damage_observed_this_cycle = bRestorationDamageObservedThisCycle;
+        const everward::simulation::ManipulatorRig NoManipulators;
+        const everward::simulation::ManipulatorRig& Rig = Manipulators != nullptr ? *Manipulators : NoManipulators;
+        Save.probes.push_back(everward::simulation::capture_probe_save_data(*Core, Rig, Cycle));
 
         const FString Json = UTF8_TO_TCHAR(everward::simulation::serialize_save_game(Save).c_str());
         const FString FilePath = SaveGameFilePath();
@@ -1009,6 +1016,7 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
 
     everward::simulation::DamageAwareProbeRuntime* NewCore = nullptr;
     everward::simulation::ManipulatorRig* NewManipulators = nullptr;
+    everward::simulation::RestorationObjectiveCycle LoadedCycle;
     try
     {
         const everward::simulation::SaveGameV1 Save =
@@ -1018,6 +1026,7 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
             return RecordCommandResult(CommandId, false, TEXT("save file has no probe state"));
         }
         const everward::simulation::ProbeSaveData& Data = Save.probes[0];
+        LoadedCycle = Data.restoration_objective_cycle;
 
         NewCore = new everward::simulation::DamageAwareProbeRuntime(
             everward::simulation::restore_probe_runtime(Data, Save.simulation_tick));
@@ -1035,6 +1044,10 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
     delete Core;
     Core = NewCore;
     Manipulators = NewManipulators;
+    // Restore the objective cycle only on a successful load, replacing any later in-session state.
+    RestorationCycleState = static_cast<uint8>(LoadedCycle.state);
+    RestorationCompletedCycles = LoadedCycle.completed_cycles;
+    bRestorationDamageObservedThisCycle = LoadedCycle.damage_observed_this_cycle;
     SyncOwnerTransformFromSimulation();
     return RecordCommandResult(CommandId, true, TEXT("probe state loaded"));
 }
