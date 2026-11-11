@@ -200,7 +200,7 @@
         },
         {
           "id": "first-loop-repeatable-objective",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 4,
           "depends_on": [
             "first-loop-chained-simulation-test"
@@ -230,6 +230,46 @@
           "runner_requirements": [
             "code",
             "local",
+            "offline"
+          ],
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/388 merged as commit 509999c723be7f6f70aca48bc6396e9822510210 (capable-builder pull request)",
+            "src/simulation/include/everward/simulation/objective_cycle.hpp adds the engine-independent trigger/advance state machine layered on StarterRestorationStatus; src/simulation/tests/objective_cycle_tests.cpp (ctest everward_objective_cycle_tests) re-run at baseline 509999c: Passed",
+            "src/simulation/include/everward/simulation/save_data.hpp adds the additive, backward-compatible ProbeSaveData objective-cycle field; src/simulation/tests/save_data_tests.cpp (ctest everward_save_data_tests) re-run at baseline 509999c: Passed",
+            "docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md step 9 updated to PASSED (portable); tools/test_first_playable_loop_evidence.py re-run at baseline 509999c: `python3 tools/test_first_playable_loop_evidence.py` - OK (4 tests), no longer lists repeatable objective as categorically unverifiable"
+          ]
+        },
+        {
+          "id": "first-loop-repeatable-objective-unreal-wiring",
+          "state": "PLANNED",
+          "capability_level": 3,
+          "depends_on": [
+            "first-loop-repeatable-objective"
+          ],
+          "objective": "Mirror the VERIFIED_COMPLETE engine-independent repeatable objective cycle (src/simulation/include/everward/simulation/objective_cycle.hpp) into the Unreal-side ProbeSimulationAdapter (unreal/Source/Everward/ProbeSimulationAdapter.h/.cpp), following the existing GetStarterRestorationStatus() BlueprintPure mirror pattern, so the cycle can be triggered and observed in-engine. This closes the 'Unreal trigger UI/HUD... PENDING' half of first-loop step 9 named in docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md. Roadmap: docs/OWNER_APPROVED_ROADMAP_2026-10-25.md#first-playable-unreal-milestone.",
+          "acceptance": [
+            "ProbeSimulationAdapter exposes a BlueprintPure status mirror of the objective cycle and a BlueprintCallable trigger/advance entry point, following the existing GetStarterRestorationStatus() pattern; it forwards to objective_cycle.hpp and does not reimplement or duplicate its rules.",
+            "A native Unreal automation test under unreal/Source/Everward/Tests (following the existing EverwardG03NativeTests.cpp free native-test pattern: real UWorld, AEverwardProbePawn, no Aura) spawns a probe, drives the cycle through trigger and completion via the adapter, and asserts the mirrored Blueprint-facing state matches objective_cycle.hpp.",
+            "Simulation truth stays authoritative in src/simulation; the Unreal layer only mirrors/forwards state, consistent with the StarterRestoration wiring already in ProbeSimulationAdapter.h.",
+            "docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md step 9 is updated to record the in-engine wiring and native test; actual in-editor/packaged play stays PENDING until run on a runner with Unreal and a display.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "unreal/Source/**",
+            "docs/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "windows",
             "offline"
           ],
           "runtime_requirements": []
