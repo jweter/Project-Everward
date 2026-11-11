@@ -5,7 +5,8 @@
 // covers exactly the state that exists today (the single canonical EV-0001
 // probe's physical/energy/thermal/storage/scan state, component integrity,
 // registered physical targets, an installed software policy, target
-// selection, and both manipulator arms' deploy/joint/tool/grasp state). The
+// selection, both manipulator arms' deploy/joint/tool/grasp state, and the
+// repeatable restoration-objective cycle). The
 // many other top-level categories docs/SAVE_FORMAT.md anticipates
 // (infrastructure, civilizations, ...) do not exist in the simulation yet
 // and are therefore not represented here; adding them is a later, explicit
@@ -37,6 +38,7 @@
 #include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/json_value.hpp"
 #include "everward/simulation/manipulator.hpp"
+#include "everward/simulation/objective_cycle.hpp"
 #include "everward/simulation/probe_lineage.hpp"
 #include "everward/simulation/software_policy.hpp"
 
@@ -77,6 +79,13 @@ struct ProbeSaveData {
     // when reconstructing the rig, not persisted state.
     ManipulatorArmState port_manipulator_arm{};
     ManipulatorArmState starboard_manipulator_arm{};
+    // Phase 2 first-loop step 9 (objective_cycle.hpp): the repeatable
+    // objective that follows starter restoration. Additive v1 field: absent
+    // entirely on a save captured before this existed, read back as a fresh
+    // Idle cycle (0 completed) -- the one unambiguous reading of "never
+    // triggered" -- rather than requiring a schema migration, matching
+    // material_inventory_kg's precedent above.
+    RestorationObjectiveCycle restoration_objective_cycle{};
 };
 
 struct SaveGameV1 {
@@ -360,6 +369,44 @@ namespace detail {
         policy.rules.push_back(policy_rule_from_json(rule_value));
     }
     return policy;
+}
+
+[[nodiscard]] inline std::string restoration_objective_cycle_state_to_string(
+        RestorationObjectiveCycleState state) {
+    switch (state) {
+        case RestorationObjectiveCycleState::Idle: return "idle";
+        case RestorationObjectiveCycleState::Active: return "active";
+        case RestorationObjectiveCycleState::Completed: return "completed";
+    }
+    throw std::invalid_argument("unknown RestorationObjectiveCycleState value");
+}
+
+[[nodiscard]] inline RestorationObjectiveCycleState restoration_objective_cycle_state_from_string(
+        const std::string& value) {
+    if (value == "idle") return RestorationObjectiveCycleState::Idle;
+    if (value == "active") return RestorationObjectiveCycleState::Active;
+    if (value == "completed") return RestorationObjectiveCycleState::Completed;
+    throw std::runtime_error("unknown restoration_objective_cycle state: " + value);
+}
+
+[[nodiscard]] inline JsonValue restoration_objective_cycle_to_json(const RestorationObjectiveCycle& cycle) {
+    JsonValue object = JsonValue::make_object();
+    object.set("state", JsonValue(restoration_objective_cycle_state_to_string(cycle.state)));
+    object.set("completed_cycles", JsonValue(static_cast<std::int64_t>(cycle.completed_cycles)));
+    object.set("damage_observed_this_cycle", JsonValue(cycle.damage_observed_this_cycle));
+    return object;
+}
+
+[[nodiscard]] inline RestorationObjectiveCycle restoration_objective_cycle_from_json(const JsonValue& value) {
+    RestorationObjectiveCycle cycle;
+    cycle.state = restoration_objective_cycle_state_from_string(value.require("state").as_string());
+    const std::int64_t completed_cycles = value.require("completed_cycles").as_int64();
+    if (completed_cycles < 0) {
+        throw std::runtime_error("restoration_objective_cycle completed_cycles must not be negative");
+    }
+    cycle.completed_cycles = static_cast<std::uint32_t>(completed_cycles);
+    cycle.damage_observed_this_cycle = value.require("damage_observed_this_cycle").as_bool();
+    return cycle;
 }
 
 [[nodiscard]] inline std::string knowledge_level_to_string(KnowledgeLevel level) {
@@ -674,6 +721,9 @@ namespace detail {
     object.set(
         "starboard_manipulator_arm",
         detail::manipulator_arm_state_to_json(data.starboard_manipulator_arm));
+    object.set(
+        "restoration_objective_cycle",
+        detail::restoration_objective_cycle_to_json(data.restoration_objective_cycle));
     return object;
 }
 
@@ -701,6 +751,12 @@ namespace detail {
         detail::manipulator_arm_state_from_json(value.require("port_manipulator_arm"));
     data.starboard_manipulator_arm =
         detail::manipulator_arm_state_from_json(value.require("starboard_manipulator_arm"));
+    // Additive v1 field (see ProbeSaveData's comment): absent entirely on a
+    // save captured before this cycle existed, read back as a fresh Idle
+    // cycle (default-constructed) rather than requiring a schema migration.
+    if (const JsonValue* cycle_value = value.find("restoration_objective_cycle")) {
+        data.restoration_objective_cycle = detail::restoration_objective_cycle_from_json(*cycle_value);
+    }
     return data;
 }
 
@@ -959,7 +1015,8 @@ struct SaveMigrationResult {
 // objects side by side rather than one owning the other.
 [[nodiscard]] inline ProbeSaveData capture_probe_save_data(
         const DamageAwareProbeRuntime& runtime,
-        const ManipulatorRig& manipulator_rig = ManipulatorRig{}) {
+        const ManipulatorRig& manipulator_rig = ManipulatorRig{},
+        const RestorationObjectiveCycle& restoration_objective_cycle = RestorationObjectiveCycle{}) {
     ProbeSaveData data;
     data.probe = runtime.snapshot();
     data.integrity = runtime.component_integrity();
@@ -974,6 +1031,7 @@ struct SaveMigrationResult {
     }
     data.port_manipulator_arm = manipulator_rig.arm(ManipulatorArmId::Port);
     data.starboard_manipulator_arm = manipulator_rig.arm(ManipulatorArmId::Starboard);
+    data.restoration_objective_cycle = restoration_objective_cycle;
     return data;
 }
 
