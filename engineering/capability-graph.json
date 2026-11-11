@@ -242,7 +242,7 @@
         },
         {
           "id": "first-loop-repeatable-objective-unreal-wiring",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 3,
           "depends_on": [
             "first-loop-repeatable-objective"
@@ -272,7 +272,11 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/391 merged 2026-11-11 as 6d995448f1000d37aa4a3c760daf42adfb17eab2 (6/6 required checks passed at the exact head): ProbeSimulationAdapter exposes GetRestorationObjectiveCycleStatus() (BlueprintPure) and CommandTriggerNextRestorationCycle(), forwards each fixed step to objective_cycle.hpp, and persists the cycle through CommandSaveGame/CommandLoadGame.",
+            "Native test Everward.G03.Native.RestorationObjectiveCycleMirror is written and pinned by tools/test_unreal_native_g03_contract.py; docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md step 9 records the wiring. The Unreal compile and the native run are PENDING (not run on a machine with Unreal); in-editor play stays PENDING."
+          ]
         },
         {
           "id": "first-loop-objective-hud",
