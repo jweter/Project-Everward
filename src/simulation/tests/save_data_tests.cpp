@@ -743,6 +743,67 @@ void test_legacy_save_without_planetary_body_field_infers_no_body() {
     assert(!restored_from_null.planetary_body.has_value());
 }
 
+void test_restoration_objective_cycle_round_trips_losslessly() {
+    using everward::simulation::RestorationObjectiveCycle;
+    using everward::simulation::RestorationObjectiveCycleState;
+    using everward::simulation::trigger_next_restoration_cycle;
+
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+
+    RestorationObjectiveCycle cycle;
+    assert(trigger_next_restoration_cycle(cycle));
+    runtime.set_subsystem_integrity(PowerSubsystem::Propulsion, 0.4);
+    everward::simulation::advance_restoration_cycle(cycle, runtime);
+    runtime.set_subsystem_integrity(PowerSubsystem::Propulsion, 1.0);
+    everward::simulation::advance_restoration_cycle(cycle, runtime);
+    assert(cycle.state == RestorationObjectiveCycleState::Completed);
+    assert(cycle.completed_cycles == 1);
+    // A second, still-open cycle: triggered but not yet completed, so its
+    // damage-observed latch is captured too.
+    assert(trigger_next_restoration_cycle(cycle));
+    runtime.set_subsystem_integrity(PowerSubsystem::Sensors, 0.6);
+    everward::simulation::advance_restoration_cycle(cycle, runtime);
+    assert(cycle.state == RestorationObjectiveCycleState::Active);
+    assert(cycle.damage_observed_this_cycle);
+
+    const ProbeSaveData captured = capture_probe_save_data(runtime, ManipulatorRig{}, cycle);
+    const std::string json_text = serialize_save_game(SaveGameV1{1, runtime.tick(), 0, 1, {captured}});
+    const SaveGameV1 parsed = deserialize_save_game(json_text);
+
+    const RestorationObjectiveCycle& restored = parsed.probes.at(0).restoration_objective_cycle;
+    assert(restored.state == cycle.state);
+    assert(restored.completed_cycles == cycle.completed_cycles);
+    assert(restored.damage_observed_this_cycle == cycle.damage_observed_this_cycle);
+}
+
+void test_legacy_save_without_restoration_objective_cycle_infers_fresh_idle_cycle() {
+    using everward::simulation::RestorationObjectiveCycleState;
+    using everward::simulation::probe_save_data_from_json;
+    using everward::simulation::probe_save_data_to_json;
+
+    const ProbeSaveData data =
+        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    assert(data.restoration_objective_cycle.state == RestorationObjectiveCycleState::Idle);
+    assert(data.restoration_objective_cycle.completed_cycles == 0);
+
+    const JsonValue full = probe_save_data_to_json(data);
+    assert(full.require("restoration_objective_cycle").require("state").as_string() == "idle");
+
+    // A save captured before this field existed must round-trip as a fresh
+    // Idle cycle (0 completed) rather than throwing on the missing key.
+    JsonValue without_field = JsonValue::make_object();
+    for (const auto& [key, field] : full.as_object()) {
+        if (key != "restoration_objective_cycle") {
+            without_field.set(key, field);
+        }
+    }
+
+    const ProbeSaveData restored = probe_save_data_from_json(without_field);
+    assert(restored.restoration_objective_cycle.state == RestorationObjectiveCycleState::Idle);
+    assert(restored.restoration_objective_cycle.completed_cycles == 0);
+    assert(!restored.restoration_objective_cycle.damage_observed_this_cycle);
+}
+
 void test_legacy_save_without_target_knowledge_infers_empty() {
     using everward::simulation::detail::probe_state_from_json;
     using everward::simulation::detail::probe_state_to_json;
@@ -1136,6 +1197,8 @@ int main() {
     test_legacy_save_without_material_inventory_infers_single_entry();
     test_legacy_save_without_target_knowledge_infers_empty();
     test_legacy_save_without_planetary_body_field_infers_no_body();
+    test_restoration_objective_cycle_round_trips_losslessly();
+    test_legacy_save_without_restoration_objective_cycle_infers_fresh_idle_cycle();
     test_world_identity_round_trips_losslessly();
     test_missing_world_identity_fails_closed();
     test_invalid_generation_algorithm_version_fails_closed();

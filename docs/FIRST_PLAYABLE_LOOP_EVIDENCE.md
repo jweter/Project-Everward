@@ -19,7 +19,7 @@ The runner is a Linux sandbox with CMake, Ninja, g++ and Python. It has **no Unr
 ```
 cmake -S src/simulation -B build/simulation -G Ninja -DBUILD_TESTING=ON
 cmake --build build/simulation
-ctest --test-dir build/simulation --output-on-failure   # observed: 100% passed, 0 failed, 35 of 35
+ctest --test-dir build/simulation --output-on-failure   # observed: 100% passed, 0 failed, 40 of 40
 python3 -m unittest tools/test_phase2_<name>.py        # per-step names below
 ```
 
@@ -35,11 +35,11 @@ python3 -m unittest tools/test_phase2_<name>.py        # per-step names below
 | 6 | Objective status (starter restoration derived from component integrity) | `ctest --test-dir build/simulation -R starter_restoration` | Passed | PASSED (portable). Unreal compile of `GetStarterRestorationStatus()` and HUD use: PENDING |
 | 7 | Persistence (save/load incl. inventory and knowledge) | `ctest --test-dir build/simulation -R save_data` | Passed | PASSED (portable). Save/load UI in-engine: PENDING |
 | 8 | Construction / fabrication | None. No fabrication module exists (`docs/PHASE2_VERTICAL_SLICE_PLAN.md` Slice 13). | Not run | PENDING (not implemented) |
-| 9 | Repeatable objective | None. The objective is a one-time restoration status; no repeat mechanic exists. | Not run | PENDING (not implemented) |
+| 9 | Repeatable objective | `ctest --test-dir build/simulation -R objective_cycle` | Passed | PASSED (portable). The engine-independent repeatable objective (`objective_cycle.hpp`, built on starter restoration) can be triggered and completed any number of times from simulation state and round-trips through save/load. Unreal trigger UI/HUD and in-engine play: PENDING |
 | 10 | End-to-end first loop in editor or packaged runtime (wake, scan, collect, repair, restore) | Requires Unreal Editor or a packaged Windows build. `docs/PHASE2_LOCAL_PLAYTEST_HARNESS.md` and `docs/PHASE2_FIRST_RUN_PLAYTEST.md` describe the local procedure. | Not run on this runner | PENDING (no Unreal/Windows on runner) |
 
 ## Limits
 
 - Per-step portable tests exercise each step's simulation truth in isolation. `src/simulation/tests/first_loop_chained_tests.cpp` (ctest `everward_first_loop_chained_tests`) additionally chains damaged wake, a real runtime scan, mining/collection, Fix_It repair (consuming stored material and energy) and starter restoration in one deterministic simulation run, executed twice and compared exactly. The only direct state writes are the documented damaged-wake integrity values; material arrives only via mining. This is simulation-level proof only: the in-engine chain (step 10) remains PENDING.
 - "Complete first loop verified in editor or runtime" is **not** achieved. Steps 8 to 10 stay pending, and so does every in-engine item above.
-- Remaining Product Reality debt: Unreal build and packaging, controls/HUD usability, in-engine playtest of the loop, fabrication (Slice 13), and a repeatable objective.
+- Remaining Product Reality debt: Unreal build and packaging, controls/HUD usability, in-engine playtest of the loop, fabrication (Slice 13), and in-engine wiring of the repeatable objective (step 9's simulation truth is now covered; its Unreal trigger UI/HUD is not).

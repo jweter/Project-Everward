@@ -10,7 +10,13 @@ import unittest
 from pathlib import Path
 
 DOC = Path(__file__).resolve().parents[1] / "docs" / "FIRST_PLAYABLE_LOOP_EVIDENCE.md"
-UNVERIFIABLE_ON_RUNNER = ("fabrication", "repeatable objective", "editor or packaged")
+# "repeatable objective" is deliberately absent: objective_cycle.hpp gives it a
+# genuine engine-independent, portable-tested simulation truth (ctest -R
+# objective_cycle), the same category as steps 1-7 below -- PASSED (portable)
+# with Unreal wiring separately PENDING, not an unverifiable claim. "fabrication"
+# and "editor or packaged" stay listed: no fabrication module exists at all, and
+# an in-editor/packaged run is categorically impossible on this runner.
+UNVERIFIABLE_ON_RUNNER = ("fabrication", "editor or packaged")
 
 
 def _rows() -> list[list[str]]:
