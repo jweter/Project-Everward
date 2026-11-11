@@ -242,7 +242,7 @@
         },
         {
           "id": "first-loop-repeatable-objective-unreal-wiring",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 3,
           "depends_on": [
             "first-loop-repeatable-objective"
@@ -272,7 +272,11 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/391 merged 2026-11-11 as 6d995448f1000d37aa4a3c760daf42adfb17eab2 (6/6 required checks passed at the exact head): ProbeSimulationAdapter exposes GetRestorationObjectiveCycleStatus() (BlueprintPure) and CommandTriggerNextRestorationCycle(), forwards each fixed step to objective_cycle.hpp, and persists the cycle through CommandSaveGame/CommandLoadGame.",
+            "Native test Everward.G03.Native.RestorationObjectiveCycleMirror is written and pinned by tools/test_unreal_native_g03_contract.py; docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md step 9 records the wiring. The Unreal compile and the native run are PENDING (not run on a machine with Unreal); in-editor play stays PENDING."
+          ]
         },
         {
           "id": "first-loop-objective-hud",
@@ -310,7 +314,7 @@
         },
         {
           "id": "first-loop-objective-damage-repair-native-test",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 3,
           "depends_on": [
             "first-loop-repeatable-objective-unreal-wiring"
@@ -341,7 +345,11 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/393 merged 2026-11-11T21:44:20Z as the squash of head 5cf79a3399787775effeeaca53c84d131279384e (6/6 required checks passed at the exact head): TestOnlySetSubsystemIntegrity (WITH_DEV_AUTOMATION_TESTS, compiled out of shipping) and native test Everward.G03.Native.RestorationObjectiveCycleCompletes (trigger -> damage latches -> repair -> Completed, CompletedCycles == 1 -> next trigger starts a fresh Active cycle).",
+            "Deviation recorded: repair in the test restores integrity through the authoritative set_subsystem_integrity setter, not Fix_It's timed repair executor. The Unreal compile and native run are PENDING; docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md step 9 says so."
+          ]
         },
         {
           "id": "first-loop-progression-slice",
