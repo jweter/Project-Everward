@@ -60,9 +60,11 @@ class Phase2MaterialInventorySurfaceTests(unittest.TestCase):
         # one line to fit the new row rather than silently overlapping the
         # manipulator panel drawn above it. A later DISCOVERIES row (Slice 11
         # follow-up, see test_phase2_science_knowledge_surface.py) bumped
-        # this again from 11.0f to 12.0f; this assertion only needs the
-        # panel to still budget at least the row INVENTORY itself requires.
-        self.assertIn("LineHeight * 12.0f", self.hud_cpp)
+        # this again from 11.0f to 12.0f, and the first-playable-loop step 9
+        # OBJECTIVE row (restoration objective cycle HUD wiring) bumped it
+        # again to 13.0f; this assertion only needs the panel to still
+        # budget at least the row INVENTORY itself requires.
+        self.assertIn("LineHeight * 13.0f", self.hud_cpp)
 
 
 if __name__ == "__main__":

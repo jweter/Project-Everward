@@ -163,6 +163,52 @@ FString CapabilityState(const FEverwardProbeCapability& Capability)
     return TEXT("READY");
 }
 
+// First-playable-loop step 9: read-only mirror of
+// UProbeSimulationAdapter::GetRestorationObjectiveCycleStatus() and
+// GetStarterRestorationStatus(). Presentation only -- cycle rules live in
+// objective_cycle.hpp and are never reimplemented here. The trigger hint
+// ([F7]) is shown only while the cycle is not Active, matching the actual
+// CommandTriggerNextRestorationCycle() accept/reject rule rather than
+// inventing a second one.
+FString RestorationObjectiveCycleLine(
+    const FEverwardRestorationObjectiveCycleStatus& Cycle,
+    const FEverwardStarterRestorationStatus& Restoration)
+{
+    const TCHAR* StateText = TEXT("IDLE");
+    switch (Cycle.State)
+    {
+        case EEverwardRestorationObjectiveCycleState::Active: StateText = TEXT("ACTIVE"); break;
+        case EEverwardRestorationObjectiveCycleState::Completed: StateText = TEXT("COMPLETED"); break;
+        case EEverwardRestorationObjectiveCycleState::Idle:
+        default: break;
+    }
+
+    FString PendingText;
+    if (Restoration.PendingSubsystems.IsEmpty())
+    {
+        PendingText = TEXT("NONE");
+    }
+    else
+    {
+        for (int32 Index = 0; Index < Restoration.PendingSubsystems.Num(); ++Index)
+        {
+            if (Index > 0)
+            {
+                PendingText += TEXT(", ");
+            }
+            PendingText += Restoration.PendingSubsystems[Index];
+        }
+    }
+
+    FString Line = FString::Printf(
+        TEXT("OBJECTIVE  %s // CYCLES %d // PENDING %s"), StateText, Cycle.CompletedCycles, *PendingText);
+    if (Cycle.State != EEverwardRestorationObjectiveCycleState::Active)
+    {
+        Line += TEXT("  //  [F7] TRIGGER NEXT CYCLE");
+    }
+    return Line;
+}
+
 FString ManipulatorArmLine(const FString& Label, const FEverwardManipulatorArmState& Arm)
 {
     FString StateText;
@@ -299,6 +345,7 @@ void AEverwardHUD::DrawControlsReference()
         {TEXT("F1"), TEXT("OPEN / CLOSE THIS REFERENCE")},
         {TEXT("F5"), TEXT("SAVE PROBE STATE")},
         {TEXT("F6"), TEXT("LOAD PROBE STATE")},
+        {TEXT("F7"), TEXT("TRIGGER RESTORATION CYCLE")},
     };
     const FControlReferenceLine ManipulatorControls[] = {
         {TEXT("M"), TEXT("OPEN / CLOSE MANIPULATOR")},
@@ -390,6 +437,8 @@ void AEverwardHUD::DrawHUD()
     const FEverwardTargetKnowledgeStatus TargetKnowledge = Adapter->GetSelectedTargetKnowledgeStatus();
     const TArray<FEverwardDiscoveredTarget> Discoveries = Adapter->GetDiscoveredTargets();
     const TArray<FEverwardMaterialInventoryEntry> MaterialInventory = Adapter->GetStoredMaterialInventory();
+    const FEverwardStarterRestorationStatus RestorationStatus = Adapter->GetStarterRestorationStatus();
+    const FEverwardRestorationObjectiveCycleStatus RestorationCycle = Adapter->GetRestorationObjectiveCycleStatus();
     const FEverwardSoftwarePolicyStatus PolicyStatus = Adapter->GetSoftwarePolicyStatus();
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
     const FEverwardAutomationNotice AutomationNotice = Adapter->GetLastAutomationNotice();
@@ -438,7 +487,7 @@ void AEverwardHUD::DrawHUD()
     const FLinearColor MutedColor(0.64f, 0.75f, 0.80f, 1.0f);
     const FLinearColor AlertColor(1.0f, 0.36f, 0.18f, 1.0f);
 
-    const float TelemetryHeight = S(62.0f) + LineHeight * 12.0f;
+    const float TelemetryHeight = S(62.0f) + LineHeight * 13.0f;
     const float TelemetryY = Canvas->ClipY - Margin - TelemetryHeight;
     DrawRect(PanelColor, Margin, TelemetryY, PanelWidth, TelemetryHeight);
     DrawText(
@@ -538,6 +587,19 @@ void AEverwardHUD::DrawHUD()
         TruncatedPanelLine(DiscoveredTargetsLine(Discoveries)),
         Discoveries.IsEmpty() ? MutedColor : TextColor,
         Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (9.0f + ManipulatorArms.Num()),
+        HudFont, ReadableTextScale(HudScale, 0.94f), false);
+
+    // First-playable-loop step 9: the repeatable restoration objective cycle, immediately below
+    // DISCOVERIES. Alert color flags a subsystem still pending restoration during an Active cycle;
+    // the [F7] trigger hint only appears while the cycle is not Active, matching
+    // CommandTriggerNextRestorationCycle()'s own accept/reject rule.
+    DrawText(
+        TruncatedPanelLine(RestorationObjectiveCycleLine(RestorationCycle, RestorationStatus)),
+        RestorationCycle.State == EEverwardRestorationObjectiveCycleState::Active &&
+                !RestorationStatus.PendingSubsystems.IsEmpty()
+            ? AlertColor
+            : TextColor,
+        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (10.0f + ManipulatorArms.Num()),
         HudFont, ReadableTextScale(HudScale, 0.94f), false);
 
     // Dedicated manipulator HUD page (Slice 6 joint-articulation follow-up).

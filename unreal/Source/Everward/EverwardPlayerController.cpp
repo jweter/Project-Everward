@@ -117,6 +117,10 @@ void AEverwardPlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::F5, IE_Pressed, this, &AEverwardPlayerController::SaveGame);
     InputComponent->BindKey(EKeys::F6, IE_Pressed, this, &AEverwardPlayerController::LoadGame);
 
+    // First-playable-loop step 9 HUD wiring: starts the next repeatable restoration objective
+    // cycle the OBJECTIVE row on the live HUD shows a trigger hint for.
+    InputComponent->BindKey(EKeys::F7, IE_Pressed, this, &AEverwardPlayerController::TriggerNextRestorationCycle);
+
     // Retain the original engineering-shell aliases while the final input
     // model remains intentionally unsettled.
     InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AEverwardPlayerController::IncreaseForwardVelocity);
@@ -479,6 +483,18 @@ void AEverwardPlayerController::LoadGame()
     if (UProbeSimulationAdapter* Adapter = GetProbeAdapter())
     {
         (void)Adapter->CommandLoadGame();
+    }
+}
+
+void AEverwardPlayerController::TriggerNextRestorationCycle()
+{
+    // Presentation only: objective_cycle.hpp is the sole authority on whether a cycle may start.
+    // A rejection (one already Active) is recorded by CommandTriggerNextRestorationCycle() through
+    // the same RecordCommandResult() path SaveGame()/LoadGame() above use, so it reaches the HUD's
+    // existing "COMMAND REJECTED" banner without any new rejection handling here.
+    if (UProbeSimulationAdapter* Adapter = GetProbeAdapter())
+    {
+        (void)Adapter->CommandTriggerNextRestorationCycle();
     }
 }
 
