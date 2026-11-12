@@ -280,7 +280,7 @@
         },
         {
           "id": "first-loop-objective-hud",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 3,
           "depends_on": [
             "first-loop-repeatable-objective-unreal-wiring"
@@ -310,7 +310,10 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/395 merged (capable-builder pull request)"
+          ]
         },
         {
           "id": "first-loop-objective-damage-repair-native-test",
