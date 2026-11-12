@@ -184,29 +184,33 @@ FString RestorationObjectiveCycleLine(
     }
 
     FString PendingText;
-    if (Restoration.PendingSubsystems.IsEmpty())
+    for (int32 Index = 0; Index < Restoration.PendingSubsystems.Num(); ++Index)
     {
-        PendingText = TEXT("NONE");
-    }
-    else
-    {
-        for (int32 Index = 0; Index < Restoration.PendingSubsystems.Num(); ++Index)
+        if (Index > 0)
         {
-            if (Index > 0)
-            {
-                PendingText += TEXT(", ");
-            }
-            PendingText += Restoration.PendingSubsystems[Index];
+            PendingText += TEXT(", ");
         }
+        PendingText += Restoration.PendingSubsystems[Index];
     }
 
-    FString Line = FString::Printf(
-        TEXT("OBJECTIVE  %s // CYCLES %d // PENDING %s"), StateText, Cycle.CompletedCycles, *PendingText);
-    if (Cycle.State != EEverwardRestorationObjectiveCycleState::Active)
+    // The HUD panel line is 54 characters wide (TruncatedPanelLine). While a cycle is Active the pending
+    // subsystems are what the player acts on, so they lead the line. When the cycle is not Active the [F7]
+    // hint is the point of the line, so the hint is appended AFTER the body is shortened and can never be
+    // the part that is cut (the earlier single-string form was 72-78 characters and lost the hint).
+    if (Cycle.State == EEverwardRestorationObjectiveCycleState::Active)
     {
-        Line += TEXT("  //  [F7] TRIGGER NEXT CYCLE");
+        return TruncatedPanelLine(FString::Printf(
+            TEXT("OBJECTIVE  ACTIVE // PENDING %s // CYCLES %d"),
+            PendingText.IsEmpty() ? TEXT("NONE") : *PendingText, Cycle.CompletedCycles));
     }
-    return Line;
+
+    const FString TriggerHint = TEXT("  [F7] NEXT CYCLE");
+    FString Body = FString::Printf(TEXT("OBJECTIVE  %s // CYCLES %d"), StateText, Cycle.CompletedCycles);
+    if (!PendingText.IsEmpty())
+    {
+        Body += FString::Printf(TEXT(" // PENDING %s"), *PendingText);
+    }
+    return TruncatedPanelLine(Body, 54 - TriggerHint.Len()) + TriggerHint;
 }
 
 FString ManipulatorArmLine(const FString& Label, const FEverwardManipulatorArmState& Arm)
