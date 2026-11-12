@@ -79,6 +79,13 @@ private:
     void SaveGame();
     void LoadGame();
 
+    // First-playable-loop step 9 HUD wiring: starts the next repeatable restoration objective cycle
+    // (UProbeSimulationAdapter::CommandTriggerNextRestorationCycle()). Cycle rules stay in
+    // objective_cycle.hpp; a rejected re-trigger while one is already Active surfaces through the
+    // existing LastCommandResult banner EverwardHUD::DrawHUD() already draws, so no new rejection
+    // path is introduced here.
+    void TriggerNextRestorationCycle();
+
     void LookYaw(float Value);
     void LookPitch(float Value);
     void ZoomCamera(float Value);
@@ -164,4 +171,12 @@ private:
     float MouseLookSensitivity = 0.75f;
     UPROPERTY(EditAnywhere, Category="Everward|Camera", meta=(ClampMin="1.0"))
     float CameraZoomStepCentimeters = 120.0f;
+
+#if WITH_DEV_AUTOMATION_TESTS
+    // Test-only: lets the native HUD/trigger-wiring automation test drive this exact bound input
+    // handler (the same one F7 invokes) without a full PIE input pipeline, mirroring
+    // UProbeSimulationAdapter::TestOnlySetSubsystemIntegrity()'s own WITH_DEV_AUTOMATION_TESTS-only
+    // test hook. Compiled out of shipping builds.
+    friend class FEverwardG03RestorationCycleHudTriggerTest;
+#endif
 };
