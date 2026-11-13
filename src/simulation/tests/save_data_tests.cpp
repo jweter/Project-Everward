@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <map>
 #include <stdexcept>
 #include <string>
 
@@ -804,6 +805,62 @@ void test_legacy_save_without_restoration_objective_cycle_infers_fresh_idle_cycl
     assert(!restored.restoration_objective_cycle.damage_observed_this_cycle);
 }
 
+void test_restoration_reward_round_trips_losslessly() {
+    using everward::simulation::advance_progression_reward;
+    using everward::simulation::ProgressionRewardState;
+    using everward::simulation::RestorationObjectiveCycle;
+    using everward::simulation::RestorationObjectiveCycleState;
+    using everward::simulation::trigger_next_restoration_cycle;
+
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+
+    RestorationObjectiveCycle cycle;
+    assert(trigger_next_restoration_cycle(cycle));
+    runtime.set_subsystem_integrity(PowerSubsystem::Propulsion, 0.4);
+    everward::simulation::advance_restoration_cycle(cycle, runtime);
+    runtime.set_subsystem_integrity(PowerSubsystem::Propulsion, 1.0);
+    everward::simulation::advance_restoration_cycle(cycle, runtime);
+    assert(cycle.state == RestorationObjectiveCycleState::Completed);
+    assert(cycle.completed_cycles == 1);
+
+    ProgressionRewardState reward_state;
+    std::map<std::string, double> inventory_kg;
+    advance_progression_reward(reward_state, cycle, inventory_kg);
+    assert(reward_state.rewarded_cycles == 1);
+
+    const ProbeSaveData captured =
+        capture_probe_save_data(runtime, ManipulatorRig{}, cycle, reward_state);
+    const std::string json_text = serialize_save_game(SaveGameV1{1, runtime.tick(), 0, 1, {captured}});
+    const SaveGameV1 parsed = deserialize_save_game(json_text);
+
+    const ProgressionRewardState& restored = parsed.probes.at(0).restoration_reward;
+    assert(restored.rewarded_cycles == reward_state.rewarded_cycles);
+}
+
+void test_legacy_save_without_restoration_reward_infers_no_reward_paid() {
+    using everward::simulation::probe_save_data_from_json;
+    using everward::simulation::probe_save_data_to_json;
+
+    const ProbeSaveData data =
+        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    assert(data.restoration_reward.rewarded_cycles == 0);
+
+    const JsonValue full = probe_save_data_to_json(data);
+    assert(full.require("restoration_reward").require("rewarded_cycles").as_int64() == 0);
+
+    // A save captured before this field existed must round-trip as "no
+    // reward has ever been paid" rather than throwing on the missing key.
+    JsonValue without_field = JsonValue::make_object();
+    for (const auto& [key, field] : full.as_object()) {
+        if (key != "restoration_reward") {
+            without_field.set(key, field);
+        }
+    }
+
+    const ProbeSaveData restored = probe_save_data_from_json(without_field);
+    assert(restored.restoration_reward.rewarded_cycles == 0);
+}
+
 void test_legacy_save_without_target_knowledge_infers_empty() {
     using everward::simulation::detail::probe_state_from_json;
     using everward::simulation::detail::probe_state_to_json;
@@ -1199,6 +1256,8 @@ int main() {
     test_legacy_save_without_planetary_body_field_infers_no_body();
     test_restoration_objective_cycle_round_trips_losslessly();
     test_legacy_save_without_restoration_objective_cycle_infers_fresh_idle_cycle();
+    test_restoration_reward_round_trips_losslessly();
+    test_legacy_save_without_restoration_reward_infers_no_reward_paid();
     test_world_identity_round_trips_losslessly();
     test_missing_world_identity_fails_closed();
     test_invalid_generation_algorithm_version_fails_closed();
