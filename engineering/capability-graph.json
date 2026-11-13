@@ -317,7 +317,7 @@
         },
         {
           "id": "first-loop-objective-damage-repair-native-test",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 3,
           "depends_on": [
             "first-loop-repeatable-objective-unreal-wiring"
@@ -348,7 +348,17 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/393 merged 2026-11-11 as 8e8d0fcfa809939a5bac96b8d0d70968d259ede9 (6/6 required checks passed, including 'Canonical preflight', at the exact head; merged by repository owner).",
+            "Acceptance 1 (compiled-out damage hook, reused code path, no new rule): unreal/Source/Everward/ProbeSimulationAdapter.h/.cpp add TestOnlySetSubsystemIntegrity() guarded by #if WITH_DEV_AUTOMATION_TESTS, calling the existing DamageAwareProbeRuntime::set_subsystem_integrity() in src/simulation/include/everward/simulation/impact_damage.hpp — the same setter self_repair.hpp and fix_it.hpp already use for Fix_It's repair path. No new damage/repair model is added.",
+            "Acceptance 2 (named native test and exact sequence): unreal/Source/Everward/Tests/EverwardG03NativeTests.cpp adds Everward.G03.Native.RestorationObjectiveCycleCompletes, asserting trigger->Active, damage->latch set and still Active, repair->Completed with CompletedCycles==1 (stays 1 on further ticks), then next trigger->fresh Active with the latch cleared and the count kept. Pinned by tools/test_unreal_native_g03_contract.py::test_five_native_unreal_automation_tests_are_registered.",
+            "Acceptance 3 (portable ctest unaffected): PR #393 touched no src/simulation files. Re-verified at this head: `ctest --test-dir build/simulation -R objective_cycle` -> 'everward_objective_cycle_tests ... Passed, 100% tests passed, 0 tests failed out of 1'.",
+            "Acceptance 4 (evidence doc PENDING marker): docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md step 9 row records the RestorationObjectiveCycleCompletes scenario and states 'Unreal compile and native run PENDING'; in-editor play remains PENDING.",
+            "Acceptance 5 (preflight/CI/review at head): confirmed via the 6/6 passing check runs above (repository-constitution, plan, Control Plane Contract, Secret leak scan, probe-survival-loop-v1, Canonical preflight), all completed/success at merge commit 8e8d0fcfa809939a5bac96b8d0d70968d259ede9.",
+            "Known deviation, carried from the PR body and not a blocker for this slice's own acceptance text: the test's 'repair' step restores integrity through the same authoritative setter rather than driving FixItRuntimeActor's timed, material-consuming repair executor; exercising that real executor end-to-end remains tracked separately.",
+            "Still PENDING beyond this slice: the C++ has not actually been compiled and the native test has not actually been run inside Unreal (no Unreal/Windows runner available); that run, and in-editor play, remain required before the owner's first-playable-loop step 9 is PASSED end-to-end."
+          ]
         },
         {
           "id": "first-loop-progression-slice",
