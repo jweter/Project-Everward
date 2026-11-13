@@ -865,6 +865,76 @@ void test_legacy_save_without_restoration_reward_infers_no_reward_paid() {
     assert(restored.restoration_reward.rewarded_cycles == 0);
 }
 
+void test_material_processing_job_round_trips_losslessly() {
+    using everward::simulation::MaterialProcessingJobState;
+    using everward::simulation::MaterialProcessingJobStatus;
+    using everward::simulation::MaterialProcessingStage;
+    using everward::simulation::MaterialProcessingSystem;
+
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+    const auto recipe = MaterialProcessingSystem::canonical_generation1_recipes()[0];
+    runtime.add_stored_material_kg(recipe.input_kg, "raw_regolith");
+
+    MaterialProcessingSystem system;
+    system.register_recipe(recipe);
+    assert(system.start(recipe.recipe_id, runtime, ManipulatorRig{}).accepted);
+    system.advance(runtime, recipe.time_required_s / 2.0);
+    assert(system.status().state == MaterialProcessingJobState::Running);
+
+    const ProbeSaveData captured = capture_probe_save_data(
+        runtime,
+        ManipulatorRig{},
+        everward::simulation::RestorationObjectiveCycle{},
+        everward::simulation::ProgressionRewardState{},
+        system.status());
+    const std::string json_text = serialize_save_game(SaveGameV1{1, runtime.tick(), 0, 1, {captured}});
+    const SaveGameV1 parsed = deserialize_save_game(json_text);
+
+    const MaterialProcessingJobStatus& restored = parsed.probes.at(0).material_processing_job;
+    assert(restored.state == system.status().state);
+    assert(restored.recipe_id == system.status().recipe_id);
+    assert(restored.stage == MaterialProcessingStage::Processing);
+    assert(restored.elapsed_s == system.status().elapsed_s);
+    assert(restored.material_consumed_kg == system.status().material_consumed_kg);
+    assert(restored.energy_consumed_j == system.status().energy_consumed_j);
+
+    // The restored job resumes and still completes, finishing the recipe's
+    // exact total input/output -- the persisted mid-run progress was not
+    // lost or double-counted across the save/load boundary.
+    MaterialProcessingSystem resumed_system;
+    resumed_system.register_recipe(recipe);
+    resumed_system.restore_status(restored);
+    resumed_system.advance(runtime, recipe.time_required_s / 2.0);
+    assert(resumed_system.status().state == MaterialProcessingJobState::Completed);
+    assert(runtime.material_inventory_kg().at("structural_alloy") == recipe.output_kg);
+}
+
+void test_legacy_save_without_material_processing_job_infers_fresh_idle_job() {
+    using everward::simulation::MaterialProcessingJobState;
+    using everward::simulation::probe_save_data_from_json;
+    using everward::simulation::probe_save_data_to_json;
+
+    const ProbeSaveData data =
+        capture_probe_save_data(DamageAwareProbeRuntime::make_canonical_ev0001());
+    assert(data.material_processing_job.state == MaterialProcessingJobState::Idle);
+
+    const JsonValue full = probe_save_data_to_json(data);
+    assert(full.require("material_processing_job").require("state").as_string() == "idle");
+
+    // A save captured before this field existed must round-trip as a fresh
+    // Idle job rather than throwing on the missing key.
+    JsonValue without_field = JsonValue::make_object();
+    for (const auto& [key, field] : full.as_object()) {
+        if (key != "material_processing_job") {
+            without_field.set(key, field);
+        }
+    }
+
+    const ProbeSaveData restored = probe_save_data_from_json(without_field);
+    assert(restored.material_processing_job.state == MaterialProcessingJobState::Idle);
+    assert(restored.material_processing_job.recipe_id.empty());
+}
+
 void test_legacy_save_without_target_knowledge_infers_empty() {
     using everward::simulation::detail::probe_state_from_json;
     using everward::simulation::detail::probe_state_to_json;
@@ -1262,6 +1332,8 @@ int main() {
     test_legacy_save_without_restoration_objective_cycle_infers_fresh_idle_cycle();
     test_restoration_reward_round_trips_losslessly();
     test_legacy_save_without_restoration_reward_infers_no_reward_paid();
+    test_material_processing_job_round_trips_losslessly();
+    test_legacy_save_without_material_processing_job_infers_fresh_idle_job();
     test_world_identity_round_trips_losslessly();
     test_missing_world_identity_fails_closed();
     test_invalid_generation_algorithm_version_fails_closed();

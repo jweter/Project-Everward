@@ -39,11 +39,13 @@
 #include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/json_value.hpp"
 #include "everward/simulation/manipulator.hpp"
+#include "everward/simulation/material_processing.hpp"
 #include "everward/simulation/objective_cycle.hpp"
 #include "everward/simulation/probe_lineage.hpp"
 #include "everward/simulation/progression_reward.hpp"
 #include "everward/simulation/software_policy.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <map>
@@ -97,6 +99,16 @@ struct ProbeSaveData {
     // requiring a schema migration, matching restoration_objective_cycle's
     // precedent above.
     ProgressionRewardState restoration_reward{};
+    // Issue #356 (Slice 13): the one in-flight material-processing/
+    // fabrication job, if any. Additive v1 field: absent entirely on a save
+    // captured before this system existed, read back as a fresh Idle job
+    // (no job was ever running) -- the one unambiguous reading of "never
+    // started" -- rather than requiring a schema migration, matching
+    // restoration_objective_cycle's precedent above. Recipes themselves are
+    // not persisted (they are code-defined constants re-registered at
+    // startup, exactly like fix_it.hpp's canonical_generation1_policy()),
+    // only the job's progress against whichever recipe_id it names.
+    MaterialProcessingJobStatus material_processing_job{};
 };
 
 struct SaveGameV1 {
@@ -436,6 +448,65 @@ namespace detail {
     return state;
 }
 
+[[nodiscard]] inline std::string material_processing_stage_to_string(MaterialProcessingStage stage) {
+    switch (stage) {
+        case MaterialProcessingStage::Processing: return "processing";
+        case MaterialProcessingStage::Fabrication: return "fabrication";
+    }
+    throw std::invalid_argument("unknown MaterialProcessingStage value");
+}
+
+[[nodiscard]] inline MaterialProcessingStage material_processing_stage_from_string(const std::string& value) {
+    if (value == "processing") return MaterialProcessingStage::Processing;
+    if (value == "fabrication") return MaterialProcessingStage::Fabrication;
+    throw std::runtime_error("unknown material processing stage in save data: " + value);
+}
+
+[[nodiscard]] inline std::string material_processing_job_state_to_string(MaterialProcessingJobState state) {
+    switch (state) {
+        case MaterialProcessingJobState::Idle: return "idle";
+        case MaterialProcessingJobState::Running: return "running";
+        case MaterialProcessingJobState::Completed: return "completed";
+        case MaterialProcessingJobState::Interrupted: return "interrupted";
+    }
+    throw std::invalid_argument("unknown MaterialProcessingJobState value");
+}
+
+[[nodiscard]] inline MaterialProcessingJobState material_processing_job_state_from_string(const std::string& value) {
+    if (value == "idle") return MaterialProcessingJobState::Idle;
+    if (value == "running") return MaterialProcessingJobState::Running;
+    if (value == "completed") return MaterialProcessingJobState::Completed;
+    if (value == "interrupted") return MaterialProcessingJobState::Interrupted;
+    throw std::runtime_error("unknown material processing job state in save data: " + value);
+}
+
+[[nodiscard]] inline JsonValue material_processing_job_status_to_json(const MaterialProcessingJobStatus& status) {
+    JsonValue object = JsonValue::make_object();
+    object.set("state", JsonValue(material_processing_job_state_to_string(status.state)));
+    object.set("recipe_id", JsonValue(status.recipe_id));
+    object.set("stage", JsonValue(material_processing_stage_to_string(status.stage)));
+    object.set("elapsed_s", JsonValue(status.elapsed_s));
+    object.set("material_consumed_kg", JsonValue(status.material_consumed_kg));
+    object.set("energy_consumed_j", JsonValue(status.energy_consumed_j));
+    return object;
+}
+
+[[nodiscard]] inline MaterialProcessingJobStatus material_processing_job_status_from_json(const JsonValue& value) {
+    MaterialProcessingJobStatus status;
+    status.state = material_processing_job_state_from_string(value.require("state").as_string());
+    status.recipe_id = value.require("recipe_id").as_string();
+    status.stage = material_processing_stage_from_string(value.require("stage").as_string());
+    status.elapsed_s = value.require("elapsed_s").as_double();
+    status.material_consumed_kg = value.require("material_consumed_kg").as_double();
+    status.energy_consumed_j = value.require("energy_consumed_j").as_double();
+    if (!std::isfinite(status.elapsed_s) || status.elapsed_s < 0.0 ||
+        !std::isfinite(status.material_consumed_kg) || status.material_consumed_kg < 0.0 ||
+        !std::isfinite(status.energy_consumed_j) || status.energy_consumed_j < 0.0) {
+        throw std::runtime_error("material_processing_job progress fields must be finite and non-negative");
+    }
+    return status;
+}
+
 [[nodiscard]] inline std::string knowledge_level_to_string(KnowledgeLevel level) {
     switch (level) {
         case KnowledgeLevel::Unknown: return "unknown";
@@ -754,6 +825,9 @@ namespace detail {
     object.set(
         "restoration_reward",
         detail::progression_reward_state_to_json(data.restoration_reward));
+    object.set(
+        "material_processing_job",
+        detail::material_processing_job_status_to_json(data.material_processing_job));
     return object;
 }
 
@@ -793,6 +867,12 @@ namespace detail {
     // schema migration.
     if (const JsonValue* reward_value = value.find("restoration_reward")) {
         data.restoration_reward = detail::progression_reward_state_from_json(*reward_value);
+    }
+    // Additive v1 field (see ProbeSaveData's comment): absent entirely on a
+    // save captured before this job existed, read back as a fresh Idle job
+    // (default-constructed) rather than requiring a schema migration.
+    if (const JsonValue* job_value = value.find("material_processing_job")) {
+        data.material_processing_job = detail::material_processing_job_status_from_json(*job_value);
     }
     return data;
 }
@@ -1054,7 +1134,8 @@ struct SaveMigrationResult {
         const DamageAwareProbeRuntime& runtime,
         const ManipulatorRig& manipulator_rig = ManipulatorRig{},
         const RestorationObjectiveCycle& restoration_objective_cycle = RestorationObjectiveCycle{},
-        const ProgressionRewardState& restoration_reward = ProgressionRewardState{}) {
+        const ProgressionRewardState& restoration_reward = ProgressionRewardState{},
+        const MaterialProcessingJobStatus& material_processing_job = MaterialProcessingJobStatus{}) {
     ProbeSaveData data;
     data.probe = runtime.snapshot();
     data.integrity = runtime.component_integrity();
@@ -1071,6 +1152,7 @@ struct SaveMigrationResult {
     data.starboard_manipulator_arm = manipulator_rig.arm(ManipulatorArmId::Starboard);
     data.restoration_objective_cycle = restoration_objective_cycle;
     data.restoration_reward = restoration_reward;
+    data.material_processing_job = material_processing_job;
     return data;
 }
 
