@@ -5,8 +5,9 @@
 // covers exactly the state that exists today (the single canonical EV-0001
 // probe's physical/energy/thermal/storage/scan state, component integrity,
 // registered physical targets, an installed software policy, target
-// selection, both manipulator arms' deploy/joint/tool/grasp state, and the
-// repeatable restoration-objective cycle). The
+// selection, both manipulator arms' deploy/joint/tool/grasp state, the
+// repeatable restoration-objective cycle, and that cycle's progression
+// reward). The
 // many other top-level categories docs/SAVE_FORMAT.md anticipates
 // (infrastructure, civilizations, ...) do not exist in the simulation yet
 // and are therefore not represented here; adding them is a later, explicit
@@ -40,6 +41,7 @@
 #include "everward/simulation/manipulator.hpp"
 #include "everward/simulation/objective_cycle.hpp"
 #include "everward/simulation/probe_lineage.hpp"
+#include "everward/simulation/progression_reward.hpp"
 #include "everward/simulation/software_policy.hpp"
 
 #include <cstdint>
@@ -86,6 +88,15 @@ struct ProbeSaveData {
     // triggered" -- rather than requiring a schema migration, matching
     // material_inventory_kg's precedent above.
     RestorationObjectiveCycle restoration_objective_cycle{};
+    // Phase 2 first-loop progression slice (progression_reward.hpp): how
+    // many of restoration_objective_cycle's completions have already been
+    // paid into probe.material_inventory_kg. Additive v1 field: absent
+    // entirely on a save captured before this existed, read back as a
+    // fresh ProgressionRewardState (0 rewarded) -- the one unambiguous
+    // reading of "no reward has ever been paid out" -- rather than
+    // requiring a schema migration, matching restoration_objective_cycle's
+    // precedent above.
+    ProgressionRewardState restoration_reward{};
 };
 
 struct SaveGameV1 {
@@ -409,6 +420,22 @@ namespace detail {
     return cycle;
 }
 
+[[nodiscard]] inline JsonValue progression_reward_state_to_json(const ProgressionRewardState& state) {
+    JsonValue object = JsonValue::make_object();
+    object.set("rewarded_cycles", JsonValue(static_cast<std::int64_t>(state.rewarded_cycles)));
+    return object;
+}
+
+[[nodiscard]] inline ProgressionRewardState progression_reward_state_from_json(const JsonValue& value) {
+    ProgressionRewardState state;
+    const std::int64_t rewarded_cycles = value.require("rewarded_cycles").as_int64();
+    if (rewarded_cycles < 0) {
+        throw std::runtime_error("progression_reward rewarded_cycles must not be negative");
+    }
+    state.rewarded_cycles = static_cast<std::uint32_t>(rewarded_cycles);
+    return state;
+}
+
 [[nodiscard]] inline std::string knowledge_level_to_string(KnowledgeLevel level) {
     switch (level) {
         case KnowledgeLevel::Unknown: return "unknown";
@@ -724,6 +751,9 @@ namespace detail {
     object.set(
         "restoration_objective_cycle",
         detail::restoration_objective_cycle_to_json(data.restoration_objective_cycle));
+    object.set(
+        "restoration_reward",
+        detail::progression_reward_state_to_json(data.restoration_reward));
     return object;
 }
 
@@ -756,6 +786,13 @@ namespace detail {
     // cycle (default-constructed) rather than requiring a schema migration.
     if (const JsonValue* cycle_value = value.find("restoration_objective_cycle")) {
         data.restoration_objective_cycle = detail::restoration_objective_cycle_from_json(*cycle_value);
+    }
+    // Additive v1 field (see ProbeSaveData's comment): absent entirely on a
+    // save captured before this reward state existed, read back as a
+    // fresh ProgressionRewardState (0 rewarded) rather than requiring a
+    // schema migration.
+    if (const JsonValue* reward_value = value.find("restoration_reward")) {
+        data.restoration_reward = detail::progression_reward_state_from_json(*reward_value);
     }
     return data;
 }
@@ -1016,7 +1053,8 @@ struct SaveMigrationResult {
 [[nodiscard]] inline ProbeSaveData capture_probe_save_data(
         const DamageAwareProbeRuntime& runtime,
         const ManipulatorRig& manipulator_rig = ManipulatorRig{},
-        const RestorationObjectiveCycle& restoration_objective_cycle = RestorationObjectiveCycle{}) {
+        const RestorationObjectiveCycle& restoration_objective_cycle = RestorationObjectiveCycle{},
+        const ProgressionRewardState& restoration_reward = ProgressionRewardState{}) {
     ProbeSaveData data;
     data.probe = runtime.snapshot();
     data.integrity = runtime.component_integrity();
@@ -1032,6 +1070,7 @@ struct SaveMigrationResult {
     data.port_manipulator_arm = manipulator_rig.arm(ManipulatorArmId::Port);
     data.starboard_manipulator_arm = manipulator_rig.arm(ManipulatorArmId::Starboard);
     data.restoration_objective_cycle = restoration_objective_cycle;
+    data.restoration_reward = restoration_reward;
     return data;
 }
 
