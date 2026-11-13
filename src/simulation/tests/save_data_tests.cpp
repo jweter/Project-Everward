@@ -824,9 +824,13 @@ void test_restoration_reward_round_trips_losslessly() {
     assert(cycle.completed_cycles == 1);
 
     ProgressionRewardState reward_state;
-    std::map<std::string, double> inventory_kg;
-    advance_progression_reward(reward_state, cycle, inventory_kg);
+    // Review P2: the reward is deposited in the runtime that is saved, not in a detached map,
+    // so the persisted counter and the persisted storage describe the same reward.
+    const double used_before_kg = runtime.snapshot().storage_used_kg;
+    assert(advance_progression_reward(reward_state, cycle, runtime) == 1);
     assert(reward_state.rewarded_cycles == 1);
+    assert(runtime.snapshot().storage_used_kg ==
+           used_before_kg + everward::simulation::kRestorationRewardKg);
 
     const ProbeSaveData captured =
         capture_probe_save_data(runtime, ManipulatorRig{}, cycle, reward_state);
