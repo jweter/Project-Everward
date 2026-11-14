@@ -1901,3 +1901,19 @@ New engine-independent `self_repair.hpp` (`SelfRepairPlanner`) implements the st
 - `apply()` never lowers integrity; `is_fully_restored()` expresses the 100% departure gate.
 
 Costs are provisional design constants. **Implemented, Product Reality pending**: not yet wired to mined-material stock, power draw, the tick, HUD, or an Unreal build; does not complete #164 or Slice 14. Verified: `everward_self_repair_tests`, full ctest (34/34), `tools/quality_preflight.py --full`.
+
+### Audio event envelope and sensorium-gated dedup foundation (issue #355, Production slice A0)
+
+Advances issue #355 ("Authoritative audio-event contract, essential alerts and Gen-1 silence"), explicitly named parallel-safe P0 in `docs/CURRENT_EXECUTION_PLAN.md` and unblocked once #353/#354 (the production-gate and generative-audio planning docs) merged. This implements scope items 1–2 of #355 ("Define versioned immutable audio-event envelope..."; "Implement deterministic source gating and dedup in C++ event adapter") as new, engine-independent `audio_events.hpp`:
+
+- `AudioEventEnvelope`: a versioned, immutable-by-convention event carrying a caller-assigned stable `event_id`, `simulation_tick`, a reproducible `stable_audio_seed`, `source_entity_id`, a small canonical `AudioEventAction` set (room left for #360's mining/repair actions), and read-only optional `material_id`/contact-force/tool-load/damage/integrity fields plus `significance`, matching `GENERATIVE_AUDIO_PRODUCTION_PLAN.md`'s proposed source-event table.
+- `AudioEventGate`: deterministic, side-effect-free-on-simulation-state admission. Essential/UI cues (`bypass_perception_gate=true`) are never progression-gated, per the plan's creative non-negotiables; other events gate on `sensorium.hpp`'s existing `AudioPerceptionState`. Dedup is keyed on `event_id`: a duplicate delivery of an already-admitted event is suppressed (no phantom/duplicate trigger), while an event that was correctly silent because its perception layer was not yet installed is *not* recorded as delivered, so the same real occurrence can still admit once perception is upgraded instead of being permanently lost.
+- `AudioEventGate::validate` clamps NaN/infinite/out-of-range numeric fields (significance and tool-load to `[0,1]`, force to non-negative finite, damage/integrity to finite) rather than fabricating or rejecting an otherwise-real event; empty `event_id`/`source_entity_id` instead refuse closed, matching this module's existing validator convention (`material_processing.hpp`, `fix_it.hpp`).
+
+**Status: implemented, Product Reality pending.** This sandbox has no Unreal Engine toolchain (`foundation.yml` itself only builds/tests `src/simulation` via CMake/ctest, not `unreal/Source/Everward/*`), so per this repo's established precedent (material-processing/fabrication landed the same way in #400) this PR is scoped to the engine-independent contract only. It does not claim:
+- the "one Unreal 5.8 sound source and essential alert example" named in #355 item 2,
+- the mix bus/independent volume/mute/captions/save-reload behavior in #355 item 3,
+- source-sample rights/provenance recording (#355 item 4), or
+- any exact-head unattended Unreal capture evidence.
+
+Those remain open Product Reality debt against #355's own completion criteria and do not complete #355 or the parent #168/#159 umbrella. Issue #360 (tactile mining/Fix_It audio) still depends on this envelope but is not started. Verified: new `everward_audio_events_tests` (dedup, essential-cue bypass, sensorium gating with later-perception re-admission, empty-identity refusal, NaN/out-of-range clamping) plus full `ctest --test-dir build/simulation` (43/43), `python3 tools/check_foundation.py`, and `python3 tools/quality_preflight.py --full` (exit 0; includes `python -m unittest discover -s tools -p 'test_*.py'`, 458/458).
