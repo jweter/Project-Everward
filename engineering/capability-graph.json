@@ -362,7 +362,7 @@
         },
         {
           "id": "first-loop-progression-slice",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 4,
           "depends_on": [
             "first-loop-objective-hud"
@@ -391,7 +391,15 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "https://github.com/jweter/Project-Everward/pull/399 merged 2026-11-13 as 744d9b056d5591d1cdb9d18eb9598d3c820f621e (6/6 required checks passed at the exact head: probe-survival-loop-v1, plan, Secret leak scan, repository-constitution, Control Plane Contract, Canonical preflight; merged by repository owner jweter).",
+            "Acceptance 1 (header derives reward read-only, reuses existing types): src/simulation/include/everward/simulation/progression_reward.hpp adds advance_progression_reward(), which only reads RestorationObjectiveCycle::completed_cycles (never mutates the cycle or its rules) and pays the bounded, already-defined raw_regolith material through the runtime's existing authoritative add_stored_material_kg mutator -- the same path mining already uses -- so storage_used_kg and the per-material inventory move together and the probe stays saveable.",
+            "Acceptance 2 (named portable ctest cases): src/simulation/tests/progression_reward_tests.cpp (everward_progression_reward_tests) covers all four named cases -- no reward before the first completion, exactly one reward per completed cycle, no reward for a re-trigger rejected while Active, and a full-storage reward that stays owed and is paid once room exists -- and src/simulation/tests/save_data_tests.cpp (everward_save_data_tests) covers the save/load round-trip of the additive ProbeSaveData::restoration_reward field plus its legacy-save default. Re-run at this baseline (8b5adcd): `ctest --test-dir build/simulation -R \"progression_reward|save_data|objective_cycle\"` -> 100% tests passed, 3/3. Full suite also re-run at this baseline: `ctest --test-dir build/simulation` -> 100% tests passed, 42/42 (no regression).",
+            "Acceptance 3 (evidence doc row): docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md row 9b records the progression reward as 'PASSED (portable)' with 'Unreal mirror ... PENDING', and the Product Reality debt paragraph lists the remaining in-engine exposure/display gap for the reward.",
+            "Acceptance 4 (preflight/CI pass at head): `python3 engineering/preflight.py --fast` re-run at this baseline: PASS (all governance/foundation checks green); confirmed together with PR #399's 6/6 passing required checks above, all completed/success at merge commit 744d9b056d5591d1cdb9d18eb9598d3c820f621e.",
+            "Still PENDING beyond this slice (consistent with the evidence doc): the Unreal-side mirror, HUD/trigger exposure, and in-engine playtest of the progression reward have not been added or run; that remains separate follow-on work."
+          ]
         }
       ]
     }
