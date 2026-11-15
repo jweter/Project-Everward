@@ -1,16 +1,23 @@
 // Chained first-loop proof (engine-independent): wake damaged -> scan -> mine
 // (collect) -> Fix_It repair consuming stored material/energy -> starter
-// restoration, in ONE deterministic simulation run. No state is injected to
-// skip a step: the only direct state writes are the documented damaged-wake
-// integrity values; material arrives only via mining, and restoration is
-// reached only through Fix_It executor consumption.
+// restoration -> repeatable objective cycle trigger -> a second direct
+// integrity drop -> a second Fix_It repair pass -> cycle completion ->
+// progression reward payout, in ONE deterministic simulation run. No state
+// is injected to skip a step: the only direct state writes are the
+// documented damaged-wake integrity values and the second-pass integrity
+// drop (applied the same direct way the initial damaged wake already is);
+// material arrives only via mining, restoration is reached only through
+// Fix_It executor consumption, and the cycle/reward progress only through
+// their own documented rules (objective_cycle.hpp, progression_reward.hpp).
 #include "everward/simulation/fix_it.hpp"
 #include "everward/simulation/mining.hpp"
+#include "everward/simulation/progression_reward.hpp"
 #include "everward/simulation/starter_restoration.hpp"
 
 #undef NDEBUG
 #include <cassert>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <string>
 
@@ -29,6 +36,10 @@ struct LoopOutcome {
     double final_energy_j{0.0};
     std::int64_t final_tick{0};
     double final_integrity[4]{};
+    std::uint32_t completed_cycles{0};
+    std::uint32_t rewarded_cycles{0};
+    std::uint32_t reward_paid{0};
+    double reward_material_kg{0.0};
 };
 
 LoopOutcome run_first_loop() {
@@ -101,20 +112,23 @@ LoopOutcome run_first_loop() {
     assert(!evaluate_starter_restoration(rt).satisfied);  // collecting alone restores nothing
 
     // 4. Repair: Fix_It plans from live state and consumes stored material/energy.
-    while (!evaluate_starter_restoration(rt).satisfied) {
-        const FixItResources res{rt.snapshot().storage_used_kg, rt.snapshot().stored_energy_j,
-                                 1.0e9, false, false, false, false};
-        const auto decision = FixItPlanner::plan_next(rt.component_integrity(), res);
-        assert(decision.has_value() && decision->stage == FixItStage::Repair);
-        mine_until(decision->material_required_kg);  // collect what this step needs
-        FixItRepairExecutor executor;
-        executor.start(*decision);
-        executor.advance(rt, decision->time_required_s);
-        assert(executor.status().state == FixItExecutionState::Completed);
-        out.material_consumed_kg += executor.status().material_consumed_kg;
-        out.energy_consumed_j += executor.status().energy_consumed_j;
-        assert(++out.repair_steps < 100);
-    }
+    auto repair_until_restored = [&]() {
+        while (!evaluate_starter_restoration(rt).satisfied) {
+            const FixItResources res{rt.snapshot().storage_used_kg, rt.snapshot().stored_energy_j,
+                                     1.0e9, false, false, false, false};
+            const auto decision = FixItPlanner::plan_next(rt.component_integrity(), res);
+            assert(decision.has_value() && decision->stage == FixItStage::Repair);
+            mine_until(decision->material_required_kg);  // collect what this step needs
+            FixItRepairExecutor executor;
+            executor.start(*decision);
+            executor.advance(rt, decision->time_required_s);
+            assert(executor.status().state == FixItExecutionState::Completed);
+            out.material_consumed_kg += executor.status().material_consumed_kg;
+            out.energy_consumed_j += executor.status().energy_consumed_j;
+            assert(++out.repair_steps < 100);
+        }
+    };
+    repair_until_restored();
 
     // 5. Starter restoration, with real consumption of what was collected.
     assert(evaluate_starter_restoration(rt).satisfied);
@@ -124,6 +138,43 @@ LoopOutcome run_first_loop() {
     assert(out.energy_consumed_j > 0.0);
 
     out.restored = true;
+
+    // 6. Trigger the repeatable restoration objective cycle on top of the
+    // same restored runtime (no state injected: the cycle advances only
+    // through its own documented rules in objective_cycle.hpp).
+    RestorationObjectiveCycle cycle;
+    assert(trigger_next_restoration_cycle(cycle));
+    assert(cycle.state == RestorationObjectiveCycleState::Active);
+
+    // 7. A second subsystem-integrity drop, applied the same direct way the
+    // initial damaged wake already is.
+    rt.set_subsystem_integrity(PowerSubsystem::Propulsion, 0.40);
+    assert(!evaluate_starter_restoration(rt).satisfied);
+    advance_restoration_cycle(cycle, rt);
+    assert(cycle.state == RestorationObjectiveCycleState::Active);
+    assert(cycle.damage_observed_this_cycle);
+
+    // 8. A second Fix_It repair pass, reusing the exact same repair logic.
+    repair_until_restored();
+    assert(evaluate_starter_restoration(rt).satisfied);
+
+    // 9. Cycle completion, reached only because the latch above was set by
+    // the genuine damage observed in step 7.
+    advance_restoration_cycle(cycle, rt);
+    assert(cycle.state == RestorationObjectiveCycleState::Completed);
+    assert(cycle.completed_cycles == 1);
+    out.completed_cycles = cycle.completed_cycles;
+
+    // 10. Progression reward payout, derived purely from the cycle's own
+    // completed_cycles counter.
+    ProgressionRewardState reward_state;
+    out.reward_paid = advance_progression_reward(reward_state, cycle, rt);
+    assert(out.reward_paid == 1);
+    assert(reward_state.rewarded_cycles == 1);
+    out.rewarded_cycles = reward_state.rewarded_cycles;
+    out.reward_material_kg = rt.material_inventory_kg().at(kRestorationRewardMaterialId);
+    assert(out.reward_material_kg == kRestorationRewardKg);
+
     out.final_storage_kg = rt.snapshot().storage_used_kg;
     out.final_energy_j = rt.snapshot().stored_energy_j;
     out.final_tick = rt.tick();
@@ -146,7 +197,12 @@ int main() {
     assert(a.final_storage_kg == b.final_storage_kg && a.final_energy_j == b.final_energy_j);
     assert(a.final_tick == b.final_tick);
     for (int i = 0; i < 4; ++i) assert(a.final_integrity[i] == b.final_integrity[i]);
+    assert(a.completed_cycles == b.completed_cycles && a.completed_cycles == 1);
+    assert(a.rewarded_cycles == b.rewarded_cycles && a.rewarded_cycles == 1);
+    assert(a.reward_paid == b.reward_paid && a.reward_paid == 1);
+    assert(a.reward_material_kg == b.reward_material_kg);
     std::cout << "first_loop_chained_tests passed (mining_cycles=" << a.mining_cycles
-              << ", repair_steps=" << a.repair_steps << ")\n";
+              << ", repair_steps=" << a.repair_steps << ", completed_cycles=" << a.completed_cycles
+              << ", rewarded_cycles=" << a.rewarded_cycles << ")\n";
     return 0;
 }
