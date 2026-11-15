@@ -446,6 +446,42 @@
             "Acceptance 5 (simulation truth untouched): the files that satisfy this slice are confined to unreal/Source/Everward/ProbeSimulationAdapter.h, unreal/Source/Everward/ProbeSimulationAdapter.cpp, unreal/Source/Everward/ProbeTargetSelectionBridge.cpp, unreal/Source/Everward/EverwardHUD.cpp, unreal/Source/Everward/Tests/EverwardG03NativeTests.cpp, tools/test_unreal_native_g03_contract.py and docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md; src/simulation/include/everward/simulation/progression_reward.hpp is only read from, never edited.",
             "Still PENDING beyond this slice (consistent with the evidence doc): the C++ has not actually been compiled and Everward.G03.Native.ProgressionRewardMirror has not actually been run inside Unreal (no Unreal/Windows runner available in this sandbox); that run, and in-editor play of the REWARD row, remain required before first-playable-loop step 9b is PASSED end-to-end."
           ]
+        },
+        {
+          "id": "first-loop-chained-simulation-objective-reward-test",
+          "state": "PLANNED",
+          "capability_level": 3,
+          "depends_on": [
+            "first-loop-progression-reward-unreal-wiring"
+          ],
+          "objective": "Extend src/simulation/tests/first_loop_chained_tests.cpp's single deterministic run (wake -> scan -> mine -> Fix_It repair -> starter restoration) so the SAME run continues through triggering the repeatable restoration objective cycle (objective_cycle.hpp), a second subsystem-integrity drop applied the same direct way the initial damaged wake already is, a second Fix_It repair pass, cycle completion, and the resulting progression_reward.hpp payout -- closing the gap that docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md's Limits section leaves open today: the existing chained proof stops at restoration and never exercises the cycle or reward added by first-loop-repeatable-objective and first-loop-progression-slice. Update that Limits paragraph and the row 9/9b evidence to cite the extended chain. Roadmap: docs/OWNER_APPROVED_ROADMAP_2026-10-25.md#next-slices item 3.",
+          "acceptance": [
+            "The existing chain is extended, not replaced: wake, scan, mine, Fix_It repair and starter restoration happen exactly as today in the same run, then a cycle trigger, a second direct integrity drop, a second Fix_It repair pass, and cycle completion are added, reaching ProgressionRewardState::rewarded_cycles == 1 only through that sequence; no state is injected to skip trigger, damage, repair or completion.",
+            "The test still runs under the existing src/simulation CMake/ctest harness and remains deterministic across two repeated runs in the same process, matching the existing a/b comparison pattern already in the file; everward_first_loop_chained_tests, everward_objective_cycle_tests and everward_progression_reward_tests all still pass unchanged or correspondingly extended.",
+            "docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md's Limits section and the row 9/9b text are updated truthfully to cite the extended chain; no existing PASSED/PENDING marker is weakened and in-engine steps remain PENDING.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "src/simulation/**",
+            "tests/**",
+            "Tests/**",
+            "docs/**",
+            "tools/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "offline"
+          ],
+          "runtime_requirements": [],
+          "verification": []
         }
       ]
     }
