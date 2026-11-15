@@ -1,0 +1,12 @@
+{
+	"engine": "Godot 4.7.2",
+	"frames": 180,
+	"mean_frame_based_fps": 32.4511586025136,
+	"p95_frame_ms": 31.629,
+	"p99_frame_ms": 38.8323333333333,
+	"screenshot_after": "visual_140.png",
+	"screenshot_before": "visual_070.png",
+	"source": "provisional GDScript, NOT authoritative C++",
+	"status": "RENDER_SMOKE_NOT_COMPARABLE",
+	"warmup_frames": 60
+}
