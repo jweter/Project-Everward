@@ -403,7 +403,7 @@
         },
         {
           "id": "first-loop-progression-reward-unreal-wiring",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 3,
           "depends_on": [
             "first-loop-progression-slice"
@@ -436,7 +436,16 @@
             "windows",
             "offline"
           ],
-          "runtime_requirements": []
+          "runtime_requirements": [],
+          "verification": [
+            "Found already delivered at baseline 46adc269e2cdee20990929fc402faa9072cad6bd, merged as commit 1dbb7a7 'Everward: mirror progression reward into Unreal adapter/HUD (first-loop step 9b) (#403)' per this repository's commit history; this slice's entry was reconciled to VERIFIED_COMPLETE rather than rebuilt, per the roadmap's 'already delivered' check.",
+            "Acceptance 1 (adapter mirror, no reimplemented rule, no new command): unreal/Source/Everward/ProbeSimulationAdapter.h declares `UFUNCTION(BlueprintPure, ...) FEverwardProgressionRewardStatus GetProgressionRewardStatus() const;` and a private `void AdvanceProgressionRewardFixedStep();` plus the `uint32 ProgressionRewardedCycles` mirror field; unreal/Source/Everward/ProbeTargetSelectionBridge.cpp:135-178 implements both -- GetProgressionRewardStatus() reads ProgressionRewardedCycles and looks up `everward::simulation::kRestorationRewardMaterialId` straight in `Core->material_inventory_kg()` (the same map GetStoredMaterialInventory() exposes), and AdvanceProgressionRewardFixedStep() round-trips a real `everward::simulation::ProgressionRewardState` through `everward::simulation::advance_progression_reward()` (never reimplementing its rule). unreal/Source/Everward/ProbeSimulationAdapter.cpp:313-316 calls AdvanceRestorationObjectiveCycleFixedStep() then AdvanceProgressionRewardFixedStep() once per elapsed fixed step inside TickComponent()'s accumulator loop. No new BlueprintCallable command was added for the reward.",
+            "Acceptance 2 (HUD REWARD row immediately below OBJECTIVE, muted until earned): unreal/Source/Everward/EverwardHUD.cpp:216-234 defines ProgressionRewardLine() (returns 'REWARD  NONE YET // ...' before any payout, else the paid-cycle count and stored kilograms); lines 466 and 622-635 read Adapter->GetProgressionRewardStatus() live each frame and draw RestorationObjectiveCycleLine() (OBJECTIVE) immediately followed by ProgressionRewardLine() (REWARD), colored with MutedColor until RewardedCycles > 0.",
+            "Acceptance 3 (native test + contract pin): unreal/Source/Everward/Tests/EverwardG03NativeTests.cpp:354-416 adds `Everward.G03.Native.ProgressionRewardMirror`, driving CommandTriggerNextRestorationCycle() -> TestOnlySetSubsystemIntegrity() damage -> tick -> repair -> tick to Completed, then asserting RewardedCycles==1, MaterialKilograms==1.0, that the reward material actually appears in GetStoredMaterialInventory() with matching kilograms, and that a further tick with no new completion pays nothing twice. tools/test_unreal_native_g03_contract.py pins the IMPLEMENT_SIMPLE_AUTOMATION_TEST count at 6 and lists 'Everward.G03.Native.ProgressionRewardMirror' and the GetProgressionRewardStatus() symbol among the required source strings.",
+            "Acceptance 4 (docs row 9b updated, PENDING kept honest): docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md row 9b states 'Unreal mirror written, Unreal compile and native run PENDING', names GetProgressionRewardStatus()/AdvanceProgressionRewardFixedStep()/the HUD REWARD row/Everward.G03.Native.ProgressionRewardMirror, and says 'In-editor play of the reward display remains PENDING'; the Limits section lists the same in-engine exposure/display gap as still open.",
+            "Acceptance 5 (simulation truth untouched): the files that satisfy this slice are confined to unreal/Source/Everward/ProbeSimulationAdapter.h, unreal/Source/Everward/ProbeSimulationAdapter.cpp, unreal/Source/Everward/ProbeTargetSelectionBridge.cpp, unreal/Source/Everward/EverwardHUD.cpp, unreal/Source/Everward/Tests/EverwardG03NativeTests.cpp, tools/test_unreal_native_g03_contract.py and docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md; src/simulation/include/everward/simulation/progression_reward.hpp is only read from, never edited.",
+            "Still PENDING beyond this slice (consistent with the evidence doc): the C++ has not actually been compiled and Everward.G03.Native.ProgressionRewardMirror has not actually been run inside Unreal (no Unreal/Windows runner available in this sandbox); that run, and in-editor play of the REWARD row, remain required before first-playable-loop step 9b is PASSED end-to-end."
+          ]
         }
       ]
     }
