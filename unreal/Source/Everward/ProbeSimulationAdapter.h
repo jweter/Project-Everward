@@ -252,6 +252,22 @@ struct EVERWARD_API FEverwardRestorationObjectiveCycleStatus
     UPROPERTY(BlueprintReadOnly, Category="Everward|Objective") bool bDamageObservedThisCycle = false;
 };
 
+// First-playable-loop step 9b: read-only mirror of
+// everward::simulation::ProgressionRewardState plus the live stored amount
+// of the one material it pays
+// (src/simulation/include/everward/simulation/progression_reward.hpp).
+// Presentation only: the reward rule (one kRestorationRewardKg unit of
+// kRestorationRewardMaterialId per newly completed restoration-objective
+// cycle) lives in progression_reward.hpp and is never reimplemented here.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardProgressionRewardStatus
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Objective") int32 RewardedCycles = 0;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Objective") FString MaterialId;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Objective") double MaterialKilograms = 0.0;
+};
+
 // Slice 11 ("Science as gameplay") foundation: unknown -> observed ->
 // characterized, matching everward::simulation::KnowledgeLevel exactly.
 // Composition/material classification (the "characterized" driver) is now
@@ -480,6 +496,7 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Objective") FEverwardStarterRestorationStatus GetStarterRestorationStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Objective") FEverwardRestorationObjectiveCycleStatus GetRestorationObjectiveCycleStatus() const;
+    UFUNCTION(BlueprintPure, Category="Everward|Objective") FEverwardProgressionRewardStatus GetProgressionRewardStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetKnowledgeStatus GetSelectedTargetKnowledgeStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") TArray<FEverwardDiscoveredTarget> GetDiscoveredTargets() const;
     UFUNCTION(BlueprintPure, Category="Everward|Tractor") FEverwardTractorFieldStatus GetTractorFieldStatus() const;
@@ -635,6 +652,13 @@ private:
     // Forwards the latest authoritative restoration status to
     // objective_cycle.hpp once per elapsed fixed step; a no-op unless Active.
     void AdvanceRestorationObjectiveCycleFixedStep();
+    // First-playable-loop step 9b: pays progression_reward.hpp's reward for
+    // any restoration-objective-cycle completion not yet rewarded. Called
+    // once per elapsed fixed step, right after
+    // AdvanceRestorationObjectiveCycleFixedStep() so a completion this same
+    // step is rewarded without a frame of delay; a no-op once
+    // ProgressionRewardedCycles has caught up to RestorationCompletedCycles.
+    void AdvanceProgressionRewardFixedStep();
 
     // Plain-data copy of everward::simulation::RestorationObjectiveCycle; the
     // header cannot include simulation types, so the .cpp round-trips it
@@ -642,6 +666,11 @@ private:
     uint8 RestorationCycleState = 0;
     uint32 RestorationCompletedCycles = 0;
     bool bRestorationDamageObservedThisCycle = false;
+
+    // Plain-data copy of everward::simulation::ProgressionRewardState (same
+    // reason as the cycle fields above: the header cannot include
+    // progression_reward.hpp's simulation types).
+    uint32 ProgressionRewardedCycles = 0;
 
     double FixedStepAccumulatorSeconds = 0.0;
     double TractorStepAccumulatorSeconds = 0.0;

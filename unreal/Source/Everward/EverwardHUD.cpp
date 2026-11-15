@@ -213,6 +213,26 @@ FString RestorationObjectiveCycleLine(
     return TruncatedPanelLine(Body, 54 - TriggerHint.Len()) + TriggerHint;
 }
 
+// First-playable-loop step 9b: read-only mirror of
+// UProbeSimulationAdapter::GetProgressionRewardStatus(). Presentation only
+// -- the reward rule lives in progression_reward.hpp and is never
+// reimplemented here; AdvanceProgressionRewardFixedStep() is what actually
+// pays it. No trigger hint: unlike the OBJECTIVE row above, this reward is
+// not player-triggered.
+FString ProgressionRewardLine(const FEverwardProgressionRewardStatus& Reward)
+{
+    if (Reward.RewardedCycles <= 0)
+    {
+        return TEXT("REWARD  NONE YET // COMPLETE AN OBJECTIVE CYCLE TO EARN MATERIAL");
+    }
+    return FString::Printf(
+        TEXT("REWARD  %d CYCLE%s PAID // %.1f KG %s STORED"),
+        Reward.RewardedCycles,
+        Reward.RewardedCycles == 1 ? TEXT("") : TEXT("S"),
+        Reward.MaterialKilograms,
+        *Reward.MaterialId.ToUpper());
+}
+
 FString ManipulatorArmLine(const FString& Label, const FEverwardManipulatorArmState& Arm)
 {
     FString StateText;
@@ -443,6 +463,7 @@ void AEverwardHUD::DrawHUD()
     const TArray<FEverwardMaterialInventoryEntry> MaterialInventory = Adapter->GetStoredMaterialInventory();
     const FEverwardStarterRestorationStatus RestorationStatus = Adapter->GetStarterRestorationStatus();
     const FEverwardRestorationObjectiveCycleStatus RestorationCycle = Adapter->GetRestorationObjectiveCycleStatus();
+    const FEverwardProgressionRewardStatus ProgressionReward = Adapter->GetProgressionRewardStatus();
     const FEverwardSoftwarePolicyStatus PolicyStatus = Adapter->GetSoftwarePolicyStatus();
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
     const FEverwardAutomationNotice AutomationNotice = Adapter->GetLastAutomationNotice();
@@ -491,7 +512,7 @@ void AEverwardHUD::DrawHUD()
     const FLinearColor MutedColor(0.64f, 0.75f, 0.80f, 1.0f);
     const FLinearColor AlertColor(1.0f, 0.36f, 0.18f, 1.0f);
 
-    const float TelemetryHeight = S(62.0f) + LineHeight * 13.0f;
+    const float TelemetryHeight = S(62.0f) + LineHeight * 14.0f;
     const float TelemetryY = Canvas->ClipY - Margin - TelemetryHeight;
     DrawRect(PanelColor, Margin, TelemetryY, PanelWidth, TelemetryHeight);
     DrawText(
@@ -604,6 +625,15 @@ void AEverwardHUD::DrawHUD()
             ? AlertColor
             : TextColor,
         Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (10.0f + ManipulatorArms.Num()),
+        HudFont, ReadableTextScale(HudScale, 0.94f), false);
+
+    // First-playable-loop step 9b: the progression reward paid for
+    // completed restoration-objective cycles, immediately below OBJECTIVE.
+    // Presentation only -- see ProgressionRewardLine()'s comment.
+    DrawText(
+        TruncatedPanelLine(ProgressionRewardLine(ProgressionReward)),
+        ProgressionReward.RewardedCycles > 0 ? TextColor : MutedColor,
+        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (11.0f + ManipulatorArms.Num()),
         HudFont, ReadableTextScale(HudScale, 0.94f), false);
 
     // Dedicated manipulator HUD page (Slice 6 joint-articulation follow-up).
