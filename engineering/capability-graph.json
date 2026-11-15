@@ -400,6 +400,43 @@
             "Acceptance 4 (preflight/CI pass at head): `python3 engineering/preflight.py --fast` re-run at this baseline: PASS (all governance/foundation checks green); confirmed together with PR #399's 6/6 passing required checks above, all completed/success at merge commit 744d9b056d5591d1cdb9d18eb9598d3c820f621e.",
             "Still PENDING beyond this slice (consistent with the evidence doc): the Unreal-side mirror, HUD/trigger exposure, and in-engine playtest of the progression reward have not been added or run; that remains separate follow-on work."
           ]
+        },
+        {
+          "id": "first-loop-progression-reward-unreal-wiring",
+          "state": "PLANNED",
+          "capability_level": 3,
+          "depends_on": [
+            "first-loop-progression-slice"
+          ],
+          "objective": "Mirror the already-merged, portable-tested progression_reward.hpp (first-loop-progression-slice) into the Unreal adapter/HUD as a read-only presentation layer, following the exact established pattern of the RestorationObjectiveCycle mirror/HUD row (first-loop-repeatable-objective-unreal-wiring, first-loop-objective-hud): no new gameplay rule, no new player-triggered command, honest about what remains unverified in this sandbox.",
+          "acceptance": [
+            "ProbeSimulationAdapter exposes a BlueprintPure GetProgressionRewardStatus() mirroring ProgressionRewardState.rewarded_cycles and the live stored reward-material kilograms (read from the same material_inventory_kg() GetStoredMaterialInventory() already exposes); a private AdvanceProgressionRewardFixedStep() calls advance_progression_reward() once per elapsed fixed step, right after AdvanceRestorationObjectiveCycleFixedStep(). No new BlueprintCallable command is added, since the reward is not player-triggered. progression_reward.hpp's rule is never reimplemented or duplicated.",
+            "EverwardHUD draws a REWARD row (rewarded-cycle count and stored reward-material kilograms) immediately below the existing OBJECTIVE row, following the same read-live-each-frame, muted-until-earned presentation style as the other mirrored rows.",
+            "A native Unreal automation test under unreal/Source/Everward/Tests (following the existing EverwardG03NativeTests.cpp free native-test pattern: real UWorld, AEverwardProbePawn, no Aura) drives a restoration-objective cycle through trigger, damage and repair to completion via the adapter and asserts the mirrored reward count/material matches progression_reward.hpp's bounded unit and actually appears in GetStoredMaterialInventory(); tools/test_unreal_native_g03_contract.py is updated to pin the new test name/count.",
+            "docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md row 9b is updated to record that the Unreal mirror/HUD now exist in source, while explicitly keeping the Unreal compile, native test run and in-editor play PENDING.",
+            "Simulation truth stays authoritative in src/simulation (no files under src/simulation/** are touched by this slice); the Unreal layer only mirrors/forwards state.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "unreal/Source/**",
+            "tools/**",
+            "docs/**",
+            "engineering/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "windows",
+            "offline"
+          ],
+          "runtime_requirements": []
         }
       ]
     }

@@ -3,6 +3,7 @@
 #include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/jose_autopilot.hpp"
 #include "everward/simulation/objective_cycle.hpp"
+#include "everward/simulation/progression_reward.hpp"
 #include "everward/simulation/starter_restoration.hpp"
 #include "everward/simulation/target_cycle_runtime.hpp"
 
@@ -129,6 +130,51 @@ void UProbeSimulationAdapter::AdvanceRestorationObjectiveCycleFixedStep()
     RestorationCycleState = static_cast<uint8>(Cycle.state);
     RestorationCompletedCycles = Cycle.completed_cycles;
     bRestorationDamageObservedThisCycle = Cycle.damage_observed_this_cycle;
+}
+
+FEverwardProgressionRewardStatus UProbeSimulationAdapter::GetProgressionRewardStatus() const
+{
+    // Read-only mirror; progression_reward.hpp stays the only authority on
+    // when/how much this pays -- AdvanceProgressionRewardFixedStep() is what
+    // actually calls it. MaterialKilograms is read straight from Core's own
+    // material_inventory_kg() rather than re-deriving it, so it reflects
+    // consumption (e.g. a future Fix_It repair) the same way
+    // GetStoredMaterialInventory() does.
+    FEverwardProgressionRewardStatus Status;
+    Status.RewardedCycles = static_cast<int32>(ProgressionRewardedCycles);
+    Status.MaterialId = UTF8_TO_TCHAR(everward::simulation::kRestorationRewardMaterialId);
+    if (Core != nullptr)
+    {
+        const auto& Inventory = Core->material_inventory_kg();
+        const auto Found = Inventory.find(everward::simulation::kRestorationRewardMaterialId);
+        if (Found != Inventory.end())
+        {
+            Status.MaterialKilograms = Found->second;
+        }
+    }
+    return Status;
+}
+
+void UProbeSimulationAdapter::AdvanceProgressionRewardFixedStep()
+{
+    // Safe to call every fixed step regardless of cycle state: once
+    // ProgressionRewardedCycles catches up to RestorationCompletedCycles,
+    // advance_progression_reward() is a documented no-op (see
+    // progression_reward.hpp). This mirrors the real
+    // RestorationObjectiveCycle state (not just the Active-only state this
+    // adapter gates AdvanceRestorationObjectiveCycleFixedStep on), so a
+    // reward owed from a cycle that just completed this very step is paid
+    // without waiting an extra frame.
+    if (Core == nullptr)
+    {
+        return;
+    }
+    const everward::simulation::RestorationObjectiveCycle Cycle =
+        ToSimulationCycle(RestorationCycleState, RestorationCompletedCycles, bRestorationDamageObservedThisCycle);
+    everward::simulation::ProgressionRewardState RewardState;
+    RewardState.rewarded_cycles = ProgressionRewardedCycles;
+    everward::simulation::advance_progression_reward(RewardState, Cycle, *Core);
+    ProgressionRewardedCycles = RewardState.rewarded_cycles;
 }
 
 FEverwardTargetKnowledgeStatus UProbeSimulationAdapter::GetSelectedTargetKnowledgeStatus() const

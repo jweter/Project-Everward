@@ -84,9 +84,10 @@ class Phase2ScienceKnowledgeSurfaceTests(unittest.TestCase):
         # KNOWLEDGE and bumped this to 11.0f (test_phase2_material_inventory_surface.py),
         # the DISCOVERIES row below that bumped it again to 12.0f -- see
         # test_hud_renders_a_discoveries_row_below_inventory_without_relayouting --
-        # and the first-playable-loop step 9 OBJECTIVE row (restoration
-        # objective cycle HUD wiring) bumped it again to 13.0f.
-        self.assertIn("LineHeight * 13.0f", self.hud_cpp)
+        # the first-playable-loop step 9 OBJECTIVE row (restoration
+        # objective cycle HUD wiring) bumped it again to 13.0f, and step 9b's
+        # REWARD row (progression reward HUD wiring) bumped it again to 14.0f.
+        self.assertIn("LineHeight * 14.0f", self.hud_cpp)
 
     def test_unreal_adapter_exposes_a_read_only_discovered_targets_list(self) -> None:
         # Slice 11 follow-up ("persistent discoveries"): unlike

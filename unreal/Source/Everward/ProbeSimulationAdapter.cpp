@@ -311,6 +311,9 @@ void UProbeSimulationAdapter::TickComponent(
         AdvanceControlledDescentGovernorFixedStep();
         AdvanceJoseAutopilotGovernorFixedStep();
         AdvanceRestorationObjectiveCycleFixedStep();
+        // First-playable-loop step 9b: pay any progression reward the cycle
+        // advance above just unlocked -- see the method's own comment.
+        AdvanceProgressionRewardFixedStep();
 
         if (Manipulators != nullptr)
         {

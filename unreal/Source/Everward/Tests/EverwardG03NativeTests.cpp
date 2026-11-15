@@ -350,4 +350,67 @@ bool FEverwardG03RestorationObjectiveCycleCompletesTest::RunTest(const FString& 
     TestEqual(TEXT("Completed count is kept"), Cycle.CompletedCycles, 1);
     return !HasAnyErrors();
 }
+
+// First-playable-loop step 9b: the in-engine mirror of the engine-independent progression reward
+// (src/simulation/include/everward/simulation/progression_reward.hpp). Rules stay in simulation; this only checks
+// that the adapter forwards to them and mirrors the result once the same damage-then-repair completion path
+// RestorationObjectiveCycleCompletes above exercises actually completes a cycle.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FEverwardG03ProgressionRewardMirrorTest,
+    "Everward.G03.Native.ProgressionRewardMirror",
+    EverwardNativeFlags)
+
+bool FEverwardG03ProgressionRewardMirrorTest::RunTest(const FString& Parameters)
+{
+    FEverwardNativeTestFixture Fixture;
+    if (!Fixture.Start(this)) return false;
+    UProbeSimulationAdapter* Adapter = Fixture.Adapter;
+
+    FEverwardProgressionRewardStatus Reward = Adapter->GetProgressionRewardStatus();
+    TestEqual(TEXT("No reward before any cycle completes"), Reward.RewardedCycles, 0);
+    TestEqual(TEXT("No reward material stored yet"), Reward.MaterialKilograms, 0.0);
+    TestTrue(TEXT("Reward mirror names a material id even before any payout"), !Reward.MaterialId.IsEmpty());
+    TestTrue(TEXT("Nothing fabricated: inventory starts empty"),
+        Adapter->GetStoredMaterialInventory().IsEmpty());
+
+    // Drive one cycle to completion exactly as RestorationObjectiveCycleCompletes does above.
+    if (!TestTrue(TEXT("Trigger starts the first cycle"),
+        Adapter->CommandTriggerNextRestorationCycle().bAccepted)) return false;
+    if (!TestTrue(TEXT("Damage hook accepted"),
+        Adapter->TestOnlySetSubsystemIntegrity(EEverwardPowerSubsystem::Thermal, 0.5).bAccepted)) return false;
+    if (!Fixture.TickFor(0.20f, this)) return false;
+    if (!TestTrue(TEXT("Repair hook accepted"),
+        Adapter->TestOnlySetSubsystemIntegrity(EEverwardPowerSubsystem::Thermal, 1.0).bAccepted)) return false;
+    if (!Fixture.TickFor(0.20f, this)) return false;
+
+    FEverwardRestorationObjectiveCycleStatus Cycle = Adapter->GetRestorationObjectiveCycleStatus();
+    TestTrue(TEXT("Cycle is Completed after repair"), Cycle.State == EEverwardRestorationObjectiveCycleState::Completed);
+    TestEqual(TEXT("Exactly one cycle completed"), Cycle.CompletedCycles, 1);
+
+    Reward = Adapter->GetProgressionRewardStatus();
+    TestEqual(TEXT("Exactly one reward paid for the one completed cycle"), Reward.RewardedCycles, 1);
+    TestEqual(TEXT("Reward kilograms match progression_reward.hpp's bounded unit"), Reward.MaterialKilograms, 1.0);
+
+    // The mirror reads the same authoritative inventory GetStoredMaterialInventory() already exposes, not a
+    // second notion of "how much material exists".
+    const TArray<FEverwardMaterialInventoryEntry> Inventory = Adapter->GetStoredMaterialInventory();
+    bool bFoundRewardMaterial = false;
+    for (const FEverwardMaterialInventoryEntry& Entry : Inventory)
+    {
+        if (Entry.MaterialId == Reward.MaterialId)
+        {
+            bFoundRewardMaterial = true;
+            TestEqual(TEXT("Inventory entry matches the reward mirror's kilograms"),
+                Entry.Kilograms, Reward.MaterialKilograms);
+        }
+    }
+    TestTrue(TEXT("Rewarded material actually appears in storage"), bFoundRewardMaterial);
+
+    // Ticking further without another completed cycle must not pay a second reward.
+    if (!Fixture.TickFor(0.20f, this)) return false;
+    TestEqual(TEXT("No double-pay while the cycle stays Completed"),
+        Adapter->GetProgressionRewardStatus().RewardedCycles, 1);
+
+    return !HasAnyErrors();
+}
 #endif // WITH_DEV_AUTOMATION_TESTS
