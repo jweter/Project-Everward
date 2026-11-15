@@ -482,6 +482,80 @@
           ],
           "runtime_requirements": [],
           "verification": []
+        },
+        {
+          "id": "first-loop-playtest-verdict-rollup",
+          "state": "PLANNED",
+          "capability_level": 1,
+          "depends_on": [],
+          "objective": "Return the single highest-severity verdict among BLOCKER > FAIL > PARTIAL > PASS found in a list of per-finding classification strings, matched case-insensitively after stripping whitespace. Unrecognized or empty entries are ignored and duplicates do not change the result. An empty list, or a list with no recognized entries, returns PASS. The result is always exactly 'PASS', 'PARTIAL', 'FAIL', or 'BLOCKER'. Used by tools/playtest/summarize_session.py to roll up first-loop playtest findings.",
+          "acceptance": [
+            "tools/playtest/verdict_rollup.py defines a single pure function rollup_playtest_verdict(findings: list[str]) -> str with no file, path, stream, clock, random or network input; it only operates on the list of strings passed to it.",
+            "The function ranks BLOCKER above FAIL above PARTIAL above PASS, compares case-insensitively after stripping whitespace, ignores unrecognized or empty entries, and returns PASS for an empty list or a list with no recognized entries.",
+            "tools/test_*.py adds deterministic unit tests covering the empty-list, mixed-case, duplicate-entries, and unrecognized-entry cases, all passing under the existing Python test runner.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "tools/playtest/**",
+            "tools/test_*.py"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "offline"
+          ],
+          "runtime_requirements": [],
+          "acceptance_examples": [
+            {"call": "rollup_playtest_verdict([])", "expected": "PASS", "why": "An empty findings list has nothing blocking, so it returns the default PASS verdict."},
+            {"call": "rollup_playtest_verdict([\"pass\", \"partial\", \"blocker\"])", "expected": "BLOCKER", "why": "BLOCKER outranks every other classification regardless of case, so it wins the rollup."},
+            {"call": "rollup_playtest_verdict([\"fail\", \"FAIL\", \"partial\"])", "expected": "FAIL", "why": "Duplicate FAIL entries in different cases do not change the result, which stays the highest distinct severity."},
+            {"call": "rollup_playtest_verdict([\"unknown\", \"  Pass  \"])", "expected": "PASS", "why": "An unrecognized entry is ignored and surrounding whitespace is stripped before matching, leaving PASS as the only recognized verdict."}
+          ],
+          "verification": []
+        },
+        {
+          "id": "first-loop-playtest-issue-marker-dedupe",
+          "state": "PLANNED",
+          "capability_level": 1,
+          "depends_on": [],
+          "objective": "Return the list of issue-marker detail strings with duplicates removed, keeping only the first occurrence of each in its original order and casing. Two details are duplicates when they are equal after stripping leading/trailing whitespace and lowercasing. Entries that are empty or whitespace-only after stripping are dropped entirely, even if duplicated. An empty input list returns an empty list. This lets tools/playtest/summarize_session.py render a reproducible, non-repetitive issue-marker section for first-loop editor/runtime verification evidence.",
+          "acceptance": [
+            "tools/playtest/issue_marker_dedupe.py defines a single pure function dedupe_issue_marker_details(details: list[str]) -> list[str] with no file, path, stream, clock, random or network input; it only operates on the list of strings passed to it.",
+            "The function keeps only the first occurrence of each detail in original order and casing, treats two details as duplicates when equal after stripping whitespace and lowercasing, and drops empty or whitespace-only entries entirely.",
+            "tools/test_*.py adds deterministic unit tests covering the empty-list, case-insensitive-duplicate, whitespace-only-entry, and whitespace-padded-duplicate cases, all passing under the existing Python test runner.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "tools/playtest/**",
+            "tools/test_*.py"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "offline"
+          ],
+          "runtime_requirements": [],
+          "acceptance_examples": [
+            {"call": "dedupe_issue_marker_details([])", "expected": [], "why": "An empty input list has nothing to deduplicate, so it returns an empty list."},
+            {"call": "dedupe_issue_marker_details([\"Crash on dock\", \"crash on dock\", \"Crash on dock\"])", "expected": ["Crash on dock"], "why": "Case-insensitive duplicates collapse to the first occurrence, preserving its original casing."},
+            {"call": "dedupe_issue_marker_details([\"  \", \"Scan freeze\", \"\"])", "expected": ["Scan freeze"], "why": "Whitespace-only and empty entries are dropped entirely, leaving only the real detail."},
+            {"call": "dedupe_issue_marker_details([\"A bug\", \" a bug \"])", "expected": ["A bug"], "why": "Surrounding whitespace is ignored when comparing for duplicates, so the padded repeat is removed."}
+          ],
+          "verification": []
         }
       ]
     }
