@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.22)
+project(EverwardPrimeArmCxxOracle LANGUAGES CXX)
+add_executable(everward_prime_arm_oracle ../../procedural_mechanics/prime-arm/bridge_oracle.cpp)
+target_include_directories(everward_prime_arm_oracle PRIVATE ../../../src/simulation/include)
+target_compile_features(everward_prime_arm_oracle PRIVATE cxx_std_20)
+if(MSVC)
+    target_compile_options(everward_prime_arm_oracle PRIVATE /W3 /EHsc)
+endif()
