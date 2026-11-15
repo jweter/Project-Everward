@@ -1,0 +1,26 @@
+﻿[
+    {
+        "trial":  2,
+        "exit_code":  null,
+        "wall_seconds":  9.49,
+        "mean_fps_est":  32.34,
+        "p95_frame_ms":  33.33,
+        "p99_frame_ms":  35.18,
+        "observed_peak_godot_process_ws_mb":  243.4,
+        "free_system_ram_before_mb":  5053.1,
+        "sample_count":  180,
+        "output_log":  "C:\\Users\\jerem\\Documents\\Everward Engine Bakeoff\\godot-proof\\evidence\\trial_2_stdout.log"
+    },
+    {
+        "trial":  3,
+        "exit_code":  null,
+        "wall_seconds":  8.69,
+        "mean_fps_est":  32.45,
+        "p95_frame_ms":  31.63,
+        "p99_frame_ms":  38.83,
+        "observed_peak_godot_process_ws_mb":  247.8,
+        "free_system_ram_before_mb":  4950.1,
+        "sample_count":  180,
+        "output_log":  "C:\\Users\\jerem\\Documents\\Everward Engine Bakeoff\\godot-proof\\evidence\\trial_3_stdout.log"
+    }
+]
