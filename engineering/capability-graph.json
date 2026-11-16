@@ -449,7 +449,7 @@
         },
         {
           "id": "first-loop-chained-simulation-objective-reward-test",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 3,
           "depends_on": [
             "first-loop-progression-reward-unreal-wiring"
@@ -481,11 +481,17 @@
             "offline"
           ],
           "runtime_requirements": [],
-          "verification": []
+          "verification": [
+            "Found already delivered at baseline; merged as commit 315e88d 'Iron God [...] first-loop-chained-simulation-objective-reward-test (#411)' per this repository's commit history; reconciled to VERIFIED_COMPLETE rather than rebuilt, per the roadmap's 'already delivered' check.",
+            "Acceptance 1 (chain extended, not replaced; no skipped step): src/simulation/tests/first_loop_chained_tests.cpp steps 1-5 keep the unchanged wake/scan/mine/Fix_It-repair/starter-restoration sequence, then step 6 calls trigger_next_restoration_cycle(cycle) (objective_cycle.hpp), step 7 applies a second direct PowerSubsystem::Propulsion integrity drop (the same documented direct-write style as the step-1 damaged wake) and asserts cycle.damage_observed_this_cycle, step 8 reuses repair_until_restored() verbatim for a second Fix_It pass, step 9 reaches RestorationObjectiveCycleState::Completed with completed_cycles == 1 only via advance_restoration_cycle(), and step 10 pays the reward via advance_progression_reward() reaching ProgressionRewardState::rewarded_cycles == 1 and a matching kRestorationRewardKg in rt.material_inventory_kg().",
+            "Acceptance 2 (same ctest harness, deterministic across two runs): src/simulation/CMakeLists.txt:64-66 registers add_executable/add_test for everward_first_loop_chained_tests; main() in first_loop_chained_tests.cpp runs run_first_loop() twice (a, b) and asserts exact equality of mining_cycles, repair_steps, mined_kg, material/energy consumed, final storage/energy/tick/integrity, completed_cycles, rewarded_cycles and reward_paid/reward_material_kg -- the same a/b comparison pattern already in the file, now extended to the new fields.",
+            "Acceptance 3 (docs updated truthfully, no marker weakened): docs/FIRST_PLAYABLE_LOOP_EVIDENCE.md row 9 and row 9b both cite 'everward_first_loop_chained_tests' driving the cycle trigger/damage/repair/completion and reward payout in the SAME run, and the Limits section names the extended chain (second integrity drop, second repair pass, cycle completion, progression_reward.hpp payout) while keeping in-engine steps 8-10 marked PENDING and the Unreal compile/native-run/in-editor-play caveats unchanged.",
+            "Acceptance 4 (preflight/CI/review): the cited merge commit 315e88d landed as PR #411 in the repository's merged history (see git log), consistent with the other VERIFIED_COMPLETE slices' preflight/CI gating in this same capability."
+          ]
         },
         {
           "id": "first-loop-playtest-verdict-rollup",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 1,
           "depends_on": [],
           "objective": "Return the single highest-severity verdict among BLOCKER > FAIL > PARTIAL > PASS found in a list of per-finding classification strings, matched case-insensitively after stripping whitespace. Unrecognized or empty entries are ignored and duplicates do not change the result. An empty list, or a list with no recognized entries, returns PASS. The result is always exactly 'PASS', 'PARTIAL', 'FAIL', or 'BLOCKER'. Used by tools/playtest/summarize_session.py to roll up first-loop playtest findings.",
@@ -518,11 +524,17 @@
             {"call": "rollup_playtest_verdict([\"fail\", \"FAIL\", \"partial\"])", "expected": "FAIL", "why": "Duplicate FAIL entries in different cases do not change the result, which stays the highest distinct severity."},
             {"call": "rollup_playtest_verdict([\"unknown\", \"  Pass  \"])", "expected": "PASS", "why": "An unrecognized entry is ignored and surrounding whitespace is stripped before matching, leaving PASS as the only recognized verdict."}
           ],
-          "verification": []
+          "verification": [
+            "Found already delivered at baseline; merged as commit ef3e203 'Iron God [...] first-loop-playtest-verdict-rollup (#412)' per this repository's commit history; reconciled to VERIFIED_COMPLETE rather than rebuilt, per the roadmap's 'already delivered' check.",
+            "Acceptance 1 (pure function, no I/O): tools/playtest/verdict_rollup.py defines rollup_playtest_verdict(findings: list[str]) -> str; it only reads the passed-in list, no file/path/stream/clock/random/network input.",
+            "Acceptance 2 (ranking, case-insensitive, strips whitespace, ignores unrecognized, PASS default): the function strips+uppercases each entry, looks it up in _SEVERITY_BY_CANONICAL_VERDICT (PASS<PARTIAL<FAIL<BLOCKER), keeps the highest-severity match seen, ignores entries absent from the map, and defaults to 'PASS' when nothing recognized matches.",
+            "Acceptance 3 (deterministic unit tests for the 4 named cases): tools/test_verdict_rollup.py's VerdictRollupTests covers empty-list (test_empty_list_returns_pass), mixed-case (test_mixed_case_blocker_outranks_everything), duplicate-entries (test_duplicate_entries_do_not_change_result), and unrecognized-entry (test_unrecognized_entries_are_ignored) cases, plus whitespace-stripping and the four-canonical-strings invariant; all assertions match the four acceptance_examples' computed expected values exactly.",
+            "Acceptance 4 (preflight/CI/review): the cited merge commit ef3e203 landed as PR #412 in the repository's merged history (see git log)."
+          ]
         },
         {
           "id": "first-loop-playtest-issue-marker-dedupe",
-          "state": "PLANNED",
+          "state": "VERIFIED_COMPLETE",
           "capability_level": 1,
           "depends_on": [],
           "objective": "Return the list of issue-marker detail strings with duplicates removed, keeping only the first occurrence of each in its original order and casing. Two details are duplicates when they are equal after stripping leading/trailing whitespace and lowercasing. Entries that are empty or whitespace-only after stripping are dropped entirely, even if duplicated. An empty input list returns an empty list. This lets tools/playtest/summarize_session.py render a reproducible, non-repetitive issue-marker section for first-loop editor/runtime verification evidence.",
@@ -555,6 +567,48 @@
             {"call": "dedupe_issue_marker_details([\"  \", \"Scan freeze\", \"\"])", "expected": ["Scan freeze"], "why": "Whitespace-only and empty entries are dropped entirely, leaving only the real detail."},
             {"call": "dedupe_issue_marker_details([\"A bug\", \" a bug \"])", "expected": ["A bug"], "why": "Surrounding whitespace is ignored when comparing for duplicates, so the padded repeat is removed."}
           ],
+          "verification": [
+            "Found already delivered at baseline; merged as commit d306fe2 'iron-god: add dedupe_issue_marker_details (PRODUCT-PROJECT-EVERWARD-20261116T073804Z) (#413)' per this repository's commit history; reconciled to VERIFIED_COMPLETE rather than rebuilt, per the roadmap's 'already delivered' check.",
+            "Acceptance 1 (pure function, no I/O): tools/playtest/issue_marker_dedupe.py defines dedupe_issue_marker_details(details: list[str]) -> list[str]; it only reads the passed-in list, no file/path/stream/clock/random/network input.",
+            "Acceptance 2 (first-occurrence order/casing kept, case-insensitive+whitespace-insensitive dedupe, empty/whitespace-only dropped): the function strips+lowercases each entry for comparison against a 'seen' set, appends the original (un-normalized) string only on first sight, and skips entries whose stripped form is empty.",
+            "Acceptance 3 (deterministic unit tests for the 4 named cases): tests/test_issue_marker_dedupe.py covers empty-list (example_1/5), case-insensitive-duplicate (example_2/5/8), whitespace-only-entry (example_3/6), and whitespace-padded-duplicate (example_4/7) cases; all assertions match the four acceptance_examples' computed expected values exactly.",
+            "Acceptance 4 (preflight/CI/review): the cited merge commit d306fe2 landed as PR #413 in the repository's merged history (see git log)."
+          ]
+        },
+        {
+          "id": "first-loop-playtest-summary-verdict-wiring",
+          "state": "PLANNED",
+          "capability_level": 3,
+          "depends_on": [
+            "first-loop-playtest-verdict-rollup",
+            "first-loop-playtest-issue-marker-dedupe"
+          ],
+          "objective": "Wire the already-merged pure helpers tools/playtest/verdict_rollup.rollup_playtest_verdict and tools/playtest/issue_marker_dedupe.dedupe_issue_marker_details into tools/playtest/summarize_session.py's build_report(), which today lists every issue_marker event's 'details' text verbatim (including repeats) and reports no overall verdict. Read an optional 'classification' field from each issue_marker event; treat absent, blank, or unrecognized classification as UNCLASSIFIED rather than PASS. Deduplicate the markers' details before rendering. Compute the highest known severity using the existing rollup helper, but do not emit overall PASS without positive classification evidence for every marker and an explicit verified completion signal; in other cases emit PENDING when evidence is incomplete, while preserving known BLOCKER or FAIL findings. No issue markers alone is not evidence of a passing playtest. This turns a playtest session's raw, repetitive evidence into the reproducible, non-repetitive first-loop verification record the roadmap calls for. Roadmap: docs/OWNER_APPROVED_ROADMAP_2026-10-25.md#next-slices item 3.",
+          "acceptance": [
+            "build_report() imports and calls rollup_playtest_verdict() and dedupe_issue_marker_details() from their existing modules rather than reimplementing either rule.",
+            "The rendered 'Issue markers' section lists each marker's deduped 'details' text (first occurrence kept, original casing, case-insensitive and whitespace-insensitive comparison) instead of the raw per-event list, and still reports 'None recorded.' when there are no markers.",
+            "The report gains an 'Overall verdict' line: BLOCKER or FAIL when any classified finding establishes it; otherwise PENDING for missing/unknown classifications, no recorded markers, or absent completion evidence; otherwise use the existing helper's PARTIAL or PASS. A PASS requires a verified session-completion signal plus all markers classified and no greater severity. The pure rollup helper remains unchanged; the session-level evidence gate is separate.",
+            "tools/test_playtest_summary.py gains deterministic tests covering: duplicate marker detail dedupe; classified BLOCKER remaining BLOCKER even with other unclassified markers; unclassified, unknown-classification, and no-marker sessions reporting PENDING; and an explicitly complete, fully classified PASS-only session reporting PASS. Do not fabricate classification evidence in the recorder.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "tools/playtest/**",
+            "tools/test_*.py",
+            "docs/**"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "offline"
+          ],
+          "runtime_requirements": [],
           "verification": []
         }
       ]
