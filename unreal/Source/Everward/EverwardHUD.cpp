@@ -526,6 +526,7 @@ void AEverwardHUD::DrawHUD()
             LastScanComposition.Reset();
             LastScanConfidence = 0.0;
             LastScanCompletedAtSeconds = 0.0;
+            bLastScanDiscoveryRestoredFromSave = false;
         }
     }
     if (AutomationNotice.Sequence > 0 && AutomationNotice.Sequence != LastObservedAutomationSequence)
@@ -558,7 +559,9 @@ void AEverwardHUD::DrawHUD()
                     ? TEXT("COMPOSITION UNRESOLVED")
                     : FString::Printf(TEXT("CLASSIFICATION %s"), *Observed->Classification);
                 LastScanConfidence = FMath::Clamp(Observed->Confidence, 0.0, 1.0);
-                LastScanCompletedAtSeconds = Telemetry.SimulationTimeSeconds;
+                bLastScanDiscoveryRestoredFromSave = CompletedScanNotice.bRestoredFromSave;
+                LastScanCompletedAtSeconds = CompletedScanNotice.bRestoredFromSave
+                    ? 0.0 : Telemetry.SimulationTimeSeconds;
             }
         }
     }
@@ -1104,8 +1107,11 @@ void AEverwardHUD::DrawHUD()
                 HudFont, ReadableTextScale(HudScale, 0.86f), false);
             Y += LineHeight;
             DrawText(
-                FString::Printf(TEXT("CONFIDENCE %.0f%%  //  ACQUIRED T+%.1fs"),
-                    LastScanConfidence * 100.0, LastScanCompletedAtSeconds),
+                bLastScanDiscoveryRestoredFromSave
+                    ? FString::Printf(TEXT("CONFIDENCE %.0f%%  //  RESTORED"),
+                        LastScanConfidence * 100.0)
+                    : FString::Printf(TEXT("CONFIDENCE %.0f%%  //  ACQUIRED T+%.1fs"),
+                        LastScanConfidence * 100.0, LastScanCompletedAtSeconds),
                 MutedColor, SystemPanelX + S(16.0f), Y,
                 HudFont, ReadableTextScale(HudScale, 0.86f), false);
             Y += LineHeight;
