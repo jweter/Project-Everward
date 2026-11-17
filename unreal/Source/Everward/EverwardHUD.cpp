@@ -512,6 +512,21 @@ void AEverwardHUD::DrawHUD()
     {
         LastObservedCommandSequence = LastCommand.Sequence;
         CommandBannerExpiresAtWorldSeconds = WorldNow + 4.0;
+        // Loading replaces the authoritative world. Invalidate every
+        // cached last-discovery presentation first; the restored completion
+        // receipt below will repopulate it only if saved knowledge supports
+        // that specific ID. Otherwise show no recent discovery, not the
+        // pre-load session's stale card.
+        if (LastCommand.bAccepted && LastCommand.CommandId == FName(TEXT("load_game")))
+        {
+            bHasScanDiscovery = false;
+            LastHandledScanNoticeSequence = 0;
+            LastScanTargetId.Reset();
+            LastScanObjectClass.Reset();
+            LastScanComposition.Reset();
+            LastScanConfidence = 0.0;
+            LastScanCompletedAtSeconds = 0.0;
+        }
     }
     if (AutomationNotice.Sequence > 0 && AutomationNotice.Sequence != LastObservedAutomationSequence)
     {
