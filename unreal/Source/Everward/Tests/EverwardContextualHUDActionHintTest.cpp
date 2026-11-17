@@ -53,10 +53,10 @@ bool FEverwardG03ContextualHUDActionHintTest::RunTest(const FString& Parameters)
     Telemetry.ActiveScanTargetId = Mining.TargetId;
     Telemetry.ScanRemainingSeconds = 2.5;
     TestTrue(TEXT("Active scan shows the bound target, not just the countdown"),
-        Build().Text.Contains(TEXT("...001")) && Build().Text.Contains(TEXT("2.5 S LEFT")));
+        Build().Text.Contains(Mining.TargetId) && Build().Text.Contains(TEXT("2.5 S LEFT")));
     Target.TargetId = TEXT("phase2-test-target-003");
     TestTrue(TEXT("Changing selected target cannot re-label the active scan"),
-        Build().Text.Contains(TEXT("...001")) && !Build().Text.Contains(TEXT("...003")));
+        Build().Text.Contains(Mining.TargetId) && !Build().Text.Contains(Target.TargetId));
     Capabilities[0].bAvailable = false;
     TestTrue(TEXT("Disabled sensors pause the active scan hint"),
         Build().bWarning && Build().Text.Contains(TEXT("PAUSED")));
