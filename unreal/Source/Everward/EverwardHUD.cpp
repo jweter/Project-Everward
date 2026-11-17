@@ -6,6 +6,9 @@
 #include "Engine/World.h"
 #include "EverwardProbePawn.h"
 #include "ProbeSimulationAdapter.h"
+#include "ProbeHUDReadModel.h"
+#include "FixItRuntimeActor.h"
+#include "Kismet/GameplayStatics.h"
 
 namespace
 {
@@ -458,6 +461,16 @@ void AEverwardHUD::DrawHUD()
     const TArray<FEverwardProbeCapability> Capabilities = Adapter->GetInstalledCapabilities();
     const TArray<FEverwardManipulatorArmState> ManipulatorArms = Adapter->GetManipulatorArmStates();
     const FEverwardTargetSelectionStatus TargetSelection = Adapter->GetSelectedTargetStatus();
+    if (!CachedFixItRuntime.IsValid())
+    {
+        CachedFixItRuntime = Cast<AFixItRuntimeActor>(
+            UGameplayStatics::GetActorOfClass(GetWorld(), AFixItRuntimeActor::StaticClass()));
+    }
+    const FEverwardHUDReadModel HudState = FEverwardHUDReadModel::FromAuthoritativeState(
+        Telemetry, TargetSelection,
+        CachedFixItRuntime.IsValid()
+            ? CachedFixItRuntime->GetFixItStatusSummary()
+            : FString(TEXT("FIX_IT // UNAVAILABLE")));
     const FEverwardTargetKnowledgeStatus TargetKnowledge = Adapter->GetSelectedTargetKnowledgeStatus();
     const TArray<FEverwardDiscoveredTarget> Discoveries = Adapter->GetDiscoveredTargets();
     const TArray<FEverwardMaterialInventoryEntry> MaterialInventory = Adapter->GetStoredMaterialInventory();
@@ -512,129 +525,172 @@ void AEverwardHUD::DrawHUD()
     const FLinearColor MutedColor(0.64f, 0.75f, 0.80f, 1.0f);
     const FLinearColor AlertColor(1.0f, 0.36f, 0.18f, 1.0f);
 
-    const float TelemetryHeight = S(62.0f) + LineHeight * 14.0f;
+    // Issue #384: only essential status persists over the world. Full
+    // telemetry remains in TAB systems details, not a second UMG widget.
+    const float TelemetryHeight = bSystemsExpanded
+        ? S(62.0f) + LineHeight * 14.0f : S(234.0f);
     const float TelemetryY = Canvas->ClipY - Margin - TelemetryHeight;
-    DrawRect(PanelColor, Margin, TelemetryY, PanelWidth, TelemetryHeight);
-    DrawText(
-        FString::Printf(TEXT("%s  //  GEN %d"), *Telemetry.ProbeId, Telemetry.Generation),
-        TextColor, Margin + S(16.0f), TelemetryY + S(12.0f), HudFont, ReadableTextScale(HudScale, 1.08f), false);
-    DrawText(
-        FString::Printf(TEXT("ENERGY  %s"), *PercentString(Telemetry.StoredEnergyJoules, Telemetry.EnergyCapacityJoules)),
-        TextColor, Margin + S(16.0f), TelemetryY + S(48.0f), HudFont, ReadableTextScale(HudScale), false);
-    DrawText(
-        FString::Printf(TEXT("POWER   %.0f / %.0f W"), Telemetry.TotalPowerAllocatedWatts, Telemetry.PowerCapacityWatts),
-        TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight, HudFont, ReadableTextScale(HudScale), false);
-    DrawText(
-        FString::Printf(TEXT("THERMAL %.1f K"), Telemetry.TemperatureKelvin),
-        TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 2.0f, HudFont, ReadableTextScale(HudScale), false);
-    DrawText(
-        FString::Printf(TEXT("STORAGE %.1f / %.1f KG  (%s)"),
-            Telemetry.StorageUsedKilograms,
-            Telemetry.StorageCapacityKilograms,
-            *PercentString(Telemetry.StorageUsedKilograms, Telemetry.StorageCapacityKilograms)),
-        TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 3.0f,
-        HudFont, ReadableTextScale(HudScale), false);
-    DrawText(
-        FString::Printf(TEXT("VELOCITY %.2f m/s"), Telemetry.VelocityMetersPerSecond.Size()),
-        TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 4.0f,
-        HudFont, ReadableTextScale(HudScale), false);
-    // Slice 7 foundation: authoritative range/closing speed for whatever the
-    // player has selected with T, over the same registered-body list the
-    // swept contact solver already consumes. No selection reads as a plain
-    // muted prompt rather than fabricated zeros. The approach step's motion
-    // label (CLOSING / OPENING / HOLDING RANGE) reflects
-    // TargetSelection.ApproachMotion rather than always reading "CLOSING",
-    // since a negative closing speed means the probe is receding.
-    FString ApproachLabel;
-    switch (TargetSelection.ApproachMotion)
+    DrawRect(bSystemsExpanded ? PanelColor : FLinearColor(0.015f, 0.025f, 0.035f, 0.72f),
+        Margin, TelemetryY, PanelWidth, TelemetryHeight);
+
+    if (!bSystemsExpanded)
     {
-        case EEverwardApproachMotion::Closing:
-            ApproachLabel = FString::Printf(TEXT("CLOSING %.2f M/S"), TargetSelection.ClosingSpeedMetersPerSecond);
-            break;
-        case EEverwardApproachMotion::Opening:
-            ApproachLabel = FString::Printf(TEXT("OPENING %.2f M/S"), FMath::Abs(TargetSelection.ClosingSpeedMetersPerSecond));
-            break;
-        case EEverwardApproachMotion::HoldingRange:
-        default:
-            ApproachLabel = TEXT("HOLDING RANGE");
-            break;
+        const float Left = Margin + S(16.0f);
+        const float BarX = Margin + S(296.0f);
+        const float BarWidth = S(172.0f);
+        const auto Bar = [this, BarX, BarWidth, S](float Y, float Value, FLinearColor Color)
+        {
+            DrawRect(FLinearColor(0.18f, 0.23f, 0.27f, 0.9f), BarX, Y, BarWidth, S(9.0f));
+            DrawRect(Color, BarX, Y, BarWidth * FMath::Clamp(Value, 0.0f, 1.0f), S(9.0f));
+        };
+        DrawText(FString::Printf(TEXT("%s // GEN %d"), *HudState.ProbeId, Telemetry.Generation),
+            TextColor, Left, TelemetryY + S(12.0f), HudFont, ReadableTextScale(HudScale), false);
+        DrawText(FString::Printf(TEXT("ENERGY %.0f%%"), HudState.EnergyFraction * 100.0f),
+            TextColor, Left, TelemetryY + S(45.0f), HudFont, ReadableTextScale(HudScale), false);
+        Bar(TelemetryY + S(56.0f), HudState.EnergyFraction,
+            HudState.EnergyFraction < 0.2f ? AlertColor : FLinearColor(0.31f, 0.8f, 0.68f, 1.0f));
+        DrawText(FString::Printf(TEXT("WEAKEST SYSTEM %.0f%%"), HudState.WeakestSubsystemFraction * 100.0f),
+            HudState.WeakestSubsystemFraction < 0.25f ? AlertColor : TextColor,
+            Left, TelemetryY + S(76.0f), HudFont, ReadableTextScale(HudScale), false);
+        Bar(TelemetryY + S(87.0f), HudState.WeakestSubsystemFraction,
+            HudState.WeakestSubsystemFraction < 0.25f ? AlertColor : FLinearColor(0.31f, 0.8f, 0.68f, 1.0f));
+        DrawText(FString::Printf(TEXT("THERMAL %.0f K  //  STORAGE %.0f%%"),
+                HudState.CoreTemperatureKelvin, HudState.StorageFraction * 100.0f),
+            TextColor, Left, TelemetryY + S(108.0f), HudFont, ReadableTextScale(HudScale, 0.93f), false);
+        DrawText(HudState.bHasTarget
+                ? TruncatedPanelLine(FString::Printf(TEXT("TARGET %s // SURFACE RANGE %.1f M"),
+                    *HudState.TargetId, HudState.TargetSurfaceRangeMeters), 49)
+                : FString(TEXT("TARGET NONE // [T] SELECT")),
+            HudState.bHasTarget ? TextColor : MutedColor,
+            Left, TelemetryY + S(139.0f), HudFont, ReadableTextScale(HudScale, 0.91f), false);
+        DrawText(FString::Printf(TEXT("ACTION %s"), *HudState.CurrentAction),
+            TextColor, Left, TelemetryY + S(170.0f), HudFont, ReadableTextScale(HudScale), false);
+        DrawText(TruncatedPanelLine(HudState.FixItStatus, 49),
+            TextColor, Left, TelemetryY + S(201.0f), HudFont, ReadableTextScale(HudScale, 0.90f), false);
     }
-    DrawText(
-        TargetSelection.bHasSelection
-            ? FString::Printf(TEXT("TARGET  %s // %.1f M // %s"),
-                *TargetSelection.TargetId, TargetSelection.SurfaceRangeMeters, *ApproachLabel)
-            : FString(TEXT("TARGET  NONE SELECTED // [T] SELECT NEAREST")),
-        TargetSelection.bHasSelection ? TextColor : MutedColor,
-        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 5.0f,
-        HudFont, ReadableTextScale(HudScale), false);
-    DrawText(
-        FString::Printf(TEXT("SIM %.1f s"), Telemetry.SimulationTimeSeconds),
-        MutedColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 6.0f,
-        HudFont, ReadableTextScale(HudScale, 0.92f), false);
-    for (int32 ArmIndex = 0; ArmIndex < ManipulatorArms.Num(); ++ArmIndex)
+    else
     {
-        const FEverwardManipulatorArmState& Arm = ManipulatorArms[ArmIndex];
-        const FString Label = Arm.ArmId == EEverwardManipulatorArmId::Port ? TEXT("PORT") : TEXT("STBD");
         DrawText(
-            ManipulatorArmLine(Label, Arm),
-            Arm.bIsDeployed || Arm.bIsDeploying || Arm.bIsStowing ? TextColor : MutedColor,
-            Margin + S(16.0f),
-            TelemetryY + S(48.0f) + LineHeight * (7.0f + ArmIndex),
-            HudFont,
-            ReadableTextScale(HudScale, 0.94f),
-            false);
+            FString::Printf(TEXT("%s  //  GEN %d"), *Telemetry.ProbeId, Telemetry.Generation),
+            TextColor, Margin + S(16.0f), TelemetryY + S(12.0f), HudFont, ReadableTextScale(HudScale, 1.08f), false);
+        DrawText(
+            FString::Printf(TEXT("ENERGY  %s"), *PercentString(Telemetry.StoredEnergyJoules, Telemetry.EnergyCapacityJoules)),
+            TextColor, Margin + S(16.0f), TelemetryY + S(48.0f), HudFont, ReadableTextScale(HudScale), false);
+        DrawText(
+            FString::Printf(TEXT("POWER   %.0f / %.0f W"), Telemetry.TotalPowerAllocatedWatts, Telemetry.PowerCapacityWatts),
+            TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight, HudFont, ReadableTextScale(HudScale), false);
+        DrawText(
+            FString::Printf(TEXT("THERMAL %.1f K"), Telemetry.TemperatureKelvin),
+            TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 2.0f, HudFont, ReadableTextScale(HudScale), false);
+        DrawText(
+            FString::Printf(TEXT("STORAGE %.1f / %.1f KG  (%s)"),
+                Telemetry.StorageUsedKilograms,
+                Telemetry.StorageCapacityKilograms,
+                *PercentString(Telemetry.StorageUsedKilograms, Telemetry.StorageCapacityKilograms)),
+            TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 3.0f,
+            HudFont, ReadableTextScale(HudScale), false);
+        DrawText(
+            FString::Printf(TEXT("VELOCITY %.2f m/s"), Telemetry.VelocityMetersPerSecond.Size()),
+            TextColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 4.0f,
+            HudFont, ReadableTextScale(HudScale), false);
+        // Slice 7 foundation: authoritative range/closing speed for whatever the
+        // player has selected with T, over the same registered-body list the
+        // swept contact solver already consumes. No selection reads as a plain
+        // muted prompt rather than fabricated zeros. The approach step's motion
+        // label (CLOSING / OPENING / HOLDING RANGE) reflects
+        // TargetSelection.ApproachMotion rather than always reading "CLOSING",
+        // since a negative closing speed means the probe is receding.
+        FString ApproachLabel;
+        switch (TargetSelection.ApproachMotion)
+        {
+            case EEverwardApproachMotion::Closing:
+                ApproachLabel = FString::Printf(TEXT("CLOSING %.2f M/S"), TargetSelection.ClosingSpeedMetersPerSecond);
+                break;
+            case EEverwardApproachMotion::Opening:
+                ApproachLabel = FString::Printf(TEXT("OPENING %.2f M/S"), FMath::Abs(TargetSelection.ClosingSpeedMetersPerSecond));
+                break;
+            case EEverwardApproachMotion::HoldingRange:
+            default:
+                ApproachLabel = TEXT("HOLDING RANGE");
+                break;
+        }
+        DrawText(
+            TargetSelection.bHasSelection
+                ? FString::Printf(TEXT("TARGET  %s // %.1f M // %s"),
+                    *TargetSelection.TargetId, TargetSelection.SurfaceRangeMeters, *ApproachLabel)
+                : FString(TEXT("TARGET  NONE SELECTED // [T] SELECT NEAREST")),
+            TargetSelection.bHasSelection ? TextColor : MutedColor,
+            Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 5.0f,
+            HudFont, ReadableTextScale(HudScale), false);
+        DrawText(
+            FString::Printf(TEXT("SIM %.1f s"), Telemetry.SimulationTimeSeconds),
+            MutedColor, Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * 6.0f,
+            HudFont, ReadableTextScale(HudScale, 0.92f), false);
+        for (int32 ArmIndex = 0; ArmIndex < ManipulatorArms.Num(); ++ArmIndex)
+        {
+            const FEverwardManipulatorArmState& Arm = ManipulatorArms[ArmIndex];
+            const FString Label = Arm.ArmId == EEverwardManipulatorArmId::Port ? TEXT("PORT") : TEXT("STBD");
+            DrawText(
+                ManipulatorArmLine(Label, Arm),
+                Arm.bIsDeployed || Arm.bIsDeploying || Arm.bIsStowing ? TextColor : MutedColor,
+                Margin + S(16.0f),
+                TelemetryY + S(48.0f) + LineHeight * (7.0f + ArmIndex),
+                HudFont,
+                ReadableTextScale(HudScale, 0.94f),
+                false);
+        }
+    
+        // Slice 11 ("Science as gameplay") foundation: read-only knowledge
+        // reading for whatever TARGET currently reports selected, immediately
+        // below the arm status rows. A muted prompt distinguishes "nothing
+        // selected" from "selected but not yet observed" rather than collapsing
+        // both into the same silence the TARGET row already avoids.
+        DrawText(
+            TargetKnowledgeLine(TargetSelection, TargetKnowledge),
+            TargetKnowledge.bHasKnowledge ? TextColor : MutedColor,
+            Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (7.0f + ManipulatorArms.Num()),
+            HudFont, ReadableTextScale(HudScale, 0.94f), false);
+    
+        // Slice 12 foundation follow-up: per-material breakdown of the STORAGE
+        // row's aggregate kilogram figure, immediately below the KNOWLEDGE row.
+        DrawText(
+            TruncatedPanelLine(MaterialInventoryLine(MaterialInventory)),
+            MaterialInventory.IsEmpty() ? MutedColor : TextColor,
+            Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (8.0f + ManipulatorArms.Num()),
+            HudFont, ReadableTextScale(HudScale, 0.94f), false);
+    
+        // Slice 11 follow-up ("persistent discoveries"): a catalogue of every
+        // target ever observed this session, immediately below INVENTORY --
+        // unlike KNOWLEDGE above, this stays readable after deselecting a
+        // target or after its registered body is later mined out/collected.
+        DrawText(
+            TruncatedPanelLine(DiscoveredTargetsLine(Discoveries)),
+            Discoveries.IsEmpty() ? MutedColor : TextColor,
+            Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (9.0f + ManipulatorArms.Num()),
+            HudFont, ReadableTextScale(HudScale, 0.94f), false);
+    
+        // First-playable-loop step 9: the repeatable restoration objective cycle, immediately below
+        // DISCOVERIES. Alert color flags a subsystem still pending restoration during an Active cycle;
+        // the [F7] trigger hint only appears while the cycle is not Active, matching
+        // CommandTriggerNextRestorationCycle()'s own accept/reject rule.
+        DrawText(
+            TruncatedPanelLine(RestorationObjectiveCycleLine(RestorationCycle, RestorationStatus)),
+            RestorationCycle.State == EEverwardRestorationObjectiveCycleState::Active &&
+                    !RestorationStatus.PendingSubsystems.IsEmpty()
+                ? AlertColor
+                : TextColor,
+            Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (10.0f + ManipulatorArms.Num()),
+            HudFont, ReadableTextScale(HudScale, 0.94f), false);
+    
+        // First-playable-loop step 9b: the progression reward paid for
+        // completed restoration-objective cycles, immediately below OBJECTIVE.
+        // Presentation only -- see ProgressionRewardLine()'s comment.
+        DrawText(
+            TruncatedPanelLine(ProgressionRewardLine(ProgressionReward)),
+            ProgressionReward.RewardedCycles > 0 ? TextColor : MutedColor,
+            Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (11.0f + ManipulatorArms.Num()),
+            HudFont, ReadableTextScale(HudScale, 0.94f), false);
     }
-
-    // Slice 11 ("Science as gameplay") foundation: read-only knowledge
-    // reading for whatever TARGET currently reports selected, immediately
-    // below the arm status rows. A muted prompt distinguishes "nothing
-    // selected" from "selected but not yet observed" rather than collapsing
-    // both into the same silence the TARGET row already avoids.
-    DrawText(
-        TargetKnowledgeLine(TargetSelection, TargetKnowledge),
-        TargetKnowledge.bHasKnowledge ? TextColor : MutedColor,
-        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (7.0f + ManipulatorArms.Num()),
-        HudFont, ReadableTextScale(HudScale, 0.94f), false);
-
-    // Slice 12 foundation follow-up: per-material breakdown of the STORAGE
-    // row's aggregate kilogram figure, immediately below the KNOWLEDGE row.
-    DrawText(
-        TruncatedPanelLine(MaterialInventoryLine(MaterialInventory)),
-        MaterialInventory.IsEmpty() ? MutedColor : TextColor,
-        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (8.0f + ManipulatorArms.Num()),
-        HudFont, ReadableTextScale(HudScale, 0.94f), false);
-
-    // Slice 11 follow-up ("persistent discoveries"): a catalogue of every
-    // target ever observed this session, immediately below INVENTORY --
-    // unlike KNOWLEDGE above, this stays readable after deselecting a
-    // target or after its registered body is later mined out/collected.
-    DrawText(
-        TruncatedPanelLine(DiscoveredTargetsLine(Discoveries)),
-        Discoveries.IsEmpty() ? MutedColor : TextColor,
-        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (9.0f + ManipulatorArms.Num()),
-        HudFont, ReadableTextScale(HudScale, 0.94f), false);
-
-    // First-playable-loop step 9: the repeatable restoration objective cycle, immediately below
-    // DISCOVERIES. Alert color flags a subsystem still pending restoration during an Active cycle;
-    // the [F7] trigger hint only appears while the cycle is not Active, matching
-    // CommandTriggerNextRestorationCycle()'s own accept/reject rule.
-    DrawText(
-        TruncatedPanelLine(RestorationObjectiveCycleLine(RestorationCycle, RestorationStatus)),
-        RestorationCycle.State == EEverwardRestorationObjectiveCycleState::Active &&
-                !RestorationStatus.PendingSubsystems.IsEmpty()
-            ? AlertColor
-            : TextColor,
-        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (10.0f + ManipulatorArms.Num()),
-        HudFont, ReadableTextScale(HudScale, 0.94f), false);
-
-    // First-playable-loop step 9b: the progression reward paid for
-    // completed restoration-objective cycles, immediately below OBJECTIVE.
-    // Presentation only -- see ProgressionRewardLine()'s comment.
-    DrawText(
-        TruncatedPanelLine(ProgressionRewardLine(ProgressionReward)),
-        ProgressionReward.RewardedCycles > 0 ? TextColor : MutedColor,
-        Margin + S(16.0f), TelemetryY + S(48.0f) + LineHeight * (11.0f + ManipulatorArms.Num()),
-        HudFont, ReadableTextScale(HudScale, 0.94f), false);
 
     // Dedicated manipulator HUD page (Slice 6 joint-articulation follow-up).
     // Rendered above the compact telemetry panel so it never overlaps the
@@ -888,48 +944,9 @@ void AEverwardHUD::DrawHUD()
         HelpX + S(18.0f), HelpY + S(10.0f), HudFont, ReadableTextScale(HudScale, 0.92f), false);
 
     const float SystemPanelX = Canvas->ClipX - Margin - PanelWidth;
-    const float CompactHeaderHeight = S(54.0f);
-    const float CompactRowHeight = S(64.0f);
-    const float CompactHeight = CompactHeaderHeight + CompactRowHeight * FMath::Max(Capabilities.Num(), 1);
-    const float CompactY = Canvas->ClipY - Margin - CompactHeight;
-
+    // Detailed engineering telemetry is TAB-only in the normal HUD.
     if (!bSystemsExpanded)
     {
-        DrawRect(PanelColor, SystemPanelX, CompactY, PanelWidth, CompactHeight);
-        DrawText(
-            FString::Printf(TEXT("SYSTEMS  %d INSTALLED   [TAB DETAILS]"), Capabilities.Num()),
-            TextColor, SystemPanelX + S(16.0f), CompactY + S(12.0f),
-            HudFont, ReadableTextScale(HudScale, 1.02f), false);
-
-        if (Capabilities.IsEmpty())
-        {
-            DrawText(TEXT("NO INSTALLED CAPABILITIES"), MutedColor,
-                SystemPanelX + S(16.0f), CompactY + CompactHeaderHeight,
-                HudFont, ReadableTextScale(HudScale, 0.92f), false);
-        }
-        else
-        {
-            float CompactRowY = CompactY + CompactHeaderHeight;
-            for (const FEverwardProbeCapability& Capability : Capabilities)
-            {
-                const bool bHealthy = Capability.bOperational && Capability.bAvailable;
-                DrawText(
-                    FString::Printf(TEXT("%s   %.0f W   %.0f%%   [%s]"),
-                        *Capability.DisplayName,
-                        Capability.AllocatedPowerWatts,
-                        Capability.IntegrityFraction * 100.0,
-                        *CapabilityState(Capability)),
-                    bHealthy ? TextColor : AlertColor,
-                    SystemPanelX + S(16.0f), CompactRowY,
-                    HudFont, ReadableTextScale(HudScale, 0.94f), false);
-                DrawText(
-                    CompactStatusReason(Capability.StatusReason),
-                    bHealthy ? MutedColor : AlertColor,
-                    SystemPanelX + S(24.0f), CompactRowY + S(30.0f),
-                    HudFont, ReadableTextScale(HudScale, 0.88f), false);
-                CompactRowY += CompactRowHeight;
-            }
-        }
         return;
     }
 
