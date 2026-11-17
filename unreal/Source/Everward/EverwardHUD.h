@@ -94,6 +94,7 @@ private:
     FString LastScanComposition;
     double LastScanConfidence = 0.0;
     double LastScanCompletedAtSeconds = 0.0;
+    bool bLastScanDiscoveryRestoredFromSave = false;
 
     // Brief global feedback banners make rejected commands and automation
     // actions visible even when their owning subsystem detail page is closed.
