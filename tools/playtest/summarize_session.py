@@ -141,6 +141,16 @@ def build_report(session_dir: Path) -> str:
     deduped_marker_details = dedupe_issue_marker_details(
         [marker.get("details", "") for marker in markers]
     )
+    # The dedupe helper retains only the first original details string.
+    # Preserve that same event's time for recorder/gameplay correlation.
+    first_marker_timestamp_by_detail: dict[str, str] = {}
+    for marker in markers:
+        detail = marker.get("details", "")
+        normalized_detail = detail.strip().lower()
+        if normalized_detail and normalized_detail not in first_marker_timestamp_by_detail:
+            first_marker_timestamp_by_detail[normalized_detail] = marker.get(
+                "timestamp_utc", "unknown"
+            )
 
     lines = [
         f"# Everward Playtest Report — {metadata.get('session_id', session_dir.name)}",
@@ -170,7 +180,8 @@ def build_report(session_dir: Path) -> str:
 
     if deduped_marker_details:
         for detail in deduped_marker_details:
-            lines.append(f"- {detail}")
+            timestamp = first_marker_timestamp_by_detail[detail.strip().lower()]
+            lines.append(f"- {timestamp} — {detail}")
     else:
         lines.append("- None recorded.")
 
