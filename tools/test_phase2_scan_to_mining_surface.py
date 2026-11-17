@@ -33,7 +33,8 @@ class Phase2ScanToMiningSurfaceTests(unittest.TestCase):
     def test_unreal_bridge_consumes_scan_truth_and_physical_arm_state(self) -> None:
         self.assertIn("FEverwardMiningStatus", self.adapter_h)
         self.assertIn("CommandMineBootstrapTarget", self.adapter_h)
-        self.assertIn("LastScanLifecycleNotice.bCompleted", self.bridge)
+        self.assertIn("LastCompletedScanLifecycleNotice.bCompleted", self.bridge)
+        self.assertIn("LastCompletedScanLifecycleNotice.TargetId ==", self.bridge)
         self.assertIn("Mining.mine_once", self.bridge)
         self.assertIn("*Manipulators", self.bridge)
         self.assertIn("Snapshot.storage_capacity_kg", self.bridge)
