@@ -64,6 +64,11 @@ class SelectedTargetScanningContractTests(unittest.TestCase):
 
     def test_completed_discovery_uses_real_record_only(self):
         self.assertIn("Discoveries.FindByPredicate(", self.hud)
+        self.assertIn("Entry.TargetId == ScanNotice.TargetId", self.hud)
+        self.assertIn("LastScanLifecycleNotice.TargetId", self.adapter)
+        self.assertIn("scan complete: ", self.adapter)
+        self.assertIn("scan cancelled: ", self.adapter)
+        self.assertNotIn("LastObservedScanTargetId", self.hud)
         self.assertIn("Observed->Classification.IsEmpty()", self.hud)
         self.assertIn("Observed->Confidence", self.hud)
         self.assertNotIn("LastScanConfidence = 0.92", self.hud)
