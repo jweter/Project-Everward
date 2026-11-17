@@ -128,6 +128,8 @@ bool FEverwardG03ScanSurveyTest::RunTest(const FString& Parameters)
         Adapter->GetLastScanLifecycleNotice().bCancelled);
     TestTrue(TEXT("Earlier completed survey survives cancellation"),
         Adapter->GetMiningStatus().bSurveyed);
+    TestEqual(TEXT("Completed scan identity survives a subsequent cancellation"),
+        Adapter->GetLastCompletedScanLifecycleNotice().TargetId, TargetId);
     return !HasAnyErrors();
 }
 
@@ -470,6 +472,8 @@ bool FEverwardG03SelectedTargetScanTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Real completed event registered"), Adapter->GetLastScanLifecycleNotice().bCompleted);
     TestEqual(TEXT("Scan A identity survives even though no HUD frame was drawn during the scan"),
         Adapter->GetLastScanLifecycleNotice().TargetId, RefA);
+    TestEqual(TEXT("Retained completion identifies scanned A"),
+        Adapter->GetLastCompletedScanLifecycleNotice().TargetId, RefA);
     TestTrue(TEXT("Completed event belongs to scanned A"),
         Adapter->GetLastScanLifecycleNotice().Detail.Contains(RefA));
     TestFalse(TEXT("Scanning reference A does not survey the bootstrap"),
@@ -506,6 +510,8 @@ bool FEverwardG03SelectedTargetScanTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Cancelled scan cannot keep running"), Adapter->GetProbeTelemetry().bIsScanning);
     TestTrue(TEXT("Prior bootstrap survey survives unrelated scan cancellation"),
         Adapter->GetMiningStatus().bSurveyed);
+    TestEqual(TEXT("Cancelled reference scan cannot replace the last completed bootstrap discovery"),
+        Adapter->GetLastCompletedScanLifecycleNotice().TargetId, Bootstrap);
 
     if (!TestTrue(TEXT("Start reference scan before sensor-power interruption"),
         Adapter->CommandStartScan(RefB, 5.0).bAccepted)) return false;
