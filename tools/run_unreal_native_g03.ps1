@@ -97,12 +97,29 @@ $Parsed = $Raw | ConvertFrom-Json
 if ($null -eq $Parsed.failed -or $null -eq $Parsed.succeeded) {
     throw "G03 Automation report missing numeric pass/fail totals. Evidence: $Evidence"
 }
-if ([int]$Parsed.failed -ne 0 -or [int]$Parsed.succeeded -lt 3 -or
-    $Raw -notmatch 'Everward.G03.Native.ScanSurveyPersistsAfterCancel' -or
-    $Raw -notmatch 'Everward.G03.Native.MiningRejectsWithoutSurveyAndTool' -or
-    $Raw -notmatch 'Everward.G03.Native.ArmToggleReversesAndJointControlsStayHonest') {
-    throw "G03 expected native tests did not both pass. Evidence: $Evidence"
+# A stale editor binary can expose the three original G03 tests while
+# omitting recent scanning, knowledge, HUD, or objective regressions. A
+# successful process exit alone cannot certify the current native suite.
+$RequiredTestNames = @(
+    'Everward.G03.Native.ScanSurveyPersistsAfterCancel'
+    'Everward.G03.Native.MiningRejectsWithoutSurveyAndTool'
+    'Everward.G03.Native.ArmToggleReversesAndJointControlsStayHonest'
+    'Everward.G03.Native.RestorationObjectiveCycleMirror'
+    'Everward.G03.Native.RestorationObjectiveCycleCompletes'
+    'Everward.G03.Native.ProgressionRewardMirror'
+    'Everward.G03.Native.SelectedTargetScanBinding'
+    'Everward.G03.Native.CompactHUDReadModel'
+    'Everward.G03.Native.ContextualHUDActionHint'
+    'Everward.G03.Native.RestorationObjectiveCycleHudTrigger'
+)
+if ([int]$Parsed.failed -ne 0 -or [int]$Parsed.succeeded -lt $RequiredTestNames.Count) {
+    throw "G03 required native suite failed or is incomplete. Evidence: $Evidence"
 }
-Write-Output "UNREAL_VERIFIED (native G03 subset only): 3 Everward game-world automation tests passed on exact source $Head"
+foreach ($TestName in $RequiredTestNames) {
+    if ($Raw -notmatch [Regex]::Escape($TestName)) {
+        throw "G03 native report omitted required test $TestName. Evidence: $Evidence"
+    }
+}
+Write-Output "UNREAL_VERIFIED (native G03 subset only): $($RequiredTestNames.Count) required Unreal automation tests reported with zero failures on exact source $Head"
 Write-Output "Evidence: $Evidence"
 Write-Output 'This does NOT certify G01/G02 mining success, real key-input path, HUD, Fix_It, or paid Aura milestone acceptance.'
