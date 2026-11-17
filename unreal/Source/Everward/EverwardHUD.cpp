@@ -505,6 +505,7 @@ void AEverwardHUD::DrawHUD()
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
     const FEverwardAutomationNotice AutomationNotice = Adapter->GetLastAutomationNotice();
     const FEverwardScanLifecycleNotice ScanNotice = Adapter->GetLastScanLifecycleNotice();
+    const FEverwardScanLifecycleNotice CompletedScanNotice = Adapter->GetLastCompletedScanLifecycleNotice();
     const double WorldNow = GetWorld() != nullptr ? GetWorld()->GetTimeSeconds() : 0.0;
 
     if (LastCommand.Sequence > 0 && LastCommand.Sequence != LastObservedCommandSequence)
@@ -518,19 +519,19 @@ void AEverwardHUD::DrawHUD()
         AutomationBannerExpiresAtWorldSeconds = WorldNow + 6.0;
     }
 
-    if (ScanNotice.Sequence > 0 && ScanNotice.Sequence != LastHandledScanNoticeSequence)
+    if (CompletedScanNotice.Sequence > 0 &&
+        CompletedScanNotice.Sequence != LastHandledScanNoticeSequence)
     {
-        LastHandledScanNoticeSequence = ScanNotice.Sequence;
-        if (ScanNotice.bCompleted && !ScanNotice.TargetId.IsEmpty())
+        LastHandledScanNoticeSequence = CompletedScanNotice.Sequence;
+        if (CompletedScanNotice.bCompleted && !CompletedScanNotice.TargetId.IsEmpty())
         {
-            // Resolve by the completed simulation event's bound target ID.
-            // At low frame rates a scan can start AND finish between HUD
-            // frames, so never infer identity from a previously drawn frame
-            // or from whichever body the player currently has selected.
+            // Retained completion is separate from the latest lifecycle
+            // notice, which a later cancellation may overwrite. Rendering
+            // cadence and current selection cannot redirect discoveries.
             const FEverwardDiscoveredTarget* Observed = Discoveries.FindByPredicate(
-                [&ScanNotice](const FEverwardDiscoveredTarget& Entry)
+                [&CompletedScanNotice](const FEverwardDiscoveredTarget& Entry)
                 {
-                    return Entry.TargetId == ScanNotice.TargetId;
+                    return Entry.TargetId == CompletedScanNotice.TargetId;
                 });
             if (Observed != nullptr)
             {
