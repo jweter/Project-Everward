@@ -1029,7 +1029,24 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSaveGame()
         Cycle.damage_observed_this_cycle = bRestorationDamageObservedThisCycle;
         const everward::simulation::ManipulatorRig NoManipulators;
         const everward::simulation::ManipulatorRig& Rig = Manipulators != nullptr ? *Manipulators : NoManipulators;
-        Save.probes.push_back(everward::simulation::capture_probe_save_data(*Core, Rig, Cycle));
+        everward::simulation::ProbeSaveData Captured =
+            everward::simulation::capture_probe_save_data(*Core, Rig, Cycle);
+        // The completed event has already occurred on the authoritative
+        // simulation timeline. Persist the receipt only while matching
+        // knowledge exists, including for bodies subsequently collected.
+        const FString& CompletedTargetId = LastCompletedScanLifecycleNotice.TargetId;
+        if (LastCompletedScanLifecycleNotice.bCompleted && !CompletedTargetId.IsEmpty())
+        {
+            const std::string TargetIdUtf8(TCHAR_TO_UTF8(*CompletedTargetId));
+            const auto Knowledge = Core->target_knowledge_state(TargetIdUtf8);
+            if (Knowledge.has_value() &&
+                Knowledge->level != everward::simulation::KnowledgeLevel::Unknown)
+            {
+                Captured.last_completed_scan_target_id = TargetIdUtf8;
+            }
+        }
+        Captured.bootstrap_resource_surveyed = bBootstrapResourceSurveyed;
+        Save.probes.push_back(Captured);
 
         const FString Json = UTF8_TO_TCHAR(everward::simulation::serialize_save_game(Save).c_str());
         const FString FilePath = SaveGameFilePath();
@@ -1062,6 +1079,8 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
     everward::simulation::DamageAwareProbeRuntime* NewCore = nullptr;
     everward::simulation::ManipulatorRig* NewManipulators = nullptr;
     everward::simulation::RestorationObjectiveCycle LoadedCycle;
+    FString LoadedCompletedScanTargetId;
+    bool bLoadedBootstrapResourceSurveyed = false;
     try
     {
         const everward::simulation::SaveGameV1 Save =
@@ -1077,6 +1096,26 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
             everward::simulation::restore_probe_runtime(Data, Save.simulation_tick));
         NewManipulators = new everward::simulation::ManipulatorRig(
             everward::simulation::restore_manipulator_rig(Data, BuildManipulatorCollisionGuard(NewCore)));
+
+        // Only real persisted per-target evidence can reinstate a recent
+        // completion receipt. A missing/unknown/corrupt pointer cannot
+        // invent a discovery or prevent an otherwise valid older save load.
+        if (!Data.last_completed_scan_target_id.empty())
+        {
+            const auto Knowledge = NewCore->target_knowledge_state(Data.last_completed_scan_target_id);
+            if (Knowledge.has_value() &&
+                Knowledge->level != everward::simulation::KnowledgeLevel::Unknown)
+            {
+                LoadedCompletedScanTargetId =
+                    UTF8_TO_TCHAR(Data.last_completed_scan_target_id.c_str());
+            }
+        }
+        // The explicit saved completion latch is necessary: accumulated
+        // scan seconds alone cannot prove the bootstrap survey completed.
+        const auto BootstrapKnowledge = NewCore->target_knowledge_state(
+            TCHAR_TO_UTF8(AEverwardPhase2TestEnvironment::BootstrapScanTargetId));
+        bLoadedBootstrapResourceSurveyed = Data.bootstrap_resource_surveyed &&
+            BootstrapKnowledge.has_value() && BootstrapKnowledge->active_scan_s > 0.0;
     }
     catch (const std::exception& Error)
     {
@@ -1093,6 +1132,23 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
     RestorationCycleState = static_cast<uint8>(LoadedCycle.state);
     RestorationCompletedCycles = LoadedCycle.completed_cycles;
     bRestorationDamageObservedThisCycle = LoadedCycle.damage_observed_this_cycle;
+    bBootstrapResourceSurveyed = bLoadedBootstrapResourceSurveyed;
+
+    // Adapter notices are session-local, so old post-save events must not
+    // leak across a successful load. Restore the saved last-completed
+    // receipt with a fresh sequence, never as a new scan event.
+    LastScanLifecycleNotice = FEverwardScanLifecycleNotice{};
+    LastCompletedScanLifecycleNotice = FEverwardScanLifecycleNotice{};
+    LastStartedScanTargetId.Reset();
+    if (!LoadedCompletedScanTargetId.IsEmpty())
+    {
+        LastCompletedScanLifecycleNotice.Sequence = ++ScanLifecycleSequence;
+        LastCompletedScanLifecycleNotice.bCompleted = true;
+        LastCompletedScanLifecycleNotice.TargetId = LoadedCompletedScanTargetId;
+        LastCompletedScanLifecycleNotice.Detail =
+            FString::Printf(TEXT("scan complete: %s"), *LoadedCompletedScanTargetId);
+    }
+
     SyncOwnerTransformFromSimulation();
     return RecordCommandResult(CommandId, true, TEXT("probe state loaded"));
 }
