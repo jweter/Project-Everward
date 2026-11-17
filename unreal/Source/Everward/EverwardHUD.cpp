@@ -482,6 +482,7 @@ void AEverwardHUD::DrawHUD()
     const TArray<FEverwardProbeCapability> Capabilities = Adapter->GetInstalledCapabilities();
     const TArray<FEverwardManipulatorArmState> ManipulatorArms = Adapter->GetManipulatorArmStates();
     const FEverwardTargetSelectionStatus TargetSelection = Adapter->GetSelectedTargetStatus();
+    const FEverwardMiningStatus Mining = Adapter->GetMiningStatus();
     if (!CachedFixItRuntime.IsValid())
     {
         CachedFixItRuntime = Cast<AFixItRuntimeActor>(
@@ -492,6 +493,8 @@ void AEverwardHUD::DrawHUD()
         CachedFixItRuntime.IsValid()
             ? CachedFixItRuntime->GetFixItStatusSummary()
             : FString(TEXT("FIX_IT // UNAVAILABLE")));
+    const FEverwardHUDActionHint ContextHint = FEverwardHUDActionHint::FromAuthoritativeState(
+        Telemetry, TargetSelection, Mining, Capabilities, ManipulatorArms);
     const FEverwardTargetKnowledgeStatus TargetKnowledge = Adapter->GetSelectedTargetKnowledgeStatus();
     const TArray<FEverwardDiscoveredTarget> Discoveries = Adapter->GetDiscoveredTargets();
     const TArray<FEverwardMaterialInventoryEntry> MaterialInventory = Adapter->GetStoredMaterialInventory();
@@ -589,11 +592,14 @@ void AEverwardHUD::DrawHUD()
             *SurfaceRangeSuffix);
         DrawText(HudState.bHasTarget
                 ? TargetLine
-                : FString(TEXT("TARGET NONE // [T] SELECT")),
+                : FString(TEXT("TARGET NONE")),
             HudState.bHasTarget ? TextColor : MutedColor,
             Left, TelemetryY + S(139.0f), HudFont, ReadableTextScale(HudScale, 0.91f), false);
-        DrawText(FString::Printf(TEXT("ACTION %s"), *HudState.CurrentAction),
-            TextColor, Left, TelemetryY + S(170.0f), HudFont, ReadableTextScale(HudScale), false);
+        // Reuse the existing ACTION row: no extra world-obscuring line, and
+        // no duplicate [T] prompt when the target row reads TARGET NONE.
+        DrawText(TruncatedPanelLine(ContextHint.Text, 49),
+            ContextHint.bWarning ? AlertColor : TextColor,
+            Left, TelemetryY + S(170.0f), HudFont, ReadableTextScale(HudScale, 0.91f), false);
         DrawText(TruncatedPanelLine(HudState.FixItStatus, 49),
             TextColor, Left, TelemetryY + S(201.0f), HudFont, ReadableTextScale(HudScale, 0.90f), false);
     }
