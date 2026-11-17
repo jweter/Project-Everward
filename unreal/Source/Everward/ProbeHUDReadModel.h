@@ -5,6 +5,9 @@
 
 struct FEverwardProbeTelemetry;
 struct FEverwardTargetSelectionStatus;
+struct FEverwardMiningStatus;
+struct FEverwardProbeCapability;
+struct FEverwardManipulatorArmState;
 
 // Blueprint-readable projection for the compact HUD. This is presentation
 // data, never a new simulation or damage-authority model.
@@ -31,4 +34,22 @@ struct EVERWARD_API FEverwardHUDReadModel
         const FEverwardProbeTelemetry& Telemetry,
         const FEverwardTargetSelectionStatus& Target,
         const FString& RuntimeFixItStatus);
+};
+
+// Presentation-only next-step guidance; never grants a command or predicts that
+// mining will succeed. The simulation adapter remains the only authority.
+USTRUCT(BlueprintType)
+struct EVERWARD_API FEverwardHUDActionHint
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category="Everward|HUD") FString Text;
+    UPROPERTY(BlueprintReadOnly, Category="Everward|HUD") bool bWarning = false;
+
+    static FEverwardHUDActionHint FromAuthoritativeState(
+        const FEverwardProbeTelemetry& Telemetry,
+        const FEverwardTargetSelectionStatus& Target,
+        const FEverwardMiningStatus& Mining,
+        const TArray<FEverwardProbeCapability>& Capabilities,
+        const TArray<FEverwardManipulatorArmState>& ManipulatorArms);
 };
