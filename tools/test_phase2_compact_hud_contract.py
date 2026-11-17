@@ -48,7 +48,7 @@ class CompactHudContractTests(unittest.TestCase):
         self.assertIn("GetFixItStatusSummary()", self.hud_cpp)
         self.assertIn("if (!bSystemsExpanded)", self.hud_cpp)
         self.assertIn("const float ExpandedHeight", self.hud_cpp)
-        self.assertIn("WEAKEST SYSTEM", self.hud_cpp)
+        self.assertIn("WEAKEST %.0f%%", self.hud_cpp)
         self.assertIn("SURFACE RANGE", self.hud_cpp)
         self.assertIn("FixItStatus", self.hud_cpp)
         self.assertIn("return;", self.hud_cpp[self.hud_cpp.index("if (!bSystemsExpanded)"):self.hud_cpp.index("const float ExpandedHeight")])
