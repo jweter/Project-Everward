@@ -436,6 +436,13 @@ bool FEverwardG03SelectedTargetScanTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("No-selection rejection is actionable"),
         NoTarget.Detail, FString(TEXT("no target selected")));
     TestFalse(TEXT("No selection creates no active scan"), Adapter->GetProbeTelemetry().bIsScanning);
+    const FEverwardProbeCommandResult Missing = Adapter->CommandStartScan(
+        TEXT("phase2-not-registered"), 0.25);
+    TestFalse(TEXT("Unknown physical body cannot be scanned"), Missing.bAccepted);
+    TestTrue(TEXT("Unknown body rejection names the registration problem"),
+        Missing.Detail.Contains(TEXT("not registered")));
+    TestFalse(TEXT("Unknown target cannot create an active scan"),
+        Adapter->GetProbeTelemetry().bIsScanning);
 
     if (!TestTrue(TEXT("Sensors receive the required power"),
         Adapter->CommandAllocatePower(EEverwardPowerSubsystem::Sensors, 100.0).bAccepted)) return false;
