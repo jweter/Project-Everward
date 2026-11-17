@@ -404,6 +404,12 @@ void UProbeSimulationAdapter::TickComponent(
                 LastScanLifecycleNotice.Detail.StartsWith(ScanEventPrefix)
                     ? LastScanLifecycleNotice.Detail.RightChop(ScanEventPrefix.Len())
                     : FString();
+            if (LastScanLifecycleNotice.bCompleted)
+            {
+                // Do not lose a completed discovery when a later cancelled
+                // scan supersedes the generic last-lifecycle-event notice.
+                LastCompletedScanLifecycleNotice = LastScanLifecycleNotice;
+            }
 
             // Issue #372 P1-1: a completed survey is durable. Latch it here, on the real ScanCompleted event for the
             // bootstrap deposit, so a later scan that is cancelled (which replaces the notice above) cannot take it away.
@@ -693,6 +699,7 @@ FEverwardMiningStagingSolution UProbeSimulationAdapter::GetMiningStagingSolution
 FEverwardProbeCommandResult UProbeSimulationAdapter::GetLastCommandResult() const { return LastCommandResult; }
 FEverwardAutomationNotice UProbeSimulationAdapter::GetLastAutomationNotice() const { return LastAutomationNotice; }
 FEverwardScanLifecycleNotice UProbeSimulationAdapter::GetLastScanLifecycleNotice() const { return LastScanLifecycleNotice; }
+FEverwardScanLifecycleNotice UProbeSimulationAdapter::GetLastCompletedScanLifecycleNotice() const { return LastCompletedScanLifecycleNotice; }
 
 FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSetVelocityMetersPerSecond(FVector VelocityMetersPerSecond)
 {
