@@ -121,6 +121,23 @@ struct ProbeSaveData {
     MaterialProcessingJobStatus material_processing_job{};
 };
 
+// A completion receipt is a presentation bookmark, never authority to
+// synthesize data. Validate against persisted scientific knowledge, not
+// the physical-body registry: collected samples intentionally keep their
+// observations after the object has been removed from the scene.
+[[nodiscard]] inline std::string validated_completed_scan_receipt_target_id(
+        const ProbeSaveData& data) {
+    if (data.last_completed_scan_target_id.empty()) {
+        return {};
+    }
+    const auto entry = data.probe.target_knowledge.find(data.last_completed_scan_target_id);
+    if (entry == data.probe.target_knowledge.end() ||
+        entry->second.level == KnowledgeLevel::Unknown) {
+        return {};
+    }
+    return data.last_completed_scan_target_id;
+}
+
 struct SaveGameV1 {
     int save_version{kSaveFormatVersion};
     std::int64_t simulation_tick{0};
