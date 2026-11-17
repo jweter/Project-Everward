@@ -86,6 +86,10 @@ struct EVERWARD_API FEverwardScanLifecycleNotice
     UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
     FString TargetId;
 
+    // Restored presentation bookmark, not a newly acquired domain event.
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
+    bool bRestoredFromSave = false;
+
     UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
     FString Detail;
 };
