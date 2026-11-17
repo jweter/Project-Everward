@@ -394,6 +394,16 @@ void UProbeSimulationAdapter::TickComponent(
             LastScanLifecycleNotice.bCancelled =
                 Event.type == everward::simulation::DomainEventType::ScanCancelled;
             LastScanLifecycleNotice.Detail = UTF8_TO_TCHAR(Event.detail.c_str());
+            // Core emits canonical "scan complete: <id>" and
+            // "scan cancelled: <id>" details. Capture that event's actual
+            // target here, not the currently selected or last drawn target.
+            // Fail closed if the event format ever changes.
+            const FString ScanEventPrefix = LastScanLifecycleNotice.bCompleted
+                ? TEXT("scan complete: ") : TEXT("scan cancelled: ");
+            LastScanLifecycleNotice.TargetId =
+                LastScanLifecycleNotice.Detail.StartsWith(ScanEventPrefix)
+                    ? LastScanLifecycleNotice.Detail.RightChop(ScanEventPrefix.Len())
+                    : FString();
 
             // Issue #372 P1-1: a completed survey is durable. Latch it here, on the real ScanCompleted event for the
             // bootstrap deposit, so a later scan that is cancelled (which replaces the notice above) cannot take it away.
