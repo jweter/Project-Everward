@@ -1326,6 +1326,15 @@ void test_completed_scan_receipt_and_archived_knowledge_survive_round_trip() {
     const ProbeSaveData& Loaded = parsed.probes.at(0);
     assert(Loaded.last_completed_scan_target_id == "collected_sample");
     assert(Loaded.bootstrap_resource_surveyed);
+    assert(everward::simulation::validated_completed_scan_receipt_target_id(Loaded) ==
+           "collected_sample");
+
+    // An unknown bookmark is ignored, not allowed to impersonate a science
+    // discovery or replace an otherwise valid one. A removed *known* body
+    // remains an allowable historical target.
+    ProbeSaveData Invalid = Loaded;
+    Invalid.last_completed_scan_target_id = "never_observed";
+    assert(everward::simulation::validated_completed_scan_receipt_target_id(Invalid).empty());
     const DamageAwareProbeRuntime Restored =
         restore_probe_runtime(Loaded, parsed.simulation_tick);
     assert(Restored.target_knowledge_state("collected_sample").has_value());
