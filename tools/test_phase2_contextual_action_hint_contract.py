@@ -47,7 +47,7 @@ class ContextualActionHintContractTests(unittest.TestCase):
         self.assertIn("Arm.bToolAttached", self.model_cpp)
         self.assertIn("Mining.DepositRemainingKilograms <= 0.0", self.model_cpp)
         self.assertIn("Telemetry.StorageUsedKilograms >= Telemetry.StorageCapacityKilograms", self.model_cpp)
-        self.assertIn('FName(TEXT("mine_bootstrap_target"))', self.mining)
+        self.assertIn('CommandId(TEXT("mine_bootstrap_target"))', self.mining)
         self.assertIn("Status.TargetId = AEverwardPhase2TestEnvironment::BootstrapScanTargetId", self.mining)
         self.assertNotIn("Target.SurfaceRangeMeters > Mining.ToolWorkingReachMeters", self.model_cpp)
         self.assertNotIn("[G] MINE TARGET", self.model_cpp)
