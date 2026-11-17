@@ -76,6 +76,20 @@ class SelectedTargetScanningContractTests(unittest.TestCase):
         self.assertNotIn("LastScanConfidence = 0.92", self.hud)
         self.assertNotIn("SILICATE-RICH // IRON-BEARING MATERIAL", self.hud)
 
+    def test_save_load_restores_receipt_only_with_real_science(self):
+        self.assertIn('"last_completed_scan_target_id"', self.save)
+        self.assertIn('"bootstrap_resource_surveyed"', self.save)
+        self.assertIn('validated_completed_scan_receipt_target_id', self.save)
+        self.assertIn('KnowledgeLevel::Unknown', self.save)
+        self.assertIn('Captured.bootstrap_resource_surveyed = bBootstrapResourceSurveyed', self.adapter)
+        self.assertIn('LoadedCompletedScanTargetId', self.adapter)
+        self.assertIn('LastCompletedScanLifecycleNotice.bRestoredFromSave = true', self.adapter)
+        self.assertIn('bBootstrapResourceSurveyed = bLoadedBootstrapResourceSurveyed', self.adapter)
+        self.assertIn('LastCommand.CommandId == FName(TEXT("load_game"))', self.hud)
+        self.assertIn('bLastScanDiscoveryRestoredFromSave', self.hud)
+        self.assertIn('CONFIDENCE %.0f%%  //  RESTORED', self.hud)
+        self.assertIn('CompletedScanNotice.bRestoredFromSave', self.hud)
+
     def test_native_world_regression_is_present(self):
         self.assertIn("Everward.G03.Native.SelectedTargetScanBinding", self.native)
         for snippet in ("CommandSelectTarget(RefA)", "CommandSelectTarget(RefB)",
