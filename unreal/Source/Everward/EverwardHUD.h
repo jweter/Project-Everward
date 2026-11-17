@@ -89,12 +89,12 @@ private:
     // being inferred from whichever manual command happened most recently.
     bool bHasScanDiscovery = false;
     int64 LastHandledScanNoticeSequence = 0;
-    FString LastObservedScanTargetId;
     FString LastScanTargetId;
     FString LastScanObjectClass;
     FString LastScanComposition;
     double LastScanConfidence = 0.0;
     double LastScanCompletedAtSeconds = 0.0;
+    bool bLastScanDiscoveryRestoredFromSave = false;
 
     // Brief global feedback banners make rejected commands and automation
     // actions visible even when their owning subsystem detail page is closed.

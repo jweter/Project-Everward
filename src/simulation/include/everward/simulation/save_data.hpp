@@ -76,6 +76,16 @@ struct ProbeSaveData {
     std::optional<SphericalPlanetaryBody> planetary_body{};
     std::optional<SoftwarePolicy> policy{};
     std::string selected_target_id{};
+    // A scan-completion receipt is a durable player discovery, not a new
+    // source of scientific truth. This advisory pointer may refer to a body
+    // collected/removed after scanning; validate against target_knowledge
+    // (which survives body removal), NOT the live static-body registry.
+    // Optional on earlier saves; empty means no retained completion receipt.
+    std::string last_completed_scan_target_id{};
+    // The bootstrap mining survey is earned by an actual ScanCompleted
+    // event for the bootstrap deposit. Do not infer it from partial scan
+    // confidence or the last selected body after loading.
+    bool bootstrap_resource_surveyed = false;
     // ManipulatorRig is not composed inside DamageAwareProbeRuntime (see
     // manipulator.hpp's header comment), so it is captured/restored here as
     // plain arm state rather than as a whole ManipulatorRig -- the rig's
@@ -110,6 +120,23 @@ struct ProbeSaveData {
     // only the job's progress against whichever recipe_id it names.
     MaterialProcessingJobStatus material_processing_job{};
 };
+
+// A completion receipt is a presentation bookmark, never authority to
+// synthesize data. Validate against persisted scientific knowledge, not
+// the physical-body registry: collected samples intentionally keep their
+// observations after the object has been removed from the scene.
+[[nodiscard]] inline std::string validated_completed_scan_receipt_target_id(
+        const ProbeSaveData& data) {
+    if (data.last_completed_scan_target_id.empty()) {
+        return {};
+    }
+    const auto entry = data.probe.target_knowledge.find(data.last_completed_scan_target_id);
+    if (entry == data.probe.target_knowledge.end() ||
+        entry->second.level == KnowledgeLevel::Unknown) {
+        return {};
+    }
+    return data.last_completed_scan_target_id;
+}
 
 struct SaveGameV1 {
     int save_version{kSaveFormatVersion};
@@ -815,6 +842,8 @@ namespace detail {
                                          : JsonValue());
     object.set("policy", data.policy.has_value() ? detail::policy_to_json(*data.policy) : JsonValue());
     object.set("selected_target_id", JsonValue(data.selected_target_id));
+    object.set("last_completed_scan_target_id", JsonValue(data.last_completed_scan_target_id));
+    object.set("bootstrap_resource_surveyed", JsonValue(data.bootstrap_resource_surveyed));
     object.set("port_manipulator_arm", detail::manipulator_arm_state_to_json(data.port_manipulator_arm));
     object.set(
         "starboard_manipulator_arm",
@@ -851,6 +880,14 @@ namespace detail {
         data.policy = detail::policy_from_json(policy_value);
     }
     data.selected_target_id = value.require("selected_target_id").as_string();
+    // Additive fields: older version-2 saves have neither. This is
+    // deliberately not interpreted as proof a scan completed.
+    if (const JsonValue* completed = value.find("last_completed_scan_target_id")) {
+        data.last_completed_scan_target_id = completed->as_string();
+    }
+    if (const JsonValue* surveyed = value.find("bootstrap_resource_surveyed")) {
+        data.bootstrap_resource_surveyed = surveyed->as_bool();
+    }
     data.port_manipulator_arm =
         detail::manipulator_arm_state_from_json(value.require("port_manipulator_arm"));
     data.starboard_manipulator_arm =

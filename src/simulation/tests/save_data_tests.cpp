@@ -1302,11 +1302,71 @@ void test_generated_region_unknown_modification_entity_fails_closed() {
     assert(threw);
 }
 
+void test_completed_scan_receipt_and_archived_knowledge_survive_round_trip() {
+    DamageAwareProbeRuntime runtime = DamageAwareProbeRuntime::make_canonical_ev0001();
+    runtime.add_static_sphere_body(
+        StaticSphereBody{"bootstrap", Vector3d{12.0, 3.0, -1.0}, 1.5, "regolith", 0.0});
+    runtime.add_static_sphere_body(
+        StaticSphereBody{"collected_sample", Vector3d{18.0, 4.0, -1.0}, 1.0, "iron", 1.0});
+    runtime.start_scan("bootstrap", 0.25);
+    runtime.advance_wall_ticks(500'000);
+    runtime.start_scan("collected_sample", 0.25);
+    runtime.advance_wall_ticks(500'000);
+    const auto Observed = runtime.target_knowledge_state("collected_sample");
+    assert(Observed.has_value() &&
+           Observed->level != everward::simulation::KnowledgeLevel::Unknown);
+    runtime.remove_static_sphere_body("collected_sample");
+    assert(runtime.target_knowledge_state("collected_sample").has_value());
+
+    ProbeSaveData captured = capture_probe_save_data(runtime);
+    captured.last_completed_scan_target_id = "collected_sample";
+    captured.bootstrap_resource_surveyed = true;
+    SaveGameV1 save{kSaveFormatVersion, runtime.tick(), 0, 1, {captured}};
+    const SaveGameV1 parsed = deserialize_save_game(serialize_save_game(save));
+    const ProbeSaveData& Loaded = parsed.probes.at(0);
+    assert(Loaded.last_completed_scan_target_id == "collected_sample");
+    assert(Loaded.bootstrap_resource_surveyed);
+    assert(everward::simulation::validated_completed_scan_receipt_target_id(Loaded) ==
+           "collected_sample");
+
+    // An unknown bookmark is ignored, not allowed to impersonate a science
+    // discovery or replace an otherwise valid one. A removed *known* body
+    // remains an allowable historical target.
+    ProbeSaveData Invalid = Loaded;
+    Invalid.last_completed_scan_target_id = "never_observed";
+    assert(everward::simulation::validated_completed_scan_receipt_target_id(Invalid).empty());
+    const DamageAwareProbeRuntime Restored =
+        restore_probe_runtime(Loaded, parsed.simulation_tick);
+    assert(Restored.target_knowledge_state("collected_sample").has_value());
+    // Removed samples remain scientifically discoverable but are still
+    // absent from the physical registry after restoring a save.
+    bool BodyStillRegistered = false;
+    for (const StaticSphereBody& Body : Restored.static_bodies()) {
+        BodyStillRegistered |= Body.body_id == "collected_sample";
+    }
+    assert(!BodyStillRegistered);
+
+    // Earlier version-2 probe records don't have either additive field;
+    // absence is NOT evidence of a completed scan or a surveyed deposit.
+    const JsonValue CurrentProbe = everward::simulation::probe_save_data_to_json(captured);
+    JsonValue OlderProbe = JsonValue::make_object();
+    for (const auto& [Key, Value] : CurrentProbe.as_object()) {
+        if (Key != "last_completed_scan_target_id" &&
+            Key != "bootstrap_resource_surveyed") {
+            OlderProbe.set(Key, Value);
+        }
+    }
+    const ProbeSaveData Older = everward::simulation::probe_save_data_from_json(OlderProbe);
+    assert(Older.last_completed_scan_target_id.empty());
+    assert(!Older.bootstrap_resource_surveyed);
+}
+
 } // namespace
 
 int main() {
     test_round_trip_preserves_full_probe_state();
     test_round_trip_with_no_policy_or_selection();
+    test_completed_scan_receipt_and_archived_knowledge_survive_round_trip();
     test_json_replace_requires_existing_field();
     test_ordered_migration_framework_applies_contiguous_steps();
     test_migration_framework_rejects_gap();

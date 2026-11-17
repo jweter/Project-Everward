@@ -81,6 +81,15 @@ struct EVERWARD_API FEverwardScanLifecycleNotice
     UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
     bool bCancelled = false;
 
+    // Target identity carried by the authoritative completion/cancellation
+    // event. This must not depend on a HUD frame during the active scan.
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
+    FString TargetId;
+
+    // Restored presentation bookmark, not a newly acquired domain event.
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
+    bool bRestoredFromSave = false;
+
     UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
     FString Detail;
 };
@@ -524,6 +533,9 @@ public:
     UFUNCTION(BlueprintPure, Category="Everward|Command") FEverwardProbeCommandResult GetLastCommandResult() const;
     UFUNCTION(BlueprintPure, Category="Everward|Automation") FEverwardAutomationNotice GetLastAutomationNotice() const;
     UFUNCTION(BlueprintPure, Category="Everward|Scan") FEverwardScanLifecycleNotice GetLastScanLifecycleNotice() const;
+    // Completion is retained separately from the latest cancellation; HUD
+    // frames may be skipped between consecutive lifecycle events.
+    UFUNCTION(BlueprintPure, Category="Everward|Scan") FEverwardScanLifecycleNotice GetLastCompletedScanLifecycleNotice() const;
 
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandSetVelocityMetersPerSecond(FVector VelocityMetersPerSecond);
     UFUNCTION(BlueprintCallable, Category="Everward|Command") FEverwardProbeCommandResult CommandSetControlledDescentVelocityMetersPerSecond(
@@ -708,6 +720,7 @@ private:
     FEverwardJoseAutopilotGovernorNotice LastJoseAutopilotGovernorNotice;
 
     FEverwardScanLifecycleNotice LastScanLifecycleNotice;
+    FEverwardScanLifecycleNotice LastCompletedScanLifecycleNotice;
     FString LastStartedScanTargetId;
     bool bBootstrapResourceSurveyed = false;
     double BootstrapDepositRemainingKilograms = 250.0;

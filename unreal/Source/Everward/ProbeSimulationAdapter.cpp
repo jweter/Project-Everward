@@ -394,6 +394,30 @@ void UProbeSimulationAdapter::TickComponent(
             LastScanLifecycleNotice.bCancelled =
                 Event.type == everward::simulation::DomainEventType::ScanCancelled;
             LastScanLifecycleNotice.Detail = UTF8_TO_TCHAR(Event.detail.c_str());
+            // Core emits canonical "scan complete: <id>" and
+            // "scan cancelled: <id>" details. Capture that event's actual
+            // target here, not the currently selected or last drawn target.
+            // Fail closed if the event format ever changes.
+            const FString ScanEventPrefix = LastScanLifecycleNotice.bCompleted
+                ? TEXT("scan complete: ") : TEXT("scan cancelled: ");
+            LastScanLifecycleNotice.TargetId =
+                LastScanLifecycleNotice.Detail.StartsWith(ScanEventPrefix)
+                    ? LastScanLifecycleNotice.Detail.RightChop(ScanEventPrefix.Len())
+                    : FString();
+            if (LastScanLifecycleNotice.bCompleted && !LastScanLifecycleNotice.TargetId.IsEmpty())
+            {
+                // A malformed/foreign completion detail must never replace
+                // the last real discovery. Archived bodies are valid here:
+                // completed science evidence survives collection/removal,
+                // even when its physical sphere is no longer registered.
+                const auto Knowledge = Core->target_knowledge_state(
+                    std::string(TCHAR_TO_UTF8(*LastScanLifecycleNotice.TargetId)));
+                if (Knowledge.has_value() &&
+                    Knowledge->level != everward::simulation::KnowledgeLevel::Unknown)
+                {
+                    LastCompletedScanLifecycleNotice = LastScanLifecycleNotice;
+                }
+            }
 
             // Issue #372 P1-1: a completed survey is durable. Latch it here, on the real ScanCompleted event for the
             // bootstrap deposit, so a later scan that is cancelled (which replaces the notice above) cannot take it away.
@@ -683,6 +707,7 @@ FEverwardMiningStagingSolution UProbeSimulationAdapter::GetMiningStagingSolution
 FEverwardProbeCommandResult UProbeSimulationAdapter::GetLastCommandResult() const { return LastCommandResult; }
 FEverwardAutomationNotice UProbeSimulationAdapter::GetLastAutomationNotice() const { return LastAutomationNotice; }
 FEverwardScanLifecycleNotice UProbeSimulationAdapter::GetLastScanLifecycleNotice() const { return LastScanLifecycleNotice; }
+FEverwardScanLifecycleNotice UProbeSimulationAdapter::GetLastCompletedScanLifecycleNotice() const { return LastCompletedScanLifecycleNotice; }
 
 FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSetVelocityMetersPerSecond(FVector VelocityMetersPerSecond)
 {
@@ -728,6 +753,16 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandStartScan(const FStr
 {
     const FName CommandId(TEXT("start_scan"));
     if (Core == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    if (TargetId.IsEmpty()) return RecordCommandResult(CommandId, false, TEXT("no target selected"));
+    // The engine-independent scan core supports synthetic IDs for isolated
+    // tests. In actual Unreal gameplay, only registered physical bodies may
+    // acquire observation/knowledge; reject invented IDs at this bridge.
+    FVector RegisteredPositionMeters;
+    if (!GetStaticBodyPositionMeters(TargetId, RegisteredPositionMeters))
+    {
+        return RecordCommandResult(CommandId, false,
+            FString::Printf(TEXT("scan target not registered: %s"), *TargetId));
+    }
     try
     {
         Core->start_scan(std::string(TCHAR_TO_UTF8(*TargetId)), DurationSeconds);
@@ -1002,7 +1037,24 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSaveGame()
         Cycle.damage_observed_this_cycle = bRestorationDamageObservedThisCycle;
         const everward::simulation::ManipulatorRig NoManipulators;
         const everward::simulation::ManipulatorRig& Rig = Manipulators != nullptr ? *Manipulators : NoManipulators;
-        Save.probes.push_back(everward::simulation::capture_probe_save_data(*Core, Rig, Cycle));
+        everward::simulation::ProbeSaveData Captured =
+            everward::simulation::capture_probe_save_data(*Core, Rig, Cycle);
+        // The completed event has already occurred on the authoritative
+        // simulation timeline. Persist the receipt only while matching
+        // knowledge exists, including for bodies subsequently collected.
+        const FString& CompletedTargetId = LastCompletedScanLifecycleNotice.TargetId;
+        if (LastCompletedScanLifecycleNotice.bCompleted && !CompletedTargetId.IsEmpty())
+        {
+            const std::string TargetIdUtf8(TCHAR_TO_UTF8(*CompletedTargetId));
+            const auto Knowledge = Core->target_knowledge_state(TargetIdUtf8);
+            if (Knowledge.has_value() &&
+                Knowledge->level != everward::simulation::KnowledgeLevel::Unknown)
+            {
+                Captured.last_completed_scan_target_id = TargetIdUtf8;
+            }
+        }
+        Captured.bootstrap_resource_surveyed = bBootstrapResourceSurveyed;
+        Save.probes.push_back(Captured);
 
         const FString Json = UTF8_TO_TCHAR(everward::simulation::serialize_save_game(Save).c_str());
         const FString FilePath = SaveGameFilePath();
@@ -1035,6 +1087,8 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
     everward::simulation::DamageAwareProbeRuntime* NewCore = nullptr;
     everward::simulation::ManipulatorRig* NewManipulators = nullptr;
     everward::simulation::RestorationObjectiveCycle LoadedCycle;
+    FString LoadedCompletedScanTargetId;
+    bool bLoadedBootstrapResourceSurveyed = false;
     try
     {
         const everward::simulation::SaveGameV1 Save =
@@ -1050,6 +1104,23 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
             everward::simulation::restore_probe_runtime(Data, Save.simulation_tick));
         NewManipulators = new everward::simulation::ManipulatorRig(
             everward::simulation::restore_manipulator_rig(Data, BuildManipulatorCollisionGuard(NewCore)));
+
+        // Only real persisted per-target evidence can reinstate a recent
+        // completion receipt. A missing/unknown/corrupt pointer cannot
+        // invent a discovery or prevent an otherwise valid older save load.
+        const std::string ValidatedCompletionTarget =
+            everward::simulation::validated_completed_scan_receipt_target_id(Data);
+        if (!ValidatedCompletionTarget.empty())
+        {
+            LoadedCompletedScanTargetId =
+                UTF8_TO_TCHAR(ValidatedCompletionTarget.c_str());
+        }
+        // The explicit saved completion latch is necessary: accumulated
+        // scan seconds alone cannot prove the bootstrap survey completed.
+        const auto BootstrapKnowledge = NewCore->target_knowledge_state(
+            TCHAR_TO_UTF8(AEverwardPhase2TestEnvironment::BootstrapScanTargetId));
+        bLoadedBootstrapResourceSurveyed = Data.bootstrap_resource_surveyed &&
+            BootstrapKnowledge.has_value() && BootstrapKnowledge->active_scan_s > 0.0;
     }
     catch (const std::exception& Error)
     {
@@ -1066,6 +1137,24 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
     RestorationCycleState = static_cast<uint8>(LoadedCycle.state);
     RestorationCompletedCycles = LoadedCycle.completed_cycles;
     bRestorationDamageObservedThisCycle = LoadedCycle.damage_observed_this_cycle;
+    bBootstrapResourceSurveyed = bLoadedBootstrapResourceSurveyed;
+
+    // Adapter notices are session-local, so old post-save events must not
+    // leak across a successful load. Restore the saved last-completed
+    // receipt with a fresh sequence, never as a new scan event.
+    LastScanLifecycleNotice = FEverwardScanLifecycleNotice{};
+    LastCompletedScanLifecycleNotice = FEverwardScanLifecycleNotice{};
+    LastStartedScanTargetId.Reset();
+    if (!LoadedCompletedScanTargetId.IsEmpty())
+    {
+        LastCompletedScanLifecycleNotice.Sequence = ++ScanLifecycleSequence;
+        LastCompletedScanLifecycleNotice.bCompleted = true;
+        LastCompletedScanLifecycleNotice.bRestoredFromSave = true;
+        LastCompletedScanLifecycleNotice.TargetId = LoadedCompletedScanTargetId;
+        LastCompletedScanLifecycleNotice.Detail =
+            FString::Printf(TEXT("scan complete: %s"), *LoadedCompletedScanTargetId);
+    }
+
     SyncOwnerTransformFromSimulation();
     return RecordCommandResult(CommandId, true, TEXT("probe state loaded"));
 }

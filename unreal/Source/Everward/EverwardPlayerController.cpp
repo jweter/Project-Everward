@@ -1,7 +1,6 @@
 #include "EverwardPlayerController.h"
 
 #include "EverwardHUD.h"
-#include "EverwardPhase2TestEnvironment.h"
 #include "EverwardProbePawn.h"
 #include "InputCoreTypes.h"
 #include "ProbeSimulationAdapter.h"
@@ -172,8 +171,14 @@ void AEverwardPlayerController::ExecutePrimarySystemAction()
     const FName CapabilityId = GetSelectedCapabilityId();
     if (CapabilityId == FName(TEXT("sensors")))
     {
+        // The selection is authoritative at the moment Enter is pressed.
+        // An empty selection deliberately reaches CommandStartScan so its
+        // rejection is visible through the existing HUD command banner.
+        // Core binds accepted scans to that ID; changing selection later
+        // never redirects accumulated knowledge.
+        const FEverwardTargetSelectionStatus Selection = Adapter->GetSelectedTargetStatus();
         (void)Adapter->CommandStartScan(
-            FString(AEverwardPhase2TestEnvironment::BootstrapScanTargetId),
+            Selection.bHasSelection ? Selection.TargetId : FString(),
             Phase2ScanDurationSeconds);
     }
     else if (CapabilityId == FName(TEXT("computation")))

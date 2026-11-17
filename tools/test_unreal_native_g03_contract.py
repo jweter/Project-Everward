@@ -10,9 +10,9 @@ RUNNER = ROOT / "tools" / "run_unreal_native_g03.ps1"
 
 
 class G03NativeContractTests(unittest.TestCase):
-    def test_five_native_unreal_automation_tests_are_registered(self) -> None:
+    def test_seven_native_unreal_automation_tests_are_registered(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
-        self.assertEqual(source.count("IMPLEMENT_SIMPLE_AUTOMATION_TEST("), 6)
+        self.assertEqual(source.count("IMPLEMENT_SIMPLE_AUTOMATION_TEST("), 7)
         for name in (
             "Everward.G03.Native.ScanSurveyPersistsAfterCancel",
             "Everward.G03.Native.MiningRejectsWithoutSurveyAndTool",
@@ -20,6 +20,7 @@ class G03NativeContractTests(unittest.TestCase):
             "Everward.G03.Native.RestorationObjectiveCycleMirror",
             "Everward.G03.Native.RestorationObjectiveCycleCompletes",
             "Everward.G03.Native.ProgressionRewardMirror",
+            "Everward.G03.Native.SelectedTargetScanBinding",
         ):
             self.assertIn(name, source)
         self.assertIn("WITH_DEV_AUTOMATION_TESTS", source)
@@ -64,6 +65,25 @@ class G03NativeContractTests(unittest.TestCase):
             self.assertIn(required, source, required)
         self.assertIn("no PASS can be inferred", source)
         self.assertNotIn("Start-Process -FilePath $EditorCmd -ArgumentList $Arguments -Wait", source)
+
+    def test_runner_requires_every_current_native_g03_registration(self) -> None:
+        runner = RUNNER.read_text(encoding="utf-8")
+        native = SOURCE.read_text(encoding="utf-8")
+        for path in (
+            ROOT / "unreal" / "Source" / "Everward" / "Tests" / "EverwardCompactHUDReadModelTest.cpp",
+            ROOT / "unreal" / "Source" / "Everward" / "Tests" / "EverwardContextualHUDActionHintTest.cpp",
+            ROOT / "unreal" / "Source" / "Everward" / "Tests" / "EverwardObjectiveCycleHudTriggerTest.cpp",
+        ):
+            native += path.read_text(encoding="utf-8")
+        import re
+        registrations = set(re.findall(r'"(Everward\.G03\.Native\.[^"]+)"', native))
+        required = set(re.findall(r"'(Everward\.G03\.Native\.[^']+)'", runner))
+        self.assertEqual(len(registrations), 10)
+        self.assertEqual(required, registrations)
+        self.assertIn("[int]$Parsed.failed -ne 0", runner)
+        self.assertIn("[int]$Parsed.succeeded -lt $RequiredTestNames.Count", runner)
+        self.assertIn("[Regex]::Escape($TestName)", runner)
+        self.assertNotIn("3 Everward game-world automation tests passed", runner)
 
     def test_runner_is_no_aura_and_owner_resource_safe(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")

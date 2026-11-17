@@ -6,7 +6,9 @@ import json
 import os
 import re
 import subprocess
+import urllib.error
 import urllib.request
+from urllib.parse import urlencode
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -61,8 +63,21 @@ def github(path: str) -> Any:
             "User-Agent": "portfolio-execution-director",
         },
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.load(response)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as error:
+        # Never print headers/tokens or fall back to invented plan evidence.
+        # A 403 with no quota left differs materially from a permission 403;
+        # both remain an explicit failed gate until GitHub can answer.
+        remaining = error.headers.get("X-RateLimit-Remaining", "unknown")
+        retry_after = error.headers.get("Retry-After", "unknown")
+        endpoint = path.split("?", 1)[0]
+        raise SystemExit(
+            f"GitHub API {error.code} at {endpoint}; "
+            f"rate_limit_remaining={remaining}; retry_after={retry_after}; "
+            "execution plan unverified (no synthetic fallback)"
+        ) from error
 
 
 def pages(path: str) -> list[dict[str, Any]]:
@@ -104,7 +119,10 @@ def parse_time(value: Any) -> datetime | None:
 def workflow_learning() -> list[dict[str, Any]]:
     cutoff = datetime.now(UTC) - timedelta(days=14)
     events = []
-    for run in wrapped_pages("/actions/runs?status=completed", "workflow_runs"):
+    # GitHub's created filter enforces the same 14-day window server-side.
+    # Do not walk thousands of irrelevant historical runs on every PR push.
+    query = urlencode({"status": "completed", "created": f">={cutoff.date().isoformat()}"})
+    for run in wrapped_pages(f"/actions/runs?{query}", "workflow_runs"):
         when = parse_time(run.get("created_at"))
         if when is None or when < cutoff:
             continue
@@ -130,26 +148,42 @@ def review_severity(body: str) -> str | None:
 
 
 def review_learning() -> list[dict[str, Any]]:
+    # One repository-wide review-comments feed replaces N PR-list + PR-comment
+    # requests. Older verified findings remain in local learning-memory.json;
+    # only new findings from the recent window need to be ingested here.
+    cutoff = datetime.now(UTC) - timedelta(days=14)
+    query = urlencode({
+        "sort": "created",
+        "direction": "desc",
+        "since": cutoff.isoformat().replace("+00:00", "Z"),
+    })
     events = []
-    for pr in pages("/pulls?state=all&sort=updated&direction=desc"):
-        number = int(pr["number"])
-        for comment in pages(f"/pulls/{number}/comments"):
-            severity = review_severity(str(comment.get("body") or ""))
-            if severity is None:
-                continue
-            events.append(
-                {
-                    "type": "review_finding",
-                    "severity": severity,
-                    "pull_request": number,
-                    "comment_id": comment.get("id"),
-                    "path": comment.get("path"),
-                    "recorded_at": comment.get("created_at"),
-                }
-            )
+    for comment in pages(f"/pulls/comments?{query}"):
+        when = parse_time(comment.get("created_at"))
+        if when is None or when < cutoff:
+            continue
+        severity = review_severity(str(comment.get("body") or ""))
+        if severity is None:
+            continue
+        # The repository-wide endpoint includes the original PR URL for
+        # each inline review comment. No extra API call is needed.
+        url = str(comment.get("pull_request_url") or "")
+        match = re.fullmatch(r"https://api\.github\.com/repos/[^/]+/[^/]+/pulls/(\d+)", url)
+        if match is None:
+            raise SystemExit("review finding has no valid pull_request_url")
+        events.append(
+            {
+                "type": "review_finding",
+                "severity": severity,
+                "pull_request": int(match.group(1)),
+                "comment_id": comment.get("id"),
+                "path": comment.get("path"),
+                "recorded_at": comment.get("created_at"),
+            }
+        )
         if len(events) >= 50:
             break
-    return events[:50]
+    return events
 
 
 def fingerprint(event: dict[str, Any]) -> str:

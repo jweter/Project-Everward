@@ -493,9 +493,9 @@ void AEverwardHUD::DrawHUD()
         CachedFixItRuntime.IsValid()
             ? CachedFixItRuntime->GetFixItStatusSummary()
             : FString(TEXT("FIX_IT // UNAVAILABLE")));
-    const FEverwardHUDActionHint ContextHint = FEverwardHUDActionHint::FromAuthoritativeState(
-        Telemetry, TargetSelection, Mining, Capabilities, ManipulatorArms);
     const FEverwardTargetKnowledgeStatus TargetKnowledge = Adapter->GetSelectedTargetKnowledgeStatus();
+    const FEverwardHUDActionHint ContextHint = FEverwardHUDActionHint::FromAuthoritativeState(
+        Telemetry, TargetSelection, TargetKnowledge, Mining, Capabilities, ManipulatorArms);
     const TArray<FEverwardDiscoveredTarget> Discoveries = Adapter->GetDiscoveredTargets();
     const TArray<FEverwardMaterialInventoryEntry> MaterialInventory = Adapter->GetStoredMaterialInventory();
     const FEverwardStarterRestorationStatus RestorationStatus = Adapter->GetStarterRestorationStatus();
@@ -505,12 +505,29 @@ void AEverwardHUD::DrawHUD()
     const FEverwardProbeCommandResult LastCommand = Adapter->GetLastCommandResult();
     const FEverwardAutomationNotice AutomationNotice = Adapter->GetLastAutomationNotice();
     const FEverwardScanLifecycleNotice ScanNotice = Adapter->GetLastScanLifecycleNotice();
+    const FEverwardScanLifecycleNotice CompletedScanNotice = Adapter->GetLastCompletedScanLifecycleNotice();
     const double WorldNow = GetWorld() != nullptr ? GetWorld()->GetTimeSeconds() : 0.0;
 
     if (LastCommand.Sequence > 0 && LastCommand.Sequence != LastObservedCommandSequence)
     {
         LastObservedCommandSequence = LastCommand.Sequence;
         CommandBannerExpiresAtWorldSeconds = WorldNow + 4.0;
+        // Loading replaces the authoritative world. Invalidate every
+        // cached last-discovery presentation first; the restored completion
+        // receipt below will repopulate it only if saved knowledge supports
+        // that specific ID. Otherwise show no recent discovery, not the
+        // pre-load session's stale card.
+        if (LastCommand.bAccepted && LastCommand.CommandId == FName(TEXT("load_game")))
+        {
+            bHasScanDiscovery = false;
+            LastHandledScanNoticeSequence = 0;
+            LastScanTargetId.Reset();
+            LastScanObjectClass.Reset();
+            LastScanComposition.Reset();
+            LastScanConfidence = 0.0;
+            LastScanCompletedAtSeconds = 0.0;
+            bLastScanDiscoveryRestoredFromSave = false;
+        }
     }
     if (AutomationNotice.Sequence > 0 && AutomationNotice.Sequence != LastObservedAutomationSequence)
     {
@@ -518,24 +535,35 @@ void AEverwardHUD::DrawHUD()
         AutomationBannerExpiresAtWorldSeconds = WorldNow + 6.0;
     }
 
-    if (Telemetry.bIsScanning)
+    if (CompletedScanNotice.Sequence > 0 &&
+        CompletedScanNotice.Sequence != LastHandledScanNoticeSequence)
     {
-        LastObservedScanTargetId = Telemetry.ActiveScanTargetId;
-    }
-
-    if (ScanNotice.Sequence > 0 && ScanNotice.Sequence != LastHandledScanNoticeSequence)
-    {
-        LastHandledScanNoticeSequence = ScanNotice.Sequence;
-        if (ScanNotice.bCompleted && !LastObservedScanTargetId.IsEmpty())
+        LastHandledScanNoticeSequence = CompletedScanNotice.Sequence;
+        if (CompletedScanNotice.bCompleted && !CompletedScanNotice.TargetId.IsEmpty())
         {
-            bHasScanDiscovery = true;
-            LastScanTargetId = LastObservedScanTargetId;
-            LastScanObjectClass = TEXT("ROCKY BODY / SURVEY REFERENCE");
-            LastScanComposition = TEXT("SILICATE-RICH // IRON-BEARING MATERIAL");
-            LastScanConfidence = 0.92;
-            LastScanCompletedAtSeconds = Telemetry.SimulationTimeSeconds;
+            // Retained completion is separate from the latest lifecycle
+            // notice, which a later cancellation may overwrite. Rendering
+            // cadence and current selection cannot redirect discoveries.
+            const FEverwardDiscoveredTarget* Observed = Discoveries.FindByPredicate(
+                [&CompletedScanNotice](const FEverwardDiscoveredTarget& Entry)
+                {
+                    return Entry.TargetId == CompletedScanNotice.TargetId;
+                });
+            if (Observed != nullptr)
+            {
+                bHasScanDiscovery = true;
+                LastScanTargetId = Observed->TargetId;
+                LastScanObjectClass = Observed->Level == EEverwardKnowledgeLevel::Characterized
+                    ? TEXT("CHARACTERIZED") : TEXT("OBSERVED");
+                LastScanComposition = Observed->Classification.IsEmpty()
+                    ? TEXT("COMPOSITION UNRESOLVED")
+                    : FString::Printf(TEXT("CLASSIFICATION %s"), *Observed->Classification);
+                LastScanConfidence = FMath::Clamp(Observed->Confidence, 0.0, 1.0);
+                bLastScanDiscoveryRestoredFromSave = CompletedScanNotice.bRestoredFromSave;
+                LastScanCompletedAtSeconds = CompletedScanNotice.bRestoredFromSave
+                    ? 0.0 : Telemetry.SimulationTimeSeconds;
+            }
         }
-        LastObservedScanTargetId.Reset();
     }
 
     const float HudScale = ResolveHudScale(Canvas);
@@ -1079,8 +1107,11 @@ void AEverwardHUD::DrawHUD()
                 HudFont, ReadableTextScale(HudScale, 0.86f), false);
             Y += LineHeight;
             DrawText(
-                FString::Printf(TEXT("CONFIDENCE %.0f%%  //  ACQUIRED T+%.1fs"),
-                    LastScanConfidence * 100.0, LastScanCompletedAtSeconds),
+                bLastScanDiscoveryRestoredFromSave
+                    ? FString::Printf(TEXT("CONFIDENCE %.0f%%  //  RESTORED"),
+                        LastScanConfidence * 100.0)
+                    : FString::Printf(TEXT("CONFIDENCE %.0f%%  //  ACQUIRED T+%.1fs"),
+                        LastScanConfidence * 100.0, LastScanCompletedAtSeconds),
                 MutedColor, SystemPanelX + S(16.0f), Y,
                 HudFont, ReadableTextScale(HudScale, 0.86f), false);
             Y += LineHeight;
