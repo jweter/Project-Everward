@@ -18,6 +18,7 @@ bool FEverwardG03ContextualHUDActionHintTest::RunTest(const FString& Parameters)
     Telemetry.ProbeId = TEXT("EV-0001");
     Telemetry.StorageCapacityKilograms = 20.0;
     FEverwardTargetSelectionStatus Target;
+    FEverwardTargetKnowledgeStatus Knowledge;
     FEverwardMiningStatus Mining;
     Mining.TargetId = TEXT("phase2-test-target-001");
     Mining.DepositRemainingKilograms = 50.0;
@@ -33,7 +34,7 @@ bool FEverwardG03ContextualHUDActionHintTest::RunTest(const FString& Parameters)
     const auto Build = [&]()
     {
         return FEverwardHUDActionHint::FromAuthoritativeState(
-            Telemetry, Target, Mining, Capabilities, Arms);
+            Telemetry, Target, Knowledge, Mining, Capabilities, Arms);
     };
 
     TestTrue(TEXT("No selection suggests the real T key"), Build().Text.Contains(TEXT("[T]")));
@@ -49,10 +50,19 @@ bool FEverwardG03ContextualHUDActionHintTest::RunTest(const FString& Parameters)
     Capabilities[0].bAvailable = true;
 
     Telemetry.bIsScanning = true;
+    Telemetry.ActiveScanTargetId = Mining.TargetId;
     Telemetry.ScanRemainingSeconds = 2.5;
-    TestTrue(TEXT("Active scan overrides additional scan prompts"),
-        Build().Text.Contains(TEXT("2.5 S REMAINING")));
+    TestTrue(TEXT("Active scan shows the bound target, not just the countdown"),
+        Build().Text.Contains(TEXT("...001")) && Build().Text.Contains(TEXT("2.5 S LEFT")));
+    Target.TargetId = TEXT("phase2-test-target-003");
+    TestTrue(TEXT("Changing selected target cannot re-label the active scan"),
+        Build().Text.Contains(TEXT("...001")) && !Build().Text.Contains(TEXT("...003")));
+    Capabilities[0].bAvailable = false;
+    TestTrue(TEXT("Disabled sensors pause the active scan hint"),
+        Build().bWarning && Build().Text.Contains(TEXT("PAUSED")));
+    Capabilities[0].bAvailable = true;
     Telemetry.bIsScanning = false;
+    Target.TargetId = Mining.TargetId;
 
     Mining.bSurveyed = true;
     TestTrue(TEXT("Without a deployed tool, hint shows actual arm controls"),
@@ -75,10 +85,18 @@ bool FEverwardG03ContextualHUDActionHintTest::RunTest(const FString& Parameters)
     Mining.DepositRemainingKilograms = 50.0;
 
     Target.TargetId = TEXT("phase2-test-target-004");
-    TestFalse(TEXT("Non-mining sample never inherits bootstrap mining readiness"),
+    TestFalse(TEXT("Non-bootstrap target never inherits mining readiness"),
         Build().Text.Contains(TEXT("[G]")));
-    TestTrue(TEXT("Other bodies expose manipulator controls as attempts"),
-        Build().Text.Contains(TEXT("[F] TRY GRASP")));
+    TestTrue(TEXT("Unobserved reference target now suggests an actual selected-target scan"),
+        Build().Text.Contains(TEXT("[ENTER] SCAN")));
+    Knowledge.bHasKnowledge = true;
+    Knowledge.Level = EEverwardKnowledgeLevel::Observed;
+    Knowledge.Confidence = 1.0;
+    TestTrue(TEXT("Fully observed target is not trapped in a rescan loop"),
+        Build().Text.Contains(TEXT("OBSERVED")) && Build().Text.Contains(TEXT("[F] TRY GRASP")));
+    Knowledge.Level = EEverwardKnowledgeLevel::Characterized;
+    TestTrue(TEXT("Real characterized knowledge can be surfaced without mining claims"),
+        Build().Text.Contains(TEXT("CHARACTERIZED")) && !Build().Text.Contains(TEXT("[G]")));
 
     Telemetry.bIsOverheated = true;
     TestTrue(TEXT("Thermal lockout warns before normal actions"),
