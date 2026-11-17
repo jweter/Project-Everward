@@ -5,6 +5,7 @@
 
 struct FEverwardProbeTelemetry;
 struct FEverwardTargetSelectionStatus;
+struct FEverwardTargetKnowledgeStatus;
 struct FEverwardMiningStatus;
 struct FEverwardProbeCapability;
 struct FEverwardManipulatorArmState;
@@ -49,6 +50,7 @@ struct EVERWARD_API FEverwardHUDActionHint
     static FEverwardHUDActionHint FromAuthoritativeState(
         const FEverwardProbeTelemetry& Telemetry,
         const FEverwardTargetSelectionStatus& Target,
+        const FEverwardTargetKnowledgeStatus& Knowledge,
         const FEverwardMiningStatus& Mining,
         const TArray<FEverwardProbeCapability>& Capabilities,
         const TArray<FEverwardManipulatorArmState>& ManipulatorArms);
