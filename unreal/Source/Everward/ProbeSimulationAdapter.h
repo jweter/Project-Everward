@@ -81,6 +81,11 @@ struct EVERWARD_API FEverwardScanLifecycleNotice
     UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
     bool bCancelled = false;
 
+    // Target identity carried by the authoritative completion/cancellation
+    // event. This must not depend on a HUD frame during the active scan.
+    UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
+    FString TargetId;
+
     UPROPERTY(BlueprintReadOnly, Category="Everward|Scan")
     FString Detail;
 };
