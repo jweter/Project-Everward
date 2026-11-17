@@ -20,11 +20,11 @@ class Phase2ScanDiscoverySurfaceTests(unittest.TestCase):
         self.assertIn("LastHandledScanNoticeSequence", self.header)
         self.assertIn("GetLastScanLifecycleNotice", self.adapter_header)
         self.assertIn("DomainEventType::ScanCompleted", self.adapter_source)
-        self.assertIn("ScanNotice.bCompleted", self.hud)
+        self.assertIn("CompletedScanNotice.bCompleted", self.hud)
         self.assertIn("SCAN COMPLETE  //  %s  //  DISCOVERY STORED", self.hud)
         self.assertIn("LAST DISCOVERY", self.hud)
         self.assertIn("Discoveries.FindByPredicate(", self.hud)
-        self.assertIn("Entry.TargetId == ScanNotice.TargetId", self.hud)
+        self.assertIn("Entry.TargetId == CompletedScanNotice.TargetId", self.hud)
         self.assertNotIn("LastObservedScanTargetId", self.hud)
         self.assertIn("LastScanLifecycleNotice.TargetId", self.adapter_source)
         self.assertIn("Observed->Classification", self.hud)
@@ -37,7 +37,7 @@ class Phase2ScanDiscoverySurfaceTests(unittest.TestCase):
     def test_cancelled_scan_does_not_create_discovery(self) -> None:
         self.assertIn("DomainEventType::ScanCancelled", self.adapter_source)
         self.assertIn("LastScanLifecycleNotice.bCancelled", self.adapter_source)
-        self.assertIn("if (ScanNotice.bCompleted && !ScanNotice.TargetId.IsEmpty())", self.hud)
+        self.assertIn("if (CompletedScanNotice.bCompleted && !CompletedScanNotice.TargetId.IsEmpty())", self.hud)
         self.assertNotIn('LastCommand.CommandId == FName(TEXT("cancel_scan"))', self.hud)
 
 
