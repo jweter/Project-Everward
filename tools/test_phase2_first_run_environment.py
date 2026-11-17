@@ -47,9 +47,12 @@ class Phase2FirstRunEnvironmentTests(unittest.TestCase):
         self.assertIn('SpawnActor<AActor>', self.game_mode_cpp)
         self.assertIn('return Phase2PlayerStart;', self.game_mode_cpp)
 
-    def test_scan_command_uses_the_visible_environment_target_id(self) -> None:
-        self.assertIn('#include "EverwardPhase2TestEnvironment.h"', self.controller)
-        self.assertIn('AEverwardPhase2TestEnvironment::BootstrapScanTargetId', self.controller)
+    def test_scan_command_uses_selected_registered_target_not_bootstrap_fixture(self) -> None:
+        self.assertIn('BootstrapScanTargetId = TEXT("phase2-test-target-001")', self.environment_h)
+        self.assertIn('Adapter->GetSelectedTargetStatus()', self.controller)
+        self.assertIn('Selection.bHasSelection ? Selection.TargetId : FString()', self.controller)
+        self.assertIn('Phase2ScanDurationSeconds', self.controller)
+        self.assertNotIn('FString(AEverwardPhase2TestEnvironment::BootstrapScanTargetId)', self.controller)
         self.assertNotIn('phase2-bootstrap-target', self.controller)
 
     def test_camera_orbit_and_zoom_are_configured_for_prime_body_scale(self) -> None:
