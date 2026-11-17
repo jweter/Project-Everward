@@ -404,11 +404,19 @@ void UProbeSimulationAdapter::TickComponent(
                 LastScanLifecycleNotice.Detail.StartsWith(ScanEventPrefix)
                     ? LastScanLifecycleNotice.Detail.RightChop(ScanEventPrefix.Len())
                     : FString();
-            if (LastScanLifecycleNotice.bCompleted)
+            if (LastScanLifecycleNotice.bCompleted && !LastScanLifecycleNotice.TargetId.IsEmpty())
             {
-                // Do not lose a completed discovery when a later cancelled
-                // scan supersedes the generic last-lifecycle-event notice.
-                LastCompletedScanLifecycleNotice = LastScanLifecycleNotice;
+                // A malformed/foreign completion detail must never replace
+                // the last real discovery. Archived bodies are valid here:
+                // completed science evidence survives collection/removal,
+                // even when its physical sphere is no longer registered.
+                const auto Knowledge = Core->target_knowledge_state(
+                    std::string(TCHAR_TO_UTF8(*LastScanLifecycleNotice.TargetId)));
+                if (Knowledge.has_value() &&
+                    Knowledge->level != everward::simulation::KnowledgeLevel::Unknown)
+                {
+                    LastCompletedScanLifecycleNotice = LastScanLifecycleNotice;
+                }
             }
 
             // Issue #372 P1-1: a completed survey is durable. Latch it here, on the real ScanCompleted event for the
