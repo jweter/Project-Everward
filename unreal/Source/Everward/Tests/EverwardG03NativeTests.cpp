@@ -413,4 +413,100 @@ bool FEverwardG03ProgressionRewardMirrorTest::RunTest(const FString& Parameters)
 
     return !HasAnyErrors();
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FEverwardG03SelectedTargetScanTest,
+    "Everward.G03.Native.SelectedTargetScanBinding",
+    EverwardNativeFlags)
+
+bool FEverwardG03SelectedTargetScanTest::RunTest(const FString& Parameters)
+{
+    FEverwardNativeTestFixture Fixture;
+    if (!Fixture.Start(this)) return false;
+    UProbeSimulationAdapter* Adapter = Fixture.Adapter;
+    const FString RefA = AEverwardPhase2TestEnvironment::ReferenceTarget1Id;
+    const FString RefB = AEverwardPhase2TestEnvironment::ReferenceTarget2Id;
+    const FString Bootstrap = AEverwardPhase2TestEnvironment::BootstrapScanTargetId;
+
+    TestFalse(TEXT("Bootstrap begins without a completed resource survey"),
+        Adapter->GetMiningStatus().bSurveyed);
+    (void)Adapter->CommandClearTargetSelection();
+    TestFalse(TEXT("No selection is observable"), Adapter->GetSelectedTargetStatus().bHasSelection);
+    const FEverwardProbeCommandResult NoTarget = Adapter->CommandStartScan(FString(), 0.25);
+    TestFalse(TEXT("Empty selected target is rejected without scan"), NoTarget.bAccepted);
+    TestEqual(TEXT("No-selection rejection is actionable"),
+        NoTarget.Detail, FString(TEXT("no target selected")));
+    TestFalse(TEXT("No selection creates no active scan"), Adapter->GetProbeTelemetry().bIsScanning);
+
+    if (!TestTrue(TEXT("Sensors receive the required power"),
+        Adapter->CommandAllocatePower(EEverwardPowerSubsystem::Sensors, 100.0).bAccepted)) return false;
+    if (!TestTrue(TEXT("Reference A selected through actual adapter"),
+        Adapter->CommandSelectTarget(RefA).bAccepted)) return false;
+    if (!TestTrue(TEXT("Selected reference A scan accepted"),
+        Adapter->CommandStartScan(Adapter->GetSelectedTargetStatus().TargetId, 0.25).bAccepted)) return false;
+    TestEqual(TEXT("Scan is bound to reference A, not the bootstrap"),
+        Adapter->GetProbeTelemetry().ActiveScanTargetId, RefA);
+
+    if (!TestTrue(TEXT("Reference B can be selected during A's scan"),
+        Adapter->CommandSelectTarget(RefB).bAccepted)) return false;
+    TestEqual(TEXT("Selection changing to B does not retarget the running scan"),
+        Adapter->GetProbeTelemetry().ActiveScanTargetId, RefA);
+    const FEverwardProbeCommandResult Reissue = Adapter->CommandStartScan(RefB, 0.25);
+    TestFalse(TEXT("Reissue is rejected until explicit cancellation"), Reissue.bAccepted);
+    TestTrue(TEXT("Existing in-progress rejection is preserved"),
+        Reissue.Detail.Contains(TEXT("already in progress")));
+    TestEqual(TEXT("Rejected scan cannot silently retarget A to B"),
+        Adapter->GetProbeTelemetry().ActiveScanTargetId, RefA);
+
+    if (!Fixture.TickFor(0.80f, this)) return false;
+    TestTrue(TEXT("Real completed event registered"), Adapter->GetLastScanLifecycleNotice().bCompleted);
+    TestTrue(TEXT("Completed event belongs to scanned A"),
+        Adapter->GetLastScanLifecycleNotice().Detail.Contains(RefA));
+    TestFalse(TEXT("Scanning reference A does not survey the bootstrap"),
+        Adapter->GetMiningStatus().bSurveyed);
+    const FEverwardTargetKnowledgeStatus BKnowledge = Adapter->GetSelectedTargetKnowledgeStatus();
+    TestTrue(TEXT("Selection B does not receive active-scan seconds from A"),
+        !BKnowledge.bHasKnowledge || FMath::IsNearlyZero(BKnowledge.ActiveScanSeconds));
+    if (!TestTrue(TEXT("Re-selecting A succeeds"), Adapter->CommandSelectTarget(RefA).bAccepted)) return false;
+    const FEverwardTargetKnowledgeStatus AKnowledge = Adapter->GetSelectedTargetKnowledgeStatus();
+    TestTrue(TEXT("Actual A has positive active-scan evidence"),
+        AKnowledge.bHasKnowledge && AKnowledge.ActiveScanSeconds > 0.0);
+    TestTrue(TEXT("Reference A is not falsely classified"),
+        AKnowledge.Classification.IsEmpty() &&
+        AKnowledge.Level != EEverwardKnowledgeLevel::Characterized);
+
+    if (!TestTrue(TEXT("Bootstrap can still be selected"), Adapter->CommandSelectTarget(Bootstrap).bAccepted)) return false;
+    if (!TestTrue(TEXT("Selected bootstrap scan starts"), Adapter->CommandStartScan(
+        Adapter->GetSelectedTargetStatus().TargetId, 0.25).bAccepted)) return false;
+    if (!Fixture.TickFor(0.80f, this)) return false;
+    TestTrue(TEXT("Completed bootstrap scan still earns the resource survey"),
+        Adapter->GetMiningStatus().bSurveyed);
+
+    if (!TestTrue(TEXT("Switch to reference B"), Adapter->CommandSelectTarget(RefB).bAccepted)) return false;
+    if (!TestTrue(TEXT("Start a cancellable reference scan"), Adapter->CommandStartScan(RefB, 5.0).bAccepted)) return false;
+    if (!TestTrue(TEXT("Change selection while scan runs"), Adapter->CommandSelectTarget(RefA).bAccepted)) return false;
+    if (!TestTrue(TEXT("Explicit cancel always acts on bound scan"),
+        Adapter->CommandCancelScan().bAccepted)) return false;
+    if (!Fixture.TickFor(0.10f, this)) return false;
+    TestTrue(TEXT("Cancelled scan sends its own domain event"),
+        Adapter->GetLastScanLifecycleNotice().bCancelled &&
+        Adapter->GetLastScanLifecycleNotice().Detail.Contains(RefB));
+    TestFalse(TEXT("Cancelled scan cannot keep running"), Adapter->GetProbeTelemetry().bIsScanning);
+    TestTrue(TEXT("Prior bootstrap survey survives unrelated scan cancellation"),
+        Adapter->GetMiningStatus().bSurveyed);
+
+    if (!TestTrue(TEXT("Start reference scan before sensor-power interruption"),
+        Adapter->CommandStartScan(RefB, 5.0).bAccepted)) return false;
+    if (!TestTrue(TEXT("Dropping sensor power is an accepted player action"),
+        Adapter->CommandAllocatePower(EEverwardPowerSubsystem::Sensors, 0.0).bAccepted)) return false;
+    TestFalse(TEXT("Below-minimum sensor power cancels the active scan"),
+        Adapter->GetProbeTelemetry().bIsScanning);
+    if (!Fixture.TickFor(0.10f, this)) return false;
+    TestTrue(TEXT("Power-loss cancellation recorded as cancellation, not completion"),
+        Adapter->GetLastScanLifecycleNotice().bCancelled);
+    TestFalse(TEXT("Cannot start a new scan while sensors have no power"),
+        Adapter->CommandStartScan(RefB, 0.25).bAccepted);
+
+    return !HasAnyErrors();
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
