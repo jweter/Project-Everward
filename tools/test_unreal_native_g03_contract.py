@@ -10,9 +10,9 @@ RUNNER = ROOT / "tools" / "run_unreal_native_g03.ps1"
 
 
 class G03NativeContractTests(unittest.TestCase):
-    def test_five_native_unreal_automation_tests_are_registered(self) -> None:
+    def test_seven_native_unreal_automation_tests_are_registered(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
-        self.assertEqual(source.count("IMPLEMENT_SIMPLE_AUTOMATION_TEST("), 6)
+        self.assertEqual(source.count("IMPLEMENT_SIMPLE_AUTOMATION_TEST("), 7)
         for name in (
             "Everward.G03.Native.ScanSurveyPersistsAfterCancel",
             "Everward.G03.Native.MiningRejectsWithoutSurveyAndTool",
@@ -20,6 +20,7 @@ class G03NativeContractTests(unittest.TestCase):
             "Everward.G03.Native.RestorationObjectiveCycleMirror",
             "Everward.G03.Native.RestorationObjectiveCycleCompletes",
             "Everward.G03.Native.ProgressionRewardMirror",
+            "Everward.G03.Native.SelectedTargetScanBinding",
         ):
             self.assertIn(name, source)
         self.assertIn("WITH_DEV_AUTOMATION_TESTS", source)
