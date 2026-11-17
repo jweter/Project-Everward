@@ -70,8 +70,9 @@ FEverwardMiningStatus UProbeSimulationAdapter::GetMiningStatus() const
     Status.TargetId = AEverwardPhase2TestEnvironment::BootstrapScanTargetId;
     Status.MaterialName = TEXT("Iron-bearing silicate regolith");
     Status.bSurveyed = bBootstrapResourceSurveyed ||
-        (LastScanLifecycleNotice.bCompleted &&
-         LastScanLifecycleNotice.Detail.Contains(AEverwardPhase2TestEnvironment::BootstrapScanTargetId));
+        (LastCompletedScanLifecycleNotice.bCompleted &&
+         LastCompletedScanLifecycleNotice.TargetId ==
+             AEverwardPhase2TestEnvironment::BootstrapScanTargetId);
     Status.DepositRemainingKilograms = BootstrapDepositRemainingKilograms;
     Status.ExtractedMaterialKilograms = BootstrapExtractedMaterialKilograms;
     Status.ExtractionKilogramsPerCycle = BootstrapExtractionKilogramsPerCycle;
@@ -113,8 +114,9 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandMineBootstrapTarget(
     }
 
     if (!bBootstrapResourceSurveyed &&
-        LastScanLifecycleNotice.bCompleted &&
-        LastScanLifecycleNotice.Detail.Contains(AEverwardPhase2TestEnvironment::BootstrapScanTargetId))
+        LastCompletedScanLifecycleNotice.bCompleted &&
+        LastCompletedScanLifecycleNotice.TargetId ==
+            AEverwardPhase2TestEnvironment::BootstrapScanTargetId)
     {
         bBootstrapResourceSurveyed = true;
     }
