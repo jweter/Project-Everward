@@ -21,6 +21,7 @@ The physical object the player selects with T is the object scanned when the Sen
 - `FEverwardHUDActionHint` now receives `FEverwardTargetKnowledgeStatus` as read-only input. While a scan is running, the compact ACTION row shows the **bound** scan target and remaining time, regardless of subsequent selection. Time takes formatting priority over long IDs.
 - A selected unobserved/partially observed non-bootstrap body now prompts the real TAB/Sensors/Enter scan path; a fully observed reference may prompt tentative manipulation but **never bootstrap mining**.
 - The expanded Sensors panel's historical hardcoded `ROCKY BODY / SURVEY REFERENCE`, `SILICATE-RICH // IRON-BEARING MATERIAL`, and `92%` presentation constants were not genuine scan measurements. On completion the panel now looks up the actual `FEverwardDiscoveredTarget` by the scanned target ID and prints only observed level, actual classification (or `COMPOSITION UNRESOLVED`), and observed confidence.
+- Completion/cancellation notices now expose an event-bound `TargetId` extracted from the simulation core's canonical scan event detail. The HUD never requires a rendered frame *during* scanning to know which target completed. A sub-frame scan or a loaded in-progress scan therefore cannot silently lose its discovery identity because the HUD was not drawing. Unknown event formats fail closed rather than borrowing the selected target.
 - No new simulation-owned state, HUD panel, scan progress proxy, UMG widget, or fake classification.
 
 ## Tests and unattended acceptance
