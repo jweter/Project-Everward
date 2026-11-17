@@ -21,10 +21,13 @@ class Phase2SubsystemConsequenceSurfaceTests(unittest.TestCase):
         self.assertIn("ProbeRuntime::kGeneration1MinimumSensorPowerW", self.adapter_cpp)
         self.assertIn("BELOW MINIMUM POWER // NEED %.0f W", self.adapter_cpp)
 
-    def test_capability_rows_explain_state_instead_of_only_showing_locked(self) -> None:
+    def test_selected_capability_details_explain_state_instead_of_only_showing_locked(self) -> None:
         self.assertIn("MinimumOperatingPowerWatts", self.adapter_h)
         self.assertIn("StatusReason", self.adapter_h)
-        self.assertIn("Capability.StatusReason", self.hud)
+        # Issue #384 moves verbose per-capability diagnostics behind TAB.
+        # The currently selected capability still shows its exact reason.
+        self.assertIn("Selected.StatusReason", self.hud)
+        self.assertIn("if (!bSystemsExpanded)", self.hud)
         # The readable-HUD pass separates these formerly packed values into
         # two rows so the status reason and minimum-power requirement remain
         # legible at normal viewing distance.
