@@ -83,13 +83,14 @@ FEverwardHUDReadModel FEverwardHUDReadModel::FromAuthoritativeState(
 FEverwardHUDActionHint FEverwardHUDActionHint::FromAuthoritativeState(
     const FEverwardProbeTelemetry& Telemetry,
     const FEverwardTargetSelectionStatus& Target,
+    const FEverwardTargetKnowledgeStatus& Knowledge,
     const FEverwardMiningStatus& Mining,
     const TArray<FEverwardProbeCapability>& Capabilities,
     const TArray<FEverwardManipulatorArmState>& ManipulatorArms)
 {
     FEverwardHUDActionHint Hint;
-    // The command-acceptance gates remain in the adapter/simulation. This
-    // projection only suggests existing keys, never asserts "mining ready".
+    // Presentation only. Only an accepted adapter/core command can start a
+    // scan or extract material. These strings never authorize gameplay.
     if (Telemetry.bIsEnergyDepleted)
     {
         Hint.Text = TEXT("ENERGY DEPLETED // [TAB] SYSTEMS");
@@ -102,10 +103,34 @@ FEverwardHUDActionHint FEverwardHUDActionHint::FromAuthoritativeState(
         Hint.bWarning = true;
         return Hint;
     }
+
+    bool bSensorsAvailable = false;
+    for (const FEverwardProbeCapability& Capability : Capabilities)
+    {
+        if (Capability.CapabilityId == FName(TEXT("sensors")))
+        {
+            bSensorsAvailable = Capability.bOperational && Capability.bAvailable;
+            break;
+        }
+    }
+
     if (Telemetry.bIsScanning)
     {
-        Hint.Text = FString::Printf(TEXT("SCANNING // %.1f S REMAINING"),
+        // The bound scan identity need not equal today's physical selection.
+        // Reserve the time suffix before abbreviating the target ID.
+        const FString Prefix = bSensorsAvailable ? TEXT("SCAN ") : TEXT("PAUSED ");
+        const FString Suffix = FString::Printf(TEXT(" // %.1f S LEFT"),
             FMath::Max(0.0, Telemetry.ScanRemainingSeconds));
+        const int32 IdBudget = FMath::Max(0, 49 - Prefix.Len() - Suffix.Len());
+        FString ShortId = Telemetry.ActiveScanTargetId;
+        if (ShortId.Len() > IdBudget)
+        {
+            ShortId = IdBudget >= 7
+                ? ShortId.Left(IdBudget - 6) + TEXT("...") + ShortId.Right(3)
+                : ShortId.Left(IdBudget);
+        }
+        Hint.Text = Prefix + ShortId + Suffix;
+        Hint.bWarning = !bSensorsAvailable;
         return Hint;
     }
     if (!Target.bHasSelection)
@@ -114,45 +139,52 @@ FEverwardHUDActionHint FEverwardHUDActionHint::FromAuthoritativeState(
         return Hint;
     }
 
-    // GetMiningStatus() is currently specific to the bootstrap deposit;
-    // selected reference bodies and collectible samples must not inherit its
-    // survey state, working reach or assumed extractability.
+    // The current mining bridge describes *only* the bootstrap deposit.
+    // A reference or sample can be scanned, but mining status is not proof
+    // of that other object's material composition or mineability.
     if (Target.TargetId != Mining.TargetId || Mining.TargetId.IsEmpty())
     {
-        Hint.Text = TEXT("NEXT [M] ARM VIEW // [F] TRY GRASP");
+        if (!Knowledge.bHasKnowledge ||
+            Knowledge.Level == EEverwardKnowledgeLevel::Unknown ||
+            Knowledge.Confidence < 0.999)
+        {
+            if (!bSensorsAvailable)
+            {
+                Hint.Text = TEXT("SENSORS BLOCKED // [TAB] INSPECT");
+                Hint.bWarning = true;
+            }
+            else
+            {
+                Hint.Text = TEXT("NEXT [TAB] SELECT SENSORS // [ENTER] SCAN");
+            }
+            return Hint;
+        }
+        Hint.Text = Knowledge.Level == EEverwardKnowledgeLevel::Characterized
+            ? TEXT("CHARACTERIZED // [M] ARM / [F] TRY GRASP")
+            : TEXT("OBSERVED // [T] NEXT / [F] TRY GRASP");
         return Hint;
     }
 
     if (!Mining.bSurveyed)
     {
-        // Enter dispatches a scan ONLY in TAB systems with sensors selected.
-        // It is not a global scan key, and the first-phase controller scans
-        // this one bootstrap target rather than the general selection.
-        bool bSensorActionAvailable = false;
-        for (const FEverwardProbeCapability& Capability : Capabilities)
-        {
-            if (Capability.CapabilityId == FName(TEXT("sensors")))
-            {
-                bSensorActionAvailable = Capability.bOperational && Capability.bAvailable;
-                break;
-            }
-        }
-        if (!bSensorActionAvailable)
+        // A bootstrap mining survey requires its own completed scan event,
+        // not merely some passive knowledge confidence.
+        if (!bSensorsAvailable)
         {
             Hint.Text = TEXT("SENSORS BLOCKED // [TAB] INSPECT");
             Hint.bWarning = true;
-            return Hint;
         }
-        Hint.Text = TEXT("NEXT [TAB] SELECT SENSORS // [ENTER] SCAN");
+        else
+        {
+            Hint.Text = TEXT("NEXT [TAB] SELECT SENSORS // [ENTER] SCAN");
+        }
         return Hint;
     }
-
     if (Mining.DepositRemainingKilograms <= 0.0)
     {
         Hint.Text = TEXT("DEPOSIT EXHAUSTED // [T] NEXT TARGET");
         return Hint;
     }
-
     if (Telemetry.StorageCapacityKilograms > 0.0 &&
         Telemetry.StorageUsedKilograms >= Telemetry.StorageCapacityKilograms)
     {
@@ -176,9 +208,8 @@ FEverwardHUDActionHint FEverwardHUDActionHint::FromAuthoritativeState(
         return Hint;
     }
 
-    // P computes a pose on demand; G tests the *actual tip-to-target* reach.
-    // Probe hull surface range must NOT be compared to tool working reach.
-    // Neither action is presented as guaranteed to succeed.
+    // P tries a physical staging solution; G validates tip-to-deposit reach.
+    // Never compare probe hull surface range with mining tool working reach.
     Hint.Text = TEXT("NEXT [P] TRY STAGING // [G] TRY MINE");
     return Hint;
 }
