@@ -16,6 +16,7 @@ class SelectedTargetScanningContractTests(unittest.TestCase):
         cls.controller = (UNREAL / "EverwardPlayerController.cpp").read_text(encoding="utf-8")
         cls.adapter = (UNREAL / "ProbeSimulationAdapter.cpp").read_text(encoding="utf-8")
         cls.adapter_h = (UNREAL / "ProbeSimulationAdapter.h").read_text(encoding="utf-8")
+        cls.mining = (UNREAL / "ProbeMiningBridge.cpp").read_text(encoding="utf-8")
         cls.hud = (UNREAL / "EverwardHUD.cpp").read_text(encoding="utf-8")
         cls.read_model = (UNREAL / "ProbeHUDReadModel.cpp").read_text(encoding="utf-8")
         cls.read_h = (UNREAL / "ProbeHUDReadModel.h").read_text(encoding="utf-8")
@@ -75,6 +76,14 @@ class SelectedTargetScanningContractTests(unittest.TestCase):
         self.assertIn("Observed->Confidence", self.hud)
         self.assertNotIn("LastScanConfidence = 0.92", self.hud)
         self.assertNotIn("SILICATE-RICH // IRON-BEARING MATERIAL", self.hud)
+
+    def test_bootstrap_mining_uses_exact_completed_scan_id(self):
+        self.assertIn("LastCompletedScanLifecycleNotice.TargetId ==", self.mining)
+        self.assertNotIn(
+            "LastScanLifecycleNotice.Detail.Contains("
+            "AEverwardPhase2TestEnvironment::BootstrapScanTargetId)",
+            self.mining,
+        )
 
     def test_save_load_restores_receipt_only_with_real_science(self):
         self.assertIn('"last_completed_scan_target_id"', self.save)
