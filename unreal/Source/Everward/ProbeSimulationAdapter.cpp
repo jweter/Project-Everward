@@ -1100,15 +1100,12 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
         // Only real persisted per-target evidence can reinstate a recent
         // completion receipt. A missing/unknown/corrupt pointer cannot
         // invent a discovery or prevent an otherwise valid older save load.
-        if (!Data.last_completed_scan_target_id.empty())
+        const std::string ValidatedCompletionTarget =
+            everward::simulation::validated_completed_scan_receipt_target_id(Data);
+        if (!ValidatedCompletionTarget.empty())
         {
-            const auto Knowledge = NewCore->target_knowledge_state(Data.last_completed_scan_target_id);
-            if (Knowledge.has_value() &&
-                Knowledge->level != everward::simulation::KnowledgeLevel::Unknown)
-            {
-                LoadedCompletedScanTargetId =
-                    UTF8_TO_TCHAR(Data.last_completed_scan_target_id.c_str());
-            }
+            LoadedCompletedScanTargetId =
+                UTF8_TO_TCHAR(ValidatedCompletionTarget.c_str());
         }
         // The explicit saved completion latch is necessary: accumulated
         // scan seconds alone cannot prove the bootstrap survey completed.
