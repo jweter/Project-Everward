@@ -32,16 +32,14 @@ class CompactHudContractTests(unittest.TestCase):
         self.assertNotIn("everward/simulation", self.model_cpp)
 
     def test_compact_target_preserves_numeric_range_and_identifier_suffix(self):
-        # Reviewer regression: the full "TARGET ... // SURFACE RANGE ..."
-        # line used to be truncated at 49 characters, hiding the distance
-        # for phase2-test-target-001. Reserve space for range first and
-        # abbreviate only the identifier, retaining its distinguishing tail.
-        self.assertIn('TEXT(" // SURFACE RANGE %.1f M")', self.hud_cpp)
-        self.assertIn("SurfaceRangeSuffix.Len()", self.hud_cpp)
-        self.assertIn('49 - FString(TEXT("TARGET ")).Len() - SurfaceRangeSuffix.Len()', self.hud_cpp)
-        self.assertIn("AbbreviateTargetIdForCompactRow(HudState.TargetId, TargetCharacterBudget)", self.hud_cpp)
+        # The selected-target card prints numeric surface range separately.
+        # Only the identifier is abbreviated (preserving its suffix).
+        self.assertIn("TargetSelection.bHasSelection", self.hud_cpp)
+        self.assertIn("AbbreviateTargetIdForCompactRow(TargetSelection.TargetId, 29)", self.hud_cpp)
         self.assertIn("TargetId.Right(3)", self.hud_cpp)
-        self.assertIn("TEXT(\"TARGET %s%s\")", self.hud_cpp)
+        self.assertIn('TEXT("SURFACE RANGE %.1f M")', self.hud_cpp)
+        self.assertIn("TargetSelection.SurfaceRangeMeters", self.hud_cpp)
+        self.assertIn("TargetKnowledgeLine(TargetSelection, TargetKnowledge)", self.hud_cpp)
         self.assertNotIn('TruncatedPanelLine(FString::Printf(TEXT("TARGET %s // SURFACE RANGE', self.hud_cpp)
 
     def test_default_hud_is_compact_and_detail_on_demand(self):
