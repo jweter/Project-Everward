@@ -495,6 +495,10 @@ bool FEverwardG03SelectedTargetScanTest::RunTest(const FString& Parameters)
     if (!Fixture.TickFor(0.80f, this)) return false;
     TestTrue(TEXT("Completed bootstrap scan still earns the resource survey"),
         Adapter->GetMiningStatus().bSurveyed);
+    TestFalse(TEXT("A newly completed scan is not a restored bookmark"),
+        Adapter->GetLastCompletedScanLifecycleNotice().bRestoredFromSave);
+    if (!TestTrue(TEXT("Save after completed bootstrap survey"),
+        Adapter->CommandSaveGame().bAccepted)) return false;
 
     if (!TestTrue(TEXT("Switch to reference B"), Adapter->CommandSelectTarget(RefB).bAccepted)) return false;
     if (!TestTrue(TEXT("Start a cancellable reference scan"), Adapter->CommandStartScan(RefB, 5.0).bAccepted)) return false;
@@ -512,6 +516,17 @@ bool FEverwardG03SelectedTargetScanTest::RunTest(const FString& Parameters)
         Adapter->GetMiningStatus().bSurveyed);
     TestEqual(TEXT("Cancelled reference scan cannot replace the last completed bootstrap discovery"),
         Adapter->GetLastCompletedScanLifecycleNotice().TargetId, Bootstrap);
+
+    if (!TestTrue(TEXT("Load restores the earlier saved survey"),
+        Adapter->CommandLoadGame().bAccepted)) return false;
+    TestTrue(TEXT("Completed bootstrap survey survives save/load"),
+        Adapter->GetMiningStatus().bSurveyed);
+    TestEqual(TEXT("Last completed scan bookmark survives save/load after cancelled scan"),
+        Adapter->GetLastCompletedScanLifecycleNotice().TargetId, Bootstrap);
+    TestTrue(TEXT("Loaded completion is identified as restored, not newly acquired"),
+        Adapter->GetLastCompletedScanLifecycleNotice().bRestoredFromSave);
+    TestFalse(TEXT("Load discards a session-local cancelled scan notice"),
+        Adapter->GetLastScanLifecycleNotice().bCancelled);
 
     if (!TestTrue(TEXT("Start reference scan before sensor-power interruption"),
         Adapter->CommandStartScan(RefB, 5.0).bAccepted)) return false;
