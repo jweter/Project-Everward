@@ -93,6 +93,50 @@ class PlaytestSummaryTests(unittest.TestCase):
             self.assertIn("Second distinct issue", report)
             self.assertIn("Issue markers: **3**", report)
 
+    def test_deduplicated_markers_preserve_first_event_timestamps(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            session = Path(temp)
+            events = [
+                *_COMPLETION_EVENTS,
+                {
+                    "timestamp_utc": "2026-08-30T23:00:07Z",
+                    "event_type": "issue_marker",
+                    "details": "Ramp collision glitch",
+                },
+                {
+                    "timestamp_utc": "2026-08-30T23:00:17Z",
+                    "event_type": "issue_marker",
+                    "details": "  ramp collision glitch  ",
+                },
+                {
+                    "timestamp_utc": "2026-08-30T23:00:31Z",
+                    "event_type": "issue_marker",
+                    "details": "Second distinct issue",
+                },
+                {
+                    "event_type": "issue_marker",
+                    "details": "Issue with missing timestamp",
+                },
+            ]
+            _write_session(session, status="complete", events=events)
+
+            report = MODULE.build_report(session)
+            issue_section = report.split("## Issue markers", 1)[1].split(
+                "## Instrumented gameplay events", 1
+            )[0]
+
+            self.assertIn(
+                "- 2026-08-30T23:00:07Z — Ramp collision glitch", issue_section
+            )
+            self.assertNotIn("2026-08-30T23:00:17Z", issue_section)
+            self.assertIn(
+                "- 2026-08-30T23:00:31Z — Second distinct issue", issue_section
+            )
+            self.assertIn(
+                "- unknown — Issue with missing timestamp", issue_section
+            )
+            self.assertEqual(issue_section.count("Ramp collision glitch"), 1)
+
     def test_classified_blocker_outranks_unclassified_markers(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             session = Path(temp)
