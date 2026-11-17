@@ -610,6 +610,80 @@
           ],
           "runtime_requirements": [],
           "verification": []
+        },
+        {
+          "id": "first-loop-playtest-ordered-event-check",
+          "state": "PLANNED",
+          "capability_level": 1,
+          "depends_on": [],
+          "objective": "Return the first entry of required with no later matching position in observed than the previous match, or None if every entry matches an increasing position. Matching is exact and case-sensitive. An empty required list returns None. An empty observed list with a non-empty required list returns required[0]. Duplicate required entries each need a distinct, later observed position. Verifies a first-loop playtest's recorded event order.",
+          "acceptance": [
+            "tools/playtest/ordered_event_check.py defines a single pure function find_missing_ordered_event(observed: list[str], required: list[str]) -> str | None with no file, path, stream, clock, random or network input; it only operates on the two lists passed to it.",
+            "The function walks required in order, matching each entry to the earliest position in observed that is strictly after the previous match's position, returns the first required entry with no such position, and returns None once every required entry has matched.",
+            "tools/test_*.py adds deterministic unit tests covering the empty-required, missing-entry, empty-observed, and duplicate-required-entry cases, all passing under the existing Python test runner.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "tools/playtest/**",
+            "tools/test_*.py"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "offline"
+          ],
+          "runtime_requirements": [],
+          "acceptance_examples": [
+            {"call": "find_missing_ordered_event([], [\"x\"])", "expected": "x", "why": "An empty observed list cannot contain any required entry, so the first required entry is reported missing."},
+            {"call": "find_missing_ordered_event([\"a\"], [])", "expected": null, "why": "An empty required list has nothing to find, so it always returns None."},
+            {"call": "find_missing_ordered_event([\"a\", \"b\", \"c\"], [\"a\", \"c\"])", "expected": null, "why": "Both required entries appear in observed at increasing positions, so nothing is missing."},
+            {"call": "find_missing_ordered_event([\"a\", \"b\"], [\"b\", \"a\"])", "expected": "a", "why": "After matching 'b' at position 1, 'a' only occurs earlier at position 0, which is not strictly later, so 'a' is reported missing."}
+          ],
+          "verification": []
+        },
+        {
+          "id": "first-loop-playtest-classification-tally",
+          "state": "PLANNED",
+          "capability_level": 1,
+          "depends_on": [],
+          "objective": "Return a dict with keys BLOCKER, FAIL, PARTIAL, PASS, UNCLASSIFIED mapped to counts of classifications in each, after stripping whitespace and uppercasing for comparison. Entries not matching BLOCKER, FAIL, PARTIAL, or PASS -- including empty, whitespace-only, non-string, or unrecognized text -- count as UNCLASSIFIED. An empty list returns every key as 0. Comparison is case-insensitive. Summarizes first-loop playtest marker severities.",
+          "acceptance": [
+            "tools/playtest/classification_tally.py defines a single pure function tally_playtest_classifications(classifications: list[str]) -> dict[str, int] with no file, path, stream, clock, random or network input; it only operates on the list passed to it.",
+            "The function strips and uppercases each entry, counts recognized BLOCKER/FAIL/PARTIAL/PASS values under their own key, counts every empty, whitespace-only, non-string, or unrecognized entry under UNCLASSIFIED, and returns all five keys even when their count is zero.",
+            "tools/test_*.py adds deterministic unit tests covering the empty-list, mixed-case-recognized, all-unrecognized, and mixed-recognized-and-unrecognized cases, all passing under the existing Python test runner.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "tools/playtest/**",
+            "tools/test_*.py"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "offline"
+          ],
+          "runtime_requirements": [],
+          "acceptance_examples": [
+            {"call": "tally_playtest_classifications([])", "expected": {"BLOCKER": 0, "FAIL": 0, "PARTIAL": 0, "PASS": 0, "UNCLASSIFIED": 0}, "why": "An empty list has no entries to count, so every key is zero."},
+            {"call": "tally_playtest_classifications([\"blocker\", \"BLOCKER\", \"fail\"])", "expected": {"BLOCKER": 2, "FAIL": 1, "PARTIAL": 0, "PASS": 0, "UNCLASSIFIED": 0}, "why": "Both BLOCKER spellings normalize to the same key regardless of case, and the single FAIL is counted separately."},
+            {"call": "tally_playtest_classifications([\"weird\", \"\", \"  \"])", "expected": {"BLOCKER": 0, "FAIL": 0, "PARTIAL": 0, "PASS": 0, "UNCLASSIFIED": 3}, "why": "An unrecognized word and two blank entries all normalize to UNCLASSIFIED."},
+            {"call": "tally_playtest_classifications([\" pass \", \"Partial\"])", "expected": {"BLOCKER": 0, "FAIL": 0, "PARTIAL": 1, "PASS": 1, "UNCLASSIFIED": 0}, "why": "Surrounding whitespace and mixed case are normalized before matching the PASS and PARTIAL keys."}
+          ],
+          "verification": []
         }
       ]
     }
