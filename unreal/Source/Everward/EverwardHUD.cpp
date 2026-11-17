@@ -518,23 +518,19 @@ void AEverwardHUD::DrawHUD()
         AutomationBannerExpiresAtWorldSeconds = WorldNow + 6.0;
     }
 
-    if (Telemetry.bIsScanning)
-    {
-        LastObservedScanTargetId = Telemetry.ActiveScanTargetId;
-    }
-
     if (ScanNotice.Sequence > 0 && ScanNotice.Sequence != LastHandledScanNoticeSequence)
     {
         LastHandledScanNoticeSequence = ScanNotice.Sequence;
-        if (ScanNotice.bCompleted && !LastObservedScanTargetId.IsEmpty())
+        if (ScanNotice.bCompleted && !ScanNotice.TargetId.IsEmpty())
         {
-            // A scan-completed event is not a material analysis. Reuse only
-            // the authoritative discovered-target record for the *scanned*
-            // ID, even when the player is now selecting a different body.
+            // Resolve by the completed simulation event's bound target ID.
+            // At low frame rates a scan can start AND finish between HUD
+            // frames, so never infer identity from a previously drawn frame
+            // or from whichever body the player currently has selected.
             const FEverwardDiscoveredTarget* Observed = Discoveries.FindByPredicate(
-                [this](const FEverwardDiscoveredTarget& Entry)
+                [&ScanNotice](const FEverwardDiscoveredTarget& Entry)
                 {
-                    return Entry.TargetId == LastObservedScanTargetId;
+                    return Entry.TargetId == ScanNotice.TargetId;
                 });
             if (Observed != nullptr)
             {
@@ -549,7 +545,6 @@ void AEverwardHUD::DrawHUD()
                 LastScanCompletedAtSeconds = Telemetry.SimulationTimeSeconds;
             }
         }
-        LastObservedScanTargetId.Reset();
     }
 
     const float HudScale = ResolveHudScale(Canvas);
