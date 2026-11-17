@@ -89,7 +89,6 @@ private:
     // being inferred from whichever manual command happened most recently.
     bool bHasScanDiscovery = false;
     int64 LastHandledScanNoticeSequence = 0;
-    FString LastObservedScanTargetId;
     FString LastScanTargetId;
     FString LastScanObjectClass;
     FString LastScanComposition;
