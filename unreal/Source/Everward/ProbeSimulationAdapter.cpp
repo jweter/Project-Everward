@@ -728,6 +728,7 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandStartScan(const FStr
 {
     const FName CommandId(TEXT("start_scan"));
     if (Core == nullptr) return RecordCommandResult(CommandId, false, TEXT("simulation unavailable"));
+    if (TargetId.IsEmpty()) return RecordCommandResult(CommandId, false, TEXT("no target selected"));
     try
     {
         Core->start_scan(std::string(TCHAR_TO_UTF8(*TargetId)), DurationSeconds);
