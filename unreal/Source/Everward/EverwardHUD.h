@@ -4,6 +4,8 @@
 #include "GameFramework/HUD.h"
 #include "EverwardHUD.generated.h"
 
+class AFixItRuntimeActor;
+
 UCLASS()
 class EVERWARD_API AEverwardHUD : public AHUD
 {
@@ -68,6 +70,7 @@ private:
     void DrawControlsReference();
 
     bool bSystemsExpanded = false;
+    TWeakObjectPtr<AFixItRuntimeActor> CachedFixItRuntime;
     int32 SelectedCapabilityIndex = 0;
 
     // The live HUD stays focused on immediate state. F1 opens a dedicated,
@@ -75,10 +78,9 @@ private:
     // deciphering a dense strip of tiny key bindings during flight.
     bool bControlsReferenceVisible = false;
 
-    // Control discoverability: Phase-2 builds start with the manipulator page
-    // visible so a player can immediately see that arm control exists and
-    // learn the M/N/4/5/6/,/. control surface without prior knowledge.
-    bool bManipulatorPanelExpanded = true;
+    // Issue #384: the manipulator detail page is available through M/F1
+    // without obscuring the world on every fresh play session.
+    bool bManipulatorPanelExpanded = false;
     int32 SelectedManipulatorArmIndex = 0;
     int32 SelectedManipulatorJointIndex = 0;
 
