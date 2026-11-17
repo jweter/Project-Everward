@@ -13,8 +13,6 @@
 
 namespace
 {
-constexpr float HudReferenceWidth = 1920.0f;
-constexpr float HudReferenceHeight = 1080.0f;
 constexpr float MinimumHudTextScale = 1.05f;
 
 struct FControlReferenceLine
@@ -605,7 +603,7 @@ void AEverwardHUD::DrawHUD()
         DrawText(TruncatedPanelLine(HudState.FixItStatus, 34),
             TextColor, Left, TelemetryY + S(75.0f),
             HudFont, ReadableTextScale(HudScale, 0.90f), false);
-        DrawText(TEXT("[F1] CONTROLS   [TAB] SYSTEMS   [M] ARM"),
+        DrawText(TEXT("[F1] HELP  [TAB] SYSTEMS  [M] ARM"),
             MutedColor, Left, TelemetryY + S(108.0f),
             HudFont, ReadableTextScale(HudScale, 0.86f), false);
 
