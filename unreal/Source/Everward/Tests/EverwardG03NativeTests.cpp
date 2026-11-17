@@ -105,6 +105,8 @@ bool FEverwardG03ScanSurveyTest::RunTest(const FString& Parameters)
     if (!Fixture.TickFor(0.80f, this)) return false;
     TestTrue(TEXT("Native domain event confirms scan completion"),
         Adapter->GetLastScanLifecycleNotice().bCompleted);
+    TestEqual(TEXT("Completed scan event reports the target without relying on DrawHUD"),
+        Adapter->GetLastScanLifecycleNotice().TargetId, TargetId);
     TestTrue(TEXT("Completed scan latches actual survey"),
         Adapter->GetMiningStatus().bSurveyed);
     TestTrue(TEXT("Game world advanced authoritative fixed-step time"),
@@ -466,6 +468,8 @@ bool FEverwardG03SelectedTargetScanTest::RunTest(const FString& Parameters)
 
     if (!Fixture.TickFor(0.80f, this)) return false;
     TestTrue(TEXT("Real completed event registered"), Adapter->GetLastScanLifecycleNotice().bCompleted);
+    TestEqual(TEXT("Scan A identity survives even though no HUD frame was drawn during the scan"),
+        Adapter->GetLastScanLifecycleNotice().TargetId, RefA);
     TestTrue(TEXT("Completed event belongs to scanned A"),
         Adapter->GetLastScanLifecycleNotice().Detail.Contains(RefA));
     TestFalse(TEXT("Scanning reference A does not survey the bootstrap"),
@@ -497,6 +501,8 @@ bool FEverwardG03SelectedTargetScanTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Cancelled scan sends its own domain event"),
         Adapter->GetLastScanLifecycleNotice().bCancelled &&
         Adapter->GetLastScanLifecycleNotice().Detail.Contains(RefB));
+    TestEqual(TEXT("Explicit cancellation reports the original bound target"),
+        Adapter->GetLastScanLifecycleNotice().TargetId, RefB);
     TestFalse(TEXT("Cancelled scan cannot keep running"), Adapter->GetProbeTelemetry().bIsScanning);
     TestTrue(TEXT("Prior bootstrap survey survives unrelated scan cancellation"),
         Adapter->GetMiningStatus().bSurveyed);
@@ -510,6 +516,8 @@ bool FEverwardG03SelectedTargetScanTest::RunTest(const FString& Parameters)
     if (!Fixture.TickFor(0.10f, this)) return false;
     TestTrue(TEXT("Power-loss cancellation recorded as cancellation, not completion"),
         Adapter->GetLastScanLifecycleNotice().bCancelled);
+    TestEqual(TEXT("Power cancellation reports its original bound target"),
+        Adapter->GetLastScanLifecycleNotice().TargetId, RefB);
     TestFalse(TEXT("Cannot start a new scan while sensors have no power"),
         Adapter->CommandStartScan(RefB, 0.25).bAccepted);
 
