@@ -168,7 +168,7 @@ def review_learning() -> list[dict[str, Any]]:
         # The repository-wide endpoint includes the original PR URL for
         # each inline review comment. No extra API call is needed.
         url = str(comment.get("pull_request_url") or "")
-        match = re.fullmatch(r"https://api\\.github\\.com/repos/[^/]+/[^/]+/pulls/(\\d+)", url)
+        match = re.fullmatch(r"https://api\.github\.com/repos/[^/]+/[^/]+/pulls/(\d+)", url)
         if match is None:
             raise SystemExit("review finding has no valid pull_request_url")
         events.append(
