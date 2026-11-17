@@ -937,7 +937,12 @@ void AEverwardHUD::DrawHUD()
 
     const float HelpWidth = S(650.0f);
     const float HelpHeight = S(44.0f);
-    const float HelpX = (Canvas->ClipX - HelpWidth) * 0.5f;
+    // On 720p the centered help strip can intersect the compact lower-left
+    // status card. Shift it to the available world-side space instead.
+    const float HelpX = bSystemsExpanded
+        ? (Canvas->ClipX - HelpWidth) * 0.5f
+        : FMath::Max((Canvas->ClipX - HelpWidth) * 0.5f,
+            Margin + PanelWidth + S(10.0f));
     const float HelpY = Canvas->ClipY - Margin - HelpHeight;
     DrawRect(PanelColor, HelpX, HelpY, HelpWidth, HelpHeight);
     DrawText(TEXT("[F1] CONTROLS   [TAB] SYSTEMS   [M] MANIPULATOR"), TextColor,
