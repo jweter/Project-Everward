@@ -13,8 +13,13 @@ class Phase2ManipulatorControlDiscoverabilityTests(unittest.TestCase):
         self.hud_h = (SOURCE / "EverwardHUD.h").read_text(encoding="utf-8")
         self.hud_cpp = (SOURCE / "EverwardHUD.cpp").read_text(encoding="utf-8")
 
-    def test_manipulator_panel_is_visible_on_first_launch(self) -> None:
-        self.assertIn("bool bManipulatorPanelExpanded = true;", self.hud_h)
+    def test_manipulator_detail_is_discoverable_without_blocking_first_view(self) -> None:
+        # Issue #384 reverses the old visible-by-default policy: controls stay
+        # discoverable through the persistent footer/F1 and the M overlay.
+        self.assertIn("bool bManipulatorPanelExpanded = false;", self.hud_h)
+        self.assertIn('bManipulatorPanelExpanded && !ManipulatorArms.IsEmpty()', self.hud_cpp)
+        self.assertIn("[M] MANIPULATOR", self.hud_cpp)
+        self.assertIn("MANIPULATOR CONTROL   [M CLOSE]", self.hud_cpp)
 
     def test_open_panel_teaches_complete_current_control_surface(self) -> None:
         for text in (

@@ -56,15 +56,19 @@ class Phase2HudSourceContractTests(unittest.TestCase):
         self.assertIn("MANUAL CONTROL", self.hud)
         self.assertIn("AUTOMATION API", self.hud)
 
-    def test_collapsed_hud_shows_each_subsystem_power_and_operational_state(self) -> None:
-        compact_start = self.hud.index("if (!bSystemsExpanded)")
+    def test_default_hud_keeps_detailed_systems_off_world(self) -> None:
+        compact_start = self.hud.index("if (!bSystemsExpanded)", self.hud.index("const float SystemPanelX"))
         expanded_start = self.hud.index("const float ExpandedHeight")
         compact = self.hud[compact_start:expanded_start]
-        self.assertIn("for (const FEverwardProbeCapability& Capability : Capabilities)", compact)
-        self.assertIn("Capability.AllocatedPowerWatts", compact)
-        self.assertIn("CapabilityState(Capability)", compact)
-        self.assertIn("Capability.bOperational && Capability.bAvailable", compact)
-        self.assertIn("[TAB DETAILS]", compact)
+        self.assertIn("return;", compact)
+        self.assertNotIn("DrawRect", compact)
+        # The original capability-specific power, integrity, reason, and
+        # manual/automation controls remain available after TAB.
+        expanded = self.hud[expanded_start:]
+        self.assertIn("for (int32 Index = 0; Index < Capabilities.Num(); ++Index)", expanded)
+        self.assertIn("Selected.AllocatedPowerWatts", expanded)
+        self.assertIn("CapabilityState(Capability)", expanded)
+        self.assertIn("Selected.StatusReason", expanded)
 
     def test_controller_binds_contextual_system_navigation(self) -> None:
         self.assertIn("EKeys::Tab", self.controller)
@@ -92,7 +96,7 @@ class Phase2HudSourceContractTests(unittest.TestCase):
         self.assertIn("FLIGHT  %.2f m/s   [SPACE] FULL STOP", self.hud)
         self.assertIn("FWD %+0.2f   RIGHT %+0.2f   UP %+0.2f m/s", self.hud)
         flight_pos = self.hud.index("FLIGHT  %.2f m/s")
-        compact_return_pos = self.hud.index("if (!bSystemsExpanded)")
+        compact_return_pos = self.hud.index("if (!bSystemsExpanded)", self.hud.index("const float SystemPanelX"))
         self.assertLess(flight_pos, compact_return_pos)
 
     def test_game_mode_installs_hud_and_controller(self) -> None:
