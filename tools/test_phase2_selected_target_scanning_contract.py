@@ -64,8 +64,10 @@ class SelectedTargetScanningContractTests(unittest.TestCase):
 
     def test_completed_discovery_uses_real_record_only(self):
         self.assertIn("Discoveries.FindByPredicate(", self.hud)
-        self.assertIn("Entry.TargetId == ScanNotice.TargetId", self.hud)
+        self.assertIn("Entry.TargetId == CompletedScanNotice.TargetId", self.hud)
         self.assertIn("LastScanLifecycleNotice.TargetId", self.adapter)
+        self.assertIn("LastCompletedScanLifecycleNotice = LastScanLifecycleNotice", self.adapter)
+        self.assertIn("GetLastCompletedScanLifecycleNotice()", self.hud)
         self.assertIn("scan complete: ", self.adapter)
         self.assertIn("scan cancelled: ", self.adapter)
         self.assertNotIn("LastObservedScanTargetId", self.hud)
