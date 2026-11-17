@@ -14,6 +14,23 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
+def _write_session(session_dir: Path, *, status: str, events: list[dict]) -> None:
+    session_dir.joinpath("session.json").write_text(
+        json.dumps({"session_id": "20260830T230000Z", "status": status}),
+        encoding="utf-8",
+    )
+    session_dir.joinpath("events.jsonl").write_text(
+        "\n".join(json.dumps(event) for event in events) + ("\n" if events else ""),
+        encoding="utf-8",
+    )
+
+
+_COMPLETION_EVENTS = [
+    {"timestamp_utc": "2026-08-30T23:00:00Z", "event_type": "session_started"},
+    {"timestamp_utc": "2026-08-30T23:00:59Z", "event_type": "session_ended"},
+]
+
+
 class PlaytestSummaryTests(unittest.TestCase):
     def test_report_summarizes_markers_and_telemetry(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -58,6 +75,98 @@ class PlaytestSummaryTests(unittest.TestCase):
             report = MODULE.build_report(Path(temp))
             self.assertIn("Average sampled FPS: n/a", report)
             self.assertIn("None recorded", report)
+
+    def test_duplicate_marker_details_are_deduped(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            session = Path(temp)
+            events = [
+                *_COMPLETION_EVENTS,
+                {"event_type": "issue_marker", "details": "Ramp collision glitch"},
+                {"event_type": "issue_marker", "details": "  ramp collision glitch  "},
+                {"event_type": "issue_marker", "details": "Second distinct issue"},
+            ]
+            _write_session(session, status="complete", events=events)
+
+            report = MODULE.build_report(session)
+
+            self.assertEqual(report.count("Ramp collision glitch"), 1)
+            self.assertIn("Second distinct issue", report)
+            self.assertIn("Issue markers: **3**", report)
+
+    def test_classified_blocker_outranks_unclassified_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            session = Path(temp)
+            events = [
+                *_COMPLETION_EVENTS,
+                {"event_type": "issue_marker", "details": "No repro steps yet"},
+                {
+                    "event_type": "issue_marker",
+                    "details": "Ship crashes on launch",
+                    "classification": "blocker",
+                },
+            ]
+            _write_session(session, status="complete", events=events)
+
+            report = MODULE.build_report(session)
+
+            self.assertIn("Overall verdict: **BLOCKER**", report)
+
+    def test_unclassified_markers_report_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            session = Path(temp)
+            events = [
+                *_COMPLETION_EVENTS,
+                {"event_type": "issue_marker", "details": "Unreviewed finding"},
+            ]
+            _write_session(session, status="complete", events=events)
+
+            report = MODULE.build_report(session)
+
+            self.assertIn("Overall verdict: **PENDING**", report)
+
+    def test_unknown_classification_reports_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            session = Path(temp)
+            events = [
+                *_COMPLETION_EVENTS,
+                {
+                    "event_type": "issue_marker",
+                    "details": "Needs triage",
+                    "classification": "needs-triage",
+                },
+            ]
+            _write_session(session, status="complete", events=events)
+
+            report = MODULE.build_report(session)
+
+            self.assertIn("Overall verdict: **PENDING**", report)
+
+    def test_no_markers_reports_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            session = Path(temp)
+            _write_session(session, status="complete", events=list(_COMPLETION_EVENTS))
+
+            report = MODULE.build_report(session)
+
+            self.assertIn("Overall verdict: **PENDING**", report)
+            self.assertIn("None recorded", report)
+
+    def test_complete_fully_classified_pass_session_reports_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            session = Path(temp)
+            events = [
+                *_COMPLETION_EVENTS,
+                {
+                    "event_type": "issue_marker",
+                    "details": "Minor VFX polish noted, no functional impact",
+                    "classification": "pass",
+                },
+            ]
+            _write_session(session, status="complete", events=events)
+
+            report = MODULE.build_report(session)
+
+            self.assertIn("Overall verdict: **PASS**", report)
 
 
 if __name__ == "__main__":

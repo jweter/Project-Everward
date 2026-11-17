@@ -12,8 +12,16 @@ import argparse
 import csv
 import json
 import math
+import sys
 from pathlib import Path
 from statistics import mean
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from issue_marker_dedupe import dedupe_issue_marker_details  # noqa: E402
+from verdict_rollup import rollup_playtest_verdict  # noqa: E402
+
+KNOWN_CLASSIFICATIONS = {"PASS", "PARTIAL", "FAIL", "BLOCKER"}
 
 
 def load_json(path: Path) -> dict:
@@ -75,6 +83,47 @@ def fmt(value: float | int | None, digits: int = 1) -> str:
     return f"{value:.{digits}f}"
 
 
+def normalize_classification(marker: dict) -> str:
+    """Return the marker's canonical classification, or UNCLASSIFIED.
+
+    Absent, blank, non-string, or unrecognized values are UNCLASSIFIED
+    rather than defaulting to PASS.
+    """
+    value = marker.get("classification")
+    if not isinstance(value, str):
+        return "UNCLASSIFIED"
+    canonical = value.strip().upper()
+    return canonical if canonical in KNOWN_CLASSIFICATIONS else "UNCLASSIFIED"
+
+
+def has_verified_completion_signal(metadata: dict, events: list[dict]) -> bool:
+    """Return True only when the recorder itself attests the session finished."""
+    if metadata.get("status") != "complete":
+        return False
+    return any(event.get("event_type") == "session_ended" for event in events)
+
+
+def compute_overall_verdict(markers: list[dict], completion_signal: bool) -> str:
+    """Return the session's overall verdict.
+
+    No issue markers alone is not evidence of a passing playtest, so an
+    empty marker list is PENDING. Known BLOCKER/FAIL findings are preserved
+    even when other markers are unclassified or completion evidence is
+    absent. A PASS requires every marker classified, a verified completion
+    signal, and no greater severity than the rollup helper reports.
+    """
+    if not markers:
+        return "PENDING"
+    classifications = [normalize_classification(marker) for marker in markers]
+    recognized = [c for c in classifications if c != "UNCLASSIFIED"]
+    severity_verdict = rollup_playtest_verdict(recognized)
+    if severity_verdict in ("BLOCKER", "FAIL"):
+        return severity_verdict
+    if "UNCLASSIFIED" in classifications or not completion_signal:
+        return "PENDING"
+    return severity_verdict
+
+
 def build_report(session_dir: Path) -> str:
     metadata = load_json(session_dir / "session.json")
     events = load_events(session_dir / "events.jsonl")
@@ -86,6 +135,12 @@ def build_report(session_dir: Path) -> str:
         for event in events
         if event.get("event_type") not in {"session_started", "session_ended", "issue_marker"}
     ]
+
+    completion_signal = has_verified_completion_signal(metadata, events)
+    overall_verdict = compute_overall_verdict(markers, completion_signal)
+    deduped_marker_details = dedupe_issue_marker_details(
+        [marker.get("details", "") for marker in markers]
+    )
 
     lines = [
         f"# Everward Playtest Report — {metadata.get('session_id', session_dir.name)}",
@@ -100,6 +155,7 @@ def build_report(session_dir: Path) -> str:
         f"- Engine: {metadata.get('engine_version', 'unknown')}",
         f"- Build configuration: {metadata.get('build_configuration', 'unknown')}",
         f"- Issue markers: **{len(markers)}**",
+        f"- Overall verdict: **{overall_verdict}**",
         "",
         "## Performance sample",
         "",
@@ -112,11 +168,9 @@ def build_report(session_dir: Path) -> str:
         "",
     ]
 
-    if markers:
-        for marker in markers:
-            lines.append(
-                f"- {marker.get('timestamp_utc', 'unknown')} — {marker.get('details', '')}"
-            )
+    if deduped_marker_details:
+        for detail in deduped_marker_details:
+            lines.append(f"- {detail}")
     else:
         lines.append("- None recorded.")
 
