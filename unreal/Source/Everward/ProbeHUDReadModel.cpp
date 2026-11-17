@@ -47,7 +47,8 @@ FEverwardHUDReadModel FEverwardHUDReadModel::FromAuthoritativeState(
     if (Out.bHasTarget)
     {
         Out.TargetId = Target.TargetId;
-        Out.TargetSurfaceRangeMeters = FMath::Max(0.0, Target.SurfaceRangeMeters);
+        Out.TargetSurfaceRangeMeters = FMath::IsFinite(Target.SurfaceRangeMeters)
+            ? FMath::Max(0.0, Target.SurfaceRangeMeters) : 0.0;
     }
 
     if (Telemetry.bIsEnergyDepleted)
