@@ -1149,6 +1149,7 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
     {
         LastCompletedScanLifecycleNotice.Sequence = ++ScanLifecycleSequence;
         LastCompletedScanLifecycleNotice.bCompleted = true;
+        LastCompletedScanLifecycleNotice.bRestoredFromSave = true;
         LastCompletedScanLifecycleNotice.TargetId = LoadedCompletedScanTargetId;
         LastCompletedScanLifecycleNotice.Detail =
             FString::Printf(TEXT("scan complete: %s"), *LoadedCompletedScanTargetId);
