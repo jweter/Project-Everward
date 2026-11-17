@@ -62,6 +62,27 @@ FString TruncatedPanelLine(const FString& Text, int32 MaximumCharacters = 54)
     return Text.Left(FMath::Max(0, MaximumCharacters - 3)) + TEXT("...");
 }
 
+// Keep the full numeric surface range visible even when a target ID is long.
+// Preserve the identifier's tail (e.g. -001 / -002) so nearby test targets
+// remain distinguishable in the compact row.
+FString AbbreviateTargetIdForCompactRow(const FString& TargetId, int32 MaximumCharacters)
+{
+    const int32 Budget = FMath::Max(0, MaximumCharacters);
+    if (TargetId.Len() <= Budget)
+    {
+        return TargetId;
+    }
+    if (Budget <= 3)
+    {
+        return TargetId.Right(Budget);
+    }
+    if (Budget <= 6)
+    {
+        return TEXT("...") + TargetId.Right(Budget - 3);
+    }
+    return TargetId.Left(Budget - 6) + TEXT("...") + TargetId.Right(3);
+}
+
 FString PercentString(double Value, double Capacity)
 {
     if (Capacity <= 0.0)
@@ -557,9 +578,17 @@ void AEverwardHUD::DrawHUD()
         DrawText(FString::Printf(TEXT("THERMAL %.0f K  //  STORAGE %.0f%%"),
                 HudState.CoreTemperatureKelvin, HudState.StorageFraction * 100.0f),
             TextColor, Left, TelemetryY + S(108.0f), HudFont, ReadableTextScale(HudScale, 0.93f), false);
+        // Reserve room for the measured distance before abbreviating the ID;
+        // never truncate the complete target row (which hid the useful number).
+        const FString SurfaceRangeSuffix = FString::Printf(
+            TEXT(" // SURFACE RANGE %.1f M"), HudState.TargetSurfaceRangeMeters);
+        const int32 TargetCharacterBudget = FMath::Max(
+            0, 49 - FString(TEXT("TARGET ")).Len() - SurfaceRangeSuffix.Len());
+        const FString TargetLine = FString::Printf(TEXT("TARGET %s%s"),
+            *AbbreviateTargetIdForCompactRow(HudState.TargetId, TargetCharacterBudget),
+            *SurfaceRangeSuffix);
         DrawText(HudState.bHasTarget
-                ? TruncatedPanelLine(FString::Printf(TEXT("TARGET %s // SURFACE RANGE %.1f M"),
-                    *HudState.TargetId, HudState.TargetSurfaceRangeMeters), 49)
+                ? TargetLine
                 : FString(TEXT("TARGET NONE // [T] SELECT")),
             HudState.bHasTarget ? TextColor : MutedColor,
             Left, TelemetryY + S(139.0f), HudFont, ReadableTextScale(HudScale, 0.91f), false);
