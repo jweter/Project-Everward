@@ -23,9 +23,14 @@ class Phase2ScanDiscoverySurfaceTests(unittest.TestCase):
         self.assertIn("ScanNotice.bCompleted", self.hud)
         self.assertIn("SCAN COMPLETE  //  %s  //  DISCOVERY STORED", self.hud)
         self.assertIn("LAST DISCOVERY", self.hud)
-        self.assertIn("ROCKY BODY / SURVEY REFERENCE", self.hud)
-        self.assertIn("SILICATE-RICH // IRON-BEARING MATERIAL", self.hud)
+        self.assertIn("Discoveries.FindByPredicate(", self.hud)
+        self.assertIn("Entry.TargetId == LastObservedScanTargetId", self.hud)
+        self.assertIn("Observed->Classification", self.hud)
+        self.assertIn("Observed->Confidence", self.hud)
+        self.assertIn("COMPOSITION UNRESOLVED", self.hud)
         self.assertIn("CONFIDENCE %.0f%%  //  ACQUIRED T+%.1fs", self.hud)
+        self.assertNotIn('LastScanConfidence = 0.92', self.hud)
+        self.assertNotIn('LastScanComposition = TEXT("SILICATE-RICH', self.hud)
 
     def test_cancelled_scan_does_not_create_discovery(self) -> None:
         self.assertIn("DomainEventType::ScanCancelled", self.adapter_source)
