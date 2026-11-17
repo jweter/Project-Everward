@@ -76,8 +76,8 @@ class G03NativeContractTests(unittest.TestCase):
         ):
             native += path.read_text(encoding="utf-8")
         import re
-        registrations = set(re.findall(r'"(Everward\\.G03\\.Native\\.[^"]+)"', native))
-        required = set(re.findall(r"'(Everward\\.G03\\.Native\\.[^']+)'", runner))
+        registrations = set(re.findall(r'"(Everward\.G03\.Native\.[^"]+)"', native))
+        required = set(re.findall(r"'(Everward\.G03\.Native\.[^']+)'", runner))
         self.assertEqual(len(registrations), 10)
         self.assertEqual(required, registrations)
         self.assertIn("[int]$Parsed.failed -ne 0", runner)
