@@ -493,9 +493,9 @@ void AEverwardHUD::DrawHUD()
         CachedFixItRuntime.IsValid()
             ? CachedFixItRuntime->GetFixItStatusSummary()
             : FString(TEXT("FIX_IT // UNAVAILABLE")));
-    const FEverwardHUDActionHint ContextHint = FEverwardHUDActionHint::FromAuthoritativeState(
-        Telemetry, TargetSelection, Mining, Capabilities, ManipulatorArms);
     const FEverwardTargetKnowledgeStatus TargetKnowledge = Adapter->GetSelectedTargetKnowledgeStatus();
+    const FEverwardHUDActionHint ContextHint = FEverwardHUDActionHint::FromAuthoritativeState(
+        Telemetry, TargetSelection, TargetKnowledge, Mining, Capabilities, ManipulatorArms);
     const TArray<FEverwardDiscoveredTarget> Discoveries = Adapter->GetDiscoveredTargets();
     const TArray<FEverwardMaterialInventoryEntry> MaterialInventory = Adapter->GetStoredMaterialInventory();
     const FEverwardStarterRestorationStatus RestorationStatus = Adapter->GetStarterRestorationStatus();
@@ -528,12 +528,26 @@ void AEverwardHUD::DrawHUD()
         LastHandledScanNoticeSequence = ScanNotice.Sequence;
         if (ScanNotice.bCompleted && !LastObservedScanTargetId.IsEmpty())
         {
-            bHasScanDiscovery = true;
-            LastScanTargetId = LastObservedScanTargetId;
-            LastScanObjectClass = TEXT("ROCKY BODY / SURVEY REFERENCE");
-            LastScanComposition = TEXT("SILICATE-RICH // IRON-BEARING MATERIAL");
-            LastScanConfidence = 0.92;
-            LastScanCompletedAtSeconds = Telemetry.SimulationTimeSeconds;
+            // A scan-completed event is not a material analysis. Reuse only
+            // the authoritative discovered-target record for the *scanned*
+            // ID, even when the player is now selecting a different body.
+            const FEverwardDiscoveredTarget* Observed = Discoveries.FindByPredicate(
+                [this](const FEverwardDiscoveredTarget& Entry)
+                {
+                    return Entry.TargetId == LastObservedScanTargetId;
+                });
+            if (Observed != nullptr)
+            {
+                bHasScanDiscovery = true;
+                LastScanTargetId = Observed->TargetId;
+                LastScanObjectClass = Observed->Level == EEverwardKnowledgeLevel::Characterized
+                    ? TEXT("CHARACTERIZED") : TEXT("OBSERVED");
+                LastScanComposition = Observed->Classification.IsEmpty()
+                    ? TEXT("COMPOSITION UNRESOLVED")
+                    : FString::Printf(TEXT("CLASSIFICATION %s"), *Observed->Classification);
+                LastScanConfidence = FMath::Clamp(Observed->Confidence, 0.0, 1.0);
+                LastScanCompletedAtSeconds = Telemetry.SimulationTimeSeconds;
+            }
         }
         LastObservedScanTargetId.Reset();
     }
