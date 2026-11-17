@@ -96,7 +96,7 @@ class Phase2HudSourceContractTests(unittest.TestCase):
         self.assertIn("FLIGHT  %.2f m/s   [SPACE] FULL STOP", self.hud)
         self.assertIn("FWD %+0.2f   RIGHT %+0.2f   UP %+0.2f m/s", self.hud)
         flight_pos = self.hud.index("FLIGHT  %.2f m/s")
-        compact_return_pos = self.hud.index("if (!bSystemsExpanded)")
+        compact_return_pos = self.hud.index("if (!bSystemsExpanded)", self.hud.index("const float SystemPanelX"))
         self.assertLess(flight_pos, compact_return_pos)
 
     def test_game_mode_installs_hud_and_controller(self) -> None:
