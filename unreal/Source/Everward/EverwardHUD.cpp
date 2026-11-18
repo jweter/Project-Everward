@@ -171,6 +171,37 @@ FString TargetKnowledgeLine(
     return FString::Printf(TEXT("KNOWLEDGE  OBSERVED // %.0f%% CONFIDENCE"), TargetKnowledge.Confidence * 100.0);
 }
 
+// A selected target's scan payoff must remain visible in the small peripheral
+// card. Truncating the full diagnostic string at 30 characters leaves no
+// room for real classification after "KNOWLEDGE  CHARACTERIZED // ".
+// Keep full knowledge text in TAB; use a compact, truth-preserving label here.
+FString CompactTargetKnowledgeLine(
+    const FEverwardTargetSelectionStatus& TargetSelection,
+    const FEverwardTargetKnowledgeStatus& TargetKnowledge)
+{
+    if (!TargetSelection.bHasSelection)
+    {
+        return TEXT("NO TARGET");
+    }
+    if (!TargetKnowledge.bHasKnowledge ||
+        TargetKnowledge.Level == EEverwardKnowledgeLevel::Unknown)
+    {
+        return TEXT("NOT YET OBSERVED");
+    }
+    if (TargetKnowledge.Level == EEverwardKnowledgeLevel::Characterized)
+    {
+        if (TargetKnowledge.Classification.IsEmpty())
+        {
+            return TEXT("CLASSIFICATION UNRESOLVED");
+        }
+        // Preserve at least 23 actual classification characters instead of
+        // truncating the 28-character engineering prefix first.
+        return TEXT("CLASS: ") + TruncatedPanelLine(TargetKnowledge.Classification, 23);
+    }
+    return FString::Printf(TEXT("OBSERVED // %.0f%% CONFIDENCE"),
+        TargetKnowledge.Confidence * 100.0);
+}
+
 FString CapabilityState(const FEverwardProbeCapability& Capability)
 {
     if (!Capability.bOperational)
@@ -627,7 +658,7 @@ void AEverwardHUD::DrawHUD()
                     TargetSelection.SurfaceRangeMeters),
                 TextColor, TargetX + S(12.0f), TargetY + S(72.0f),
                 HudFont, ReadableTextScale(HudScale, 0.90f), false);
-            DrawText(TruncatedPanelLine(TargetKnowledgeLine(TargetSelection, TargetKnowledge), 30),
+            DrawText(CompactTargetKnowledgeLine(TargetSelection, TargetKnowledge),
                 TargetKnowledge.bHasKnowledge ? TextColor : MutedColor,
                 TargetX + S(12.0f), TargetY + S(102.0f),
                 HudFont, ReadableTextScale(HudScale, 0.86f), false);
