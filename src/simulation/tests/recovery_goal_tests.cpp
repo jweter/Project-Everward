@@ -80,8 +80,10 @@ void test_running_receipt_outweighs_new_planner_priority() {
     receipt.decision = d;
     receipt.elapsed_s = d->time_required_s / 2.0;
 
-    i.computation = 0.23;
-    i.thermal = 0.10; // a newly critical subsystem reorders next recommendation
+    // A concurrent external change brought computation above its minimum,
+    // while thermal became critical. The running receipt must still win.
+    i.computation = 0.26;
+    i.thermal = 0.10;
     const auto next = FixItPlanner::plan_next(i, resources(10.0, 1e8));
     assert(next->subsystem == PowerSubsystem::Thermal);
     const auto g = resolve_recovery_goal(i, resources(10.0, 1e8), next, &receipt);
