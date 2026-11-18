@@ -118,6 +118,8 @@ void AFixItRuntimeActor::Tick(float DeltaSeconds)
 
     CompletionDisplaySecondsRemaining =
         FMath::Max(0.0, CompletionDisplaySecondsRemaining - static_cast<double>(DeltaSeconds));
+    InterruptionDisplaySecondsRemaining =
+        FMath::Max(0.0, InterruptionDisplaySecondsRemaining - static_cast<double>(DeltaSeconds));
 
     RefreshStatusSummary();
 
@@ -161,17 +163,39 @@ FEverwardRecoveryGoalStatus AFixItRuntimeActor::GetRecoveryGoal() const
         BoundCore->component_integrity(), Available);
 
     const everward::simulation::FixItExecutionStatus* Receipt = nullptr;
-    if (RepairExecutor != nullptr &&
-        (bRepairRunning ||
-         (CompletionDisplaySecondsRemaining > 0.0 &&
-          RepairExecutor->status().state == everward::simulation::FixItExecutionState::Completed)))
+    // An active execution has priority over older completion/interruption
+    // receipts. Retain authoritative terminal receipts only for a bounded
+    // display interval; an interrupted operation must not disappear just
+    // because its running flag was cleared on the same fixed step.
+    if (bRepairRunning && RepairExecutor != nullptr)
     {
         Receipt = &RepairExecutor->status();
     }
-    else if (ReplacementExecutor != nullptr &&
-        (bReplacementRunning ||
-         (CompletionDisplaySecondsRemaining > 0.0 &&
-          ReplacementExecutor->status().state == everward::simulation::FixItExecutionState::Completed)))
+    else if (bReplacementRunning && ReplacementExecutor != nullptr)
+    {
+        Receipt = &ReplacementExecutor->status();
+    }
+    else if (InterruptionDisplaySecondsRemaining > 0.0 &&
+             RepairExecutor != nullptr &&
+             RepairExecutor->status().state == everward::simulation::FixItExecutionState::Interrupted)
+    {
+        Receipt = &RepairExecutor->status();
+    }
+    else if (InterruptionDisplaySecondsRemaining > 0.0 &&
+             ReplacementExecutor != nullptr &&
+             ReplacementExecutor->status().state == everward::simulation::FixItExecutionState::Interrupted)
+    {
+        Receipt = &ReplacementExecutor->status();
+    }
+    else if (CompletionDisplaySecondsRemaining > 0.0 &&
+             RepairExecutor != nullptr &&
+             RepairExecutor->status().state == everward::simulation::FixItExecutionState::Completed)
+    {
+        Receipt = &RepairExecutor->status();
+    }
+    else if (CompletionDisplaySecondsRemaining > 0.0 &&
+             ReplacementExecutor != nullptr &&
+             ReplacementExecutor->status().state == everward::simulation::FixItExecutionState::Completed)
     {
         Receipt = &ReplacementExecutor->status();
     }
@@ -251,6 +275,7 @@ void AFixItRuntimeActor::BindToCurrentProbe()
         ActiveReason.Reset();
         LastCompletionSummary.Reset();
         CompletionDisplaySecondsRemaining = 0.0;
+        InterruptionDisplaySecondsRemaining = 0.0;
 
         if (!bSeededDamagedAwakening && HasCanonicalUndamagedIntegrity(*BoundCore))
         {
@@ -321,6 +346,7 @@ void AFixItRuntimeActor::AdvanceFixIt(double DeltaSeconds)
         {
             bRepairRunning = false;
             bWaitingForResources = true;
+            InterruptionDisplaySecondsRemaining = FixItInterruptionDisplaySeconds;
             RecordFixItEvent(TEXT("fix_it_repair_interrupted"), UTF8_TO_TCHAR(Status.detail.c_str()));
         }
         return;
@@ -347,6 +373,7 @@ void AFixItRuntimeActor::AdvanceFixIt(double DeltaSeconds)
         {
             bReplacementRunning = false;
             bWaitingForResources = true;
+            InterruptionDisplaySecondsRemaining = FixItInterruptionDisplaySeconds;
             RecordFixItEvent(TEXT("fix_it_replacement_interrupted"), UTF8_TO_TCHAR(Status.detail.c_str()));
         }
     }
@@ -397,6 +424,7 @@ void AFixItRuntimeActor::ReplanOrStart()
         }
 
         RepairExecutor->start(*Decision);
+        InterruptionDisplaySecondsRemaining = 0.0;
         bRepairRunning = true;
         bWaitingForResources = false;
         RecordFixItEvent(
