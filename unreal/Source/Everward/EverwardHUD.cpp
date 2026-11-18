@@ -7,13 +7,12 @@
 #include "EverwardProbePawn.h"
 #include "ProbeSimulationAdapter.h"
 #include "ProbeHUDReadModel.h"
+#include "PeripheralHUDLayout.h"
 #include "FixItRuntimeActor.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace
 {
-constexpr float HudReferenceWidth = 1920.0f;
-constexpr float HudReferenceHeight = 1080.0f;
 constexpr float MinimumHudTextScale = 1.05f;
 
 struct FControlReferenceLine
@@ -29,9 +28,7 @@ float ResolveHudScale(const UCanvas* Canvas)
         return 1.0f;
     }
 
-    const float WidthScale = Canvas->ClipX / HudReferenceWidth;
-    const float HeightScale = Canvas->ClipY / HudReferenceHeight;
-    return FMath::Clamp(FMath::Min(WidthScale, HeightScale), 0.80f, 1.75f);
+    return FEverwardPeripheralHUDLayout::ResolveScale(Canvas->ClipX, Canvas->ClipY);
 }
 
 float ReadableTextScale(float HudScale, float RelativeScale = 1.0f)
@@ -172,6 +169,37 @@ FString TargetKnowledgeLine(
         return FString::Printf(TEXT("KNOWLEDGE  CHARACTERIZED // %s"), *TargetKnowledge.Classification);
     }
     return FString::Printf(TEXT("KNOWLEDGE  OBSERVED // %.0f%% CONFIDENCE"), TargetKnowledge.Confidence * 100.0);
+}
+
+// A selected target's scan payoff must remain visible in the small peripheral
+// card. Truncating the full diagnostic string at 30 characters leaves no
+// room for real classification after "KNOWLEDGE  CHARACTERIZED // ".
+// Keep full knowledge text in TAB; use a compact, truth-preserving label here.
+FString CompactTargetKnowledgeLine(
+    const FEverwardTargetSelectionStatus& TargetSelection,
+    const FEverwardTargetKnowledgeStatus& TargetKnowledge)
+{
+    if (!TargetSelection.bHasSelection)
+    {
+        return TEXT("NO TARGET");
+    }
+    if (!TargetKnowledge.bHasKnowledge ||
+        TargetKnowledge.Level == EEverwardKnowledgeLevel::Unknown)
+    {
+        return TEXT("NOT YET OBSERVED");
+    }
+    if (TargetKnowledge.Level == EEverwardKnowledgeLevel::Characterized)
+    {
+        if (TargetKnowledge.Classification.IsEmpty())
+        {
+            return TEXT("CLASSIFICATION UNRESOLVED");
+        }
+        // Preserve at least 23 actual classification characters instead of
+        // truncating the 28-character engineering prefix first.
+        return TEXT("CLASS: ") + TruncatedPanelLine(TargetKnowledge.Classification, 23);
+    }
+    return FString::Printf(TEXT("OBSERVED // %.0f%% CONFIDENCE"),
+        TargetKnowledge.Confidence * 100.0);
 }
 
 FString CapabilityState(const FEverwardProbeCapability& Capability)
@@ -566,70 +594,75 @@ void AEverwardHUD::DrawHUD()
         }
     }
 
-    const float HudScale = ResolveHudScale(Canvas);
+    const FEverwardPeripheralHUDLayout Peripheral =
+        FEverwardPeripheralHUDLayout::Compute(Canvas->ClipX, Canvas->ClipY);
+    const float HudScale = Peripheral.Scale;
     const auto S = [HudScale](float Value) { return Value * HudScale; };
     UFont* const HudFont = GEngine != nullptr ? GEngine->GetMediumFont() : nullptr;
     const float Margin = S(24.0f);
     const float LineHeight = S(32.0f);
-    const float PanelWidth = S(500.0f);
+    const float PanelWidth = bSystemsExpanded ? S(500.0f) :
+        Peripheral.Vitals.Max.X - Peripheral.Vitals.Min.X;
     const FLinearColor PanelColor(0.015f, 0.025f, 0.035f, 0.88f);
     const FLinearColor TextColor(0.90f, 0.96f, 0.98f, 1.0f);
     const FLinearColor MutedColor(0.64f, 0.75f, 0.80f, 1.0f);
     const FLinearColor AlertColor(1.0f, 0.36f, 0.18f, 1.0f);
 
-    // Issue #384: only essential status persists over the world. Full
-    // telemetry remains in TAB systems details, not a second UMG widget.
+    // Issue #384: three bounded default peripheral zones leave the central
+    // 60% x 40% world view unobstructed by routine telemetry. TAB still opens
+    // the existing complete engineering view; M opens manipulator controls.
     const float TelemetryHeight = bSystemsExpanded
-        ? S(62.0f) + LineHeight * 14.0f : S(234.0f);
-    const float TelemetryY = Canvas->ClipY - Margin - TelemetryHeight;
-    DrawRect(bSystemsExpanded ? PanelColor : FLinearColor(0.015f, 0.025f, 0.035f, 0.72f),
+        ? S(62.0f) + LineHeight * 14.0f
+        : Peripheral.Vitals.Max.Y - Peripheral.Vitals.Min.Y;
+    const float TelemetryY = bSystemsExpanded
+        ? Canvas->ClipY - Margin - TelemetryHeight
+        : Peripheral.Vitals.Min.Y;
+    DrawRect(bSystemsExpanded ? PanelColor : FLinearColor(0.015f, 0.025f, 0.035f, 0.45f),
         Margin, TelemetryY, PanelWidth, TelemetryHeight);
 
     if (!bSystemsExpanded)
     {
-        const float Left = Margin + S(16.0f);
-        const float BarX = Margin + S(296.0f);
-        const float BarWidth = S(172.0f);
-        const auto Bar = [this, BarX, BarWidth, S](float Y, float Value, FLinearColor Color)
-        {
-            DrawRect(FLinearColor(0.18f, 0.23f, 0.27f, 0.9f), BarX, Y, BarWidth, S(9.0f));
-            DrawRect(Color, BarX, Y, BarWidth * FMath::Clamp(Value, 0.0f, 1.0f), S(9.0f));
-        };
-        DrawText(FString::Printf(TEXT("%s // GEN %d"), *HudState.ProbeId, Telemetry.Generation),
-            TextColor, Left, TelemetryY + S(12.0f), HudFont, ReadableTextScale(HudScale), false);
-        DrawText(FString::Printf(TEXT("ENERGY %.0f%%"), HudState.EnergyFraction * 100.0f),
-            TextColor, Left, TelemetryY + S(45.0f), HudFont, ReadableTextScale(HudScale), false);
-        Bar(TelemetryY + S(56.0f), HudState.EnergyFraction,
-            HudState.EnergyFraction < 0.2f ? AlertColor : FLinearColor(0.31f, 0.8f, 0.68f, 1.0f));
-        DrawText(FString::Printf(TEXT("WEAKEST SYSTEM %.0f%%"), HudState.WeakestSubsystemFraction * 100.0f),
+        const float Left = Margin + S(12.0f);
+        DrawText(FString::Printf(TEXT("ENERGY %.0f%%  //  WEAKEST %.0f%%"),
+                HudState.EnergyFraction * 100.0f, HudState.WeakestSubsystemFraction * 100.0f),
             HudState.WeakestSubsystemFraction < 0.25f ? AlertColor : TextColor,
-            Left, TelemetryY + S(76.0f), HudFont, ReadableTextScale(HudScale), false);
-        Bar(TelemetryY + S(87.0f), HudState.WeakestSubsystemFraction,
-            HudState.WeakestSubsystemFraction < 0.25f ? AlertColor : FLinearColor(0.31f, 0.8f, 0.68f, 1.0f));
+            Left, TelemetryY + S(10.0f), HudFont, ReadableTextScale(HudScale, 0.94f), false);
         DrawText(FString::Printf(TEXT("THERMAL %.0f K  //  STORAGE %.0f%%"),
                 HudState.CoreTemperatureKelvin, HudState.StorageFraction * 100.0f),
-            TextColor, Left, TelemetryY + S(108.0f), HudFont, ReadableTextScale(HudScale, 0.93f), false);
-        // Reserve room for the measured distance before abbreviating the ID;
-        // never truncate the complete target row (which hid the useful number).
-        const FString SurfaceRangeSuffix = FString::Printf(
-            TEXT(" // SURFACE RANGE %.1f M"), HudState.TargetSurfaceRangeMeters);
-        const int32 TargetCharacterBudget = FMath::Max(
-            0, 49 - FString(TEXT("TARGET ")).Len() - SurfaceRangeSuffix.Len());
-        const FString TargetLine = FString::Printf(TEXT("TARGET %s%s"),
-            *AbbreviateTargetIdForCompactRow(HudState.TargetId, TargetCharacterBudget),
-            *SurfaceRangeSuffix);
-        DrawText(HudState.bHasTarget
-                ? TargetLine
-                : FString(TEXT("TARGET NONE")),
-            HudState.bHasTarget ? TextColor : MutedColor,
-            Left, TelemetryY + S(139.0f), HudFont, ReadableTextScale(HudScale, 0.91f), false);
-        // Reuse the existing ACTION row: no extra world-obscuring line, and
-        // no duplicate [T] prompt when the target row reads TARGET NONE.
-        DrawText(TruncatedPanelLine(ContextHint.Text, 49),
-            ContextHint.bWarning ? AlertColor : TextColor,
-            Left, TelemetryY + S(170.0f), HudFont, ReadableTextScale(HudScale, 0.91f), false);
-        DrawText(TruncatedPanelLine(HudState.FixItStatus, 49),
-            TextColor, Left, TelemetryY + S(201.0f), HudFont, ReadableTextScale(HudScale, 0.90f), false);
+            TextColor, Left, TelemetryY + S(42.0f),
+            HudFont, ReadableTextScale(HudScale, 0.91f), false);
+        DrawText(TruncatedPanelLine(HudState.FixItStatus, 34),
+            TextColor, Left, TelemetryY + S(75.0f),
+            HudFont, ReadableTextScale(HudScale, 0.90f), false);
+        DrawText(TEXT("[F1] HELP  [TAB] SYSTEMS  [M] ARM"),
+            MutedColor, Left, TelemetryY + S(108.0f),
+            HudFont, ReadableTextScale(HudScale, 0.86f), false);
+
+        // Real selected target/knowledge only. No guessed material or mining
+        // eligibility, and the bound scan identity remains in ContextHint.
+        if (TargetSelection.bHasSelection)
+        {
+            const float TargetWidth = Peripheral.Target.Max.X - Peripheral.Target.Min.X;
+            const float TargetHeight = Peripheral.Target.Max.Y - Peripheral.Target.Min.Y;
+            const float TargetX = Peripheral.Target.Min.X;
+            const float TargetY = Peripheral.Target.Min.Y;
+            DrawRect(FLinearColor(0.015f, 0.025f, 0.035f, 0.45f),
+                TargetX, TargetY, TargetWidth, TargetHeight);
+            DrawText(TEXT("SELECTED TARGET"), TextColor,
+                TargetX + S(12.0f), TargetY + S(10.0f),
+                HudFont, ReadableTextScale(HudScale, 0.98f), false);
+            DrawText(AbbreviateTargetIdForCompactRow(TargetSelection.TargetId, 29),
+                TextColor, TargetX + S(12.0f), TargetY + S(41.0f),
+                HudFont, ReadableTextScale(HudScale, 0.90f), false);
+            DrawText(FString::Printf(TEXT("SURFACE RANGE %.1f M"),
+                    TargetSelection.SurfaceRangeMeters),
+                TextColor, TargetX + S(12.0f), TargetY + S(72.0f),
+                HudFont, ReadableTextScale(HudScale, 0.90f), false);
+            DrawText(CompactTargetKnowledgeLine(TargetSelection, TargetKnowledge),
+                TargetKnowledge.bHasKnowledge ? TextColor : MutedColor,
+                TargetX + S(12.0f), TargetY + S(102.0f),
+                HudFont, ReadableTextScale(HudScale, 0.86f), false);
+        }
     }
     else
     {
@@ -998,18 +1031,29 @@ void AEverwardHUD::DrawHUD()
             HudFont, ReadableTextScale(HudScale, 0.92f), false);
     }
 
-    const float HelpWidth = S(650.0f);
-    const float HelpHeight = S(44.0f);
-    // On 720p the centered help strip can intersect the compact lower-left
-    // status card. Shift it to the available world-side space instead.
+    // The default bottom slot is the single authoritative next-action hint,
+    // not a permanently repeated shortcut legend. Detailed controls remain
+    // discoverable through F1 and the small left status reference line.
+    const float HelpWidth = bSystemsExpanded
+        ? S(650.0f)
+        : Peripheral.Action.Max.X - Peripheral.Action.Min.X;
+    const float HelpHeight = bSystemsExpanded
+        ? S(44.0f)
+        : Peripheral.Action.Max.Y - Peripheral.Action.Min.Y;
     const float HelpX = bSystemsExpanded
         ? (Canvas->ClipX - HelpWidth) * 0.5f
-        : FMath::Max((Canvas->ClipX - HelpWidth) * 0.5f,
-            Margin + PanelWidth + S(10.0f));
-    const float HelpY = Canvas->ClipY - Margin - HelpHeight;
-    DrawRect(PanelColor, HelpX, HelpY, HelpWidth, HelpHeight);
-    DrawText(TEXT("[F1] CONTROLS   [TAB] SYSTEMS   [M] MANIPULATOR"), TextColor,
-        HelpX + S(18.0f), HelpY + S(10.0f), HudFont, ReadableTextScale(HudScale, 0.92f), false);
+        : Peripheral.Action.Min.X;
+    const float HelpY = bSystemsExpanded
+        ? Canvas->ClipY - Margin - HelpHeight
+        : Peripheral.Action.Min.Y;
+    DrawRect(bSystemsExpanded ? PanelColor : FLinearColor(0.015f, 0.025f, 0.035f, 0.50f),
+        HelpX, HelpY, HelpWidth, HelpHeight);
+    DrawText(bSystemsExpanded
+            ? FString(TEXT("[F1] CONTROLS   [TAB] SYSTEMS   [M] MANIPULATOR"))
+            : TruncatedPanelLine(ContextHint.Text, 48),
+        !bSystemsExpanded && ContextHint.bWarning ? AlertColor : TextColor,
+        HelpX + S(16.0f), HelpY + S(10.0f),
+        HudFont, ReadableTextScale(HudScale, 0.92f), false);
 
     const float SystemPanelX = Canvas->ClipX - Margin - PanelWidth;
     // Detailed engineering telemetry is TAB-only in the normal HUD.

@@ -31,8 +31,10 @@ class Phase2HudLegibilitySurfaceTests(unittest.TestCase):
 
     def test_live_hud_uses_viewport_scaling_medium_font_and_text_floor(self) -> None:
         self.assertIn("ResolveHudScale", self.hud_cpp)
-        self.assertIn("Canvas->ClipX / HudReferenceWidth", self.hud_cpp)
-        self.assertIn("Canvas->ClipY / HudReferenceHeight", self.hud_cpp)
+        layout = (SOURCE / "PeripheralHUDLayout.h").read_text(encoding="utf-8")
+        self.assertIn("ViewportWidth / 1920.0f", layout)
+        self.assertIn("ViewportHeight / 1080.0f", layout)
+        self.assertIn("FEverwardPeripheralHUDLayout::ResolveScale", self.hud_cpp)
         self.assertIn("GetMediumFont", self.hud_cpp)
         self.assertIn("MinimumHudTextScale", self.hud_cpp)
         self.assertIn("ReadableTextScale", self.hud_cpp)
@@ -54,7 +56,7 @@ class Phase2HudLegibilitySurfaceTests(unittest.TestCase):
 
     def test_live_hud_keeps_only_short_entry_points_visible(self) -> None:
         self.assertIn(
-            "[F1] CONTROLS   [TAB] SYSTEMS   [M] MANIPULATOR", self.hud_cpp
+            "[F1] HELP  [TAB] SYSTEMS  [M] ARM", self.hud_cpp
         )
         self.assertNotIn(
             "[1/2] DEPLOY   [3] TOOL   [N] ARM   [4/5/6] JOINT   [,][.] TARGET",

@@ -54,8 +54,8 @@ class ContextualActionHintContractTests(unittest.TestCase):
 
     def test_existing_hud_row_reused_with_no_duplicate_prompt(self):
         self.assertIn("ContextHint = FEverwardHUDActionHint::FromAuthoritativeState", self.hud)
-        self.assertIn("TruncatedPanelLine(ContextHint.Text, 49)", self.hud)
-        self.assertIn('FString(TEXT("TARGET NONE"))', self.hud)
+        self.assertIn("TruncatedPanelLine(ContextHint.Text, 48)", self.hud)
+        self.assertIn("Peripheral.Action.Min.X", self.hud)
         self.assertNotIn('FString(TEXT("TARGET NONE // [T] SELECT"))', self.hud)
         self.assertIn("HudState.FixItStatus", self.hud)
         self.assertIn("const float ExpandedHeight", self.hud)

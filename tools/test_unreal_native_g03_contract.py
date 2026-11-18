@@ -73,12 +73,13 @@ class G03NativeContractTests(unittest.TestCase):
             ROOT / "unreal" / "Source" / "Everward" / "Tests" / "EverwardCompactHUDReadModelTest.cpp",
             ROOT / "unreal" / "Source" / "Everward" / "Tests" / "EverwardContextualHUDActionHintTest.cpp",
             ROOT / "unreal" / "Source" / "Everward" / "Tests" / "EverwardObjectiveCycleHudTriggerTest.cpp",
+            ROOT / "unreal" / "Source" / "Everward" / "Tests" / "EverwardPeripheralHUDLayoutTest.cpp",
         ):
             native += path.read_text(encoding="utf-8")
         import re
         registrations = set(re.findall(r'"(Everward\.G03\.Native\.[^"]+)"', native))
         required = set(re.findall(r"'(Everward\.G03\.Native\.[^']+)'", runner))
-        self.assertEqual(len(registrations), 10)
+        self.assertEqual(len(registrations), 11)
         self.assertEqual(required, registrations)
         self.assertIn("[int]$Parsed.failed -ne 0", runner)
         self.assertIn("[int]$Parsed.succeeded -lt $RequiredTestNames.Count", runner)

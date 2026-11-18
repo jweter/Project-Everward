@@ -111,6 +111,7 @@ $RequiredTestNames = @(
     'Everward.G03.Native.CompactHUDReadModel'
     'Everward.G03.Native.ContextualHUDActionHint'
     'Everward.G03.Native.RestorationObjectiveCycleHudTrigger'
+    'Everward.G03.Native.PeripheralHUDLayout'
 )
 if ([int]$Parsed.failed -ne 0 -or [int]$Parsed.succeeded -lt $RequiredTestNames.Count) {
     throw "G03 required native suite failed or is incomplete. Evidence: $Evidence"
