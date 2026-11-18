@@ -50,6 +50,18 @@ class PeripheralHUDSurfaceTests(unittest.TestCase):
         self.assertIn("TargetKnowledgeLine(TargetSelection, TargetKnowledge)", self.hud)
         self.assertIn("TruncatedPanelLine(ContextHint.Text, 48)", self.hud)
 
+    def test_small_target_card_preserves_scientific_classification(self):
+        # P2 review regression: the long expanded-panel prefix consumed the
+        # entire 30-character compact row and hid characterized science.
+        self.assertIn("FString CompactTargetKnowledgeLine(", self.hud)
+        self.assertIn("TruncatedPanelLine(TargetKnowledge.Classification, 23)", self.hud)
+        self.assertIn('TEXT("CLASS: ")', self.hud)
+        self.assertIn('TEXT("CLASSIFICATION UNRESOLVED")', self.hud)
+        self.assertIn("DrawText(CompactTargetKnowledgeLine(TargetSelection, TargetKnowledge)", self.hud)
+        self.assertNotIn("TruncatedPanelLine(TargetKnowledgeLine(TargetSelection, TargetKnowledge), 30)", self.hud)
+        # Detailed engineering view still retains the unabridged science row.
+        self.assertIn("TargetKnowledgeLine(TargetSelection, TargetKnowledge)", self.hud)
+
     def test_full_current_diagnostics_remain_accessible(self):
         self.assertIn("const float ExpandedHeight", self.hud)
         self.assertIn("MaterialInventoryLine(MaterialInventory)", self.hud)
