@@ -7,6 +7,7 @@
 #include "PlaytestRecorderActor.h"
 #include "ProbeSimulationAdapter.h"
 #include "everward/simulation/fix_it.hpp"
+#include "everward/simulation/recovery_goal.hpp"
 
 #include <limits>
 #include <map>
@@ -117,6 +118,8 @@ void AFixItRuntimeActor::Tick(float DeltaSeconds)
 
     CompletionDisplaySecondsRemaining =
         FMath::Max(0.0, CompletionDisplaySecondsRemaining - static_cast<double>(DeltaSeconds));
+    InterruptionDisplaySecondsRemaining =
+        FMath::Max(0.0, InterruptionDisplaySecondsRemaining - static_cast<double>(DeltaSeconds));
 
     RefreshStatusSummary();
 
@@ -133,6 +136,115 @@ void AFixItRuntimeActor::Tick(float DeltaSeconds)
             true,
             FVector2D(1.15f, 1.15f));
     }
+}
+
+FEverwardRecoveryGoalStatus AFixItRuntimeActor::GetRecoveryGoal() const
+{
+    FEverwardRecoveryGoalStatus View;
+    if (BoundCore == nullptr)
+    {
+        return View;
+    }
+
+    // Reuse exactly the runtime's current planning inputs. This accessor is
+    // read-only and must never call ReplanOrStart(), start() or advance().
+    const auto& Snapshot = BoundCore->snapshot();
+    everward::simulation::FixItResources Available;
+    Available.material_kg = Snapshot.storage_used_kg;
+    Available.energy_j = Snapshot.stored_energy_j;
+    Available.available_time_s = std::numeric_limits<double>::max();
+    // These capabilities are not yet enabled in the Generation-1 actor.
+    Available.fabrication_available = false;
+    Available.upgrade_design_available = false;
+    Available.redesign_design_available = false;
+    Available.evolution_design_available = false;
+
+    const auto Decision = everward::simulation::FixItPlanner::plan_next(
+        BoundCore->component_integrity(), Available);
+
+    const everward::simulation::FixItExecutionStatus* Receipt = nullptr;
+    // An active execution has priority over older completion/interruption
+    // receipts. Retain authoritative terminal receipts only for a bounded
+    // display interval; an interrupted operation must not disappear just
+    // because its running flag was cleared on the same fixed step.
+    if (bRepairRunning && RepairExecutor != nullptr)
+    {
+        Receipt = &RepairExecutor->status();
+    }
+    else if (bReplacementRunning && ReplacementExecutor != nullptr)
+    {
+        Receipt = &ReplacementExecutor->status();
+    }
+    else if (InterruptionDisplaySecondsRemaining > 0.0 &&
+             RepairExecutor != nullptr &&
+             RepairExecutor->status().state == everward::simulation::FixItExecutionState::Interrupted)
+    {
+        Receipt = &RepairExecutor->status();
+    }
+    else if (InterruptionDisplaySecondsRemaining > 0.0 &&
+             ReplacementExecutor != nullptr &&
+             ReplacementExecutor->status().state == everward::simulation::FixItExecutionState::Interrupted)
+    {
+        Receipt = &ReplacementExecutor->status();
+    }
+    else if (CompletionDisplaySecondsRemaining > 0.0 &&
+             RepairExecutor != nullptr &&
+             RepairExecutor->status().state == everward::simulation::FixItExecutionState::Completed)
+    {
+        Receipt = &RepairExecutor->status();
+    }
+    else if (CompletionDisplaySecondsRemaining > 0.0 &&
+             ReplacementExecutor != nullptr &&
+             ReplacementExecutor->status().state == everward::simulation::FixItExecutionState::Completed)
+    {
+        Receipt = &ReplacementExecutor->status();
+    }
+
+    const auto Projected = everward::simulation::resolve_recovery_goal(
+        BoundCore->component_integrity(), Available, Decision, Receipt);
+    View.bHasGoal = Projected.has_goal;
+    View.GoalId = UTF8_TO_TCHAR(Projected.goal_id.c_str());
+    View.PlannerReason = UTF8_TO_TCHAR(Projected.reason.c_str());
+    View.CurrentIntegrity = Projected.current_integrity;
+    View.TargetIntegrity = Projected.decision.target_integrity;
+    View.RequiredMaterialKg = Projected.decision.material_required_kg;
+    View.MissingMaterialKg = Projected.missing_material_kg;
+    View.RequiredEnergyJoules = Projected.decision.energy_required_j;
+    View.MissingEnergyJoules = Projected.missing_energy_j;
+    View.EstimatedDurationSeconds = Projected.decision.time_required_s;
+    View.ProgressFraction = Projected.progress_fraction;
+    View.bFabricationUnavailable = Projected.fabrication_unavailable;
+    if (View.bHasGoal)
+    {
+        View.Stage = FixItStageName(Projected.decision.stage);
+        View.Subsystem = FixItSubsystemName(Projected.decision.subsystem);
+    }
+
+    // Explicit mapping avoids coupling UENUM display semantics to the
+    // ordering of the independent C++ RecoveryGoalState enumeration.
+    switch (Projected.state)
+    {
+        case everward::simulation::RecoveryGoalState::Blocked:
+            View.State = EEverwardRecoveryGoalState::Blocked; break;
+        case everward::simulation::RecoveryGoalState::Ready:
+            View.State = EEverwardRecoveryGoalState::Ready; break;
+        case everward::simulation::RecoveryGoalState::InProgress:
+            View.State = EEverwardRecoveryGoalState::InProgress; break;
+        case everward::simulation::RecoveryGoalState::Interrupted:
+            View.State = EEverwardRecoveryGoalState::Interrupted; break;
+        case everward::simulation::RecoveryGoalState::Completed:
+            View.State = EEverwardRecoveryGoalState::Completed; break;
+        case everward::simulation::RecoveryGoalState::VerificationFailed:
+            View.State = EEverwardRecoveryGoalState::VerificationFailed; break;
+        case everward::simulation::RecoveryGoalState::FullyRestored:
+            View.State = EEverwardRecoveryGoalState::FullyRestored; break;
+        case everward::simulation::RecoveryGoalState::AdvisoryOnly:
+            View.State = EEverwardRecoveryGoalState::AdvisoryOnly; break;
+        case everward::simulation::RecoveryGoalState::NoRecommendation:
+        default:
+            View.State = EEverwardRecoveryGoalState::NoRecommendation; break;
+    }
+    return View;
 }
 
 void AFixItRuntimeActor::BindToCurrentProbe()
@@ -163,6 +275,7 @@ void AFixItRuntimeActor::BindToCurrentProbe()
         ActiveReason.Reset();
         LastCompletionSummary.Reset();
         CompletionDisplaySecondsRemaining = 0.0;
+        InterruptionDisplaySecondsRemaining = 0.0;
 
         if (!bSeededDamagedAwakening && HasCanonicalUndamagedIntegrity(*BoundCore))
         {
@@ -233,6 +346,7 @@ void AFixItRuntimeActor::AdvanceFixIt(double DeltaSeconds)
         {
             bRepairRunning = false;
             bWaitingForResources = true;
+            InterruptionDisplaySecondsRemaining = FixItInterruptionDisplaySeconds;
             RecordFixItEvent(TEXT("fix_it_repair_interrupted"), UTF8_TO_TCHAR(Status.detail.c_str()));
         }
         return;
@@ -259,6 +373,7 @@ void AFixItRuntimeActor::AdvanceFixIt(double DeltaSeconds)
         {
             bReplacementRunning = false;
             bWaitingForResources = true;
+            InterruptionDisplaySecondsRemaining = FixItInterruptionDisplaySeconds;
             RecordFixItEvent(TEXT("fix_it_replacement_interrupted"), UTF8_TO_TCHAR(Status.detail.c_str()));
         }
     }
@@ -309,6 +424,7 @@ void AFixItRuntimeActor::ReplanOrStart()
         }
 
         RepairExecutor->start(*Decision);
+        InterruptionDisplaySecondsRemaining = 0.0;
         bRepairRunning = true;
         bWaitingForResources = false;
         RecordFixItEvent(
