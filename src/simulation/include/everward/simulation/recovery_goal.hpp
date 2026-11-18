@@ -152,8 +152,19 @@ struct RecoveryGoalProjection {
 
     // Later engineering stages may be recommended but are not presently
     // executable. Do not label them READY, or promise an unavailable button.
-    if (decision.stage != FixItStage::Repair &&
-        decision.stage != FixItStage::Replacement) {
+    // A fully repaired machine can receive a post-restoration Replacement
+    // *recommendation*, but no specific replacement transaction exists yet.
+    // The real executor rejects equal-integrity / zero-cost decisions. Never
+    // show READY for something the player cannot actually execute.
+    const bool non_executable_replacement =
+        decision.stage == FixItStage::Replacement &&
+        (decision.target_integrity <= decision.integrity_before + 1e-9 ||
+         decision.material_required_kg <= 0.0 ||
+         decision.energy_required_j <= 0.0 ||
+         decision.time_required_s <= 0.0);
+    if ((decision.stage != FixItStage::Repair &&
+         decision.stage != FixItStage::Replacement) ||
+        non_executable_replacement) {
         result.state = RecoveryGoalState::AdvisoryOnly;
         return result;
     }
