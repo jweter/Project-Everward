@@ -84,6 +84,9 @@ private:
     // How long a completed repair/replacement's material breakdown stays on
     // screen before yielding to the next decision's status line.
     static constexpr double FixItCompletionDisplaySeconds = 4.0;
+    // An authoritative interruption must remain visible long enough for the
+    // player to diagnose, rather than being discarded when bRepairRunning clears.
+    static constexpr double FixItInterruptionDisplaySeconds = 4.0;
 
     UProbeSimulationAdapter* Adapter = nullptr;
     everward::simulation::DamageAwareProbeRuntime* BoundCore = nullptr;
@@ -102,4 +105,5 @@ private:
     FString StatusSummary = TEXT("FIX_IT // INITIALIZING");
     FString LastCompletionSummary;
     double CompletionDisplaySecondsRemaining = 0.0;
+    double InterruptionDisplaySecondsRemaining = 0.0;
 };
