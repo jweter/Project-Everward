@@ -53,7 +53,9 @@ class RecoveryGoalContractTests(unittest.TestCase):
         self.assertIn("UFUNCTION(BlueprintPure, Category=\"Everward|Fix_It|Goal\")", self.actor_h)
         self.assertIn("FEverwardRecoveryGoalStatus GetRecoveryGoal() const;", self.actor_h)
         self.assertIn("resolve_recovery_goal(", self.actor_cpp)
-        self.assertIn("if (RepairExecutor != nullptr", self.actor_cpp)
+        self.assertIn("if (bRepairRunning && RepairExecutor != nullptr)", self.actor_cpp)
+        self.assertIn("InterruptionDisplaySecondsRemaining > 0.0", self.actor_cpp)
+        self.assertIn("FixItExecutionState::Interrupted", self.actor_cpp)
         self.assertIn("if (View.bHasGoal)", self.actor_cpp)
         getter_body = self.actor_cpp.split(
             "FEverwardRecoveryGoalStatus AFixItRuntimeActor::GetRecoveryGoal() const", 1
@@ -74,6 +76,7 @@ class RecoveryGoalContractTests(unittest.TestCase):
             "test_no_goal_full_vs_damaged",
             "test_recommendations_are_not_fake_executable_repairs",
             "test_fabrication_unavailable_fails_closed",
+            "test_post_restoration_replacement_advisory_not_ready",
             "test_time_budget_blocks_if_explicitly_constrained",
             "test_actual_executor_resources_and_transition_to_next_goal",
             "test_bounded_planner_only_repair_sequence_not_level_solvability",
