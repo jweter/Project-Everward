@@ -27,7 +27,8 @@ class RecoveryGoalContractTests(unittest.TestCase):
         self.assertIn("resolve_recovery_goal(", self.domain)
         self.assertIn("FixItDecision", self.domain)
         self.assertIn("FixItExecutionStatus", self.domain)
-        self.assertIn("Missing", self.domain.lower().replace("missing", "Missing"))
+        self.assertIn("missing_material_kg", self.domain)
+        self.assertIn("missing_energy_j", self.domain)
         for prohibited in (
             "consume_stored_material_kg(", "consume_stored_energy_j(",
             "set_subsystem_integrity(", "CommandMineBootstrapTarget(",
