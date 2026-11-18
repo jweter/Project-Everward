@@ -157,6 +157,18 @@ void test_fabrication_unavailable_fails_closed() {
     assert(g.missing_material_kg == 0.0);
 }
 
+void test_post_restoration_replacement_advisory_not_ready() {
+    const ComponentIntegritySnapshot restored{};
+    auto r = resources(100.0, 1e8);
+    r.fabrication_available = true;
+    const auto d = FixItPlanner::plan_next(restored, r);
+    assert(d.has_value());
+    assert(d->stage == FixItStage::Replacement);
+    assert(d->target_integrity == d->integrity_before);
+    const auto g = resolve_recovery_goal(restored, r, d);
+    assert(g.state == RecoveryGoalState::AdvisoryOnly);
+}
+
 void test_time_budget_blocks_if_explicitly_constrained() {
     const auto i = awakening();
     const auto d = FixItPlanner::plan_next(i, resources(10.0, 1e8));
@@ -229,6 +241,7 @@ int main() {
     test_no_goal_full_vs_damaged();
     test_recommendations_are_not_fake_executable_repairs();
     test_fabrication_unavailable_fails_closed();
+    test_post_restoration_replacement_advisory_not_ready();
     test_time_budget_blocks_if_explicitly_constrained();
     test_actual_executor_resources_and_transition_to_next_goal();
     test_bounded_planner_only_repair_sequence_not_level_solvability();
