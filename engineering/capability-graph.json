@@ -684,6 +684,43 @@
             {"call": "tally_playtest_classifications([\" pass \", \"Partial\"])", "expected": {"BLOCKER": 0, "FAIL": 0, "PARTIAL": 1, "PASS": 1, "UNCLASSIFIED": 0}, "why": "Surrounding whitespace and mixed case are normalized before matching the PASS and PARTIAL keys."}
           ],
           "verification": []
+        },
+        {
+          "id": "first-loop-playtest-monotonic-elapsed-seconds-check",
+          "state": "PLANNED",
+          "capability_level": 1,
+          "depends_on": [],
+          "objective": "Return the index of the first element less than the element immediately before it in a list of elapsed-second numbers, or None if every element is greater than or equal to the one before it. An empty list or a single-element list returns None. Equal consecutive values are not a violation; non-decreasing order is required, not strictly increasing. Comparison uses native numeric ordering. Supports verifying that a recorded first-loop playtest's event timeline never goes backward.",
+          "acceptance": [
+            "tools/playtest/monotonic_elapsed_seconds_check.py defines a single pure function find_first_nonmonotonic_elapsed_seconds(elapsed_seconds: list[float]) -> int | None with no file, path, stream, clock, random or network input; it only operates on the list passed to it.",
+            "The function returns the index of the first element strictly less than its immediate predecessor, treats equal consecutive values as non-violating, and returns None for an empty list, a single-element list, or a fully non-decreasing list.",
+            "tools/test_*.py adds deterministic unit tests covering the empty-list, single-element, equal-consecutive-values, and first-violation-index cases, all passing under the existing Python test runner.",
+            "Canonical preflight, required CI checks and review pass at the exact head."
+          ],
+          "allowed_paths": [
+            "tools/playtest/**",
+            "tools/test_*.py"
+          ],
+          "forbidden_paths": [
+            ".github/**",
+            "private/**",
+            ".env",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "runner_requirements": [
+            "code",
+            "local",
+            "offline"
+          ],
+          "runtime_requirements": [],
+          "acceptance_examples": [
+            {"call": "find_first_nonmonotonic_elapsed_seconds([])", "expected": null, "why": "An empty list has nothing to compare, so it returns None."},
+            {"call": "find_first_nonmonotonic_elapsed_seconds([5.0])", "expected": null, "why": "A single element has no preceding value to violate, so it returns None."},
+            {"call": "find_first_nonmonotonic_elapsed_seconds([0.0, 1.5, 1.5, 3.0])", "expected": null, "why": "Equal consecutive values are non-decreasing, not a violation, so nothing is flagged."},
+            {"call": "find_first_nonmonotonic_elapsed_seconds([0.0, 2.0, 1.0, 5.0])", "expected": 2, "why": "Index 2 holds 1.0, which is less than the preceding 2.0, making it the first violation."}
+          ],
+          "verification": []
         }
       ]
     }
