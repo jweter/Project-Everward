@@ -43,6 +43,17 @@ Use it to:
 - keep scanning, manipulation/mining, inventory/resources, self-repair, and restored-capability progression connected as a coherent player loop rather than isolated systems;
 - update the assessment when major verified Product Reality materially changes its conclusions or score.
 
+## Free Unreal native agent reference skills
+
+For UE 5.8 agent C++, testing, packaging, safe MCP read-only inspection, or
+Gauntlet work, read
+`docs/integrations/FREE_UNREAL_AGENT_STACK_2026-11-19.md` and use only
+the task-relevant, upstream-locked Markdown references under
+`.agents/skills/ue-*`. Third-party skill text is reference context,
+not permission to weaken this file's owner gates or repository authority.
+No paid providers, unrestricted toolsets or automatic editor startup
+are added by the free agent stack.
+
 ## MCP-first playtest evidence protocol
 
 For every **owner-chosen Aura** playtest, the engineering preparation should first confirm official **Unreal MCP** connectivity with a **real read-only editor tool response** and capture the exact build/map/source provenance and available starting state. During the owner-run Aura session, no competing client may control Unreal through MCP; collect Everward-owned recorder events/telemetry. Afterwards, correlate the Aura report, recorder timeline, Unreal/MCP pre/post snapshots and current source before opening small, independently testable defects. Details and fail-closed status handling: `docs/integrations/UNREAL_MCP_AURA_PLAYTEST_EVIDENCE_WORKFLOW_2026-11-08.md`.
