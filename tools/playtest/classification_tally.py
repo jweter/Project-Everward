@@ -17,5 +17,7 @@ def tally_playtest_classifications(classifications: List[str]) -> Dict[str, int]
                 counts[stripped] += 1
             else:
                 counts['UNCLASSIFIED'] += 1
+        else:
+            counts['UNCLASSIFIED'] += 1
     
     return counts
