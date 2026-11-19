@@ -116,6 +116,51 @@ class FreeAgentStackTests(unittest.TestCase):
                              pathlib.Path("/repo/unreal/Everward.uproject"),
                              pathlib.Path("/tmp/evidence"), test="Everward")
 
+    def test_windows_tree_termination_uses_only_spawned_pid(self):
+        if stack.os.name != "nt":
+            self.skipTest("Windows-only process-tree command")
+        class FakeProcess:
+            pid = 43210
+            def poll(self):
+                return None
+            def wait(self, timeout):
+                return 1
+        with patch.object(stack.subprocess, "run", return_value=type(
+            "Completed", (), {"returncode": 0})()) as runner:
+            stack.terminate_native_tree(FakeProcess())
+        self.assertEqual(runner.call_args.args[0],
+                         ["taskkill", "/PID", "43210", "/T", "/F"])
+
+    def test_timeout_spools_logs_and_calls_tree_terminator(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp) / "repo"
+            root.mkdir()
+            project = root / "unreal/Everward.uproject"
+            project.parent.mkdir()
+            project.write_text("{}", encoding="utf-8")
+            engine = pathlib.Path(tmp) / "UE"
+            paths = stack.unreal_paths(engine, project)
+            for key in ("editor", "ubt", "uat"):
+                paths[key].parent.mkdir(parents=True, exist_ok=True)
+                paths[key].write_text("stub", encoding="utf-8")
+            class FakeProcess:
+                pid = 43210
+                def poll(self):
+                    return None
+                def wait(self, timeout):
+                    raise stack.subprocess.TimeoutExpired("native", timeout)
+            with patch.object(stack, "require_isolated_checkout", return_value="a" * 40), \
+                 patch.object(stack, "resource_status", return_value={"admitted": True}), \
+                 patch.object(stack.subprocess, "Popen", return_value=FakeProcess()), \
+                 patch.object(stack, "terminate_native_tree") as killer, \
+                 patch.object(stack.tempfile, "gettempdir", return_value=tmp):
+                result = stack.run_native(
+                    "automation", root, engine, project, pathlib.Path(tmp) / "evidence",
+                    test="Everward", timeout_seconds=1)
+            killer.assert_called_once()
+            self.assertEqual(result["status"], "ENVIRONMENT_FAILURE")
+            self.assertFalse((pathlib.Path(tmp) / "everward-native-agent.lock").exists())
+
     def test_cli_is_inspect_only_by_default(self):
         self.assertEqual(stack.main(["--root", str(MODULE.parent.parent), "--mode", "inspect"]), 0)
 

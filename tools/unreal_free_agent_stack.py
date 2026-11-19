@@ -239,6 +239,34 @@ def mcp_discover(*, url: str = MCP_URL, timeout: float = 3.0,
         "editor_test_executed": False, "write_executed": False}
 
 
+def terminate_native_tree(process: Any) -> None:
+    """Terminate only this runner's spawned process tree; never enumerate owners.
+
+    Windows taskkill /T /F follows child processes, unlike Popen.kill().
+    Failure is surfaced as an environment failure, never a successful test.
+    """
+    if process.poll() is not None:
+        return
+    if os.name == "nt":
+        result = subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True, text=True, check=False, timeout=12,
+        )
+        if result.returncode not in (0, 128) and process.poll() is None:
+            raise RuntimeError("Could not terminate native process tree")
+        try:
+            process.wait(timeout=8)
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("Native process tree still running") from exc
+    else:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+
 def run_native(kind: str, root: pathlib.Path, engine: pathlib.Path,
                project: pathlib.Path, evidence_dir: pathlib.Path,
                *, test: str, timeout_seconds: int = 900) -> dict[str, Any]:
@@ -265,15 +293,35 @@ def run_native(kind: str, root: pathlib.Path, engine: pathlib.Path,
         os.close(lock_fd)
         lock_fd = -1
         started = datetime.now(timezone.utc).isoformat()
-        try:
-            proc = subprocess.run(command, cwd=root, capture_output=True,
-                                  text=True, timeout=timeout_seconds, shell=False)
-            exit_code = proc.returncode
-            log = ((proc.stdout or "") + "\n" + (proc.stderr or ""))[-16000:]
-        except subprocess.TimeoutExpired:
-            exit_code = None
-            log = "Native command timed out"
-        (evidence_dir / "native.log").write_text(log, encoding="utf-8")
+        log_path = evidence_dir / "native.log"
+        timed_out = False
+        unsafe_termination = False
+        # Redirect child output to a file, not a PIPE. Unreal/UBT descendants
+        # can otherwise hold pipe handles open after the parent times out.
+        with log_path.open("wb") as log_file:
+            proc = subprocess.Popen(
+                command, cwd=root, stdout=log_file, stderr=subprocess.STDOUT,
+                shell=False,
+                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                if os.name == "nt" else 0,
+            )
+            try:
+                exit_code = proc.wait(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                try:
+                    terminate_native_tree(proc)
+                except (OSError, RuntimeError, subprocess.TimeoutExpired):
+                    unsafe_termination = True
+                exit_code = None
+        with log_path.open("rb") as log_file:
+            log_file.seek(0, os.SEEK_END)
+            log_file.seek(max(0, log_file.tell() - 16000))
+            log = log_file.read().decode("utf-8", errors="replace")
+        if timed_out:
+            log += "\nNATIVE_TEST_TIMEOUT"
+        if unsafe_termination:
+            log += "\nPROCESS_TREE_TERMINATION_UNVERIFIED"
         # A zero process code alone does NOT prove that a gameplay test passed.
         report = list(evidence_dir.rglob("index.json")) + list(evidence_dir.rglob("Index.json"))
         result = {"status": "FAIL" if exit_code not in (0, None) else
@@ -289,7 +337,11 @@ def run_native(kind: str, root: pathlib.Path, engine: pathlib.Path,
     finally:
         if lock_fd >= 0:
             os.close(lock_fd)
-        lock_path.unlink(missing_ok=True)
+        # If tree termination was unverified, retain the lease to prevent a
+        # second worker from launching into an uncertain live process tree.
+        # Reconciliation must inspect the recorded PID before clearing it.
+        if not locals().get("unsafe_termination", False):
+            lock_path.unlink(missing_ok=True)
 
 
 def main(argv: list[str] | None = None) -> int:
