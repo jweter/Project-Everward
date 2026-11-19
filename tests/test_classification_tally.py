@@ -31,3 +31,9 @@ def test_tally_playtest_classifications_example_7() -> None:
 
 def test_tally_playtest_classifications_example_8() -> None:
     assert tally_playtest_classifications(['BLOCKER', 'FAIL', 'PARTIAL', 'PASS', 'UNCLASSIFIED']) == {'BLOCKER': 1, 'FAIL': 1, 'PARTIAL': 1, 'PASS': 1, 'UNCLASSIFIED': 1}
+
+
+def test_non_string_entries_are_counted_as_unclassified() -> None:
+    assert tally_playtest_classifications([None, 0, False, {}, [], 'PASS']) == {
+        'BLOCKER': 0, 'FAIL': 0, 'PARTIAL': 0, 'PASS': 1, 'UNCLASSIFIED': 5
+    }
