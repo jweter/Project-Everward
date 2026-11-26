@@ -145,4 +145,8 @@ if(BUILD_TESTING)
     add_executable(everward_audio_silence_policy_tests tests/audio_silence_policy_tests.cpp)
     target_link_libraries(everward_audio_silence_policy_tests PRIVATE everward_simulation)
     add_test(NAME everward_audio_silence_policy_tests COMMAND everward_audio_silence_policy_tests)
+
+    add_executable(everward_audio_asset_provenance_tests tests/audio_asset_provenance_tests.cpp)
+    target_link_libraries(everward_audio_asset_provenance_tests PRIVATE everward_simulation)
+    add_test(NAME everward_audio_asset_provenance_tests COMMAND everward_audio_asset_provenance_tests)
 endif()
