@@ -16,6 +16,7 @@ void EverwardSim::_bind_methods() {
     ClassDB::bind_method(D_METHOD("adjust_local_velocity", "x", "y", "z"), &EverwardSim::adjust_local_velocity);
     ClassDB::bind_method(D_METHOD("add_sphere_body", "id", "x", "y", "z", "radius"), &EverwardSim::add_sphere_body);
     ClassDB::bind_method(D_METHOD("clear_bodies"), &EverwardSim::clear_bodies);
+    ClassDB::bind_method(D_METHOD("move_sphere_body", "id", "x", "y", "z"), &EverwardSim::move_sphere_body);
     ClassDB::bind_method(D_METHOD("get_last_contact"), &EverwardSim::get_last_contact);
     ClassDB::bind_method(D_METHOD("drain_contact_events"), &EverwardSim::drain_contact_events);
     ClassDB::bind_method(D_METHOD("setup_bootstrap_deposit", "remaining_kg"), &EverwardSim::setup_bootstrap_deposit);
@@ -66,6 +67,9 @@ bool EverwardSim::add_sphere_body(const String& id, double x, double y, double z
     return core_.add_sphere_body(std::string(id.utf8().get_data()), x, y, z, radius);
 }
 void EverwardSim::clear_bodies() { core_.clear_bodies(); }
+bool EverwardSim::move_sphere_body(const String& id, double x, double y, double z) {
+    return core_.move_sphere_body(std::string(id.utf8().get_data()), x, y, z);
+}
 Dictionary EverwardSim::get_last_contact() const {
     const auto c = core_.last_contact();
     Dictionary d;

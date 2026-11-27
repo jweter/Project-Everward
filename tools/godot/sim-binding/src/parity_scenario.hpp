@@ -101,6 +101,20 @@ inline std::vector<std::string> run_native_parity() {
     const Vector3d fp = fly.position();
     line("flight body %d bad_body %d contacts %d has %d id %s normal_speed %.9f pos %.9f %.9f %.9f", body, bad_body,
          contacts, c.has_contact ? 1 : 0, c.body_id.c_str(), c.normal_speed, fp.x, fp.y, fp.z);
+
+    // 6 (G2): a body moved into the flight path is hit where it now is; moving an unknown body is rejected.
+    SimCore mv;
+    mv.add_sphere_body("rock-far", 100.0, 0.0, 0.0, 3.0);
+    const int moved = mv.move_sphere_body("rock-far", 30.0, 0.0, 0.0) ? 1 : 0;
+    const int moved_unknown = mv.move_sphere_body("nope", 1.0, 0.0, 0.0) ? 1 : 0;
+    mv.adjust_local_velocity(10.0, 0.0, 0.0);
+    int mv_contacts = 0;
+    for (int step = 0; step < 50; ++step) {
+        mv.advance_ticks(100000);
+        mv_contacts += mv.drain_contact_events();
+    }
+    const Vector3d mp = mv.position();
+    line("moved body %d unknown %d contacts %d pos %.9f", moved, moved_unknown, mv_contacts, mp.x);
     return out;
 }
 

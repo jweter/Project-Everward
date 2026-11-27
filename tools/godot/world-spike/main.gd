@@ -54,6 +54,14 @@ var sim_active := false
 var sim_origin := Vector3.ZERO
 var sim_contacts := 0
 var simflight := false
+var sim_manual := false          # --sim: fly it yourself on the simulation
+var selftest_sim := false        # --selftest-sim: drive the real controls with synthetic input, headless-safe
+var sim_contact_log: Array[String] = []
+# Terrain proxies: the simulation only knows spheres, so three large spheres follow the voxel ground around the
+# ship (straight down, along the flight direction, along the nose), each placed so its surface touches the ground
+# where that ray hits it. The simulation then decides terrain contact like any other contact.
+const TERRAIN_PROXY_RADIUS := 40.0
+const TERRAIN_PROXY_IDS := ["terrain-down", "terrain-velocity", "terrain-nose"]
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -61,6 +69,8 @@ func _ready() -> void:
 	explore = "--explore" in args
 	lookshots = "--lookshots" in args
 	simflight = "--simflight" in args
+	sim_manual = "--sim" in args
+	selftest_sim = "--selftest-sim" in args
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -116,6 +126,8 @@ func _ready() -> void:
 		_start_interactive.call_deferred()
 		if selftest_input:
 			_selftest_input.call_deferred()
+		if selftest_sim:
+			_selftest_sim.call_deferred()
 
 # ----------------------------------------------------------------------------------------- build
 func _build_environment() -> void:
@@ -350,6 +362,9 @@ func _sim_start(origin: Vector3) -> bool:
 	sim = ClassDB.instantiate("EverwardSim")
 	sim_origin = origin
 	sim_active = true
+	for id in TERRAIN_PROXY_IDS:
+		var parked := _godot_to_sim(origin + Vector3(0, -100000, 0))
+		sim.add_sphere_body(id, parked.x, parked.y, parked.z, TERRAIN_PROXY_RADIUS)
 	_sim_place_ship()
 	return true
 
@@ -382,14 +397,90 @@ func _sim_add_rock(id: String, godot_center: Vector3, radius: float) -> bool:
 	return true
 
 func _sim_step(delta: float) -> void:
+	_sim_terrain_proxies()
 	sim.advance_ticks(int(round(delta * 1000000.0)))
 	_sim_place_ship()
 	var n: int = sim.drain_contact_events()
 	if n > 0:
 		sim_contacts += n
 		var c: Dictionary = sim.get_last_contact()
+		sim_contact_log.append(String(c["body_id"]))
 		_dust(_sim_to_godot(c["point"]), 30)
 		shake = maxf(shake, 0.5)
+
+func _sim_velocity_godot() -> Vector3:
+	var v: PackedFloat64Array = sim.get_velocity()
+	return Vector3(v[1], v[2], -v[0])
+
+func _sim_terrain_proxies() -> void:
+	if not is_instance_valid(terrain):
+		return
+	var tool: VoxelTool = terrain.get_voxel_tool()
+	tool.set_raycast_normal_enabled(true)
+	var origin := ship.global_position
+	var vel := _sim_velocity_godot()
+	var dirs := [Vector3.DOWN, vel.normalized() if vel.length() > 0.5 else Vector3.DOWN, -ship.global_transform.basis.z]
+	for i in TERRAIN_PROXY_IDS.size():
+		var d: Vector3 = dirs[i]
+		var center := origin + Vector3(0, -100000, 0)   # parked far away when the ground is out of reach
+		var hit = tool.raycast(origin, d, 80.0)
+		if hit != null:
+			var n: Vector3 = hit.normal if hit.normal.length() > 0.5 else -d
+			center = Vector3(hit.position) - n.normalized() * TERRAIN_PROXY_RADIUS
+		var s := _godot_to_sim(center)
+		sim.move_sphere_body(TERRAIN_PROXY_IDS[i], s.x, s.y, s.z)
+
+func _sim_manual_flight(delta: float) -> void:
+	var boost := 2.5 if Input.is_key_pressed(KEY_SHIFT) else 1.0
+	var accel := 18.0 * boost * delta
+	var dv := Vector3.ZERO   # simulation frame: x forward, y right, z up
+	if Input.is_key_pressed(KEY_W): dv.x += accel
+	if Input.is_key_pressed(KEY_S): dv.x -= accel
+	if Input.is_key_pressed(KEY_D): dv.y += accel
+	if Input.is_key_pressed(KEY_A): dv.y -= accel
+	if Input.is_key_pressed(KEY_E): dv.z += accel
+	if Input.is_key_pressed(KEY_Q): dv.z -= accel
+	if dv != Vector3.ZERO:
+		sim.adjust_local_velocity(dv.x, dv.y, dv.z)
+	if Input.is_key_pressed(KEY_SPACE):
+		sim.set_velocity(0.0, 0.0, 0.0)
+	speed = _sim_velocity_godot().length()
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_key_pressed(KEY_F):
+		_drill_step()
+
+func _selftest_sim() -> void:
+	# Drives the real controls with synthetic input: holding W must speed the ship along its nose through the
+	# simulation, and a 100 px mouse move right must turn it 12 degrees right.
+	await _wait_stream()
+	if not _sim_start(ship.global_position):
+		print("SELFTEST_SIM FAIL extension not loaded")
+		_quit_clean(5)
+		return
+	var nose0 := -ship.global_transform.basis.z
+	var p0 := ship.global_position
+	var att0: PackedFloat64Array = sim.get_attitude()
+	var w := InputEventKey.new()
+	w.keycode = KEY_W
+	w.physical_keycode = KEY_W
+	w.pressed = true
+	Input.parse_input_event(w)
+	await _sim_run(1.0)
+	var up := InputEventKey.new()
+	up.keycode = KEY_W
+	up.physical_keycode = KEY_W
+	up.pressed = false
+	Input.parse_input_event(up)
+	await _sim_run(0.2)
+	var v: PackedFloat64Array = sim.get_velocity()
+	var moved := ship.global_position - p0
+	var forward_ok: bool = v[0] > 5.0 and absf(v[1]) < 1e-6 and moved.length() > 1.0 and moved.normalized().dot(nose0) > 0.99
+	var mm := InputEventMouseMotion.new()
+	mm.relative = Vector2(100, 0)
+	_input(mm)
+	var att1: PackedFloat64Array = sim.get_attitude()
+	var yaw_ok := absf((att1[0] - att0[0]) - 12.0) < 1e-6
+	print("SELFTEST_SIM forward_speed %.3f moved %.2f along_nose %.4f yaw_delta %.3f -> %s" % [v[0], moved.length(), moved.normalized().dot(nose0), att1[0] - att0[0], "PASS" if forward_ok and yaw_ok else "FAIL"])
+	_quit_clean(0 if forward_ok and yaw_ok else 7)
 
 func _sim_run(seconds: float) -> void:
 	var t := 0.0
@@ -451,7 +542,30 @@ func _run_simflight() -> void:
 	metrics.append("after +90 deg roll: thrust right moves along displayed right, dot %.4f" % right_dot)
 	sim.set_velocity(0.0, 0.0, 0.0)
 	sim.adjust_attitude(0.0, 0.0, -90.0)
-	var passed: bool = ok and sim_contacts == 1 and c["body_id"] == "boulder-1" and pos_err < 0.001 and heading_dot > 0.99 and right_dot > 0.99
+	var boulder_contacts := sim_contact_log.count("boulder-1")
+	# terrain dive: nose down and thrust; the simulation must report terrain contact and keep the ship out of the ground
+	sim.set_velocity(0.0, 0.0, 0.0)
+	sim.adjust_attitude(0.0, -50.0, 0.0)
+	sim.adjust_local_velocity(16.0, 0.0, 0.0)
+	var terrain_hit := false
+	var dive := 0.0
+	while not terrain_hit and dive < 20.0:
+		await _sim_run(0.25)
+		dive += 0.25
+		for id in sim_contact_log:
+			terrain_hit = terrain_hit or id.begins_with("terrain-")
+	await _sim_run(1.0)
+	await _shot("sim_05_terrain_contact")
+	# The clearance ray starts well above the ship so it still finds the ground if the ship has sunk into it.
+	# A miss means there is no clearance evidence, which fails the check rather than passing it.
+	var probe_from := ship.global_position + Vector3(0, 400, 0)
+	if selftest_fail == "clearance":
+		probe_from += Vector3(1000000, 0, 0)   # negative control: a ray over unstreamed space must miss and fail
+	var ground = terrain.get_voxel_tool().raycast(probe_from, Vector3.DOWN, 1200.0)
+	var clearance_known: bool = ground != null
+	var clearance: float = ship.global_position.y - float(ground.position.y) if clearance_known else NAN
+	metrics.append("terrain dive: contact %s after %.2f s; ship clearance above ground %s; boulder contacts %d" % [terrain_hit, dive, ("%.2f m" % clearance) if clearance_known else "UNKNOWN (ground ray missed)", boulder_contacts])
+	var passed: bool = ok and boulder_contacts == 1 and c["body_id"] == "boulder-1" and pos_err < 0.001 and heading_dot > 0.99 and right_dot > 0.99 and terrain_hit and clearance_known and clearance > -1.0
 	metrics.append("SIMFLIGHT %s" % ("PASS" if passed else "FAIL"))
 	_flush_metrics()
 	print("SIMFLIGHT ", "PASS" if passed else "FAIL")
@@ -518,6 +632,11 @@ func _push_trail_uniform() -> void:
 		cloud_mat.set_shader_parameter("trail_bound", Vector4(0, -99999.0, 0, 0))
 
 func _manual_flight(delta: float) -> void:
+	if not is_instance_valid(terrain):
+		return   # shutting down
+	if sim_active:
+		_sim_manual_flight(delta)
+		return
 	var thrust := 0.0
 	if Input.is_key_pressed(KEY_W): thrust += 1.0
 	if Input.is_key_pressed(KEY_S): thrust -= 0.6
@@ -541,6 +660,10 @@ func _manual_flight(delta: float) -> void:
 
 func _input(event: InputEvent) -> void:
 	if _scripted():
+		return
+	if sim_active and event is InputEventMouseMotion and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or selftest_sim):
+		# mouse right turns right (+yaw in the simulation frame), mouse up raises the nose
+		sim.adjust_attitude(event.relative.x * 0.12, -event.relative.y * 0.12, 0.0)
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		yaw -= event.relative.x * 0.0025
@@ -743,7 +866,8 @@ func _fail(reason: String, code: int) -> void:
 	_quit_clean(code)
 
 func _quit_clean(code: int) -> void:
-	# stop the voxel workers before quitting so the exit code is ours, not a shutdown crash
+	# stop the simulation and the voxel workers before quitting so the exit code is ours, not a shutdown crash
+	sim_active = false
 	terrain.queue_free()
 	for i in 20:
 		await get_tree().process_frame
@@ -785,6 +909,10 @@ func _selftest_input() -> void:
 	# Drives the real _input handler with synthetic events: Escape must release AND restore mouse capture,
 	# and a click while released must recapture it.
 	await get_tree().create_timer(1.0).timeout
+	if DisplayServer.get_name() == "headless":
+		print("SELFTEST_INPUT SKIP (headless has no mouse capture; run it in a window)")
+		get_tree().quit(0)
+		return
 	var ok := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var esc := InputEventKey.new()
 	esc.keycode = KEY_ESCAPE
@@ -805,6 +933,13 @@ func _selftest_input() -> void:
 func _start_interactive() -> void:
 	await _wait_stream()
 	_place_trees(700, 420.0, Vector3.ZERO)
+	if sim_manual and not selftest_sim:
+		if _sim_start(ship.global_position):
+			var fwd := -ship.global_transform.basis.z
+			_sim_add_rock("rock-a", ship.global_position + fwd * 90.0 + Vector3(-12, -4, 0), 7.0)
+			_sim_add_rock("rock-b", ship.global_position + fwd * 160.0 + Vector3(20, 6, 0), 10.0)
+		else:
+			push_warning("--sim given but the EverwardSim extension is not loaded; using engine flight")
 
 func _wait_stream() -> void:
 	# poll a coarse grid until the number of loaded ground hits stops growing

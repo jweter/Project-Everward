@@ -83,4 +83,16 @@ func _init() -> void:
 	var c: Dictionary = fly.get_last_contact()
 	var fp: PackedFloat64Array = fly.get_position()
 	print("flight body %d bad_body %d contacts %d has %d id %s normal_speed %.9f pos %.9f %.9f %.9f" % [body, bad_body, contacts, 1 if c["has_contact"] else 0, c["body_id"], c["normal_speed"], fp[0], fp[1], fp[2]])
+
+	var mv = ClassDB.instantiate("EverwardSim")
+	mv.add_sphere_body("rock-far", 100.0, 0.0, 0.0, 3.0)
+	var moved := 1 if mv.move_sphere_body("rock-far", 30.0, 0.0, 0.0) else 0
+	var moved_unknown := 1 if mv.move_sphere_body("nope", 1.0, 0.0, 0.0) else 0
+	mv.adjust_local_velocity(10.0, 0.0, 0.0)
+	var mv_contacts := 0
+	for step in 50:
+		mv.advance_ticks(100000)
+		mv_contacts += mv.drain_contact_events()
+	var mp: PackedFloat64Array = mv.get_position()
+	print("moved body %d unknown %d contacts %d pos %.9f" % [moved, moved_unknown, mv_contacts, mp[0]])
 	quit(0)
