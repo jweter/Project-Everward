@@ -1,6 +1,6 @@
 # Everward — Cross-Disciplinary Production Quality Gates
 
-**Status:** Owner-authorized production standard proposal (2026-11-05). Effective for review when this PR is merged; not proof that any gameplay milestone passed.
+**Status:** Owner-authorized cross-disciplinary production-quality standard, initiated November 2026 and currently applied to the Godot path. This document defines acceptance evidence; it does not assert that any milestone already passed.
 **Authority:** Additive to ROADMAP.md, PHASE2_VERTICAL_SLICE_PLAN.md, CONTINUOUS_VISUAL_QUALITY.md, UNATTENDED_VERIFICATION.md, DESIGN_PILLARS.md, and AGENTS.md.
 
 **Current production-engine rule (2026-11-27):** Godot is the active engine (ADR-0014); the Unreal-era status labels below are preserved as historical evidence, not current production gates. Apply `GODOT_VERIFIED` when the exact-source Godot headless test is evidenced and keep actual Godot visual/player acceptance separate. Preserve every R0–R6 player-experience standard. Earlier incomplete player outcomes and existing owner-control rules still govern priority.
