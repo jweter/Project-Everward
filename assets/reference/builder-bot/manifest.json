@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "asset_family": "Everward builder bot (exploratory)",
+  "records": [
+    {
+      "path": "01_builder_bot_9000_concept.png",
+      "sha256": "b442c70c4390bb7bbc4bd6ad6d6b52134b95700f5e5948bd1dfcf4f84ce492ac",
+      "bytes": 2325841,
+      "width": 1402,
+      "height": 1122,
+      "classification": "exploratory"
+    }
+  ]
+}
