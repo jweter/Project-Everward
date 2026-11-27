@@ -4,11 +4,13 @@ This document is the detailed execution plan beneath `ROADMAP.md` for turning Ev
 
 The master roadmap remains authoritative for phase boundaries. This plan refines the work inside late Phase 2, Phase 3, and the beginning of Phase 4.
 
+**Godot engine override (owner-approved November 27, 2026):** The detailed legacy Unreal adapter/map/test steps below are historical task decompositions, not current engine authority. For new Phase 2 execution use `GODOT_PATH_PLAN.md` stages G0–G5 and the current `PROJECT_STATUS.md`. Preserve player outcomes, simulated physical truth, Prime A identity and evidence gates while translating engine-specific work to `tools/godot/` and exact-commit native/headless Godot verification. Do not reopen Unreal feature work, require a legacy UE5 runtime test for a Godot-only slice or mark old engine tests `GODOT_VERIFIED`.
+
 ## Continuous visual and gameplay-quality companion track
 
 Follow `CONTINUOUS_VISUAL_QUALITY.md` throughout the slices below. **Visual Milestone 01 — A Beautiful, Believable Awakening** is a cross-slice integrated presentation checkpoint, not an additional unrelated feature phase and not a pretext to advance past incomplete mechanics.
 
-As the actual opening gameplay becomes available, make each slice look and feel credible using progressively better Prime A embodiment, lighting/materials, articulated action, scanner/mining cues, damaged-system feedback, `Fix_It` repair response, HUD clarity, and sound. Record screenshots and short clips from a pinned Unreal scenario, maintain graphical-tier parity, automate objective checks, and reserve owner review for subjective milestone art/feel acceptance.
+As the actual opening gameplay becomes available, make each slice look and feel credible using progressively better Prime A embodiment, lighting/materials, articulated action, scanner/mining cues, damaged-system feedback, `Fix_It` repair response, HUD clarity, and sound. Record screenshots and short clips from a pinned Godot scenario, maintain graphical-tier parity, automate objective checks, and reserve owner review for subjective milestone art/feel acceptance.
 
 An asset/model/mockup alone is not a passing game. An engine-independent green test alone is not a passing visual milestone. Existing Product Reality, earliest-incomplete-slice, and parallel-safe-lane rules remain authoritative.
 
@@ -18,24 +20,24 @@ Prefer one small vertical slice at a time:
 
 1. inspect current `main`, open PRs, CI, and latest Product Reality evidence;
 2. choose the smallest missing capability that materially improves what the player can see, understand, or do;
-3. implement authoritative mechanics first and presentation through the existing Unreal adapter boundary;
+3. implement authoritative mechanics first and presentation through the Godot GDExtension boundary;
 4. add deterministic/source-contract regression coverage;
 5. require green CI;
-6. run the exact passed build locally in Unreal;
+6. run exact-head native/automated headless Godot checks and relevant Godot in-engine acceptance scenario;
 7. record Product Reality findings;
 8. merge only when the slice works in the packaged/local test, **unless it qualifies for the parallel-safe lane below**;
 9. choose the next slice from this plan.
 
 ### Parallel-safe lane while Product Reality is pending
 
-A pending local Unreal/Product Reality check is a **completion and release gate**, not automatically a repository-wide development stop. Independent, reversible work may continue and may merge before the pending local check when all of the following are true:
+A pending local Godot/Product Reality check is a **completion and release gate**, not automatically a repository-wide development stop. Independent, reversible work may continue and may merge before the pending local check when all of the following are true:
 
 - the new work does not assume that the unverified behavior is correct;
 - it does not change, hide, compensate for, or weaken the behavior currently awaiting Product Reality;
 - it reads/writes authoritative state only through existing simulation/adapter boundaries;
 - deterministic or source-contract CI protects the new behavior as far as portable CI can reasonably verify it;
 - the PR and project status explicitly say **implemented, Product Reality pending** rather than claiming the slice or phase complete;
-- the new behavior is added to the next local Unreal test script so its visible/player-facing result is still checked;
+- the new behavior is added to the next Godot acceptance test script so its visible/player-facing result is still checked;
 - any Product Reality failure in the earlier slice still outranks later roadmap work and is repaired before phase/release advancement.
 
 Examples of parallel-safe work include a HUD view over already-authoritative telemetry, deterministic data-model work that does not depend on the pending visual result, or reversible presentation around a stable adapter contract. Examples that do **not** qualify include tuning controls whose feel is still unverified, building mechanics on an unverified collision/physics result, or marking a phase/release gate complete without local evidence.
