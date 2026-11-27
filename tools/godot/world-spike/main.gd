@@ -556,10 +556,16 @@ func _run_simflight() -> void:
 			terrain_hit = terrain_hit or id.begins_with("terrain-")
 	await _sim_run(1.0)
 	await _shot("sim_05_terrain_contact")
-	var ground = terrain.get_voxel_tool().raycast(ship.global_position + Vector3(0, 120, 0), Vector3.DOWN, 400.0)
-	var clearance: float = 9999.0 if ground == null else ship.global_position.y - float(ground.position.y)
-	metrics.append("terrain dive: contact %s after %.2f s; ship clearance above ground %.2f m; boulder contacts %d" % [terrain_hit, dive, clearance, boulder_contacts])
-	var passed: bool = ok and boulder_contacts == 1 and c["body_id"] == "boulder-1" and pos_err < 0.001 and heading_dot > 0.99 and right_dot > 0.99 and terrain_hit and clearance > -1.0
+	# The clearance ray starts well above the ship so it still finds the ground if the ship has sunk into it.
+	# A miss means there is no clearance evidence, which fails the check rather than passing it.
+	var probe_from := ship.global_position + Vector3(0, 400, 0)
+	if selftest_fail == "clearance":
+		probe_from += Vector3(1000000, 0, 0)   # negative control: a ray over unstreamed space must miss and fail
+	var ground = terrain.get_voxel_tool().raycast(probe_from, Vector3.DOWN, 1200.0)
+	var clearance_known: bool = ground != null
+	var clearance: float = ship.global_position.y - float(ground.position.y) if clearance_known else NAN
+	metrics.append("terrain dive: contact %s after %.2f s; ship clearance above ground %s; boulder contacts %d" % [terrain_hit, dive, ("%.2f m" % clearance) if clearance_known else "UNKNOWN (ground ray missed)", boulder_contacts])
+	var passed: bool = ok and boulder_contacts == 1 and c["body_id"] == "boulder-1" and pos_err < 0.001 and heading_dot > 0.99 and right_dot > 0.99 and terrain_hit and clearance_known and clearance > -1.0
 	metrics.append("SIMFLIGHT %s" % ("PASS" if passed else "FAIL"))
 	_flush_metrics()
 	print("SIMFLIGHT ", "PASS" if passed else "FAIL")
