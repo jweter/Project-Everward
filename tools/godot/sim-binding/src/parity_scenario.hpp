@@ -279,6 +279,21 @@ inline std::vector<std::string> run_native_parity() {
     // 10 (G3, #378 G11): the HUD selection rule stays in range whatever the presses, and is 0 for an empty list.
     line("g11 sel %d %d %d %d %d %d", bounded_selection(5, 1, 6), bounded_selection(0, -1, 6), bounded_selection(3, 10, 6),
          bounded_selection(2, -1, 6), bounded_selection(4, 1, 0), bounded_selection(0, -3, 0));
+
+    // 11 (G3, #378 G10): the straight-line approach sweep names the first body in the way, ignores bodies beside the
+    // line, sees the hull's wing samples (not just its centre), and tracks a moved body.
+    SimCore ap;
+    ap.add_deposit("ore-a", 40.0, 0.0, 0.0, 3.0, "iron_regolith", "", 50.0, 5.0);
+    ap.add_sphere_body("boulder-a", 16.0, 0.0, 0.0, 2.5);
+    ap.add_sphere_body("beside-a", 16.0, 9.0, 0.0, 2.5);
+    const std::string g10_blocked = ap.approach_blocker(30.0, 0.0, 0.0);
+    const std::string g10_clear = ap.approach_blocker(0.0, -20.0, 0.0);
+    ap.move_sphere_body("boulder-a", 16.0, 0.0, 30.0);
+    const std::string g10_moved = ap.approach_blocker(30.0, 0.0, 0.0);
+    const std::string g10_wing = ap.approach_blocker(32.0, 5.5, 0.0);  // centre passes 6.2 m off beside-a; starboard wing hits
+    const auto g10_c = ap.body_center("boulder-a");
+    line("g10 blocked %s clear [%s] wing %s moved [%s] center %.3f %.3f %.3f unknown %d", g10_blocked.c_str(), g10_clear.c_str(),
+         g10_wing.c_str(), g10_moved.c_str(), g10_c->x, g10_c->y, g10_c->z, ap.body_center("nope") ? 1 : 0);
     return out;
 }
 

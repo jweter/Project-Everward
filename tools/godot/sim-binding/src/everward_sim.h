@@ -71,6 +71,8 @@ public:
     double get_stored_energy_j() const;
     PackedStringArray drain_fix_it_events();
     String get_last_scan_refusal() const;
+    String get_approach_blocker(double x, double y, double z) const;
+    PackedFloat64Array get_body_center(const String& id) const;
     bool allocate_power(int64_t subsystem, double watts);
     PackedFloat64Array get_power_allocations() const;
     bool install_basic_survival_policy();
