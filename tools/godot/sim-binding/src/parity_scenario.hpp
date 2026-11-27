@@ -252,6 +252,29 @@ inline std::vector<std::string> run_native_parity() {
     if (!load_reset_ok) throw std::runtime_error("Fix_It executor survived load_json");
     line("fixit load reset %d computation %.9f state %s", load_reset_ok ? 1 : 0, loaded_computation,
          after_fix_load.state.c_str());
+
+    // 9 (G3, #378 G09): installing the survival policy at 50% stored energy sheds sensor power; scans are refused with
+    // the guidance; raising sensors alone does not hold while the policy is installed; clear, raise, scan works.
+    SimCore pw;
+    pw.add_deposit("ore-p", 30.0, 0.0, 0.0, 2.0, "iron_regolith", "", 50.0, 5.0);
+    const int pol = pw.install_basic_survival_policy() ? 1 : 0;
+    pw.advance_ticks(100000);
+    const auto p1 = pw.power_allocations();
+    const int scan1 = pw.start_scan("ore-p", 10.0) ? 1 : 0;
+    line("g09 policy %d sensors %.3f scan %d guidance %s", pol, p1[0], scan1, pw.scan_power_guidance().compact_message.c_str());
+    pw.allocate_power(0, 50.0);
+    pw.advance_ticks(100000);
+    const int scan2 = pw.start_scan("ore-p", 10.0) ? 1 : 0;
+    line("g09 raised-with-policy sensors %.3f scan %d", pw.power_allocations()[0], scan2);
+    const int cleared = pw.clear_policy() ? 1 : 0;
+    const int cleared_again = pw.clear_policy() ? 1 : 0;
+    pw.allocate_power(0, 50.0);
+    pw.advance_ticks(100000);
+    const int scan3 = pw.start_scan("ore-p", 10.0) ? 1 : 0;
+    for (int step = 0; step < 105; ++step) pw.advance_ticks(100000);
+    line("g09 cleared %d again %d sensors %.3f scan %d surveyed %d guidance %s", cleared, cleared_again,
+         pw.power_allocations()[0], scan3, pw.is_surveyed("ore-p") ? 1 : 0,
+         pw.scan_power_guidance().state == SensorPowerState::Ready ? "ready" : "below");
     return out;
 }
 
