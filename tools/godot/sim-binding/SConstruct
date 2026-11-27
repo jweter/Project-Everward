@@ -1,0 +1,24 @@
+#!/usr/bin/env python
+# Builds the Everward simulation GDExtension (Godot path G1).
+#   scons godot_cpp=PATH sim_include=PATH platform=windows target=template_debug disable_exceptions=no
+# godot_cpp: a godot-cpp checkout on the 4.5 branch (forward-compatible with Godot 4.7).
+# sim_include: the repo's src/simulation/include.
+import os
+
+godot_cpp = ARGUMENTS.get("godot_cpp", "godot-cpp")
+sim_include = ARGUMENTS.get("sim_include", "../../../src/simulation/include")
+
+env = SConscript(os.path.join(godot_cpp, "SConstruct"))
+env.Append(CPPPATH=["src/", sim_include])
+if env.get("is_msvc", False) and not env.get("MSVS_VERSION"):
+    env["MSVS_VERSION"] = "14.5"  # set by detection normally; needed by the linker emitter with a vcvars shell
+if env.get("is_msvc", False):
+    env.Append(CXXFLAGS=["/std:c++20", "/EHsc"])
+else:
+    env.Append(CXXFLAGS=["-std=c++20"])
+
+sources = ["src/everward_sim.cpp", "src/register_types.cpp"]
+library = env.SharedLibrary(
+    "project/bin/everward_sim{}{}".format(env["suffix"], env["SHLIBSUFFIX"]), source=sources
+)
+Default(library)

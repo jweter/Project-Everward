@@ -1,0 +1,10 @@
+.godot/
+bin/
+*.obj
+*.o
+*.exp
+*.lib
+*.pdb
+*.dll
+*.exe
+.sconsign.dblite
