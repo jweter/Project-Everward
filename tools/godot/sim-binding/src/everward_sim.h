@@ -29,6 +29,9 @@ public:
     double get_inventory_kg(const String& material) const;
     double get_extracted_kg() const;
     double get_deposit_remaining_kg() const;
+    double get_storage_used_kg() const;
+    double get_storage_capacity_kg() const;
+    bool has_deposit() const;
     String save_json() const;
     bool load_json(const String& json);
 

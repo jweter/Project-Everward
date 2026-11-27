@@ -28,4 +28,35 @@ func _init() -> void:
 	print("final inventory %.9f extracted %.9f remaining %.9f" % [sim.get_inventory_kg("iron_regolith"), sim.get_extracted_kg(), sim.get_deposit_remaining_kg()])
 	print("bad load %d" % (1 if sim.load_json("{not json") else 0))
 	print("after bad load inventory %.9f" % sim.get_inventory_kg("iron_regolith"))
+
+	# Review regressions (#437), same steps as parity_scenario.hpp
+	var cap = ClassDB.instantiate("EverwardSim")
+	cap.setup_bootstrap_deposit(600.0)
+	var accepted := 0
+	for i in 200:
+		if not cap.mine_once()["accepted"]:
+			break
+		accepted += 1
+	print("capacity accepted %d storage %.9f of %.9f remaining %.9f" % [accepted, cap.get_storage_used_kg(), cap.get_storage_capacity_kg(), cap.get_deposit_remaining_kg()])
+	var pre = ClassDB.instantiate("EverwardSim")
+	var before_deposit: String = pre.save_json()
+	pre.setup_bootstrap_deposit(250.0)
+	pre.mine_once()
+	var pl := 1 if pre.load_json(before_deposit) else 0
+	var hd := 1 if pre.has_deposit() else 0
+	var inv: float = pre.get_inventory_kg("iron_regolith")
+	var rem: float = pre.get_deposit_remaining_kg()
+	var ext: float = pre.get_extracted_kg()
+	var after := 1 if pre.mine_once()["accepted"] else 0
+	print("predeposit load %d has_deposit %d inventory %.9f remaining %.9f extracted %.9f mine_after %d" % [pl, hd, inv, rem, ext, after])
+	var bad: String = sim.save_json()
+	var key := "\"mass_kg\": "
+	var at := bad.find(key)
+	if at != -1:
+		var start := at + key.length()
+		var stop := start
+		while stop < bad.length() and not (bad[stop] in [",", "\n", "}"]):
+			stop += 1
+		bad = bad.substr(0, start) + "-1" + bad.substr(stop)
+	print("invalid mass load %d inventory %.9f" % [1 if sim.load_json(bad) else 0, sim.get_inventory_kg("iron_regolith")])
 	quit(0)

@@ -2,19 +2,19 @@
 
 A GDExtension that runs the real Everward simulation (`src/simulation`) inside Godot, plus a parity check proving that Godot gets exactly the same numbers as a native C++ run.
 
-- `src/everward_sim_core.hpp`: a small engine-independent core that owns the real simulation objects (canonical probe runtime, manipulator rig, mining system, save/load).
+- `src/everward_sim_core.hpp`: a small engine-independent core that owns the real simulation objects (canonical probe runtime, manipulator rig, mining, save/load). Like the game's mining bridge, it builds a fresh `MiningSystem` for each attempt, so the runtime's storage is the only cargo account. Loads are validated and built in temporaries before anything is replaced.
 - `src/everward_sim.*`, `src/register_types.cpp`: the Godot wrapper (`EverwardSim`, a `RefCounted`). It only converts types. Positions are returned as `PackedFloat64Array`, because Godot's `Vector3` is single precision.
 - `src/parity_scenario.hpp` and `src/native_parity_main.cpp`: the native reference run.
 - `project/tests/parity.gd`: the same steps from GDScript through the extension.
 - `check_parity.py`: runs both and fails on any difference.
 
-The scenario sets a velocity and advances 0.6 s, mines six cycles from a 250 kg deposit, saves, mines four more, loads the save, mines two more, then feeds in a corrupt save, which must be rejected with nothing changed.
+The scenario sets a velocity and advances 0.6 s, mines six cycles from a 250 kg deposit, saves, mines four more, loads the save, mines two more, then feeds in a corrupt save, which must be rejected with nothing changed. Three review regressions follow: a 600 kg deposit must fill the 500 kg hold (storage counted once, as the game's mining bridge does); loading a save taken before the deposit existed must clear the deposit; and a well-formed save with an invalid value (`mass_kg` of -1) must be rejected, never thrown into Godot.
 
 ## Status vocabulary
 
 `GODOT_VERIFIED` (approved by the owner on 2026-11-27) means: verified by an automated headless Godot run on the exact source commit, with the evidence recorded. It sits alongside `UNREAL_VERIFIED`; it does not replace or imply it, and neither implies a human playtest.
 
-**G1 is GODOT_VERIFIED for this scenario only:** 14 of 14 lines are identical between native and Godot 4.7.2 (headless, official build). The checker also fails correctly when the native side prints something else (negative control).
+**G1 is GODOT_VERIFIED for this scenario only:** 17 of 17 lines are identical between native and Godot 4.7.2 (headless, official build). The checker also fails correctly when the native side prints something else (negative control).
 
 ## Build (Windows)
 
