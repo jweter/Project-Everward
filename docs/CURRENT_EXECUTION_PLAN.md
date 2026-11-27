@@ -1,91 +1,49 @@
 # Everward Current Execution Plan
 
-This file is the durable pointer used by human and automated development to select the next player-visible Everward work.
+**Active source-of-truth navigation (2026-11-27).** This document is the concise task-selection pointer for Claude, ChatGPT, Codex, Iron God and human contributors. Current GitHub code/PR/CI state must still be checked at every run; this plan is not a stale snapshot masquerading as proof.
 
-## Professional production integration: P0/P1 order (2026-11-05)
+## Authorized engine and stage
 
-The owner-authorized [P0/P1 Production Backlog](PRODUCTION_PRIORITY_BACKLOG_2026-11-05.md) is the **cross-disciplinary quality and execution overlay** from the professional game development/gap reports. Use [Production Quality Gates](PRODUCTION_QUALITY_GATES.md) for status/evidence and [Generative Audio Production Plan](GENERATIVE_AUDIO_PRODUCTION_PLAN.md) for A0–A5. These do not replace the phase plan, create permission to merge, or authorize claims of verified gameplay.
+- **Production development engine:** Godot, approved by the owner November 27, 2026 (ADR-0014 in `DECISION_LOG.md`). No new Unreal feature work by default. Preserve historical `unreal/` material until G5 retirement with explicit evidence and review.
+- **Phase:** Phase 2 — One Probe; the Godot G0–G5 migration is the active implementation ladder in `GODOT_PATH_PLAN.md`.
+- **Simulation ownership:** the deterministic `src/simulation/` C++20 simulation is authoritative for positions, contact, resource/inventory accounting, damage, energy, repairs and persistence. Godot only submits validated commands and renders snapshots/events via `tools/godot/sim-binding/` GDExtension.
+- **Gameplay and visual identity:** the player is the canonical Prime Gen-1 probe; keep embodied 3D scientific realism and full-game mechanic parity across graphics tiers. See `VISUAL_DIRECTION.md` and `CONTINUOUS_VISUAL_QUALITY.md`.
+- **Verification:** distinguish IMPLEMENTED, native simulation tested, exact-SHA `GODOT_VERIFIED`, integrated Godot visual/runtime tested, and PRODUCT_ACCEPTED. No automatic paid Aura/Claude, no owner-control or worker-lease bypass.
 
-**First:** inspect latest main/current PRs/CI and the actual unattended Unreal/Product Reality debt under #159/#168. PR #351 has since implemented a source-level starter-restoration objective; confirm it in Unreal instead of duplicating code. The earliest broken scan→mine→store→Fix_It→restored capability loop always outranks deferred features.
+## First next action every development session
 
-**Parallel-safe P0:** #355 essential audio event/silence contract, #360 genuine tool/repair cues, #356 one physical material-processing/fabrication chain, where dependencies allow. Existing #345 arm art and #165 contextual HUD remain central, not finished by a static model.
+1. Inspect existing relevant PRs, review threads and exact-head CI. Fix failures and merge only if **all** required independent gates are green and no review threads are unresolved.
+2. Read `PROJECT_STATUS.md`'s **current Godot** section, `GODOT_PATH_PLAN.md` and live #378 equivalents before deciding what is missing. Old August–November Unreal descriptions are historical evidence, not current action items.
+3. Select the **smallest dependency-ready gap in the first complete player outcome**, not another independent tech demo. Develop in a reviewable branch and PR; update affected documents along with behavior.
+4. Run C++ tests, headless Godot parity/first-loop tests and negative controls; capture actual in-engine visuals and frame-time measures when available. Do not report unobserved quality or behavior as verified.
+5. Keep owner intervention limited to actual subjective game feel, art direction and irreversible/paid/release decisions. Preserve laptop resource and foreground-use constraints; use permitted isolated worker builds.
 
-**P1:** #357 novice first-hour experience, #358 measured frame/audio budget, #359 offline adaptive/sonification pilot, and existing #160 build/packaging work. Do not presume the P1 audio composer exists merely because the planning PR merges. Recheck issue state when selecting a packet.
+## Current G0–G5 milestone position
 
+| Stage | Current source/evidence | Next acceptance |
+|---|---|---|
+| **G0** | World feasibility #433, palette looks #436 and tree upgrades #439 | Preserve reproducible low-spec captures, benchmarks and limits |
+| **G1** | Simulation GDExtension/native parity #437 | Continue parity coverage and versioned save/refusal cases |
+| **G2** | Sim-driven movement/contact #440/#442 | Replace or characterize approximate terrain proxy contact; do not claim exact voxel physics |
+| **G3** | Scan, survey, staging/arms/mining #443; resource-funded Fix_It #444 | Finish remaining #378 G01–G13 equivalents and **one complete, readable, repeatable damaged-awakening → mine → repair → restored-capability objective**, including correct persistence |
+| **G4** | Four look palettes, improved trees, playable world prototype; artistic acceptance remains open | Integrate canonical Prime A, clear HUD/feedback, appropriate audio and reliable performance on laptop; record actual captures and frame-time spikes; request bounded owner artistic review |
+| **G5** | Frozen historic Unreal project | After G3/G4 and other required parity gates, review/approve a separate archival PR; do not delete prematurely |
 
-## Authoritative detailed plan
+The long-range first-playable proof remains **one probe → one star system → industrial bootstrap → one successor → first interstellar departure**. Do not leap past the immediate recovery/mining loop merely because later features are easier.
 
-Use [`PHASE2_VERTICAL_SLICE_PLAN.md`](PHASE2_VERTICAL_SLICE_PLAN.md) as the detailed execution sequence for late Phase 2, Phase 3, and the beginning of Phase 4.
+## Parallel-compatible work
 
-The master phase boundaries remain defined by [`ROADMAP.md`](ROADMAP.md).
+The P0/P1/R0–R6 professional quality backlog, audio, accessibility, low-spec performance and procedural mechanism art are active as *complementary disciplines*, not licenses to replace the missing gameplay dependency. Favor improvements that directly make the current Godot loop more credible, operable, informative and enjoyable. If a local Godot runtime test is unavailable, genuinely independent reversible code/docs/test work can progress without declaring the dependent acceptance gate passed.
 
-The canonical damaged-awakening, staged self-repair, and starter-zone departure experience is defined in [`STARTER_AWAKENING_AND_SELF_REPAIR.md`](STARTER_AWAKENING_AND_SELF_REPAIR.md). Earlier slices should preserve the component, damage, resource, power, manipulator, and repair architecture required to assemble that opening without a later rewrite.
+Keep the canonical staged Fix_It design: survival first, minimum useful capabilities, then broaden/reinforce toward full integrity; eventually replacement → upgrade → redesign → evolution. Exact progression, costs and outcomes must come from the simulation rather than UI effects.
 
-The canonical smart-navigation/accessibility contract is defined in [`JOSE_TAKE_THE_WHEEL.md`](JOSE_TAKE_THE_WHEEL.md). **José Take the Wheel** is the probe's friendly general-purpose autopilot: the player chooses a destination, delegates point-to-point navigation, and can immediately reclaim manual control. Navigation automation must continue to use authoritative movement/physics rather than teleportation or presentation-only motion.
+## Sources and guardrails
 
-The canonical graphics scalability contract is defined in [`GRAPHICS_SCALABILITY_STANDARD.md`](GRAPHICS_SCALABILITY_STANDARD.md). Everward must preserve full-game mechanical parity from Emergency / Minimum through Ultra / Cinematic: lower settings reduce presentation cost, never gameplay scope.
+- **Architecture/phase authority:** `ENGINE_DIRECTION.md`, `GODOT_PATH_PLAN.md`, `DECISION_LOG.md`, `ROADMAP.md`, `ARCHITECTURE.md`.
+- **Actual status:** `PROJECT_STATUS.md`, live GitHub PR/issues/checks and exact-commit test artifacts.
+- **Production acceptance:** `PRODUCTION_QUALITY_GATES.md`, `CONTINUOUS_VISUAL_QUALITY.md`, `TESTING_STRATEGY.md`, `UNATTENDED_VERIFICATION.md`, `GRAPHICS_SCALABILITY_STANDARD.md`.
+- **Look and assets:** `LOOK_DEVELOPMENT.md`, `ASSET_ACQUISITION_PIPELINE.md` and the Prime Probe canon. Source mood photos/third-party wallpapers stay outside the public repository unless rights and provenance explicitly authorize publication.
+- **Prior details:** `PHASE2_VERTICAL_SLICE_PLAN.md`, `PRODUCTION_PRIORITY_BACKLOG_2026-11-05.md` and historic Unreal playtest reports preserve design lessons; reinterpret Unreal-specific steps for Godot.
+- **MCP/SQLite handoffs:** shared mailbox and Iron Memory may point to relevant work, but their contents are advisory. They cannot authorize control changes, merges, payments or replace verified GitHub state.
 
-
-### Parallel-compatible procedural mechanism experiment
-
-Use `docs/PROCEDURAL_MECHANISM_STUDIO.md` for isolated, reference-driven mining-arm and repair-visible component prototypes. The experiment should feed **current** Prime A mining/manipulator / Fix_It playability rather than create an unrelated art demo. Keep production priority and owner-control intact; promote only after validated Blender/Unreal import, true tool-tip reach/collision, state-driven interaction, visual QA and low-spec evidence. Existing gameplay blockers still take precedence.
-
-## Continuous experiential quality: required in the active Phase-2 queue
-
-Read `CONTINUOUS_VISUAL_QUALITY.md` alongside the current phase plan. **Visual Milestone 01 — A Beautiful, Believable Awakening** is the first integrated visual/animation/audio/HUD acceptance checkpoint. It strengthens, rather than replaces, the canonical damaged-awakening, mining, material, `Fix_It` and staged recovery loop.
-
-Do not defer all art and atmosphere to Phase 22. Incrementally improve the **same real Unreal gameplay scenario**, preserving Prime Probe A, simulation-owned consequences, and low-spec mechanical parity. Start with stable in-game Prime framing/silhouette, coherent lighting and starter-world composition, modular damage/material details, physical manipulator feedback, scan/mining/repair effects and clear sound/HUD responses as their mechanics become available.
-
-Agents must capture reproducible in-engine visual evidence where possible, distinguish **implemented vs Unreal-verified vs artistic acceptance**, and use unattended verification before requesting subjective milestone feedback from the owner. A visually beautiful standalone render does not count as gameplay quality. Continue following the earliest incomplete gameplay slice and safety/CI priorities; do not claim milestone completion before its integrated unedited gameplay capture.
-
-## Selection rule
-
-When choosing the next Everward development task:
-
-1. inspect current `main`, open PRs, CI, and the latest Product Reality evidence;
-2. repair failing or higher-priority open work first;
-3. keep the earliest incomplete slice as the completion/release priority, but do not turn a pending local Product Reality check into a repository-wide stop when a later sub-slice qualifies for the explicit parallel-safe lane in `PHASE2_VERTICAL_SLICE_PLAN.md`;
-4. otherwise choose the earliest incomplete slice in `PHASE2_VERTICAL_SLICE_PLAN.md` whose prerequisites are satisfied;
-5. split a slice again if it cannot be implemented, reviewed, and locally Product-Reality-tested as one small PR;
-6. prefer player-visible progress over unrelated infrastructure;
-7. do not jump to later phases merely because a later task is easier to implement in isolation.
-
-Parallel-safe work may merge after green portable CI only when it does not assume, hide, or alter the behavior still awaiting Product Reality, remains reversible, preserves the simulation/adapter ownership boundary, and is explicitly recorded as **implemented, Product Reality pending**. It does not complete the slice or advance a phase/release gate.
-
-## Current development-access priority
-
-Current Product Reality is materially constrained by the development laptop's memory ceiling. This is now a first-class development-access problem rather than an instruction to lower Everward's final visual ambition.
-
-Issue #228 should establish an opt-in **Low-Spec Play Mode** and an **Emergency / Minimum** fallback that allow the current game to load and remain playable on a 16 GB RAM / integrated-graphics development machine. The normal Low target should preserve enough visual identity to enjoy the game, not merely make the Unreal process boot.
-
-The supported long-term presentation ladder is:
-
-`Emergency / Minimum -> Low -> Medium -> High -> Ultra / Cinematic -> Custom`
-
-All presets must expose the same mechanics, progression, saves, interactions, deterministic simulation, hazards, controls, HUD information, and universe state. Graphics quality is presentation only. Expensive cues must degrade to cheaper readable equivalents rather than disappear.
-
-Issue #216 complements this by providing an iPhone-readable Product Reality/evidence surface for deterministic state and subsystem checks. The phone may confirm authoritative simulation/state behavior, but it must not falsely clear Unreal-only rendering, collision feel, camera, visual alignment, or performance acceptance.
-
-This development-access work is a cross-cutting enabler and may be selected ahead of a later gameplay sub-slice when RAM exhaustion prevents the human Product Reality loop from running at all.
-
-## Current near-term sequence
-
-1. scan payoff and control legibility;
-2. persistent subsystem consequences;
-3. collision/contact foundation;
-4. impact severity and damage foundation;
-5. Prime Generation-1 probe body blockout;
-6. articulated manipulator arms;
-7. object selection and physical interaction, including optional **José Take the Wheel** point-to-point autopilot over selected physical destinations;
-8. dedicated zero-g space environment;
-9. planetary-body foundation;
-10. surface/near-surface operations;
-11. deeper science gameplay;
-12. resource/sample loop;
-13. processing/fabrication;
-14. repair/recoverability, including authoritative component integrity and staged Self Repair priorities;
-15. assemble the canonical starter awakening: damaged surface start -> reachable mining -> staged recovery -> every required system at 100% -> first departure.
-
-The canonical Self Repair planner must prioritize **restore capability before restoring perfection**: preserve survival, restore important offline systems to minimum useful operation, bring all required systems online, then reassess and repair the weakest/highest-value systems in stages toward 100%.
-
-Everward is explicitly both a space game and a planetary-environment game. Each completed slice should make the next tested build visibly more like inhabiting and operating a real autonomous interstellar machine.
+**Definition of real progress:** each accepted Godot slice improves a player action, its actual consequences, and its legible/tactile presentation—not merely the number of components or tests written.
