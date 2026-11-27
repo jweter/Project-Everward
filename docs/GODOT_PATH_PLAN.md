@@ -31,10 +31,10 @@ The paid Aura playtest tooling was Unreal-specific and owner-only; no replacemen
 | Phase | Scope | Exit evidence |
 |---|---|---|
 | G0 | Feasibility spike (done: merged in #433 as `tools/godot/world-spike`; run it per its README) | `-- --autotest` route, screenshots, `metrics.txt`, README limits table |
-| G1 | Binding spike: a GDExtension that ticks the canonical probe and returns a snapshot | A headless Godot script ticks N steps, runs one mining cycle and a save/load round trip, and its numbers equal the C++ test's |
+| G1 | Binding spike: a GDExtension that ticks the canonical probe and returns a snapshot (in review: #437, `tools/godot/sim-binding`; parity 14/14 lines identical) | A headless Godot script ticks N steps, runs one mining cycle and a save/load round trip, and its numbers equal the C++ test's |
 | G2 | Flight and world: the spike's terrain, clouds and trees driven by the simulated probe, contact events from the simulation | Scripted flight where simulated position, not engine physics, moves the ship; contact reported once per impact |
-| G3 | First-loop parity with #378 G01-G13, re-expressed for Godot, including the planned arm path and the HUD | Headless test per gate item with the same pass criteria; the status vocabulary gains `GODOT_VERIFIED` (proposed, needs owner approval) |
-| G4 | Visual pass on the desktop GPU | The owner's judgment on screenshots and a flythrough; tuning list |
+| G3 | First-loop parity with #378 G01-G13, re-expressed for Godot, including the planned arm path and the HUD | Headless test per gate item with the same pass criteria; the status vocabulary gains `GODOT_VERIFIED` (approved by the owner on 2026-11-27) |
+| G4 | Visual pass on the dev laptop's integrated GPU now (the desktop is unavailable for two months or more); a real-GPU pass later | The owner's judgment on screenshots and a flythrough; quality settings that hold 30+ FPS on the laptop; tuning list |
 | G5 | Retire Unreal | Parity evidence for every gate item, then archive `unreal/` in a normal PR |
 
 ## Risks
@@ -45,8 +45,8 @@ The paid Aura playtest tooling was Unreal-specific and owner-only; no replacemen
 - **Destruction.** The spike's crumble is scripted ceiling removal; physically correct collapse (disconnected rock falls) needs a connectivity pass.
 - **Art pipeline.** The GLB exporter makes a low-detail engineering mesh; production models are still to be made from the canonical references.
 
-## Needs from the owner (not started)
+## Owner decisions (2026-11-27)
 
-- Permission to download the official godot-cpp source and install SCons for G1.
-- The desktop GPU model, and a date when it is available for G4.
-- Approval of the `GODOT_VERIFIED` status term before any gate is marked with it.
+- **godot-cpp and SCons:** permission granted. G1 uses the godot-cpp 4.5 branch (forward-compatible with Godot 4.7).
+- **Desktop GPU:** unavailable for two months or more. All Godot work, including the G4 look pass, targets the dev laptop's Intel Iris Xe until then, and claims about how it looks on a real GPU stay out of scope.
+- **`GODOT_VERIFIED`:** approved. It means verified by an automated headless Godot run on the exact source commit with recorded evidence. It does not imply `UNREAL_VERIFIED` or a human playtest.
