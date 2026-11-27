@@ -39,7 +39,7 @@ Assets (probe modules, trees, rocks, the Builder Bot) are built only from Layer 
 
 ## Evidence so far
 
-`godot --path tools/godot/world-spike -- --lookshots --look=NAME --out=FOLDER` renders the same three framings (overview above the clouds, forest, mountain) with seeded tree placement. All five runs (default plus four looks) exit 0 at about 55-60 FPS on the dev laptop's integrated GPU.
+`godot --path tools/godot/world-spike -- --lookshots --look=NAME --out=FOLDER` renders the same three framings (overview above the clouds, forest, mountain) with seeded tree placement. All five runs (default plus four looks) exit 0 with zero script errors, at about 55-60 FPS on the dev laptop's integrated GPU.
 
 Visually, ember dusk and moonrise carry their references' colour mood clearly, and autumn mist shows orange trees in fog. Not yet done:
 - the cloud raymarch is grainy at this step count;

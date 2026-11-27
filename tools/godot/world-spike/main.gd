@@ -232,6 +232,10 @@ func _build_clouds() -> void:
 	cam.add_child(q)
 	_push_trail_uniform()
 
+func _scripted() -> bool:
+	# Any scripted run: no manual flight, no player input (they would move the camera between captures)
+	return autotest or explore or lookshots
+
 func _apply_look() -> void:
 	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
 	var sd := sun_ref.global_transform.basis.z
@@ -341,7 +345,7 @@ func _process(delta: float) -> void:
 	else:
 		cam.h_offset = 0.0
 		cam.v_offset = 0.0
-	if not (autotest or explore):
+	if not _scripted():
 		_manual_flight(delta)
 	hud.text = "FPS %d   alt %d m   speed %d m/s   debris %d" % [Engine.get_frames_per_second(), int(ship.global_position.y), int(speed), debris.size()]
 
@@ -394,7 +398,7 @@ func _manual_flight(delta: float) -> void:
 		_drill_step()
 
 func _input(event: InputEvent) -> void:
-	if autotest or explore:
+	if _scripted():
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		yaw -= event.relative.x * 0.0025
