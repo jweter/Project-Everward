@@ -589,8 +589,8 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
     else if (!SharedLockout.IsEmpty()) SensorReason = SharedLockout;
     else if (!bSensorsHaveOperatingPower)
     {
-        SensorReason = FString::Printf(TEXT("BELOW MINIMUM POWER // NEED %.0f W"),
-            everward::simulation::ProbeRuntime::kGeneration1MinimumSensorPowerW);
+        const auto Guidance = Core->scan_power_guidance();
+        SensorReason = UTF8_TO_TCHAR(Guidance.message.c_str());
     }
     SensorReason += TEXT(" // ") + IntegrityReason(*Core, everward::simulation::PowerSubsystem::Sensors);
     AddCapability(FName(TEXT("sensors")), TEXT("Sensors"),

@@ -30,26 +30,24 @@ SoftwarePolicy sensor_conservation_policy() {
 }
 
 SensorPowerGuidance guidance_for(const ProbeRuntime& runtime) {
-    const SoftwarePolicyStatus status = runtime.policy_status();
-    return sensor_power_guidance(
-        runtime.snapshot().power_allocated_sensors_w,
-        ProbeRuntime::kGeneration1MinimumSensorPowerW,
-        status.installed,
-        status.enabled,
-        status.policy_id);
+    return runtime.scan_power_guidance();
 }
 
 bool contains(const std::string& text, const std::string& needle) {
     return text.find(needle) != std::string::npos;
 }
 
-bool scan_refused(ProbeRuntime& runtime) {
+std::string scan_refusal(ProbeRuntime& runtime) {
     try {
         runtime.start_scan("rock", 5.0);
-    } catch (const std::runtime_error&) {
-        return true;
+    } catch (const std::runtime_error& error) {
+        return error.what();
     }
-    return false;
+    return {};
+}
+
+bool scan_refused(ProbeRuntime& runtime) {
+    return !scan_refusal(runtime).empty();
 }
 
 } // namespace
@@ -115,7 +113,11 @@ int main() {
         const SensorPowerGuidance dropped = guidance_for(runtime);
         assert(dropped.state == SensorPowerState::BelowFloorPolicyInstalled);
         assert(contains(dropped.message, "conserve_sensor_power"));
-        assert(scan_refused(runtime));
+        const auto refusal = scan_refusal(runtime);
+        assert(contains(refusal, dropped.message));
+        assert(contains(refusal, "1) clear or disable the policy"));
+        assert(contains(refusal, "2) raise Sensors"));
+        assert(contains(refusal, "3) scan again"));
 
         // Raising sensors alone does not hold: the policy sheds them on the next evaluation.
         runtime.allocate_power(PowerSubsystem::Sensors, 80.0);
@@ -139,7 +141,10 @@ int main() {
         runtime.allocate_power(PowerSubsystem::Sensors, 10.0);
         const SensorPowerGuidance low = guidance_for(runtime);
         assert(low.state == SensorPowerState::BelowFloorManual);
-        assert(scan_refused(runtime));
+        const auto refusal = scan_refusal(runtime);
+        assert(contains(refusal, low.message));
+        assert(contains(refusal, "Raise the Sensors power allocation"));
+        assert(!contains(refusal, "clear or disable the policy"));
 
         runtime.allocate_power(PowerSubsystem::Sensors, 60.0);
         assert(guidance_for(runtime).state == SensorPowerState::Ready);
