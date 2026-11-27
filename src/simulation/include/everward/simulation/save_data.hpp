@@ -60,6 +60,20 @@ namespace everward::simulation {
 
 inline constexpr int kSaveFormatVersion = 2;
 
+// Issue #378 G08 (Godot path G3): a mineable deposit placed in the world, beyond the single bootstrap deposit. Its
+// body (position, radius, material) is already persisted in static_bodies; this record carries the resource state
+// that lives outside the runtime: what is left, what was taken, how fast it yields, and whether a genuine
+// ScanCompleted event surveyed it.
+struct WorldDepositSaveData {
+    std::string body_id;
+    std::string material_id;
+    std::string display_name;
+    double remaining_kg{0.0};
+    double extracted_kg{0.0};
+    double extraction_kg_per_cycle{5.0};
+    bool surveyed{false};
+};
+
 // A single probe's persisted state. Grouped separately from the top-level
 // SaveGameV1 envelope so it can be captured from / restored onto a
 // DamageAwareProbeRuntime without going through JSON when that is useful
@@ -95,6 +109,10 @@ struct ProbeSaveData {
     // recorded" -- the caller keeps its own value rather than inventing one.
     std::optional<double> bootstrap_deposit_remaining_kg{};
     std::optional<double> bootstrap_extracted_kg{};
+    // Issue #378 G08: world deposits (see WorldDepositSaveData). Additive v2 field: absent on every save captured
+    // before this existed and read back as empty. Each record must name a body in static_bodies; loading fails closed
+    // on a missing body, a duplicate id or an invalid amount instead of resuming with an inconsistent world.
+    std::vector<WorldDepositSaveData> world_deposits{};
     // ManipulatorRig is not composed inside DamageAwareProbeRuntime (see
     // manipulator.hpp's header comment), so it is captured/restored here as
     // plain arm state rather than as a whole ManipulatorRig -- the rig's
@@ -861,6 +879,19 @@ namespace detail {
     object.set(
         "bootstrap_extracted_kg",
         data.bootstrap_extracted_kg.has_value() ? JsonValue(*data.bootstrap_extracted_kg) : JsonValue());
+    JsonValue world_deposits = JsonValue::make_array();
+    for (const auto& deposit : data.world_deposits) {
+        JsonValue entry = JsonValue::make_object();
+        entry.set("body_id", JsonValue(deposit.body_id));
+        entry.set("material_id", JsonValue(deposit.material_id));
+        entry.set("display_name", JsonValue(deposit.display_name));
+        entry.set("remaining_kg", JsonValue(deposit.remaining_kg));
+        entry.set("extracted_kg", JsonValue(deposit.extracted_kg));
+        entry.set("extraction_kg_per_cycle", JsonValue(deposit.extraction_kg_per_cycle));
+        entry.set("surveyed", JsonValue(deposit.surveyed));
+        world_deposits.push_back(std::move(entry));
+    }
+    object.set("world_deposits", std::move(world_deposits));
     object.set("port_manipulator_arm", detail::manipulator_arm_state_to_json(data.port_manipulator_arm));
     object.set(
         "starboard_manipulator_arm",
@@ -919,6 +950,37 @@ namespace detail {
             throw std::runtime_error(std::string(key) + " must be finite and non-negative");
         }
         *target = kilograms;
+    }
+    if (const JsonValue* deposits = value.find("world_deposits")) {
+        for (const auto& entry : deposits->as_array()) {
+            WorldDepositSaveData deposit;
+            deposit.body_id = entry.require("body_id").as_string();
+            deposit.material_id = entry.require("material_id").as_string();
+            deposit.display_name = entry.require("display_name").as_string();
+            deposit.remaining_kg = entry.require("remaining_kg").as_double();
+            deposit.extracted_kg = entry.require("extracted_kg").as_double();
+            deposit.extraction_kg_per_cycle = entry.require("extraction_kg_per_cycle").as_double();
+            deposit.surveyed = entry.require("surveyed").as_bool();
+            if (deposit.body_id.empty() || deposit.material_id.empty()) {
+                throw std::runtime_error("world deposit needs a body_id and a material_id");
+            }
+            if (!std::isfinite(deposit.remaining_kg) || deposit.remaining_kg < 0.0 ||
+                !std::isfinite(deposit.extracted_kg) || deposit.extracted_kg < 0.0 ||
+                !std::isfinite(deposit.extraction_kg_per_cycle) || deposit.extraction_kg_per_cycle <= 0.0) {
+                throw std::runtime_error("world deposit " + deposit.body_id + " has an invalid amount");
+            }
+            for (const auto& earlier : data.world_deposits) {
+                if (earlier.body_id == deposit.body_id) {
+                    throw std::runtime_error("duplicate world deposit " + deposit.body_id);
+                }
+            }
+            bool has_body = false;
+            for (const auto& body : data.static_bodies) has_body = has_body || body.body_id == deposit.body_id;
+            if (!has_body) {
+                throw std::runtime_error("world deposit " + deposit.body_id + " has no saved body");
+            }
+            data.world_deposits.push_back(std::move(deposit));
+        }
     }
     data.port_manipulator_arm =
         detail::manipulator_arm_state_from_json(value.require("port_manipulator_arm"));

@@ -189,6 +189,22 @@ inline std::vector<std::string> run_native_parity() {
     line("inventory %.9f storage %.9f deposit %.9f", fl.inventory_kg(mat), fl.storage_used_kg(),
          fl.world_deposit_remaining_kg(ore));
 
+    // 7b (#378 G08): world deposits and surveys survive save/load; mining continues from the saved mass; a save
+    // without world deposits restores none.
+    const std::string fl_save = fl.save_json();
+    const MineResult after_save = fl.mine_deposit(ore);
+    const int extra = fl.add_deposit("ore-2", -30.0, 12.0, 0.0, 2.0, "nickel_regolith", "Nickel regolith", 80.0, 4.0) ? 1 : 0;
+    const int fl_load = fl.load_json(fl_save) ? 1 : 0;
+    line("g08 after_save %d extra %d load %d surveyed %d deposit %.9f inventory %.9f ore2 %.3f", after_save.accepted ? 1 : 0,
+         extra, fl_load, fl.is_surveyed(ore) ? 1 : 0, fl.world_deposit_remaining_kg(ore), fl.inventory_kg(mat),
+         fl.world_deposit_remaining_kg("ore-2"));
+    const MineResult resumed = fl.mine_deposit(ore);
+    line("g08 resumed %d deposit %.9f inventory %.9f", resumed.accepted ? 1 : 0, fl.world_deposit_remaining_kg(ore),
+         fl.inventory_kg(mat));
+    SimCore blank;
+    const int blank_load = fl.load_json(blank.save_json()) ? 1 : 0;
+    line("g08 blank load %d ore1 %.3f surveyed %d", blank_load, fl.world_deposit_remaining_kg(ore), fl.is_surveyed(ore) ? 1 : 0);
+
     // 8 (G3, #378 G02): Fix_It on the damaged awakening waits without material, then repairs with mined material.
     SimCore fx;
     fx.enable_fix_it(true);
