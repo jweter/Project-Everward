@@ -709,6 +709,12 @@ func _run_firstloop() -> void:
 			_press(KEY_1)
 			_press(KEY_2)
 		var done: bool = await _until(func() -> bool: return first_loop.aligned or (not first_loop.busy() and not first_loop.approaching), 120.0)
+		if arm == 0:
+			# the STARBOARD arm is selected now; the HUD must say which arm is aligned, not imply the selected one is
+			await _sim_run(0.1)
+			var arm_line: String = Array(hud.text.split("
+")).filter(func(l: String) -> bool: return l.begins_with("ARM "))[0] if hud.text.contains("ARM ") else ""
+			check.call("HUD names the aligned arm", first_loop.selected_arm == 1 and arm_line.contains("PORT ALIGNED") and not arm_line.contains("  ALIGNED"), arm_line)
 		await _shot("loop_03_aligned_%s" % label.replace(" ", "_"))
 		var before: float = sim.get_inventory_kg(mat)
 		_press(KEY_G)
