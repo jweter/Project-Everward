@@ -42,6 +42,8 @@ void EverwardSim::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_stored_energy_j"), &EverwardSim::get_stored_energy_j);
     ClassDB::bind_method(D_METHOD("drain_fix_it_events"), &EverwardSim::drain_fix_it_events);
     ClassDB::bind_method(D_METHOD("get_last_scan_refusal"), &EverwardSim::get_last_scan_refusal);
+    ClassDB::bind_method(D_METHOD("get_approach_blocker", "x", "y", "z"), &EverwardSim::get_approach_blocker);
+    ClassDB::bind_method(D_METHOD("get_body_center", "id"), &EverwardSim::get_body_center);
     ClassDB::bind_method(D_METHOD("allocate_power", "subsystem", "watts"), &EverwardSim::allocate_power);
     ClassDB::bind_method(D_METHOD("get_power_allocations"), &EverwardSim::get_power_allocations);
     ClassDB::bind_method(D_METHOD("install_basic_survival_policy"), &EverwardSim::install_basic_survival_policy);
@@ -229,6 +231,18 @@ PackedStringArray EverwardSim::drain_fix_it_events() {
     return out;
 }
 
+String EverwardSim::get_approach_blocker(double x, double y, double z) const {
+    return String::utf8(core_.approach_blocker(x, y, z).c_str());
+}
+PackedFloat64Array EverwardSim::get_body_center(const String& id) const {
+    PackedFloat64Array out;
+    if (const auto c = core_.body_center(id.utf8().get_data())) {
+        out.push_back(c->x);
+        out.push_back(c->y);
+        out.push_back(c->z);
+    }
+    return out;
+}
 String EverwardSim::get_last_scan_refusal() const { return String::utf8(core_.last_scan_refusal().c_str()); }
 bool EverwardSim::allocate_power(int64_t subsystem, double watts) {
     return core_.allocate_power(static_cast<int>(subsystem), watts);

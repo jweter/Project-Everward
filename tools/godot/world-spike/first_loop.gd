@@ -11,6 +11,9 @@ extends RefCounted
 # Systems panel (#378 G11): Tab shows it; [ and ] move the selection with the simulation's bounded_selection rule
 # whether or not the panel is open; selecting an arm makes it the arm T/Y/P act on; Enter on a power subsystem
 # toggles it between 0 W and its operating minimum.
+# Auto-approach safety (#378 G10): P refuses when the probe's hull would hit a body flying straight to the mining pose;
+# while flying, the pose is re-solved if the probe turns or the target moves, and the approach stops (with the reason)
+# if the line becomes blocked or the hull touches anything; a turn or a target move after alignment cancels "aligned".
 # Fix_It (#378 G02) runs inside the simulation on its own, as in the Unreal build: the probe wakes damaged, and Fix_It
 # repairs in canonical order only while stored material and energy cover the next step. This script shows it.
 
@@ -20,6 +23,8 @@ const APPROACH_SPEED := 2.0            # Unreal AutoApproachSpeedMetersPerSecond
 const APPROACH_TOLERANCE := 0.25       # Unreal AutoApproachStopToleranceMeters
 const WAYPOINT_TOLERANCE_DEG := 1e-3
 const WAYPOINT_TIMEOUT_S := 10.0
+const ATTITUDE_TOLERANCE_DEG := 0.5     # a larger turn since the solve re-solves the mining pose (G10)
+const TARGET_TOLERANCE_M := 0.05        # a larger target move since the solve re-solves the mining pose (G10)
 const ARM_NAMES := ["PORT", "STARBOARD"]
 const SENSOR_SCAN_MINIMUM_W := 50.0     # ProbeRuntime::kGeneration1MinimumSensorPowerW
 const COMPUTATION_MINIMUM_W := 25.0      # ProbeRuntime::kGeneration1MinimumPolicyComputationPowerW
@@ -34,6 +39,10 @@ var staging := Vector3.ZERO             # simulation frame
 var staging_angles := PackedFloat64Array()
 var staging_gap := 0.0
 var approach_target := ""
+var staging_attitude := PackedFloat64Array()   # the probe attitude the mining pose was solved for
+var staging_target_center := Vector3.ZERO      # where the target was when the mining pose was solved (simulation frame)
+var approach_contacts := 0                     # main's contact count when the approach engaged
+var legacy_approach_for_test := false          # --approachtest --selftest-fail=staleapproach: pre-G10 behaviour, must fail
 var waypoints: Array = []
 var waypoint_index := -1
 var waypoint_elapsed := 0.0
@@ -237,20 +246,55 @@ func toggle_approach() -> void:
 	if d.is_empty():
 		say("no deposit in range for auto-approach")
 		return
-	var plan: Dictionary = m.sim.plan_staging(selected_arm, d["id"])
-	if not plan["has_solution"]:
+	if not _solve_staging(selected_arm, d["id"]):
 		say("no collision-free mining pose for the %s arm at this attitude; rotate the probe and press P again" % ARM_NAMES[selected_arm])
 		return
-	var p: PackedFloat64Array = plan["position"]
-	staging = Vector3(p[0], p[1], p[2])
-	staging_angles = plan["angles"]
-	staging_gap = plan["tool_gap_m"]
+	var blocker := _blocker()
+	if blocker != "":
+		say("the straight path to the mining pose is blocked by %s; move the probe so the line is clear and press P again" % blocker)
+		return
 	op_arm = selected_arm   # selecting another arm later never redirects this operation
-	approach_target = d["id"]
+	approach_contacts = m.sim_contacts
 	approaching = true
 	aligned = false
 	waypoint_index = -1
 	say("mining auto-approach engaged; SPACE or P cancels")
+
+# Solves the mining pose for this arm and target at the probe's current attitude and remembers what it was solved for.
+func _solve_staging(arm: int, target_id: String) -> bool:
+	var plan: Dictionary = m.sim.plan_staging(arm, target_id)
+	if not plan["has_solution"]:
+		return false
+	var p: PackedFloat64Array = plan["position"]
+	staging = Vector3(p[0], p[1], p[2])
+	staging_angles = plan["angles"]
+	staging_gap = plan["tool_gap_m"]
+	approach_target = target_id
+	staging_attitude = m.sim.get_attitude()
+	var c: PackedFloat64Array = m.sim.get_body_center(target_id)
+	staging_target_center = Vector3(c[0], c[1], c[2]) if c.size() == 3 else Vector3.INF
+	return true
+
+# The first body the hull would hit flying straight to the mining pose ("" when clear; the simulation's sweep).
+func _blocker() -> String:
+	if legacy_approach_for_test:
+		return ""
+	return String(m.sim.get_approach_blocker(staging.x, staging.y, staging.z))
+
+# Why the solved mining pose no longer holds ("" while it does): the probe turned or the target moved or vanished.
+func _pose_changed() -> String:
+	if legacy_approach_for_test:
+		return ""
+	var a: PackedFloat64Array = m.sim.get_attitude()
+	for i in 3:
+		if absf(rad_to_deg(angle_difference(deg_to_rad(a[i]), deg_to_rad(staging_attitude[i])))) > ATTITUDE_TOLERANCE_DEG:
+			return "the probe turned"
+	var c: PackedFloat64Array = m.sim.get_body_center(approach_target)
+	if c.size() != 3:
+		return "the target is gone"
+	if Vector3(c[0], c[1], c[2]).distance_to(staging_target_center) > TARGET_TOLERANCE_M:
+		return "the target moved"
+	return ""
 
 func cancel_approach(text: String) -> void:
 	approaching = false
@@ -275,6 +319,14 @@ func process(delta: float) -> void:
 		fix_it_log.append(line)
 		m.metrics.append("Fix_It: " + line)
 	if approaching:
+		_guard_approach()
+	elif waypoint_index >= 0 or aligned:
+		var changed := _pose_changed()
+		if changed != "":
+			waypoint_index = -1
+			aligned = false
+			say("%s after the approach; the arm is no longer aligned; press P to approach again" % changed)
+	if approaching:
 		var p: PackedFloat64Array = m.sim.get_position()
 		var to := staging - Vector3(p[0], p[1], p[2])
 		var dist := to.length()
@@ -290,6 +342,21 @@ func process(delta: float) -> void:
 	if waypoint_index >= 0:
 		_follow(delta)
 	_draw()
+
+# While flying: re-solve when the probe turned or the target moved; stop on contact or a blocked line (G10).
+func _guard_approach() -> void:
+	var changed := _pose_changed()
+	if changed != "":
+		if not _solve_staging(op_arm, approach_target):
+			cancel_approach("auto-approach stopped: %s and there is no collision-free mining pose for the %s arm now; rotate the probe and press P again" % [changed, ARM_NAMES[op_arm]])
+			return
+		say("%s: mining pose re-solved, still approaching" % changed)
+	if not legacy_approach_for_test and m.sim_contacts > approach_contacts:
+		cancel_approach("auto-approach stopped: the hull touched %s" % String(m.sim_contact_log.back()))
+		return
+	var blocker := _blocker()
+	if blocker != "":
+		cancel_approach("auto-approach stopped: the path to the mining pose is blocked by %s" % blocker)
 
 func _align() -> void:
 	var st: Dictionary = m.sim.get_arm_state(op_arm)

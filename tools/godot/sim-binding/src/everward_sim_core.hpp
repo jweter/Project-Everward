@@ -9,6 +9,7 @@
 // twice.) Every operation that can see bad input returns a failure instead of throwing into the engine.
 
 #include "everward/simulation/first_loop_controls.hpp"
+#include "everward/simulation/compound_contact.hpp"
 #include "everward/simulation/fix_it.hpp"
 #include "everward/simulation/manipulator_hull_contact.hpp"
 #include "everward/simulation/manipulator_path_planner.hpp"
@@ -468,6 +469,31 @@ public:
         out.angles = solution->angles;
         out.tool_gap_m = solution->tool_surface_gap_m;
         return out;
+    }
+
+    // G10: the first body the probe's compound hull would touch flying in a straight line from where it is to (x, y, z)
+    // at its current attitude, using the sweep the simulation uses for contact; "" when the line is clear. Fails closed:
+    // a non-finite destination is reported as blocked.
+    [[nodiscard]] std::string approach_blocker(double x, double y, double z) const {
+        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return "invalid destination";
+        const auto& s = runtime_.snapshot();
+        std::string first;
+        double earliest = std::numeric_limits<double>::infinity();
+        for (const StaticSphereBody& body : runtime_.static_bodies()) {
+            const CompoundContactCandidate c = sweep_compound_probe_against_body(
+                s.position_m, Vector3d{x, y, z}, s.attitude_degrees, ProbeCompoundCollisionEnvelope{}, body);
+            if (c.hit && c.fraction < earliest) {
+                earliest = c.fraction;
+                first = body.body_id;
+            }
+        }
+        return first;
+    }
+    // Where a registered body is now (bodies can move); empty optional for an unknown id.
+    [[nodiscard]] std::optional<Vector3d> body_center(const std::string& id) const {
+        const auto body = find_body(id);
+        if (!body) return std::nullopt;
+        return body->center_m;
     }
 
     // Collision-free joint waypoints from the arm's current pose to the goal (empty optional: no path).

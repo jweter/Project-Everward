@@ -68,6 +68,7 @@ var first_loop = null
 var firstloop_test := false      # --firstloop: headless acceptance run of the whole loop
 var powertest := false           # --powertest: headless run of the G09 sensor-power drop and recovery
 var hudtest := false             # --hudtest: headless run of the G11 systems panel selection
+var approachtest := false        # --approachtest: headless run of the G10 auto-approach safety cases
 # G04/G12: the acceptance runs write report.json (exact build, timed events, checks, PASS/FAIL/INCONCLUSIVE).
 const Evidence = preload("res://evidence.gd")
 const INCONCLUSIVE_EXIT := 11
@@ -84,6 +85,7 @@ func _ready() -> void:
 	firstloop_test = "--firstloop" in args
 	powertest = "--powertest" in args
 	hudtest = "--hudtest" in args
+	approachtest = "--approachtest" in args
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -127,7 +129,9 @@ func _ready() -> void:
 	puff.width = 64
 	puff.height = 64
 	dust_mat.albedo_texture = puff
-	if hudtest:
+	if approachtest:
+		_run_approachtest.call_deferred()
+	elif hudtest:
 		_run_hudtest.call_deferred()
 	elif powertest:
 		_run_powertest.call_deferred()
@@ -277,7 +281,7 @@ func _build_clouds() -> void:
 
 func _scripted() -> bool:
 	# Any scripted run: no manual flight, no player input (they would move the camera between captures)
-	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest
+	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest or approachtest
 
 func _apply_look() -> void:
 	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
@@ -734,6 +738,108 @@ func _run_firstloop() -> void:
 	check.call("no contact during the loop", not sim_contact_log.has("ore-1"), "contacts: %s" % [sim_contact_log])
 	_finish_evidence("FIRSTLOOP", 8)
 
+# One G10 case on a fresh simulation: survey the deposit 40 m ahead, ready the arm, optionally change the world
+# before P (setup) and one second into the approach (during), then wait for alignment or a stop and press G.
+func _approach_case(arm: int, yaw_before: float, setup: Callable, during: Callable) -> Dictionary:
+	var origin := Vector3(0, 300, 0)
+	_place_ship(origin, origin + Vector3(0, 0, -100))
+	_sim_start(origin)
+	first_loop = FirstLoop.new(self)
+	first_loop.legacy_approach_for_test = selftest_fail == "staleapproach"
+	sim_contact_log.clear()
+	first_loop.add_deposit("ore-1", origin + Vector3(0, 0, -40), 3.0, "iron_bearing_silicate_regolith", "Iron-bearing regolith", 120.0)
+	_press(KEY_R)
+	await _until(func() -> bool: return sim.is_surveyed("ore-1"), 20.0)
+	_press(KEY_1 if arm == 0 else KEY_2)
+	_press(KEY_T)
+	await _until(func() -> bool: return sim.get_arm_state(arm)["deployed"] and not sim.get_arm_state(arm)["deploying"], 6.0)
+	_press(KEY_Y)
+	if yaw_before != 0.0:
+		sim.adjust_attitude(yaw_before, 0.0, 0.0)
+	var ready: bool = sim.is_surveyed("ore-1") and sim.get_arm_state(arm)["deployed"] and sim.get_arm_state(arm)["tool_attached"]
+	var att0: PackedFloat64Array = sim.get_attitude()
+	var note: String = setup.call()
+	var contacts_before := sim_contact_log.size()
+	_press(KEY_P)
+	var engaged: bool = first_loop.approaching
+	var engage_msg: String = first_loop.message
+	await _sim_run(1.0)
+	var note2: String = during.call()
+	var settled: bool = await _until(func() -> bool: return first_loop.aligned or (not first_loop.busy() and not first_loop.approaching), 90.0)
+	var stop_msg: String = first_loop.message
+	var aligned: bool = first_loop.aligned
+	var before: float = sim.get_inventory_kg("iron_bearing_silicate_regolith")
+	_press(KEY_G)
+	var r: Dictionary = first_loop.last_mine
+	var contacts: Array = sim_contact_log.slice(contacts_before)
+	return {"ready": ready, "engaged": engaged, "engage_msg": engage_msg, "settled": settled, "aligned": aligned,
+		"stop_msg": stop_msg, "mined": bool(r.get("accepted", false)), "mine_arm": int(r.get("arm", -1)),
+		"gap": float(r.get("tool_gap_m", -1.0)), "gained": sim.get_inventory_kg("iron_bearing_silicate_regolith") - before,
+		"mine_msg": first_loop.message, "contacts": contacts, "yaw": sim.get_attitude()[0] - att0[0], "note": note + note2}
+
+func _approach_summary(c: Dictionary) -> String:
+	return "engaged=%s aligned=%s mined=%s arm=%d gap %.3f m +%.1f kg; contacts %s; %s; stop: %s; G: %s" % [
+		c["engaged"], c["aligned"], c["mined"], c["mine_arm"], c["gap"], c["gained"], c["contacts"], c["note"], c["stop_msg"], c["mine_msg"]]
+
+func _run_approachtest() -> void:
+	# G3 evidence for #378 G10 through the real keys: the auto-approach with both arms, a rotated probe, an obstacle
+	# on the straight path, the attitude changing during the approach, and the target moving during the approach.
+	# Safe means: no contact with any body while the approach runs, and either a real mine (accepted, tool within
+	# reach, material gained) or an explicit stop that says why -- never "aligned" followed by an out-of-reach refusal.
+	# --selftest-fail=staleapproach restores the pre-G10 approach (solved once, straight line) and must exit 12.
+	_begin_evidence("approachtest")
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	if not ClassDB.class_exists("EverwardSim"):
+		_fail("simulation extension (EverwardSim) not loaded", 5)
+		return
+	var check := func(name: String, ok: bool, detail: String) -> void: evidence.check(name, ok, detail)
+	var none := func() -> String: return ""
+	var safe := func(c: Dictionary) -> bool:
+		var real_mine: bool = c["aligned"] and c["mined"] and c["gained"] > 0.0
+		var explicit_stop: bool = not c["aligned"] and not c["mined"] and String(c["stop_msg"]) != ""
+		return c["contacts"].is_empty() and c["settled"] and (real_mine or explicit_stop)
+	var a: Dictionary = await _approach_case(0, 0.0, none, none)
+	evidence.precondition("port case set up", a["ready"], "surveyed, port arm deployed with tool")
+	check.call("port arm approach mines", a["contacts"].is_empty() and a["aligned"] and a["mined"] and a["mine_arm"] == 0 and a["gained"] > 0.0, _approach_summary(a))
+	var b: Dictionary = await _approach_case(1, 35.0, none, none)
+	evidence.precondition("starboard case set up", b["ready"], "surveyed, starboard arm deployed with tool, yawed 35 deg")
+	check.call("starboard arm, probe yawed, mines", b["contacts"].is_empty() and b["aligned"] and b["mined"] and b["mine_arm"] == 1 and b["gained"] > 0.0, _approach_summary(b))
+	var obstacle := func() -> String:
+		var plan: Dictionary = sim.plan_staging(0, "ore-1")
+		var p: PackedFloat64Array = sim.get_position()
+		var s: PackedFloat64Array = plan["position"]
+		var mid := (Vector3(p[0], p[1], p[2]) + Vector3(s[0], s[1], s[2])) * 0.5
+		sim.add_sphere_body("boulder-path", mid.x, mid.y, mid.z, 2.5)
+		return "boulder r=2.5 m at %s on the straight path to %s" % [str(mid), str(Vector3(s[0], s[1], s[2]))]
+	var c: Dictionary = await _approach_case(0, 0.0, obstacle, none)
+	check.call("obstacle on the path refused at P", safe.call(c) and not c["engaged"] and String(c["stop_msg"]).contains("blocked by boulder-path"), _approach_summary(c))
+	var turn := func() -> String:
+		sim.adjust_attitude(40.0, 0.0, 0.0)
+		return "; yawed %.1f deg during the approach" % 40.0
+	var d: Dictionary = await _approach_case(0, 0.0, none, turn)
+	check.call("attitude change during approach is safe", safe.call(d), _approach_summary(d) + " (yaw change %.1f)" % d["yaw"])
+	var shift := func() -> String:
+		var ok: bool = sim.move_sphere_body("ore-1", 40.0, 6.0, 0.0)
+		return "; deposit moved 6 m to starboard during the approach (%s)" % ok
+	var e: Dictionary = await _approach_case(0, 0.0, none, shift)
+	check.call("target moving during approach is safe", safe.call(e), _approach_summary(e))
+	var intrude := func() -> String:
+		var p: PackedFloat64Array = sim.get_position()
+		var v: PackedFloat64Array = sim.get_velocity()
+		var ahead := Vector3(p[0], p[1], p[2]) + Vector3(v[0], v[1], v[2]).normalized() * 8.0
+		sim.add_sphere_body("boulder-late", ahead.x, ahead.y, ahead.z, 2.0)
+		return "; boulder r=2 m appeared 8 m ahead during the approach"
+	var f: Dictionary = await _approach_case(0, 0.0, none, intrude)
+	check.call("obstacle appearing mid-approach stops it", safe.call(f) and f["engaged"] and String(f["stop_msg"]).contains("blocked by boulder-late"), _approach_summary(f))
+	# a turn after the arm is aligned (before G) must withdraw "aligned", not leave a stale promise
+	var g: Dictionary = await _approach_case(0, 0.0, none, none)
+	var g_aligned: bool = g["aligned"]
+	sim.adjust_attitude(20.0, 0.0, 0.0)
+	await _sim_run(0.2)
+	check.call("turn after alignment withdraws it", g_aligned and not first_loop.aligned and first_loop.message.contains("no longer aligned"), "aligned before the turn=%s, after=%s; %s" % [g_aligned, first_loop.aligned, first_loop.message])
+	_finish_evidence("APPROACHTEST", 12)
+
 func _run_hudtest() -> void:
 	# G3 evidence for #378 G11 through the real keys: ] with the panel closed never leaves the list or needs extra [
 	# presses; the open panel marks the capability that is really selected; acting uses it (arms and power).
@@ -920,7 +1026,7 @@ func _input(event: InputEvent) -> void:
 	if first_loop != null and event is InputEventKey and event.pressed and not event.echo:
 		if first_loop.handle_key(event.keycode):
 			return
-	if _scripted() and not firstloop_test and not powertest and not hudtest:
+	if _scripted() and not firstloop_test and not powertest and not hudtest and not approachtest:
 		return
 	if sim_active and first_loop != null and first_loop.busy() and event is InputEventMouseMotion:
 		return   # the solved staging pose holds for the attitude it was solved at
