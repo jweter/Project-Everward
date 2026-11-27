@@ -8,14 +8,19 @@ uniform float shake_radius = 38.0;
 uniform float shake_strength = 8.0;
 uniform float tree_height = 9.0;
 uniform float roughness_v : hint_range(0.0, 1.0) = 0.85;
+uniform vec3 trunk_color : source_color = vec3(0.26, 0.17, 0.1);
+uniform vec3 autumn_color : source_color = vec3(0.82, 0.38, 0.12);
+uniform float autumn_mix : hint_range(0.0, 1.0) = 0.0;
 
 varying float v_h;
 varying float v_y;
+varying float v_pick;
 
 void vertex() {
 	v_y = VERTEX.y;
 	v_h = clamp(VERTEX.y / tree_height, 0.0, 1.0);
 	vec3 root = MODEL_MATRIX[3].xyz;
+	v_pick = fract(sin(dot(root.xz, vec2(12.9898, 78.233))) * 43758.5453);
 	float sway = sin(TIME * 1.4 + root.x * 0.07 + root.z * 0.05) * 0.18 * v_h * v_h;
 	vec3 offset = vec3(sway, 0.0, sway * 0.6);
 	vec3 to_ship = root - ship_pos;
@@ -31,6 +36,9 @@ void vertex() {
 
 void fragment() {
 	vec3 foliage = mix(base_color, tip_color, v_h);
-	ALBEDO = mix(vec3(0.26, 0.17, 0.1), foliage, smoothstep(2.6, 3.4, v_y));
+	if (v_pick < autumn_mix) {
+		foliage = mix(autumn_color * 0.55, autumn_color, v_h);
+	}
+	ALBEDO = mix(trunk_color, foliage, smoothstep(2.6, 3.4, v_y));
 	ROUGHNESS = roughness_v;
 }

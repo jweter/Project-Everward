@@ -1,6 +1,11 @@
 shader_type spatial;
 // Terrain material for the smooth voxel mesh (spike): slope/altitude based rock, grass and snow with
 // cheap procedural detail. Voxel Tools meshes carry no UVs, so everything keys off world position/normal.
+uniform vec3 grass_a : source_color = vec3(0.16, 0.30, 0.10);
+uniform vec3 grass_b : source_color = vec3(0.30, 0.42, 0.14);
+uniform vec3 rock_a : source_color = vec3(0.33, 0.30, 0.28);
+uniform vec3 rock_b : source_color = vec3(0.52, 0.48, 0.44);
+uniform vec3 snow_color : source_color = vec3(0.92, 0.94, 0.98);
 varying vec3 v_world;
 varying vec3 v_normal;
 
@@ -38,9 +43,9 @@ void fragment() {
 	float slope = clamp(v_normal.y, 0.0, 1.0);
 	float detail = fbm(v_world * 0.35);
 	float coarse = fbm(v_world * 0.04);
-	vec3 rock = mix(vec3(0.33, 0.30, 0.28), vec3(0.52, 0.48, 0.44), detail);
-	vec3 grass = mix(vec3(0.16, 0.30, 0.10), vec3(0.30, 0.42, 0.14), detail);
-	vec3 snow = vec3(0.92, 0.94, 0.98);
+	vec3 rock = mix(rock_a, rock_b, detail);
+	vec3 grass = mix(grass_a, grass_b, detail);
+	vec3 snow = snow_color;
 	vec3 col = mix(rock, grass, smoothstep(0.62, 0.82, slope + (coarse - 0.5) * 0.25) * (1.0 - smoothstep(120.0, 190.0, v_world.y)));
 	float snow_line = 165.0 + (coarse - 0.5) * 40.0;
 	col = mix(col, snow, smoothstep(snow_line, snow_line + 20.0, v_world.y) * smoothstep(0.45, 0.8, slope));
