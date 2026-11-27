@@ -104,12 +104,21 @@ func finish(out_dir: String, extra_inconclusive := "") -> String:
 	report["dropped_events"] = dropped_events
 	report["verdict"] = verdict
 	report["reasons"] = reasons
-	var f := FileAccess.open(out_dir.path_join("report.json"), FileAccess.WRITE)
-	if f == null:
-		push_error("could not write report.json in " + out_dir)
-	else:
+	# No report, no result (Codex #451): a run whose evidence cannot be written is INCONCLUSIVE, never a PASS, even if
+	# an older report.json is left behind.
+	var path := out_dir.path_join("report.json")
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	var written := false
+	if f != null:
 		f.store_string(JSON.stringify(report, "  ", false))
+		written = f.get_error() == OK
 		f.close()
+	if not written:
+		push_error("could not write " + path)
+		verdict = "INCONCLUSIVE"
+		reasons = ["report.json not written (%s)" % error_string(FileAccess.get_open_error() if f == null else ERR_FILE_CANT_WRITE)] + reasons
+		report["verdict"] = verdict
+		report["reasons"] = reasons
 	return verdict
 
 func _process_memory() -> Dictionary:
