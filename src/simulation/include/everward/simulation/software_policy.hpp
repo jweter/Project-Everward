@@ -3,6 +3,7 @@
 #include "everward/simulation/composition_estimate.hpp"
 #include "everward/simulation/compound_contact.hpp"
 #include "everward/simulation/core.hpp"
+#include "everward/simulation/sensor_power_guidance.hpp"
 #include "everward/simulation/target_selection.hpp"
 
 #include <algorithm>
@@ -243,12 +244,19 @@ public:
         core_.adjust_local_velocity_mps(local_delta_velocity);
     }
 
+    [[nodiscard]] SensorPowerGuidance scan_power_guidance() const {
+        const auto status = policy_status();
+        return sensor_power_guidance(
+            core_.snapshot().power_allocated_sensors_w, kGeneration1MinimumSensorPowerW,
+            status.installed, status.enabled, status.policy_id);
+    }
+
     void start_scan(const std::string& target_id, double duration_s) {
-        const auto& state = core_.snapshot();
-        if (state.power_allocated_sensors_w < kGeneration1MinimumSensorPowerW) {
+        const auto guidance = scan_power_guidance();
+        if (guidance.state != SensorPowerState::Ready) {
             throw std::runtime_error(
-                "sensors below minimum operating power: need >= " +
-                whole_watts(kGeneration1MinimumSensorPowerW) + " W");
+                guidance.compact_message + ". sensors below minimum operating power: need >= " +
+                whole_watts(kGeneration1MinimumSensorPowerW) + " W. " + guidance.message);
         }
         core_.start_scan(target_id, duration_s);
     }

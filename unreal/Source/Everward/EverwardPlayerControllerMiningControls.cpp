@@ -180,10 +180,20 @@ void AEverwardPlayerController::AlignSelectedArmToMiningPose()
                 TEXT("Mining pose reached; fully deploy the %s arm and attach its tool, then press P to align it"), ArmName));
             return;
         }
-        // The joints slew at their real rate; G stays the authoritative judge of tool-tip reach.
-        (void)Adapter->CommandSetManipulatorJointTargetDegrees(SelectedArm, EEverwardManipulatorJoint::Shoulder, AutoApproachShoulderDegrees);
-        (void)Adapter->CommandSetManipulatorJointTargetDegrees(SelectedArm, EEverwardManipulatorJoint::Elbow, AutoApproachElbowDegrees);
-        (void)Adapter->CommandSetManipulatorJointTargetDegrees(SelectedArm, EEverwardManipulatorJoint::Wrist, AutoApproachWristDegrees);
+        // The joints slew at their real rate; G stays the authoritative judge of tool-tip reach. The rig refuses any frame that
+        // would penetrate the hull, so a straight command can stall short of the pose: follow planned waypoints instead.
+        TArray<FVector> Path;
+        if (!Adapter->PlanArmPathToDegrees(SelectedArm, AutoApproachShoulderDegrees, AutoApproachElbowDegrees, AutoApproachWristDegrees, Path))
+        {
+            ShowMiningControlMessage(FString::Printf(
+                TEXT("No collision-free joint path for the %s arm to the mining pose; rotate the probe and press P again"), ArmName));
+            return;
+        }
+        ArmAlignWaypointDegrees = Path;
+        ArmAlignWaypointIndex = 0;
+        ArmAlignWaypointElapsedSeconds = 0.0f;
+        bArmAlignStarboard = bStarboardArm;
+        CommandArmAlignWaypoint(Adapter);
         ShowMiningControlMessage(FString::Printf(
             TEXT("Mining pose reached: aligning %s arm (planned tool-tip gap %.2f m); press G once aligned"),
             ArmName, AutoApproachToolGapMeters));
@@ -237,5 +247,73 @@ void AEverwardPlayerController::AdvanceAutoApproachMiningTarget(float DeltaSecon
     {
         bAutoApproachMiningTarget = false;
         ShowMiningControlMessage(FString::Printf(TEXT("Auto-approach stopped: %s"), *Result.Detail));
+    }
+}
+
+void AEverwardPlayerController::CommandArmAlignWaypoint(UProbeSimulationAdapter* Adapter)
+{
+    if (Adapter == nullptr || !ArmAlignWaypointDegrees.IsValidIndex(ArmAlignWaypointIndex))
+    {
+        return;
+    }
+    const FVector& Waypoint = ArmAlignWaypointDegrees[ArmAlignWaypointIndex];
+    const EEverwardManipulatorArmId ArmAlignArm = bArmAlignStarboard ? EEverwardManipulatorArmId::Starboard : EEverwardManipulatorArmId::Port;
+    (void)Adapter->CommandSetManipulatorJointTargetDegrees(ArmAlignArm, EEverwardManipulatorJoint::Shoulder, Waypoint.X);
+    (void)Adapter->CommandSetManipulatorJointTargetDegrees(ArmAlignArm, EEverwardManipulatorJoint::Elbow, Waypoint.Y);
+    (void)Adapter->CommandSetManipulatorJointTargetDegrees(ArmAlignArm, EEverwardManipulatorJoint::Wrist, Waypoint.Z);
+    ArmAlignWaypointElapsedSeconds = 0.0f;
+}
+
+void AEverwardPlayerController::AdvanceArmAlignPath(float DeltaSeconds)
+{
+    if (!ArmAlignWaypointDegrees.IsValidIndex(ArmAlignWaypointIndex))
+    {
+        return;
+    }
+    UProbeSimulationAdapter* Adapter = GetProbeAdapter();
+    if (Adapter == nullptr)
+    {
+        ArmAlignWaypointDegrees.Reset();
+        return;
+    }
+    const EEverwardManipulatorArmId ArmAlignArm = bArmAlignStarboard ? EEverwardManipulatorArmId::Starboard : EEverwardManipulatorArmId::Port;
+    for (const FEverwardManipulatorArmState& ArmState : Adapter->GetManipulatorArmStates())
+    {
+        if (ArmState.ArmId != ArmAlignArm)
+        {
+            continue;
+        }
+        if (!ArmState.bIsDeployed || ArmState.bIsDeploying || ArmState.bIsStowing || !ArmState.bToolAttached)
+        {
+            ArmAlignWaypointDegrees.Reset();  // the arm was stowed or lost its tool: abandon the path
+            return;
+        }
+        const FVector& Waypoint = ArmAlignWaypointDegrees[ArmAlignWaypointIndex];
+        constexpr double ReachedToleranceDegrees = 0.01;
+        const bool bReached = FMath::Abs(ArmState.ShoulderDegrees - Waypoint.X) <= ReachedToleranceDegrees
+            && FMath::Abs(ArmState.ElbowDegrees - Waypoint.Y) <= ReachedToleranceDegrees
+            && FMath::Abs(ArmState.WristDegrees - Waypoint.Z) <= ReachedToleranceDegrees;
+        if (bReached)
+        {
+            ++ArmAlignWaypointIndex;
+            if (ArmAlignWaypointDegrees.IsValidIndex(ArmAlignWaypointIndex))
+            {
+                CommandArmAlignWaypoint(Adapter);
+            }
+            else
+            {
+                ArmAlignWaypointDegrees.Reset();
+                ShowMiningControlMessage(TEXT("Arm aligned to the mining pose; press G to mine"));
+            }
+            return;
+        }
+        ArmAlignWaypointElapsedSeconds += DeltaSeconds;
+        constexpr float WaypointTimeoutSeconds = 20.0f;
+        if (ArmAlignWaypointElapsedSeconds > WaypointTimeoutSeconds)
+        {
+            ArmAlignWaypointDegrees.Reset();
+            ShowMiningControlMessage(TEXT("Arm alignment stalled; rotate the probe and press P again"));
+        }
+        return;
     }
 }

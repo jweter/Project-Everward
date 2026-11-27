@@ -13,6 +13,7 @@
 #include "everward/simulation/manipulator_hull_contact.hpp"
 #include "everward/simulation/manipulator_reach.hpp"
 #include "everward/simulation/mining_staging.hpp"
+#include "everward/simulation/manipulator_path_planner.hpp"
 #include "everward/simulation/first_loop_controls.hpp"
 #include "everward/simulation/manipulator_collection.hpp"
 #include "everward/simulation/manipulator_grasp.hpp"
@@ -589,8 +590,8 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
     else if (!SharedLockout.IsEmpty()) SensorReason = SharedLockout;
     else if (!bSensorsHaveOperatingPower)
     {
-        SensorReason = FString::Printf(TEXT("BELOW MINIMUM POWER // NEED %.0f W"),
-            everward::simulation::ProbeRuntime::kGeneration1MinimumSensorPowerW);
+        const auto Guidance = Core->scan_power_guidance();
+        SensorReason = UTF8_TO_TCHAR(Guidance.compact_message.c_str());
     }
     SensorReason += TEXT(" // ") + IntegrityReason(*Core, everward::simulation::PowerSubsystem::Sensors);
     AddCapability(FName(TEXT("sensors")), TEXT("Sensors"),
@@ -702,6 +703,34 @@ FEverwardMiningStagingSolution UProbeSimulationAdapter::GetMiningStagingSolution
     Result.WristDegrees = Solution->angles.wrist_degrees;
     Result.ToolSurfaceGapMeters = Solution->tool_surface_gap_m;
     return Result;
+}
+
+bool UProbeSimulationAdapter::PlanArmPathToDegrees(EEverwardManipulatorArmId ArmId, double ShoulderDegrees, double ElbowDegrees, double WristDegrees, TArray<FVector>& OutWaypointDegrees) const
+{
+    OutWaypointDegrees.Reset();
+    if (Core == nullptr || Manipulators == nullptr) return false;
+    const everward::simulation::ManipulatorArmId SimulationArmId = ToSimulationManipulatorArmId(ArmId);
+    const everward::simulation::ManipulatorArmState& State = Manipulators->arm(SimulationArmId);
+    try
+    {
+        everward::simulation::JointPathOptions Options;
+        Options.frame_seconds = FixedStepSeconds;
+        const auto Path = everward::simulation::plan_collision_free_joint_path(
+            SimulationArmId, State.deployment_fraction, State.angles,
+            everward::simulation::ManipulatorArmAngles{ShoulderDegrees, ElbowDegrees, WristDegrees},
+            BuildManipulatorCollisionGuard(Core), Options);
+        if (!Path.has_value()) return false;
+        for (const everward::simulation::ManipulatorArmAngles& Waypoint : *Path)
+        {
+            OutWaypointDegrees.Add(FVector(Waypoint.shoulder_degrees, Waypoint.elbow_degrees, Waypoint.wrist_degrees));
+        }
+        return true;
+    }
+    catch (const std::exception&)
+    {
+        OutWaypointDegrees.Reset();
+        return false;
+    }
 }
 
 FEverwardProbeCommandResult UProbeSimulationAdapter::GetLastCommandResult() const { return LastCommandResult; }
@@ -1054,6 +1083,10 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandSaveGame()
             }
         }
         Captured.bootstrap_resource_surveyed = bBootstrapResourceSurveyed;
+        // G08: the deposit's remaining/extracted mass is adapter state, not Core state; persist it so a
+        // load cannot desync the deposit from the restored inventory.
+        Captured.bootstrap_deposit_remaining_kg = BootstrapDepositRemainingKilograms;
+        Captured.bootstrap_extracted_kg = BootstrapExtractedMaterialKilograms;
         Save.probes.push_back(Captured);
 
         const FString Json = UTF8_TO_TCHAR(everward::simulation::serialize_save_game(Save).c_str());
@@ -1089,6 +1122,8 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
     everward::simulation::RestorationObjectiveCycle LoadedCycle;
     FString LoadedCompletedScanTargetId;
     bool bLoadedBootstrapResourceSurveyed = false;
+    std::optional<double> LoadedDepositRemainingKilograms;
+    std::optional<double> LoadedExtractedKilograms;
     try
     {
         const everward::simulation::SaveGameV1 Save =
@@ -1099,6 +1134,8 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
         }
         const everward::simulation::ProbeSaveData& Data = Save.probes[0];
         LoadedCycle = Data.restoration_objective_cycle;
+        LoadedDepositRemainingKilograms = Data.bootstrap_deposit_remaining_kg;
+        LoadedExtractedKilograms = Data.bootstrap_extracted_kg;
 
         NewCore = new everward::simulation::DamageAwareProbeRuntime(
             everward::simulation::restore_probe_runtime(Data, Save.simulation_tick));
@@ -1138,6 +1175,9 @@ FEverwardProbeCommandResult UProbeSimulationAdapter::CommandLoadGame()
     RestorationCompletedCycles = LoadedCycle.completed_cycles;
     bRestorationDamageObservedThisCycle = LoadedCycle.damage_observed_this_cycle;
     bBootstrapResourceSurveyed = bLoadedBootstrapResourceSurveyed;
+    // G08: an older save did not record the deposit; keep the session value rather than invent one.
+    if (LoadedDepositRemainingKilograms.has_value()) BootstrapDepositRemainingKilograms = *LoadedDepositRemainingKilograms;
+    if (LoadedExtractedKilograms.has_value()) BootstrapExtractedMaterialKilograms = *LoadedExtractedKilograms;
 
     // Adapter notices are session-local, so old post-save events must not
     // leak across a successful load. Restore the saved last-completed

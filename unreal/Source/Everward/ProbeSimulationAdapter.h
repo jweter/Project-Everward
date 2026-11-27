@@ -500,6 +500,10 @@ public:
     // Computed from the arm's real kinematics at the probe's current attitude; fails closed (bHasSolution false) when
     // the target is unknown or no collision-free pose reaches it. Costs a few milliseconds: call on demand, not per tick.
     UFUNCTION(BlueprintCallable, Category="Everward|Mining") FEverwardMiningStagingSolution GetMiningStagingSolution(EEverwardManipulatorArmId ArmId, const FString& TargetBodyId) const;
+    // Issue #378 G01: the rig refuses any frame that would penetrate the hull, so the straight joint command can stall short of a
+    // legal pose. Fills OutWaypointDegrees (X=shoulder, Y=elbow, Z=wrist) with waypoints from the arm's current angles to the
+    // target under the live collision guard and the simulation frame time; false (and empty) when no legal path exists.
+    bool PlanArmPathToDegrees(EEverwardManipulatorArmId ArmId, double ShoulderDegrees, double ElbowDegrees, double WristDegrees, TArray<FVector>& OutWaypointDegrees) const;
     UFUNCTION(BlueprintPure, Category="Everward|Mining") FEverwardMiningStatus GetMiningStatus() const;
     UFUNCTION(BlueprintPure, Category="Everward|Telemetry") TArray<FEverwardMaterialInventoryEntry> GetStoredMaterialInventory() const;
     UFUNCTION(BlueprintPure, Category="Everward|Target") FEverwardTargetSelectionStatus GetSelectedTargetStatus() const;
