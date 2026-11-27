@@ -176,4 +176,25 @@ func _init() -> void:
 	print("fixit after state %s subsystem %s computation %.9f thermal %.9f storage %.9f inventory %.9f energy_used %.3f" % [fixed["state"], fixed["subsystem"], healed["computation"], healed["thermal"], fx.get_storage_used_kg(), fx.get_inventory_kg("iron_regolith"), energy0 - fx.get_stored_energy_j()])
 	var fix_events: PackedStringArray = fx.drain_fix_it_events()
 	print("fixit events %d first %s" % [fix_events.size(), fix_events[1] if fix_events.size() > 1 else ""])
+
+	# Review regression (#444): a successful load discards any in-flight Fix_It executor.
+	var load_fx = ClassDB.instantiate("EverwardSim")
+	load_fx.enable_fix_it(true)
+	load_fx.setup_bootstrap_deposit(250.0)
+	load_fx.mine_once()
+	load_fx.advance_ticks(100000)
+	var repair_was_running: bool = load_fx.get_fix_it_status()["state"] == "repairing"
+	var pristine_fx = ClassDB.instantiate("EverwardSim")
+	pristine_fx.setup_bootstrap_deposit(250.0)
+	pristine_fx.mine_once()
+	var fix_load := 1 if load_fx.load_json(pristine_fx.save_json()) else 0
+	load_fx.advance_ticks(100000)
+	var after_fix_load: Dictionary = load_fx.get_fix_it_status()
+	var loaded_computation: float = load_fx.get_integrity()["computation"]
+	var load_reset_ok: bool = repair_was_running and fix_load == 1 and absf(loaded_computation - 1.0) < 1e-12 and after_fix_load["state"] == "monitor"
+	if not load_reset_ok:
+		print("PARITY_ERROR Fix_It executor survived load_json")
+		quit(9)
+		return
+	print("fixit load reset %d computation %.9f state %s" % [1 if load_reset_ok else 0, loaded_computation, after_fix_load["state"]])
 	quit(0)

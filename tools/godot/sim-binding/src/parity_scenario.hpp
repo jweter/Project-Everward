@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -210,6 +211,28 @@ inline std::vector<std::string> run_native_parity() {
          fx.inventory_kg("iron_regolith"), energy0 - fx.stored_energy_j());
     const std::vector<std::string> fix_events = fx.drain_fix_it_events();
     line("fixit events %d first %s", static_cast<int>(fix_events.size()), fix_events.size() > 1 ? fix_events[1].c_str() : "");
+
+    // Review regression (#444): loading a save while Fix_It is running must discard the
+    // old executor operation before the restored world advances.
+    SimCore load_fx;
+    load_fx.enable_fix_it(true);
+    load_fx.setup_bootstrap_deposit(250.0);
+    (void)load_fx.mine_once();
+    load_fx.advance_ticks(100000);
+    const bool repair_was_running = load_fx.fix_it_info().state == "repairing";
+    SimCore pristine_fx;
+    pristine_fx.setup_bootstrap_deposit(250.0);
+    (void)pristine_fx.mine_once();
+    const int fix_load = load_fx.load_json(pristine_fx.save_json()) ? 1 : 0;
+    load_fx.advance_ticks(100000);
+    const FixItInfo after_fix_load = load_fx.fix_it_info();
+    const double loaded_computation = load_fx.integrity().computation;
+    const bool load_reset_ok = repair_was_running && fix_load == 1 &&
+                               std::abs(loaded_computation - 1.0) < 1e-12 &&
+                               after_fix_load.state == "monitor";
+    if (!load_reset_ok) throw std::runtime_error("Fix_It executor survived load_json");
+    line("fixit load reset %d computation %.9f state %s", load_reset_ok ? 1 : 0, loaded_computation,
+         after_fix_load.state.c_str());
     return out;
 }
 

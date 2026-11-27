@@ -705,13 +705,16 @@ func _run_firstloop() -> void:
 	# material and in stored energy
 	var energy_before: float = sim.get_stored_energy_j()
 	await _until(func() -> bool: return float(sim.get_integrity()["computation"]) >= 0.25 - 1e-9, 40.0)
+	# Capture the executor's completed-repair receipt before another fixed step can start the
+	# next repair. This is independent of the deposit/inventory conservation equation.
+	var completed_repair: Dictionary = sim.get_fix_it_status()
+	var consumed: float = float(completed_repair["last_completed_material_consumed_kg"])
+	var gained: float = sim.get_inventory_kg(mat) - inv0
+	var spent: float = left0 - sim.get_world_deposit_remaining_kg("ore-1")
 	await _sim_run(1.0)
 	await _shot("loop_05_fix_it")
 	var healed: Dictionary = sim.get_integrity()
 	var restored: bool = first_loop.fix_it_log.any(func(l: String) -> bool: return l.begins_with("COMPUTATION restored to 25%"))
-	var gained: float = sim.get_inventory_kg(mat) - inv0
-	var spent: float = left0 - sim.get_world_deposit_remaining_kg("ore-1")
-	var consumed: float = spent - gained
 	check.call("G02 Fix_It repairs with mined material", restored and float(healed["computation"]) >= 0.25 - 1e-9 and consumed > 0.0 and sim.get_stored_energy_j() < energy_before,
 		"computation %.0f%% -> %.0f%%, thermal %.0f%% -> %.0f%%; Fix_It consumed %.3f kg %s; %s" % [float(awake["computation"]) * 100.0, float(healed["computation"]) * 100.0, float(awake["thermal"]) * 100.0, float(healed["thermal"]) * 100.0, consumed, mat, first_loop.fix_it_line()])
 	check.call("material is accounted for", gained > 0.0 and consumed >= 0.0 and absf(gained + consumed - spent) < 1e-9 and absf(sim.get_storage_used_kg() - sim.get_inventory_kg(mat)) < 1e-9,

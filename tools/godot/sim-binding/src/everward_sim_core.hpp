@@ -66,6 +66,7 @@ struct FixItInfo {
     double progress{0.0};
     double material_required_kg{0.0};
     double material_consumed_kg{0.0};
+    double last_completed_material_consumed_kg{0.0};
     double energy_required_j{0.0};
     double energy_consumed_j{0.0};
     double target_integrity{0.0};
@@ -108,6 +109,7 @@ public:
         fix_it_running_ = false;
         fix_it_waiting_ = false;
         fix_it_repair_ = FixItRepairExecutor{};
+        fix_it_last_completed_material_consumed_kg_ = 0.0;
         fix_it_last_decision_.reset();
         fix_it_last_event_.clear();
         fix_it_events_.clear();
@@ -350,6 +352,7 @@ public:
         FixItInfo out;
         out.enabled = fix_it_enabled_;
         out.last_event = fix_it_last_event_;
+        out.last_completed_material_consumed_kg = fix_it_last_completed_material_consumed_kg_;
         if (!fix_it_enabled_) return out;
         out.state = fix_it_running_ ? "repairing" : (fix_it_waiting_ ? "waiting" : "monitor");
         const auto& status = fix_it_repair_.status();
@@ -552,6 +555,16 @@ public:
             has_deposit_ = new_has_deposit;
             deposit_remaining_kg_ = new_remaining;
             extracted_kg_ = new_extracted;
+            // In-progress Fix_It operations are intentionally not persisted yet. A load replaces
+            // the authoritative world state, so no executor decision/progress from the old world
+            // may run against the restored probe on the next fixed step.
+            fix_it_running_ = false;
+            fix_it_waiting_ = false;
+            fix_it_repair_ = FixItRepairExecutor{};
+            fix_it_last_completed_material_consumed_kg_ = 0.0;
+            fix_it_last_decision_.reset();
+            fix_it_last_event_.clear();
+            fix_it_events_.clear();
             return true;
         } catch (const std::exception&) {
             return false;
@@ -625,6 +638,7 @@ private:
             fix_it_repair_.advance(runtime_, step_s);
             const auto& status = fix_it_repair_.status();
             if (status.state == FixItExecutionState::Completed) {
+                fix_it_last_completed_material_consumed_kg_ = status.material_consumed_kg;
                 fix_it_running_ = false;
                 fix_it_waiting_ = false;
                 std::snprintf(buf, sizeof(buf), "%s restored to %.0f%%; consumed %.2f kg (%s) and %.0f J.",
@@ -708,6 +722,7 @@ private:
     bool fix_it_running_{false};
     bool fix_it_waiting_{false};
     FixItRepairExecutor fix_it_repair_{};
+    double fix_it_last_completed_material_consumed_kg_{0.0};
     std::optional<FixItDecision> fix_it_last_decision_{};
     std::string fix_it_last_event_;
     std::vector<std::string> fix_it_events_;
