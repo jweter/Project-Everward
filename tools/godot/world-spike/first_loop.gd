@@ -6,6 +6,14 @@ extends RefCounted
 #
 # Keys: R scan the nearest deposit (R again cancels), 1/2 select port/starboard arm, T deploy/stow the selected arm,
 # Y attach/detach its tool, P auto-approach (P or SPACE cancels), G mine.
+# Power (#378 G09): K installs the GEN1 BASIC SURVIVAL policy, L clears it, O sets Sensors to the 50 W scan minimum.
+# A refused scan shows the simulation's own explanation and recovery steps.
+# Systems panel (#378 G11): Tab shows it; [ and ] move the selection with the simulation's bounded_selection rule
+# whether or not the panel is open; selecting an arm makes it the arm T/Y/P act on; Enter on a power subsystem
+# toggles it between 0 W and its operating minimum.
+# Auto-approach safety (#378 G10): P refuses when the probe's hull would hit a body flying straight to the mining pose;
+# while flying, the pose is re-solved if the probe turns or the target moves, and the approach stops (with the reason)
+# if the line becomes blocked or the hull touches anything; a turn or a target move after alignment cancels "aligned".
 # Fix_It (#378 G02) runs inside the simulation on its own, as in the Unreal build: the probe wakes damaged, and Fix_It
 # repairs in canonical order only while stored material and energy cover the next step. This script shows it.
 
@@ -15,7 +23,12 @@ const APPROACH_SPEED := 2.0            # Unreal AutoApproachSpeedMetersPerSecond
 const APPROACH_TOLERANCE := 0.25       # Unreal AutoApproachStopToleranceMeters
 const WAYPOINT_TOLERANCE_DEG := 1e-3
 const WAYPOINT_TIMEOUT_S := 10.0
+const ATTITUDE_TOLERANCE_DEG := 0.5     # a larger turn since the solve re-solves the mining pose (G10)
+const TARGET_TOLERANCE_M := 0.05        # a larger target move since the solve re-solves the mining pose (G10)
 const ARM_NAMES := ["PORT", "STARBOARD"]
+const SENSOR_SCAN_MINIMUM_W := 50.0     # ProbeRuntime::kGeneration1MinimumSensorPowerW
+const COMPUTATION_MINIMUM_W := 25.0      # ProbeRuntime::kGeneration1MinimumPolicyComputationPowerW
+const CAPABILITIES := ["SENSORS", "PROPULSION", "COMPUTATION", "THERMAL", "PORT ARM", "STARBOARD ARM"]
 
 var m                                   # the world-spike main node
 var deposits: Array[Dictionary] = []    # {id, material, name, center (Godot), radius, mesh, mat}
@@ -26,6 +39,10 @@ var staging := Vector3.ZERO             # simulation frame
 var staging_angles := PackedFloat64Array()
 var staging_gap := 0.0
 var approach_target := ""
+var staging_attitude := PackedFloat64Array()   # the probe attitude the mining pose was solved for
+var staging_target_center := Vector3.ZERO      # where the target was when the mining pose was solved (simulation frame)
+var approach_contacts := 0                     # main's contact count when the approach engaged
+var legacy_approach_for_test := false          # --approachtest --selftest-fail=staleapproach: pre-G10 behaviour, must fail
 var waypoints: Array = []
 var waypoint_index := -1
 var waypoint_elapsed := 0.0
@@ -33,6 +50,9 @@ var aligned := false
 var message := ""
 var last_mine: Dictionary = {}
 var fix_it_log: Array[String] = []
+var panel_open := false
+var selected_capability := 0
+var unbounded_selection_for_test := false   # --hudtest --selftest-fail=unbounded: the old unclamped rule, must fail
 var arm_meshes: Array = [[], []]        # per arm: 3 link cylinders + tool tip
 var scan_beam: MeshInstance3D
 var arm_mat: StandardMaterial3D
@@ -119,6 +139,8 @@ func busy() -> bool:
 func say(text: String) -> void:
 	message = text
 	m.metrics.append("first-loop: " + text)
+	if m.evidence != null:
+		m.evidence.event("message", text)
 
 # ------------------------------------------------------------------------------------------- controls
 func handle_key(keycode: int) -> bool:
@@ -134,10 +156,25 @@ func handle_key(keycode: int) -> bool:
 				elif m.sim.start_scan(d["id"], SCAN_DURATION_S):
 					say("scanning " + String(d["name"]))
 				else:
-					say("scan refused by the simulation")
+					say("scan refused: " + String(m.sim.get_last_scan_refusal()))
 		KEY_1, KEY_2:
 			selected_arm = 0 if keycode == KEY_1 else 1
+			selected_capability = 4 + selected_arm   # the panel and the arm keys always agree
 			say("%s arm selected" % ARM_NAMES[selected_arm])
+		KEY_TAB:
+			panel_open = not panel_open
+			say("systems panel " + ("open" if panel_open else "closed"))
+		KEY_BRACKETRIGHT, KEY_BRACKETLEFT:
+			var step := 1 if keycode == KEY_BRACKETRIGHT else -1
+			if unbounded_selection_for_test:
+				selected_capability += step
+			else:
+				selected_capability = int(m.sim.bounded_selection(selected_capability, step, CAPABILITIES.size()))
+			if selected_capability >= 4 and selected_capability < CAPABILITIES.size():
+				selected_arm = selected_capability - 4
+			say("%s selected" % (CAPABILITIES[selected_capability] if selected_capability >= 0 and selected_capability < CAPABILITIES.size() else "index %d (invalid)" % selected_capability))
+		KEY_ENTER, KEY_KP_ENTER:
+			act_on_selected()
 		KEY_T:
 			if m.sim.toggle_arm(selected_arm):
 				var st: Dictionary = m.sim.get_arm_state(selected_arm)
@@ -151,6 +188,16 @@ func handle_key(keycode: int) -> bool:
 				say("%s tool %s" % [ARM_NAMES[selected_arm], "detached" if m.sim.detach_tool(selected_arm) else "detach refused"])
 			else:
 				say("%s tool %s" % [ARM_NAMES[selected_arm], "attached" if m.sim.attach_tool(selected_arm) else "needs a fully deployed arm"])
+		KEY_K:
+			say("GEN1 BASIC SURVIVAL policy %s" % ("installed" if m.sim.install_basic_survival_policy() else "refused"))
+		KEY_L:
+			say("software policy cleared" if m.sim.clear_policy() else "no software policy installed")
+		KEY_O:
+			var was_scanning: bool = m.sim.is_scanning()
+			if m.sim.allocate_power(0, SENSOR_SCAN_MINIMUM_W):
+				say("sensors power set to %d W" % int(SENSOR_SCAN_MINIMUM_W))
+			else:
+				say("sensor power change refused" + (" (scan was running)" if was_scanning else ""))
 		KEY_P:
 			toggle_approach()
 		KEY_G:
@@ -158,6 +205,38 @@ func handle_key(keycode: int) -> bool:
 		_:
 			return false
 	return true
+
+func act_on_selected() -> void:
+	var minimums := [SENSOR_SCAN_MINIMUM_W, 0.0, COMPUTATION_MINIMUM_W, 0.0]
+	if selected_capability >= 4:
+		say("%s: use T to deploy or stow, Y for the tool" % CAPABILITIES[selected_capability])
+		return
+	var minimum: float = minimums[selected_capability]
+	if minimum <= 0.0:
+		say("%s has no operating minimum to restore" % CAPABILITIES[selected_capability])
+		return
+	var current: float = m.sim.get_power_allocations()[selected_capability]
+	var target := 0.0 if current >= minimum else minimum
+	if m.sim.allocate_power(selected_capability, target):
+		say("%s power set to %d W" % [CAPABILITIES[selected_capability], int(target)])
+	else:
+		say("%s power change refused" % CAPABILITIES[selected_capability])
+
+# The panel text: one line per capability with its live state, the selected one marked with ">".
+func panel_lines() -> String:
+	var p: PackedFloat64Array = m.sim.get_power_allocations()
+	var i: Dictionary = m.sim.get_integrity()
+	var integ := [i["sensors"], i["propulsion"], i["computation"], i["thermal"]]
+	var out := "SYSTEMS  ([ ] select, Enter act, Tab close)"
+	for k in CAPABILITIES.size():
+		var state := ""
+		if k < 4:
+			state = "%d W  integrity %d%%" % [int(p[k]), int(round(float(integ[k]) * 100.0))]
+		else:
+			var st: Dictionary = m.sim.get_arm_state(k - 4)
+			state = ("deployed" if st["deployed"] and not st["stowing"] else ("moving" if st["deploying"] or st["stowing"] else "stowed")) + ("  tool on" if st["tool_attached"] else "")
+		out += "\n%s %s  %s" % [">" if k == selected_capability else " ", CAPABILITIES[k], state]
+	return out
 
 func toggle_approach() -> void:
 	if approaching:
@@ -167,20 +246,55 @@ func toggle_approach() -> void:
 	if d.is_empty():
 		say("no deposit in range for auto-approach")
 		return
-	var plan: Dictionary = m.sim.plan_staging(selected_arm, d["id"])
-	if not plan["has_solution"]:
+	if not _solve_staging(selected_arm, d["id"]):
 		say("no collision-free mining pose for the %s arm at this attitude; rotate the probe and press P again" % ARM_NAMES[selected_arm])
 		return
-	var p: PackedFloat64Array = plan["position"]
-	staging = Vector3(p[0], p[1], p[2])
-	staging_angles = plan["angles"]
-	staging_gap = plan["tool_gap_m"]
+	var blocker := _blocker()
+	if blocker != "":
+		say("the straight path to the mining pose is blocked by %s; move the probe so the line is clear and press P again" % blocker)
+		return
 	op_arm = selected_arm   # selecting another arm later never redirects this operation
-	approach_target = d["id"]
+	approach_contacts = m.sim_contacts
 	approaching = true
 	aligned = false
 	waypoint_index = -1
 	say("mining auto-approach engaged; SPACE or P cancels")
+
+# Solves the mining pose for this arm and target at the probe's current attitude and remembers what it was solved for.
+func _solve_staging(arm: int, target_id: String) -> bool:
+	var plan: Dictionary = m.sim.plan_staging(arm, target_id)
+	if not plan["has_solution"]:
+		return false
+	var p: PackedFloat64Array = plan["position"]
+	staging = Vector3(p[0], p[1], p[2])
+	staging_angles = plan["angles"]
+	staging_gap = plan["tool_gap_m"]
+	approach_target = target_id
+	staging_attitude = m.sim.get_attitude()
+	var c: PackedFloat64Array = m.sim.get_body_center(target_id)
+	staging_target_center = Vector3(c[0], c[1], c[2]) if c.size() == 3 else Vector3.INF
+	return true
+
+# The first body the hull would hit flying straight to the mining pose ("" when clear; the simulation's sweep).
+func _blocker() -> String:
+	if legacy_approach_for_test:
+		return ""
+	return String(m.sim.get_approach_blocker(staging.x, staging.y, staging.z))
+
+# Why the solved mining pose no longer holds ("" while it does): the probe turned or the target moved or vanished.
+func _pose_changed() -> String:
+	if legacy_approach_for_test:
+		return ""
+	var a: PackedFloat64Array = m.sim.get_attitude()
+	for i in 3:
+		if absf(rad_to_deg(angle_difference(deg_to_rad(a[i]), deg_to_rad(staging_attitude[i])))) > ATTITUDE_TOLERANCE_DEG:
+			return "the probe turned"
+	var c: PackedFloat64Array = m.sim.get_body_center(approach_target)
+	if c.size() != 3:
+		return "the target is gone"
+	if Vector3(c[0], c[1], c[2]).distance_to(staging_target_center) > TARGET_TOLERANCE_M:
+		return "the target moved"
+	return ""
 
 func cancel_approach(text: String) -> void:
 	approaching = false
@@ -205,6 +319,14 @@ func process(delta: float) -> void:
 		fix_it_log.append(line)
 		m.metrics.append("Fix_It: " + line)
 	if approaching:
+		_guard_approach()
+	elif waypoint_index >= 0 or aligned:
+		var changed := _pose_changed()
+		if changed != "":
+			waypoint_index = -1
+			aligned = false
+			say("%s after the approach; the arm is no longer aligned; press P to approach again" % changed)
+	if approaching:
 		var p: PackedFloat64Array = m.sim.get_position()
 		var to := staging - Vector3(p[0], p[1], p[2])
 		var dist := to.length()
@@ -220,6 +342,21 @@ func process(delta: float) -> void:
 	if waypoint_index >= 0:
 		_follow(delta)
 	_draw()
+
+# While flying: re-solve when the probe turned or the target moved; stop on contact or a blocked line (G10).
+func _guard_approach() -> void:
+	var changed := _pose_changed()
+	if changed != "":
+		if not _solve_staging(op_arm, approach_target):
+			cancel_approach("auto-approach stopped: %s and there is no collision-free mining pose for the %s arm now; rotate the probe and press P again" % [changed, ARM_NAMES[op_arm]])
+			return
+		say("%s: mining pose re-solved, still approaching" % changed)
+	if not legacy_approach_for_test and m.sim_contacts > approach_contacts:
+		cancel_approach("auto-approach stopped: the hull touched %s" % String(m.sim_contact_log.back()))
+		return
+	var blocker := _blocker()
+	if blocker != "":
+		cancel_approach("auto-approach stopped: the path to the mining pose is blocked by %s" % blocker)
 
 func _align() -> void:
 	var st: Dictionary = m.sim.get_arm_state(op_arm)
@@ -310,10 +447,25 @@ func hud_lines() -> String:
 		var kg: float = m.sim.get_inventory_kg(dd["material"])
 		if kg > 0.0:
 			cargo += "  %s %.1f kg" % [dd["name"], kg]
+	if panel_open:
+		return panel_lines() + "\n" + message
 	return "TARGET %s\nARM %s %s  tool %s%s%s\nCARGO%s  storage %.1f / %.0f kg\n%s\n%s" % [
 		target, ARM_NAMES[selected_arm], arm_state, "on" if st["tool_attached"] else "off",
-		"  APPROACHING" if approaching else "", "  ALIGNED" if aligned else "",
-		cargo if cargo != "" else " empty", m.sim.get_storage_used_kg(), m.sim.get_storage_capacity_kg(), fix_it_line(), message]
+		# the operation's own arm is named: it can differ from the selected arm shown on this line (selecting another arm
+		# never redirects an operation), and an unnamed "ALIGNED" next to it would claim the wrong arm is ready
+		"  APPROACHING for %s" % ARM_NAMES[op_arm] if approaching else ("  ALIGNING %s" % ARM_NAMES[op_arm] if waypoint_index >= 0 else ""),
+		"  %s ALIGNED" % ARM_NAMES[op_arm] if aligned else "",
+		cargo if cargo != "" else " empty", m.sim.get_storage_used_kg(), m.sim.get_storage_capacity_kg(), fix_it_line() + "\n" + power_line(), message]
+
+# Power and policy, with the simulation's compact recovery hint whenever scanning is blocked (G09).
+func power_line() -> String:
+	var p: PackedFloat64Array = m.sim.get_power_allocations()
+	var pol: Dictionary = m.sim.get_policy_status()
+	var g: Dictionary = m.sim.get_scan_power_guidance()
+	var line := "POWER SENS %d W (scan %d) PROP %d COMP %d THERM %d // POLICY %s" % [int(p[0]), int(SENSOR_SCAN_MINIMUM_W), int(p[1]), int(p[2]), int(p[3]), String(pol["policy_id"]) if pol["installed"] else "none"]
+	if g["state"] != "ready":
+		line += " // " + String(g["compact"])
+	return line
 
 # The Unreal FixItRuntimeActor summary format, plus the integrity of all four subsystems.
 func fix_it_line() -> String:

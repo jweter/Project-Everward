@@ -9,6 +9,7 @@
 // twice.) Every operation that can see bad input returns a failure instead of throwing into the engine.
 
 #include "everward/simulation/first_loop_controls.hpp"
+#include "everward/simulation/compound_contact.hpp"
 #include "everward/simulation/fix_it.hpp"
 #include "everward/simulation/manipulator_hull_contact.hpp"
 #include "everward/simulation/manipulator_path_planner.hpp"
@@ -45,6 +46,7 @@ struct MineResult {
 // G3: a mineable deposit placed in the world (a registered static body plus its resource record).
 struct WorldDeposit {
     ResourceDeposit deposit;
+    double extracted_kg{0.0};
     bool surveyed{false};
 };
 
@@ -67,6 +69,9 @@ struct FixItInfo {
     double material_required_kg{0.0};
     double material_consumed_kg{0.0};
     double last_completed_material_consumed_kg{0.0};
+    // Every kilogram Fix_It has taken from storage since it was enabled (completed and active repairs), measured as
+    // the storage debit of each executor step.
+    double total_material_consumed_kg{0.0};
     double energy_required_j{0.0};
     double energy_consumed_j{0.0};
     double target_integrity{0.0};
@@ -110,6 +115,7 @@ public:
         fix_it_waiting_ = false;
         fix_it_repair_ = FixItRepairExecutor{};
         fix_it_last_completed_material_consumed_kg_ = 0.0;
+        fix_it_total_material_consumed_kg_ = 0.0;
         fix_it_last_decision_.reset();
         fix_it_last_event_.clear();
         fix_it_events_.clear();
@@ -184,6 +190,32 @@ public:
         }
     }
     void clear_bodies() noexcept { runtime_.clear_static_bodies(); }
+    // G07: a body that moves by itself (a tractor target, debris). The simulation advances it every step and sweeps it
+    // against the probe, unlike move_sphere_body, which teleports it between steps.
+    bool set_sphere_body_velocity(const std::string& id, double x, double y, double z) {
+        if (id.empty() || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) || !find_body(id)) return false;
+        try {
+            runtime_.update_static_sphere_body_velocity(id, {x, y, z});
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
+    struct HullSample {
+        Vector3d center;
+        double radius;
+    };
+    // G07: the probe's authoritative compound collision envelope placed at its current pose (world centres and radii),
+    // the geometry contact is decided with.
+    [[nodiscard]] std::vector<HullSample> hull_samples() const {
+        const auto& s = runtime_.snapshot();
+        std::vector<HullSample> out;
+        for (const ProbeCollisionSphereSample& sample : s.compound_collision_envelope.samples) {
+            out.push_back({contact_add(s.position_m, rotate_local_contact_offset(sample.local_center_m, s.attitude_degrees)),
+                           sample.radius_m});
+        }
+        return out;
+    }
     // Moves a registered body (used for terrain proxy spheres that follow the ground under the probe).
     bool move_sphere_body(const std::string& id, double x, double y, double z) {
         if (id.empty() || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;
@@ -248,14 +280,64 @@ public:
     }
 
     bool start_scan(const std::string& target_id, double duration_s) {
-        if (target_id.empty() || !std::isfinite(duration_s) || duration_s <= 0.0) return false;
+        last_scan_refusal_.clear();
+        if (target_id.empty() || !std::isfinite(duration_s) || duration_s <= 0.0) {
+            last_scan_refusal_ = "invalid scan request";
+            return false;
+        }
         try {
             runtime_.start_scan(target_id, duration_s);
+            return true;
+        } catch (const std::exception& e) {
+            last_scan_refusal_ = e.what();  // e.g. the sensor-power guidance (G09)
+            return false;
+        }
+    }
+    [[nodiscard]] const std::string& last_scan_refusal() const { return last_scan_refusal_; }
+
+    // ------------------------------------------------------------------ power and software policy (#378 G09)
+    // Subsystems: 0 sensors, 1 propulsion, 2 computation, 3 thermal. Lowering sensors below the scan floor during a
+    // scan cancels it (the simulation's rule).
+    bool allocate_power(int subsystem, double watts) {
+        const auto s = power_subsystem(subsystem);
+        if (!s || !std::isfinite(watts) || watts < 0.0) return false;
+        try {
+            runtime_.allocate_power(*s, watts);
             return true;
         } catch (const std::exception&) {
             return false;
         }
     }
+    [[nodiscard]] std::vector<double> power_allocations() const {
+        const auto& s = runtime_.snapshot();
+        return {s.power_allocated_sensors_w, s.power_allocated_propulsion_w, s.power_allocated_computation_w,
+                s.power_allocated_thermal_w};
+    }
+    // The Unreal adapter's GEN1 BASIC SURVIVAL policy (CommandInstallBasicSurvivalPolicy), rule for rule: shed sensor
+    // power below 60% stored energy, shed propulsion above 350 K.
+    bool install_basic_survival_policy() {
+        try {
+            SoftwarePolicy policy;
+            policy.id = "gen1_basic_survival";
+            policy.rules = {
+                {"shed_sensors_below_60_percent_energy", PolicyConditionKind::EnergyFractionBelow, 0.60,
+                 PolicyActionKind::SetPowerAllocation, PowerSubsystem::Sensors, 0.0},
+                {"shed_propulsion_above_350_kelvin", PolicyConditionKind::TemperatureAboveKelvin, 350.0,
+                 PolicyActionKind::SetPowerAllocation, PowerSubsystem::Propulsion, 0.0},
+            };
+            runtime_.install_policy(std::move(policy));
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
+    bool clear_policy() {
+        if (!runtime_.policy_status().installed) return false;
+        runtime_.clear_policy();
+        return true;
+    }
+    [[nodiscard]] SoftwarePolicyStatus policy_status() const { return runtime_.policy_status(); }
+    [[nodiscard]] SensorPowerGuidance scan_power_guidance() const { return runtime_.scan_power_guidance(); }
     bool cancel_scan() {
         try {
             runtime_.cancel_scan();
@@ -353,6 +435,7 @@ public:
         out.enabled = fix_it_enabled_;
         out.last_event = fix_it_last_event_;
         out.last_completed_material_consumed_kg = fix_it_last_completed_material_consumed_kg_;
+        out.total_material_consumed_kg = fix_it_total_material_consumed_kg_;
         if (!fix_it_enabled_) return out;
         out.state = fix_it_running_ ? "repairing" : (fix_it_waiting_ ? "waiting" : "monitor");
         const auto& status = fix_it_repair_.status();
@@ -414,6 +497,31 @@ public:
         return out;
     }
 
+    // G10: the first body the probe's compound hull would touch flying in a straight line from where it is to (x, y, z)
+    // at its current attitude, using the sweep the simulation uses for contact; "" when the line is clear. Fails closed:
+    // a non-finite destination is reported as blocked.
+    [[nodiscard]] std::string approach_blocker(double x, double y, double z) const {
+        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return "invalid destination";
+        const auto& s = runtime_.snapshot();
+        std::string first;
+        double earliest = std::numeric_limits<double>::infinity();
+        for (const StaticSphereBody& body : runtime_.static_bodies()) {
+            const CompoundContactCandidate c = sweep_compound_probe_against_body(
+                s.position_m, Vector3d{x, y, z}, s.attitude_degrees, ProbeCompoundCollisionEnvelope{}, body);
+            if (c.hit && c.fraction < earliest) {
+                earliest = c.fraction;
+                first = body.body_id;
+            }
+        }
+        return first;
+    }
+    // Where a registered body is now (bodies can move); empty optional for an unknown id.
+    [[nodiscard]] std::optional<Vector3d> body_center(const std::string& id) const {
+        const auto body = find_body(id);
+        if (!body) return std::nullopt;
+        return body->center_m;
+    }
+
     // Collision-free joint waypoints from the arm's current pose to the goal (empty optional: no path).
     [[nodiscard]] std::optional<std::vector<ManipulatorArmAngles>> plan_arm_path(int arm, double shoulder, double elbow,
                                                                                 double wrist) const {
@@ -463,6 +571,7 @@ public:
         if (r.accepted) {
             runtime_.add_stored_material_kg(r.extracted_kg, r.material_id);
             d.deposit.remaining_kg = r.remaining_deposit_kg;
+            d.extracted_kg += r.extracted_kg;
             out.extracted_kg = r.extracted_kg;
             out.material_id = r.material_id;
         }
@@ -532,6 +641,10 @@ public:
             data.bootstrap_deposit_remaining_kg = deposit_remaining_kg_;
             data.bootstrap_extracted_kg = extracted_kg_;
         }
+        for (const auto& [id, d] : deposits_) {  // #378 G08: world deposits and their surveys
+            data.world_deposits.push_back({id, d.deposit.material_id, d.deposit.display_name, d.deposit.remaining_kg,
+                                           d.extracted_kg, d.deposit.extraction_kg_per_cycle, d.surveyed});
+        }
         save.probes.push_back(data);
         return serialize_save_game(save);
     }
@@ -550,11 +663,29 @@ public:
                 data.bootstrap_resource_surveyed && data.bootstrap_deposit_remaining_kg.has_value();
             const double new_remaining = new_has_deposit ? *data.bootstrap_deposit_remaining_kg : 0.0;
             const double new_extracted = data.bootstrap_extracted_kg.value_or(0.0);
+            // World deposits come back from the save (the schema guarantees each names a saved body); a save
+            // without them restores none, never keeping the current session's deposits or surveys.
+            std::map<std::string, WorldDeposit> new_deposits;
+            for (const WorldDepositSaveData& w : data.world_deposits) {
+                WorldDeposit d;
+                for (const StaticSphereBody& body : data.static_bodies) {
+                    if (body.body_id == w.body_id) d.deposit.body = body;
+                }
+                d.deposit.material_id = w.material_id;
+                d.deposit.display_name = w.display_name;
+                d.deposit.remaining_kg = w.remaining_kg;
+                d.deposit.extraction_kg_per_cycle = w.extraction_kg_per_cycle;
+                d.extracted_kg = w.extracted_kg;
+                d.surveyed = w.surveyed;
+                new_deposits.emplace(w.body_id, d);
+            }
             runtime_ = std::move(new_runtime);
             rig_ = std::move(new_rig);
             has_deposit_ = new_has_deposit;
             deposit_remaining_kg_ = new_remaining;
             extracted_kg_ = new_extracted;
+            deposits_ = std::move(new_deposits);
+            pending_contacts_ = 0;
             // In-progress Fix_It operations are intentionally not persisted yet. A load replaces
             // the authoritative world state, so no executor decision/progress from the old world
             // may run against the restored probe on the next fixed step.
@@ -562,6 +693,7 @@ public:
             fix_it_waiting_ = false;
             fix_it_repair_ = FixItRepairExecutor{};
             fix_it_last_completed_material_consumed_kg_ = 0.0;
+            fix_it_total_material_consumed_kg_ = 0.0;
             fix_it_last_decision_.reset();
             fix_it_last_event_.clear();
             fix_it_events_.clear();
@@ -582,6 +714,16 @@ private:
                     return ProbeWorldPose{s.position_m, s.attitude_degrees};
                 },
                 [this]() -> const std::vector<StaticSphereBody>& { return runtime_.static_bodies(); }));
+    }
+
+    [[nodiscard]] static std::optional<PowerSubsystem> power_subsystem(int s) {
+        switch (s) {
+            case 0: return PowerSubsystem::Sensors;
+            case 1: return PowerSubsystem::Propulsion;
+            case 2: return PowerSubsystem::Computation;
+            case 3: return PowerSubsystem::Thermal;
+            default: return std::nullopt;
+        }
     }
 
     [[nodiscard]] static std::optional<ManipulatorArmId> arm_id(int arm) {
@@ -635,7 +777,9 @@ private:
     void advance_fix_it(double step_s) {
         char buf[320];
         if (fix_it_running_) {
+            const double stored_before = runtime_.snapshot().storage_used_kg;
             fix_it_repair_.advance(runtime_, step_s);
+            fix_it_total_material_consumed_kg_ += stored_before - runtime_.snapshot().storage_used_kg;
             const auto& status = fix_it_repair_.status();
             if (status.state == FixItExecutionState::Completed) {
                 fix_it_last_completed_material_consumed_kg_ = status.material_consumed_kg;
@@ -718,11 +862,13 @@ private:
     std::map<std::string, WorldDeposit> deposits_;
     int pending_contacts_{0};
     std::int64_t accumulator_ticks_{0};
+    std::string last_scan_refusal_;
     bool fix_it_enabled_{false};
     bool fix_it_running_{false};
     bool fix_it_waiting_{false};
     FixItRepairExecutor fix_it_repair_{};
     double fix_it_last_completed_material_consumed_kg_{0.0};
+    double fix_it_total_material_consumed_kg_{0.0};
     std::optional<FixItDecision> fix_it_last_decision_{};
     std::string fix_it_last_event_;
     std::vector<std::string> fix_it_events_;

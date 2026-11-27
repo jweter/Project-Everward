@@ -66,6 +66,14 @@ const TERRAIN_PROXY_IDS := ["terrain-down", "terrain-velocity", "terrain-nose"]
 const FirstLoop = preload("res://first_loop.gd")
 var first_loop = null
 var firstloop_test := false      # --firstloop: headless acceptance run of the whole loop
+var powertest := false           # --powertest: headless run of the G09 sensor-power drop and recovery
+var hudtest := false             # --hudtest: headless run of the G11 systems panel selection
+var approachtest := false        # --approachtest: headless run of the G10 auto-approach safety cases
+var contacttest := false         # --contacttest: headless run of the G07 compound-hull contact cases
+# G04/G12: the acceptance runs write report.json (exact build, timed events, checks, PASS/FAIL/INCONCLUSIVE).
+const Evidence = preload("res://evidence.gd")
+const INCONCLUSIVE_EXIT := 11
+var evidence = null
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -76,6 +84,10 @@ func _ready() -> void:
 	sim_manual = "--sim" in args
 	selftest_sim = "--selftest-sim" in args
 	firstloop_test = "--firstloop" in args
+	powertest = "--powertest" in args
+	hudtest = "--hudtest" in args
+	approachtest = "--approachtest" in args
+	contacttest = "--contacttest" in args
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -119,7 +131,15 @@ func _ready() -> void:
 	puff.width = 64
 	puff.height = 64
 	dust_mat.albedo_texture = puff
-	if firstloop_test:
+	if contacttest:
+		_run_contacttest.call_deferred()
+	elif approachtest:
+		_run_approachtest.call_deferred()
+	elif hudtest:
+		_run_hudtest.call_deferred()
+	elif powertest:
+		_run_powertest.call_deferred()
+	elif firstloop_test:
 		_run_firstloop.call_deferred()
 	elif simflight:
 		_run_simflight.call_deferred()
@@ -265,7 +285,7 @@ func _build_clouds() -> void:
 
 func _scripted() -> bool:
 	# Any scripted run: no manual flight, no player input (they would move the camera between captures)
-	return autotest or explore or lookshots or simflight or firstloop_test
+	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest or approachtest or contacttest
 
 func _apply_look() -> void:
 	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
@@ -412,6 +432,8 @@ func _sim_step(delta: float) -> void:
 		sim_contacts += n
 		var c: Dictionary = sim.get_last_contact()
 		sim_contact_log.append(String(c["body_id"]))
+		if evidence != null:
+			evidence.event("contact", String(c["body_id"]))
 		_dust(_sim_to_godot(c["point"]), 30)
 		shake = maxf(shake, 0.5)
 
@@ -588,6 +610,8 @@ func _press(keycode: int) -> void:
 	e.keycode = keycode
 	e.physical_keycode = keycode
 	e.pressed = true
+	if evidence != null:
+		evidence.event("command", OS.get_keycode_string(keycode))
 	_input(e)
 
 func _until(cond: Callable, limit_s: float) -> bool:
@@ -599,7 +623,7 @@ func _until(cond: Callable, limit_s: float) -> bool:
 
 func _run_firstloop() -> void:
 	# G3 evidence for #378 G01/G02 (mining part), G05 and G06, through the real key handler and the simulation.
-	metrics.append("godot %s  renderer=%s" % [Engine.get_version_info()["string"], RenderingServer.get_video_adapter_name()])
+	_begin_evidence("firstloop")
 	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
 	await _wait_stream()
 	var vt: VoxelTool = terrain.get_voxel_tool()
@@ -609,6 +633,7 @@ func _run_firstloop() -> void:
 			var h = vt.raycast(Vector3(gx * 40.0, 480.0, gz * 40.0), Vector3.DOWN, 700.0)
 			if h != null and h.position.y > peak.y:
 				peak = Vector3(h.position)
+	evidence.precondition("terrain streamed", peak.y > -1000.0, "summit at %s" % str(peak))
 	_place_trees(500, 300.0, Vector3(peak.x, 0, peak.z))
 	var ore_center := peak + Vector3(0, 1.8, 0)
 	if not _sim_start(ore_center + Vector3(0, 14, 45)):
@@ -618,13 +643,8 @@ func _run_firstloop() -> void:
 	sim.enable_fix_it(true)   # the probe wakes damaged; Fix_It must wait for material, then repair with it (#378 G02)
 	var awake: Dictionary = sim.get_integrity()
 	var mat := "iron_bearing_silicate_regolith"
-	var checks: Array[String] = []
-	var failed: Array[String] = []
-	var check := func(name: String, ok: bool, detail: String) -> void:
-		checks.append("%s %s: %s" % ["PASS" if ok else "FAIL", name, detail])
-		if not ok:
-			failed.append(name)
-	check.call("deposit registered", first_loop.add_deposit("ore-1", ore_center, 3.0, mat, "Iron-bearing regolith", 120.0), "ore-1 r=3 m on the summit")
+	var check := func(name: String, ok: bool, detail: String) -> void: evidence.check(name, ok, detail)
+	evidence.precondition("deposit registered", first_loop.add_deposit("ore-1", ore_center, 3.0, mat, "Iron-bearing regolith", 120.0), "ore-1 r=3 m on the summit")
 	await _sim_run(0.5)
 	await _shot("loop_01_start")
 	_press(KEY_G)
@@ -693,6 +713,12 @@ func _run_firstloop() -> void:
 			_press(KEY_1)
 			_press(KEY_2)
 		var done: bool = await _until(func() -> bool: return first_loop.aligned or (not first_loop.busy() and not first_loop.approaching), 120.0)
+		if arm == 0:
+			# the STARBOARD arm is selected now; the HUD must say which arm is aligned, not imply the selected one is
+			await _sim_run(0.1)
+			var arm_line: String = Array(hud.text.split("
+")).filter(func(l: String) -> bool: return l.begins_with("ARM "))[0] if hud.text.contains("ARM ") else ""
+			check.call("HUD names the aligned arm", first_loop.selected_arm == 1 and arm_line.contains("PORT ALIGNED") and not arm_line.contains("  ALIGNED"), arm_line)
 		await _shot("loop_03_aligned_%s" % label.replace(" ", "_"))
 		var before: float = sim.get_inventory_kg(mat)
 		_press(KEY_G)
@@ -705,10 +731,9 @@ func _run_firstloop() -> void:
 	# material and in stored energy
 	var energy_before: float = sim.get_stored_energy_j()
 	await _until(func() -> bool: return float(sim.get_integrity()["computation"]) >= 0.25 - 1e-9, 40.0)
-	# Capture the executor's completed-repair receipt before another fixed step can start the
-	# next repair. This is independent of the deposit/inventory conservation equation.
-	var completed_repair: Dictionary = sim.get_fix_it_status()
-	var consumed: float = float(completed_repair["last_completed_material_consumed_kg"])
+	# Fix_It's cumulative storage debit (every completed repair and the active one), read in the same frame as the
+	# inventory and deposit, so conservation holds whichever fixed step the poll lands on (Codex #444).
+	var consumed: float = float(sim.get_fix_it_status()["total_material_consumed_kg"])
 	var gained: float = sim.get_inventory_kg(mat) - inv0
 	var spent: float = left0 - sim.get_world_deposit_remaining_kg("ore-1")
 	await _sim_run(1.0)
@@ -721,14 +746,281 @@ func _run_firstloop() -> void:
 		"deposit -%.3f kg = inventory +%.3f kg + Fix_It %.3f kg; storage %.3f kg" % [spent, gained, consumed, sim.get_storage_used_kg()])
 	check.call("HUD shows the loop", hud.text.contains("SURVEYED") and hud.text.contains("CARGO") and hud.text.contains("Iron-bearing regolith") and hud.text.contains("FIX_IT //"), hud.text.replace("\n", " | "))
 	check.call("no contact during the loop", not sim_contact_log.has("ore-1"), "contacts: %s" % [sim_contact_log])
-	for line in checks:
-		metrics.append(line)
-		print(line)
-	var passed := failed.is_empty()
-	metrics.append("FIRSTLOOP %s" % ("PASS" if passed else "FAIL " + ", ".join(failed)))
-	_flush_metrics()
-	print("FIRSTLOOP ", "PASS" if passed else "FAIL " + ", ".join(failed))
-	_quit_clean(0 if passed else 8)
+	_finish_evidence("FIRSTLOOP", 8)
+
+# One G10 case on a fresh simulation: survey the deposit 40 m ahead, ready the arm, optionally change the world
+# before P (setup) and one second into the approach (during), then wait for alignment or a stop and press G.
+func _approach_case(arm: int, yaw_before: float, setup: Callable, during: Callable) -> Dictionary:
+	var origin := Vector3(0, 300, 0)
+	_place_ship(origin, origin + Vector3(0, 0, -100))
+	_sim_start(origin)
+	first_loop = FirstLoop.new(self)
+	first_loop.legacy_approach_for_test = selftest_fail == "staleapproach"
+	sim_contact_log.clear()
+	first_loop.add_deposit("ore-1", origin + Vector3(0, 0, -40), 3.0, "iron_bearing_silicate_regolith", "Iron-bearing regolith", 120.0)
+	_press(KEY_R)
+	await _until(func() -> bool: return sim.is_surveyed("ore-1"), 20.0)
+	_press(KEY_1 if arm == 0 else KEY_2)
+	_press(KEY_T)
+	await _until(func() -> bool: return sim.get_arm_state(arm)["deployed"] and not sim.get_arm_state(arm)["deploying"], 6.0)
+	_press(KEY_Y)
+	if yaw_before != 0.0:
+		sim.adjust_attitude(yaw_before, 0.0, 0.0)
+	var ready: bool = sim.is_surveyed("ore-1") and sim.get_arm_state(arm)["deployed"] and sim.get_arm_state(arm)["tool_attached"]
+	var att0: PackedFloat64Array = sim.get_attitude()
+	var note: String = setup.call()
+	var contacts_before := sim_contact_log.size()
+	_press(KEY_P)
+	var engaged: bool = first_loop.approaching
+	var engage_msg: String = first_loop.message
+	await _sim_run(1.0)
+	var note2: String = during.call()
+	var settled: bool = await _until(func() -> bool: return first_loop.aligned or (not first_loop.busy() and not first_loop.approaching), 90.0)
+	var stop_msg: String = first_loop.message
+	var aligned: bool = first_loop.aligned
+	var before: float = sim.get_inventory_kg("iron_bearing_silicate_regolith")
+	_press(KEY_G)
+	var r: Dictionary = first_loop.last_mine
+	var contacts: Array = sim_contact_log.slice(contacts_before)
+	return {"ready": ready, "engaged": engaged, "engage_msg": engage_msg, "settled": settled, "aligned": aligned,
+		"stop_msg": stop_msg, "mined": bool(r.get("accepted", false)), "mine_arm": int(r.get("arm", -1)),
+		"gap": float(r.get("tool_gap_m", -1.0)), "gained": sim.get_inventory_kg("iron_bearing_silicate_regolith") - before,
+		"mine_msg": first_loop.message, "contacts": contacts, "yaw": sim.get_attitude()[0] - att0[0], "note": note + note2}
+
+func _approach_summary(c: Dictionary) -> String:
+	return "engaged=%s aligned=%s mined=%s arm=%d gap %.3f m +%.1f kg; contacts %s; %s; stop: %s; G: %s" % [
+		c["engaged"], c["aligned"], c["mined"], c["mine_arm"], c["gap"], c["gained"], c["contacts"], c["note"], c["stop_msg"], c["mine_msg"]]
+
+func _run_approachtest() -> void:
+	# G3 evidence for #378 G10 through the real keys: the auto-approach with both arms, a rotated probe, an obstacle
+	# on the straight path, the attitude changing during the approach, and the target moving during the approach.
+	# Safe means: no contact with any body while the approach runs, and either a real mine (accepted, tool within
+	# reach, material gained) or an explicit stop that says why -- never "aligned" followed by an out-of-reach refusal.
+	# --selftest-fail=staleapproach restores the pre-G10 approach (solved once, straight line) and must exit 12.
+	_begin_evidence("approachtest")
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	if not ClassDB.class_exists("EverwardSim"):
+		_fail("simulation extension (EverwardSim) not loaded", 5)
+		return
+	var check := func(name: String, ok: bool, detail: String) -> void: evidence.check(name, ok, detail)
+	var none := func() -> String: return ""
+	var safe := func(c: Dictionary) -> bool:
+		var real_mine: bool = c["aligned"] and c["mined"] and c["gained"] > 0.0
+		var explicit_stop: bool = not c["aligned"] and not c["mined"] and String(c["stop_msg"]) != ""
+		return c["contacts"].is_empty() and c["settled"] and (real_mine or explicit_stop)
+	var a: Dictionary = await _approach_case(0, 0.0, none, none)
+	evidence.precondition("port case set up", a["ready"], "surveyed, port arm deployed with tool")
+	check.call("port arm approach mines", a["contacts"].is_empty() and a["aligned"] and a["mined"] and a["mine_arm"] == 0 and a["gained"] > 0.0, _approach_summary(a))
+	var b: Dictionary = await _approach_case(1, 35.0, none, none)
+	evidence.precondition("starboard case set up", b["ready"], "surveyed, starboard arm deployed with tool, yawed 35 deg")
+	check.call("starboard arm, probe yawed, mines", b["contacts"].is_empty() and b["aligned"] and b["mined"] and b["mine_arm"] == 1 and b["gained"] > 0.0, _approach_summary(b))
+	var obstacle := func() -> String:
+		var plan: Dictionary = sim.plan_staging(0, "ore-1")
+		var p: PackedFloat64Array = sim.get_position()
+		var s: PackedFloat64Array = plan["position"]
+		var mid := (Vector3(p[0], p[1], p[2]) + Vector3(s[0], s[1], s[2])) * 0.5
+		sim.add_sphere_body("boulder-path", mid.x, mid.y, mid.z, 2.5)
+		return "boulder r=2.5 m at %s on the straight path to %s" % [str(mid), str(Vector3(s[0], s[1], s[2]))]
+	var c: Dictionary = await _approach_case(0, 0.0, obstacle, none)
+	check.call("obstacle on the path refused at P", safe.call(c) and not c["engaged"] and String(c["stop_msg"]).contains("blocked by boulder-path"), _approach_summary(c))
+	var turn := func() -> String:
+		sim.adjust_attitude(40.0, 0.0, 0.0)
+		return "; yawed %.1f deg during the approach" % 40.0
+	var d: Dictionary = await _approach_case(0, 0.0, none, turn)
+	check.call("attitude change during approach is safe", safe.call(d), _approach_summary(d) + " (yaw change %.1f)" % d["yaw"])
+	var shift := func() -> String:
+		var ok: bool = sim.move_sphere_body("ore-1", 40.0, 6.0, 0.0)
+		return "; deposit moved 6 m to starboard during the approach (%s)" % ok
+	var e: Dictionary = await _approach_case(0, 0.0, none, shift)
+	check.call("target moving during approach is safe", safe.call(e), _approach_summary(e))
+	var intrude := func() -> String:
+		var p: PackedFloat64Array = sim.get_position()
+		var v: PackedFloat64Array = sim.get_velocity()
+		var ahead := Vector3(p[0], p[1], p[2]) + Vector3(v[0], v[1], v[2]).normalized() * 8.0
+		sim.add_sphere_body("boulder-late", ahead.x, ahead.y, ahead.z, 2.0)
+		return "; boulder r=2 m appeared 8 m ahead during the approach"
+	var f: Dictionary = await _approach_case(0, 0.0, none, intrude)
+	check.call("obstacle appearing mid-approach stops it", safe.call(f) and f["engaged"] and String(f["stop_msg"]).contains("blocked by boulder-late"), _approach_summary(f))
+	# a turn after the arm is aligned (before G) must withdraw "aligned", not leave a stale promise
+	var g: Dictionary = await _approach_case(0, 0.0, none, none)
+	var g_aligned: bool = g["aligned"]
+	sim.adjust_attitude(20.0, 0.0, 0.0)
+	await _sim_run(0.2)
+	check.call("turn after alignment withdraws it", g_aligned and not first_loop.aligned and first_loop.message.contains("no longer aligned"), "aligned before the turn=%s, after=%s; %s" % [g_aligned, first_loop.aligned, first_loop.message])
+	_finish_evidence("APPROACHTEST", 12)
+
+# How far the probe's compound hull (the simulation's own five spheres) reaches into a body: > 0 is penetration.
+func _hull_penetration(body_id: String, body_radius: float) -> Dictionary:
+	var c: PackedFloat64Array = sim.get_body_center(body_id)
+	var body := Vector3(c[0], c[1], c[2])
+	var h: PackedFloat64Array = sim.get_hull_samples()
+	var worst := -INF
+	var nearest := -1
+	var centre_distance := Vector3(h[4], h[5], h[6]).distance_to(body)   # sample 1 is the hull centre
+	for i in h.size() / 4:
+		var depth: float = h[i * 4 + 3] + body_radius - Vector3(h[i * 4], h[i * 4 + 1], h[i * 4 + 2]).distance_to(body)
+		if depth > worst:
+			worst = depth
+			nearest = i
+	return {"depth": worst, "sample": nearest, "centre_distance": centre_distance}
+
+# One G07 case on a fresh simulation 300 m above the terrain: a body, an optional turn, the probe's and the body's
+# velocities, then run while tracking contacts, the deepest hull penetration and the closest approach.
+func _contact_case(body_pos: Vector3, body_radius: float, yaw: float, probe_v: Vector3, body_v: Vector3, seconds: float) -> Dictionary:
+	var origin := Vector3(0, 300, 0)
+	_place_ship(origin, origin + Vector3(0, 0, -100))
+	_sim_start(origin)
+	sim_contact_log.clear()
+	sim.add_sphere_body("body", body_pos.x, body_pos.y, body_pos.z, body_radius)
+	if body_v != Vector3.ZERO:
+		sim.set_sphere_body_velocity("body", body_v.x, body_v.y, body_v.z)
+	if yaw != 0.0:
+		sim.adjust_attitude(yaw, 0.0, 0.0)
+	var integrity0: Dictionary = sim.get_integrity()
+	sim.set_velocity(probe_v.x, probe_v.y, probe_v.z)
+	var deepest := -INF
+	var closest := INF
+	var first_sample := -1
+	var first_contact := {}
+	var t := 0.0
+	while t < seconds:
+		await _sim_run(0.05)
+		t += 0.05
+		var p: Dictionary = _hull_penetration("body", body_radius)
+		deepest = maxf(deepest, p["depth"])
+		closest = minf(closest, p["centre_distance"])
+		if first_contact.is_empty() and not sim_contact_log.is_empty():
+			first_contact = sim.get_last_contact()
+			first_sample = p["sample"]
+	return {"contacts": sim_contact_log.size(), "deepest": deepest, "closest_centre": closest, "sample": first_sample,
+		"normal_speed": float(first_contact.get("normal_speed", 0.0)), "integrity0": integrity0, "integrity1": sim.get_integrity(),
+		"velocity": sim.get_velocity()}
+
+func _contact_summary(c: Dictionary) -> String:
+	var i0: Dictionary = c["integrity0"]
+	var i1: Dictionary = c["integrity1"]
+	return "contacts %d; first touching sample %d; normal speed %.2f m/s; deepest hull penetration %.4f m; closest hull centre %.2f m; integrity sens %.3f->%.3f prop %.3f->%.3f comp %.3f->%.3f therm %.3f->%.3f; final velocity %s" % [
+		c["contacts"], c["sample"], c["normal_speed"], c["deepest"], c["closest_centre"], i0["sensors"], i1["sensors"], i0["propulsion"], i1["propulsion"], i0["computation"], i1["computation"], i0["thermal"], i1["thermal"], c["velocity"]]
+
+func _run_contacttest() -> void:
+	# G3 evidence for #378 G07: contact is decided by the probe's compound hull (five spheres: nose 0, centre 1, tail 2,
+	# port wing 3, starboard wing 4), not a coarse sphere; it turns with the probe; moving bodies are swept; the hull
+	# never ends up inside a body; impacts are reported with their speed.
+	_begin_evidence("contacttest")
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	if not ClassDB.class_exists("EverwardSim"):
+		_fail("simulation extension (EverwardSim) not loaded", 5)
+		return
+	var check := func(name: String, ok: bool, detail: String) -> void: evidence.check(name, ok, detail)
+	var miss: Dictionary = await _contact_case(Vector3(10, 5.3, 0), 1.0, 0.0, Vector3(2, 0, 0), Vector3.ZERO, 10.0)
+	check.call("near miss inside an 8 m sphere: no contact", miss["contacts"] == 0 and miss["closest_centre"] < 8.0 and miss["deepest"] < 0.0, _contact_summary(miss))
+	var wing: Dictionary = await _contact_case(Vector3(10, 4.5, 0), 1.0, 0.0, Vector3(2, 0, 0), Vector3.ZERO, 10.0)
+	check.call("starboard wing alone touches", wing["contacts"] >= 1 and wing["sample"] == 4 and wing["deepest"] <= 0.01, _contact_summary(wing))
+	var turned: Dictionary = await _contact_case(Vector3(10, 5.3, 0), 1.0, 90.0, Vector3(2, 0, 0), Vector3.ZERO, 10.0)
+	check.call("the hull turns with the probe", turned["contacts"] >= 1 and turned["sample"] == 0 and turned["deepest"] <= 0.01, _contact_summary(turned))
+	var mover: Dictionary = await _contact_case(Vector3(0, 12, 0), 1.0, 0.0, Vector3.ZERO, Vector3(0, -3, 0), 8.0)
+	# a moving body is hit once and then carries the probe (the core resolves contact in the body's frame); the hull may
+	# sit at most one 60 Hz step of the body's travel inside it, never deeper (before the fix: 144 contacts)
+	check.call("a moving body hits the stationary probe once", mover["contacts"] == 1 and absf(mover["normal_speed"] - 3.0) < 0.3 and mover["deepest"] <= 3.0 / 60.0 + 0.01, _contact_summary(mover))
+	var fast: Dictionary = await _contact_case(Vector3(16, 0, 0), 2.0, 0.0, Vector3(12, 0, 0), Vector3.ZERO, 3.0)
+	check.call("a fast impact is reported with its speed", fast["contacts"] >= 1 and absf(fast["normal_speed"] - 12.0) < 0.5 and fast["deepest"] <= 0.01, _contact_summary(fast))
+	# before the fix this was 37 contact events, computation 100% -> 13.7% and sensors -> 72% from one 12 m/s hit
+	var fastmover: Dictionary = await _contact_case(Vector3(0, 30, 0), 1.0, 0.0, Vector3.ZERO, Vector3(0, -12, 0), 4.0)
+	check.call("a fast moving body is one impact, not many", fastmover["contacts"] == 1 and absf(fastmover["normal_speed"] - 12.0) < 0.6 and fastmover["deepest"] <= 12.0 / 60.0 + 0.01 and float(fastmover["integrity1"]["computation"]) > 0.9, _contact_summary(fastmover))
+	_finish_evidence("CONTACTTEST", 13)
+
+func _run_hudtest() -> void:
+	# G3 evidence for #378 G11 through the real keys: ] with the panel closed never leaves the list or needs extra [
+	# presses; the open panel marks the capability that is really selected; acting uses it (arms and power).
+	_begin_evidence("hudtest")
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	if not _sim_start(ship.global_position):
+		_fail("simulation extension (EverwardSim) not loaded", 5)
+		return
+	first_loop = FirstLoop.new(self)
+	var check := func(name: String, ok: bool, detail: String) -> void: evidence.check(name, ok, detail)
+	first_loop.unbounded_selection_for_test = selftest_fail == "unbounded"
+	evidence.precondition("canonical start", not first_loop.panel_open and first_loop.selected_capability == 0 and sim.get_power_allocations()[0] >= FirstLoop.SENSOR_SCAN_MINIMUM_W,
+		"panel closed, SENSORS selected, sensors %d W" % int(sim.get_power_allocations()[0]))
+	var last: int = FirstLoop.CAPABILITIES.size() - 1
+	for i in 10:
+		_press(KEY_BRACKETRIGHT)
+	check.call("] with the panel closed stays in range", not first_loop.panel_open and first_loop.selected_capability == last, "index %d of %d after 10 presses" % [first_loop.selected_capability, FirstLoop.CAPABILITIES.size()])
+	_press(KEY_BRACKETLEFT)
+	check.call("one [ moves back one", first_loop.selected_capability == last - 1 and first_loop.selected_arm == 0, "index %d (%s), selected arm %s" % [first_loop.selected_capability, FirstLoop.CAPABILITIES[first_loop.selected_capability] if first_loop.selected_capability >= 0 and first_loop.selected_capability <= last else "out of range", FirstLoop.ARM_NAMES[first_loop.selected_arm]])
+	_press(KEY_TAB)
+	await _sim_run(0.1)
+	var marked := ""
+	for l in hud.text.split("\n"):
+		if l.begins_with("> "):
+			marked = l
+	check.call("open panel marks the real selection", first_loop.panel_open and marked.begins_with("> PORT ARM"), marked)
+	_press(KEY_BRACKETRIGHT)
+	_press(KEY_T)
+	await _sim_run(0.3)
+	check.call("acting uses the selected arm", sim.get_arm_state(1)["deploying"] and not sim.get_arm_state(0)["deploying"] and not sim.get_arm_state(0)["deployed"], first_loop.message)
+	for i in 10:
+		_press(KEY_BRACKETLEFT)
+	_press(KEY_ENTER)
+	var off: float = sim.get_power_allocations()[0]
+	_press(KEY_ENTER)
+	var on: float = sim.get_power_allocations()[0]
+	check.call("Enter acts on the selected power subsystem", first_loop.selected_capability == 0 and off == 0.0 and on == FirstLoop.SENSOR_SCAN_MINIMUM_W, "SENSORS %d W then %d W" % [int(off), int(on)])
+	_press(KEY_BRACKETRIGHT)
+	_press(KEY_ENTER)
+	check.call("no invented minimum for propulsion", first_loop.message.contains("no operating minimum"), first_loop.message)
+	var empty_ok: bool = sim.bounded_selection(3, 1, 0) == 0 and sim.bounded_selection(0, -1, 0) == 0
+	check.call("empty list selects 0", empty_ok, "bounded_selection(3, +1, 0) = %d" % sim.bounded_selection(3, 1, 0))
+	_press(KEY_TAB)
+	await _sim_run(0.1)
+	check.call("closing the panel keeps the selection", not first_loop.panel_open and first_loop.selected_capability == 1 and hud.text.contains("TARGET"), "index %d" % first_loop.selected_capability)
+	_finish_evidence("HUDTEST", 10)
+
+func _run_powertest() -> void:
+	# G3 evidence for #378 G09 through the real keys: the survival policy sheds sensor power at 50% stored energy,
+	# scanning is refused with the simulation's explanation, raising sensors alone does not hold while the policy is
+	# installed, and clear -> raise -> scan recovers. --selftest-fail=noclear skips the clear and must fail;
+	# --selftest-fail=lowstart starts with sensors unpowered, which breaks the precondition: INCONCLUSIVE, not FAIL.
+	_begin_evidence("powertest")
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	if not _sim_start(ship.global_position):
+		_fail("simulation extension (EverwardSim) not loaded", 5)
+		return
+	first_loop = FirstLoop.new(self)
+	var check := func(name: String, ok: bool, detail: String) -> void: evidence.check(name, ok, detail)
+	evidence.precondition("deposit registered", first_loop.add_deposit("ore-1", ship.global_position + Vector3(0, 0, -40), 3.0, "iron_bearing_silicate_regolith", "Iron-bearing regolith", 120.0), "ore-1 40 m ahead")
+	if selftest_fail == "lowstart":
+		sim.allocate_power(0, 0.0)
+	var p0: PackedFloat64Array = sim.get_power_allocations()
+	evidence.precondition("canonical start", p0[0] >= 50.0 and sim.get_scan_power_guidance()["state"] == "ready", "sensors %d W, guidance %s" % [int(p0[0]), sim.get_scan_power_guidance()["state"]])
+	_press(KEY_K)
+	await _sim_run(0.3)
+	var shed: PackedFloat64Array = sim.get_power_allocations()
+	check.call("policy sheds sensor power", sim.get_policy_status()["installed"] and shed[0] == 0.0, "sensors %d W after GEN1 BASIC SURVIVAL at %.0f%% stored energy" % [int(shed[0]), sim.get_stored_energy_j() / 1.0e7])
+	_press(KEY_R)
+	var refusal: String = first_loop.message
+	check.call("scan refused with recovery steps", not sim.is_scanning() and refusal.contains("clear or disable the policy") and refusal.contains("50 W"), refusal)
+	check.call("HUD shows the blocker", hud.text.contains("POLICY gen1_basic_survival") and hud.text.contains("Clear policy; raise power; scan"), first_loop.power_line())
+	_press(KEY_O)
+	await _sim_run(0.3)
+	_press(KEY_R)
+	check.call("raising sensors alone does not hold", sim.get_power_allocations()[0] == 0.0 and not sim.is_scanning(), "sensors %d W; %s" % [int(sim.get_power_allocations()[0]), first_loop.message])
+	if selftest_fail != "noclear":
+		_press(KEY_L)
+	_press(KEY_O)
+	await _sim_run(0.3)
+	_press(KEY_R)
+	var scanning: bool = sim.is_scanning()
+	await _until(func() -> bool: return sim.is_surveyed("ore-1"), 15.0)
+	check.call("clear, raise, scan recovers", not sim.get_policy_status()["installed"] and scanning and sim.is_surveyed("ore-1") and sim.get_scan_power_guidance()["state"] == "ready",
+		"policy installed=%s; sensors %d W; scan started=%s; surveyed=%s" % [sim.get_policy_status()["installed"], int(sim.get_power_allocations()[0]), scanning, sim.is_surveyed("ore-1")])
+	_press(KEY_L)
+	check.call("clearing with no policy is refused", first_loop.message == "no software policy installed", first_loop.message)
+	_finish_evidence("POWERTEST", 9)
 
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
@@ -825,7 +1117,7 @@ func _input(event: InputEvent) -> void:
 	if first_loop != null and event is InputEventKey and event.pressed and not event.echo:
 		if first_loop.handle_key(event.keycode):
 			return
-	if _scripted() and not firstloop_test:
+	if _scripted() and not firstloop_test and not powertest and not hudtest and not approachtest and not contacttest:
 		return
 	if sim_active and first_loop != null and first_loop.busy() and event is InputEventMouseMotion:
 		return   # the solved staging pose holds for the attitude it was solved at
@@ -1026,8 +1318,36 @@ func _shot(name: String) -> void:
 	_save_shot(name)
 	metrics.append("shot %s fps=%d debris=%d" % [name, Engine.get_frames_per_second(), debris.size()])
 
+func _begin_evidence(mode: String) -> void:
+	evidence = Evidence.new(mode, OS.get_cmdline_user_args(), selftest_fail == "noidentity")
+	evidence.sim_tick = func() -> int: return int(sim.get_tick()) if sim != null and sim_active else -1
+	var b: Dictionary = evidence.report["build"]
+	metrics.append("godot %s  renderer=%s" % [Engine.get_version_info()["string"], RenderingServer.get_video_adapter_name()])
+	metrics.append("build %s%s" % [b["commit"] if b["known"] else "UNKNOWN", (" dirty (%d files)" % b["dirty_file_count"] if b["dirty"] else " clean") if b["known"] else ""])
+
+# Writes report.json, mirrors the checks into metrics.txt and exits: 0 PASS, fail_code FAIL, 11 INCONCLUSIVE.
+func _finish_evidence(tag: String, fail_code: int) -> void:
+	var v: String = evidence.finish(OUT_DIR)
+	for line in evidence.lines():
+		metrics.append(line)
+		print(line)
+	metrics.append("%s %s" % [tag, evidence.summary()])
+	metrics.append("report " + OUT_DIR.path_join("report.json"))
+	_flush_metrics()
+	print(tag, " ", evidence.summary())
+	_quit_clean(0 if v == "PASS" else (INCONCLUSIVE_EXIT if v == "INCONCLUSIVE" else fail_code))
+
 func _fail(reason: String, code: int) -> void:
 	# An incomplete route must not look like a completed feasibility test: record why and exit non-zero.
+	if evidence != null:
+		# The harness could not set up an acceptance run: the report says INCONCLUSIVE and the exit code agrees with it
+		# (11, not the route-specific code), so automation reading either sees the same result (Codex #451).
+		evidence.finish(OUT_DIR, reason)
+		metrics.append("INCONCLUSIVE: %s (exit %d)" % [reason, INCONCLUSIVE_EXIT])
+		_flush_metrics()
+		print(evidence.mode.to_upper(), " ", evidence.summary())
+		_quit_clean(INCONCLUSIVE_EXIT)
+		return
 	metrics.append("FAILED: %s (exit %d)" % [reason, code])
 	_flush_metrics()
 	print("AUTOTEST FAILED: ", reason)

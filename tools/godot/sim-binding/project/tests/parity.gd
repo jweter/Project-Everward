@@ -157,6 +157,17 @@ func _init() -> void:
 	print("mine %d extracted %.9f remaining %.9f gap %.9f arm %d material %s" % [1 if fl_mined["accepted"] else 0, fl_mined["extracted_kg"], fl_mined["remaining_kg"], fl_mined["tool_gap_m"], fl_mined["arm"], fl_mined["material_id"]])
 	print("inventory %.9f storage %.9f deposit %.9f" % [fl.get_inventory_kg(mat), fl.get_storage_used_kg(), fl.get_world_deposit_remaining_kg(ore)])
 
+	var fl_save: String = fl.save_json()
+	var after_save: Dictionary = fl.mine_deposit(ore)
+	var extra := 1 if fl.add_deposit("ore-2", -30.0, 12.0, 0.0, 2.0, "nickel_regolith", "Nickel regolith", 80.0, 4.0) else 0
+	var fl_load := 1 if fl.load_json(fl_save) else 0
+	print("g08 after_save %d extra %d load %d surveyed %d deposit %.9f inventory %.9f ore2 %.3f" % [1 if after_save["accepted"] else 0, extra, fl_load, 1 if fl.is_surveyed(ore) else 0, fl.get_world_deposit_remaining_kg(ore), fl.get_inventory_kg(mat), fl.get_world_deposit_remaining_kg("ore-2")])
+	var resumed: Dictionary = fl.mine_deposit(ore)
+	print("g08 resumed %d deposit %.9f inventory %.9f" % [1 if resumed["accepted"] else 0, fl.get_world_deposit_remaining_kg(ore), fl.get_inventory_kg(mat)])
+	var blank = ClassDB.instantiate("EverwardSim")
+	var blank_load := 1 if fl.load_json(blank.save_json()) else 0
+	print("g08 blank load %d ore1 %.3f surveyed %d" % [blank_load, fl.get_world_deposit_remaining_kg(ore), 1 if fl.is_surveyed(ore) else 0])
+
 	var fx = ClassDB.instantiate("EverwardSim")
 	fx.enable_fix_it(true)
 	var awake: Dictionary = fx.get_integrity()
@@ -176,6 +187,7 @@ func _init() -> void:
 	print("fixit after state %s subsystem %s computation %.9f thermal %.9f storage %.9f inventory %.9f energy_used %.3f" % [fixed["state"], fixed["subsystem"], healed["computation"], healed["thermal"], fx.get_storage_used_kg(), fx.get_inventory_kg("iron_regolith"), energy0 - fx.get_stored_energy_j()])
 	var fix_events: PackedStringArray = fx.drain_fix_it_events()
 	print("fixit events %d first %s" % [fix_events.size(), fix_events[1] if fix_events.size() > 1 else ""])
+	print("fixit total consumed %.9f storage debit %.9f" % [fx.get_fix_it_status()["total_material_consumed_kg"], 5.0 - fx.get_storage_used_kg()])
 
 	# Review regression (#444): a successful load discards any in-flight Fix_It executor.
 	var load_fx = ClassDB.instantiate("EverwardSim")
@@ -197,4 +209,48 @@ func _init() -> void:
 		quit(9)
 		return
 	print("fixit load reset %d computation %.9f state %s" % [1 if load_reset_ok else 0, loaded_computation, after_fix_load["state"]])
+	var pw = ClassDB.instantiate("EverwardSim")
+	pw.add_deposit("ore-p", 30.0, 0.0, 0.0, 2.0, "iron_regolith", "", 50.0, 5.0)
+	var pol := 1 if pw.install_basic_survival_policy() else 0
+	pw.advance_ticks(100000)
+	var p1: PackedFloat64Array = pw.get_power_allocations()
+	var scan1 := 1 if pw.start_scan("ore-p", 10.0) else 0
+	print("g09 policy %d sensors %.3f scan %d guidance %s" % [pol, p1[0], scan1, pw.get_scan_power_guidance()["compact"]])
+	pw.allocate_power(0, 50.0)
+	pw.advance_ticks(100000)
+	var scan2 := 1 if pw.start_scan("ore-p", 10.0) else 0
+	print("g09 raised-with-policy sensors %.3f scan %d" % [pw.get_power_allocations()[0], scan2])
+	var cleared := 1 if pw.clear_policy() else 0
+	var cleared_again := 1 if pw.clear_policy() else 0
+	pw.allocate_power(0, 50.0)
+	pw.advance_ticks(100000)
+	var scan3 := 1 if pw.start_scan("ore-p", 10.0) else 0
+	for step in 105:
+		pw.advance_ticks(100000)
+	print("g09 cleared %d again %d sensors %.3f scan %d surveyed %d guidance %s" % [cleared, cleared_again, pw.get_power_allocations()[0], scan3, 1 if pw.is_surveyed("ore-p") else 0, "ready" if pw.get_scan_power_guidance()["state"] == "ready" else "below"])
+	var hs = ClassDB.instantiate("EverwardSim")
+	print("g11 sel %d %d %d %d %d %d" % [hs.bounded_selection(5, 1, 6), hs.bounded_selection(0, -1, 6), hs.bounded_selection(3, 10, 6), hs.bounded_selection(2, -1, 6), hs.bounded_selection(4, 1, 0), hs.bounded_selection(0, -3, 0)])
+	var ap = ClassDB.instantiate("EverwardSim")
+	ap.add_deposit("ore-a", 40.0, 0.0, 0.0, 3.0, "iron_regolith", "", 50.0, 5.0)
+	ap.add_sphere_body("boulder-a", 16.0, 0.0, 0.0, 2.5)
+	ap.add_sphere_body("beside-a", 16.0, 9.0, 0.0, 2.5)
+	var g10_blocked: String = ap.get_approach_blocker(30.0, 0.0, 0.0)
+	var g10_clear: String = ap.get_approach_blocker(0.0, -20.0, 0.0)
+	ap.move_sphere_body("boulder-a", 16.0, 0.0, 30.0)
+	var g10_moved: String = ap.get_approach_blocker(30.0, 0.0, 0.0)
+	var g10_wing: String = ap.get_approach_blocker(32.0, 5.5, 0.0)
+	var g10_c: PackedFloat64Array = ap.get_body_center("boulder-a")
+	print("g10 blocked %s clear [%s] wing %s moved [%s] center %.3f %.3f %.3f unknown %d" % [g10_blocked, g10_clear, g10_wing, g10_moved, g10_c[0], g10_c[1], g10_c[2], 1 if ap.get_body_center("nope").size() > 0 else 0])
+	var g07_mv = ClassDB.instantiate("EverwardSim")
+	g07_mv.adjust_attitude(90.0, 0.0, 0.0)
+	var g07_hull: PackedFloat64Array = g07_mv.get_hull_samples()
+	g07_mv.adjust_attitude(-90.0, 0.0, 0.0)
+	g07_mv.add_sphere_body("debris-m", -0.5, 30.0, 0.0, 1.0)
+	var g07_vel_ok := 1 if g07_mv.set_sphere_body_velocity("debris-m", 0.0, -12.0, 0.0) else 0
+	var g07_vel_unknown := 1 if g07_mv.set_sphere_body_velocity("nope", 0.0, 1.0, 0.0) else 0
+	var g07_contacts := 0
+	for step in 240:
+		g07_mv.advance_ticks(16667)
+		g07_contacts += g07_mv.drain_contact_events()
+	print("g07 nose %.3f %.3f %.3f r %.2f vel %d unknown %d contacts %d probe-vy %.3f" % [g07_hull[0], g07_hull[1], g07_hull[2], g07_hull[3], g07_vel_ok, g07_vel_unknown, g07_contacts, g07_mv.get_velocity()[1]])
 	quit(0)

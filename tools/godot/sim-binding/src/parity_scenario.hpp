@@ -189,6 +189,22 @@ inline std::vector<std::string> run_native_parity() {
     line("inventory %.9f storage %.9f deposit %.9f", fl.inventory_kg(mat), fl.storage_used_kg(),
          fl.world_deposit_remaining_kg(ore));
 
+    // 7b (#378 G08): world deposits and surveys survive save/load; mining continues from the saved mass; a save
+    // without world deposits restores none.
+    const std::string fl_save = fl.save_json();
+    const MineResult after_save = fl.mine_deposit(ore);
+    const int extra = fl.add_deposit("ore-2", -30.0, 12.0, 0.0, 2.0, "nickel_regolith", "Nickel regolith", 80.0, 4.0) ? 1 : 0;
+    const int fl_load = fl.load_json(fl_save) ? 1 : 0;
+    line("g08 after_save %d extra %d load %d surveyed %d deposit %.9f inventory %.9f ore2 %.3f", after_save.accepted ? 1 : 0,
+         extra, fl_load, fl.is_surveyed(ore) ? 1 : 0, fl.world_deposit_remaining_kg(ore), fl.inventory_kg(mat),
+         fl.world_deposit_remaining_kg("ore-2"));
+    const MineResult resumed = fl.mine_deposit(ore);
+    line("g08 resumed %d deposit %.9f inventory %.9f", resumed.accepted ? 1 : 0, fl.world_deposit_remaining_kg(ore),
+         fl.inventory_kg(mat));
+    SimCore blank;
+    const int blank_load = fl.load_json(blank.save_json()) ? 1 : 0;
+    line("g08 blank load %d ore1 %.3f surveyed %d", blank_load, fl.world_deposit_remaining_kg(ore), fl.is_surveyed(ore) ? 1 : 0);
+
     // 8 (G3, #378 G02): Fix_It on the damaged awakening waits without material, then repairs with mined material.
     SimCore fx;
     fx.enable_fix_it(true);
@@ -211,6 +227,9 @@ inline std::vector<std::string> run_native_parity() {
          fx.inventory_kg("iron_regolith"), energy0 - fx.stored_energy_j());
     const std::vector<std::string> fix_events = fx.drain_fix_it_events();
     line("fixit events %d first %s", static_cast<int>(fix_events.size()), fix_events.size() > 1 ? fix_events[1].c_str() : "");
+    // Fix_It's cumulative consumption equals what actually left storage (completed plus active repair).
+    line("fixit total consumed %.9f storage debit %.9f", fx.fix_it_info().total_material_consumed_kg,
+         5.0 - fx.storage_used_kg());
 
     // Review regression (#444): loading a save while Fix_It is running must discard the
     // old executor operation before the restored world advances.
@@ -233,6 +252,65 @@ inline std::vector<std::string> run_native_parity() {
     if (!load_reset_ok) throw std::runtime_error("Fix_It executor survived load_json");
     line("fixit load reset %d computation %.9f state %s", load_reset_ok ? 1 : 0, loaded_computation,
          after_fix_load.state.c_str());
+
+    // 9 (G3, #378 G09): installing the survival policy at 50% stored energy sheds sensor power; scans are refused with
+    // the guidance; raising sensors alone does not hold while the policy is installed; clear, raise, scan works.
+    SimCore pw;
+    pw.add_deposit("ore-p", 30.0, 0.0, 0.0, 2.0, "iron_regolith", "", 50.0, 5.0);
+    const int pol = pw.install_basic_survival_policy() ? 1 : 0;
+    pw.advance_ticks(100000);
+    const auto p1 = pw.power_allocations();
+    const int scan1 = pw.start_scan("ore-p", 10.0) ? 1 : 0;
+    line("g09 policy %d sensors %.3f scan %d guidance %s", pol, p1[0], scan1, pw.scan_power_guidance().compact_message.c_str());
+    pw.allocate_power(0, 50.0);
+    pw.advance_ticks(100000);
+    const int scan2 = pw.start_scan("ore-p", 10.0) ? 1 : 0;
+    line("g09 raised-with-policy sensors %.3f scan %d", pw.power_allocations()[0], scan2);
+    const int cleared = pw.clear_policy() ? 1 : 0;
+    const int cleared_again = pw.clear_policy() ? 1 : 0;
+    pw.allocate_power(0, 50.0);
+    pw.advance_ticks(100000);
+    const int scan3 = pw.start_scan("ore-p", 10.0) ? 1 : 0;
+    for (int step = 0; step < 105; ++step) pw.advance_ticks(100000);
+    line("g09 cleared %d again %d sensors %.3f scan %d surveyed %d guidance %s", cleared, cleared_again,
+         pw.power_allocations()[0], scan3, pw.is_surveyed("ore-p") ? 1 : 0,
+         pw.scan_power_guidance().state == SensorPowerState::Ready ? "ready" : "below");
+
+    // 10 (G3, #378 G11): the HUD selection rule stays in range whatever the presses, and is 0 for an empty list.
+    line("g11 sel %d %d %d %d %d %d", bounded_selection(5, 1, 6), bounded_selection(0, -1, 6), bounded_selection(3, 10, 6),
+         bounded_selection(2, -1, 6), bounded_selection(4, 1, 0), bounded_selection(0, -3, 0));
+
+    // 11 (G3, #378 G10): the straight-line approach sweep names the first body in the way, ignores bodies beside the
+    // line, sees the hull's wing samples (not just its centre), and tracks a moved body.
+    SimCore ap;
+    ap.add_deposit("ore-a", 40.0, 0.0, 0.0, 3.0, "iron_regolith", "", 50.0, 5.0);
+    ap.add_sphere_body("boulder-a", 16.0, 0.0, 0.0, 2.5);
+    ap.add_sphere_body("beside-a", 16.0, 9.0, 0.0, 2.5);
+    const std::string g10_blocked = ap.approach_blocker(30.0, 0.0, 0.0);
+    const std::string g10_clear = ap.approach_blocker(0.0, -20.0, 0.0);
+    ap.move_sphere_body("boulder-a", 16.0, 0.0, 30.0);
+    const std::string g10_moved = ap.approach_blocker(30.0, 0.0, 0.0);
+    const std::string g10_wing = ap.approach_blocker(32.0, 5.5, 0.0);  // centre passes 6.2 m off beside-a; starboard wing hits
+    const auto g10_c = ap.body_center("boulder-a");
+    line("g10 blocked %s clear [%s] wing %s moved [%s] center %.3f %.3f %.3f unknown %d", g10_blocked.c_str(), g10_clear.c_str(),
+         g10_wing.c_str(), g10_moved.c_str(), g10_c->x, g10_c->y, g10_c->z, ap.body_center("nope") ? 1 : 0);
+
+    // 12 (G3, #378 G07): the hull samples follow the probe's attitude, and a body moving into the stationary probe is
+    // one contact that then carries the probe along (contact resolved in the body's frame).
+    SimCore g07_mv;
+    g07_mv.adjust_attitude(90.0, 0.0, 0.0);
+    const auto g07_hull = g07_mv.hull_samples();
+    g07_mv.adjust_attitude(-90.0, 0.0, 0.0);
+    g07_mv.add_sphere_body("debris-m", -0.5, 30.0, 0.0, 1.0);
+    const int g07_vel_ok = g07_mv.set_sphere_body_velocity("debris-m", 0.0, -12.0, 0.0) ? 1 : 0;
+    const int g07_vel_unknown = g07_mv.set_sphere_body_velocity("nope", 0.0, 1.0, 0.0) ? 1 : 0;
+    int g07_contacts = 0;
+    for (int step = 0; step < 240; ++step) {
+        g07_mv.advance_ticks(16667);
+        g07_contacts += g07_mv.drain_contact_events();
+    }
+    line("g07 nose %.3f %.3f %.3f r %.2f vel %d unknown %d contacts %d probe-vy %.3f", g07_hull[0].center.x, g07_hull[0].center.y,
+         g07_hull[0].center.z, g07_hull[0].radius, g07_vel_ok, g07_vel_unknown, g07_contacts, g07_mv.velocity().y);
     return out;
 }
 

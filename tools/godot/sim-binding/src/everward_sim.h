@@ -70,6 +70,18 @@ public:
     Dictionary get_integrity() const;
     double get_stored_energy_j() const;
     PackedStringArray drain_fix_it_events();
+    String get_last_scan_refusal() const;
+    String get_approach_blocker(double x, double y, double z) const;
+    bool set_sphere_body_velocity(const String& id, double x, double y, double z);
+    PackedFloat64Array get_hull_samples() const;
+    PackedFloat64Array get_body_center(const String& id) const;
+    bool allocate_power(int64_t subsystem, double watts);
+    PackedFloat64Array get_power_allocations() const;
+    bool install_basic_survival_policy();
+    bool clear_policy();
+    Dictionary get_policy_status() const;
+    Dictionary get_scan_power_guidance() const;
+    int64_t bounded_selection(int64_t index, int64_t delta, int64_t count) const;
 
 private:
     everward::binding::SimCore core_;
