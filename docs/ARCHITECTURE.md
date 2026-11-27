@@ -2,6 +2,10 @@
 
 Everward is architected as a long-lived simulation product. The core goal is to keep authoritative game state testable and independent from rendering technology so the project can support time acceleration, large autonomous populations, deterministic replay, save migration, and engine benchmarking.
 
+**Current Godot integration (2026-11-27):** Godot is the accepted presentation, input and runtime development layer. `tools/godot/world-spike/` contains the current world and first-loop prototype; `tools/godot/sim-binding/` supplies a C++20 GDExtension around the authoritative `src/simulation/` core. The `EverwardSim` wrapper marshals validated commands and read-only results; Godot is not the owner of physical movement, contact, mining, material/energy accounting, Fix_It repair or canonical saves. Require exact-commit native/headless parity and separate actual Godot visual/performance evidence. Old `unreal/` implementation is preserved as historical/reference work until the G5 gate.
+
+**Known boundary gaps:** Voxel-terrain collision currently uses approximate ground-following simulation proxy spheres, and full G3 persistence/gameplay plus G4 presentation acceptance remain pending. Do not turn the bounded spike into a general product acceptance claim.
+
 ## Logical layers
 
 ```text
@@ -165,10 +169,10 @@ Developer tooling may include Python or other offline tools for astronomy analys
 
 Before production implementation begins, Phase 1 must answer:
 
-1. How is simulation code isolated from presentation in each engine candidate?
+1. Does the current Godot GDExtension isolate authoritative simulation from presentation and block independent Godot mechanical writes?
 2. How is headless simulation executed?
 3. What coordinate model survives local-to-interstellar scale?
 4. What deterministic event scheduler meets long-duration needs?
 5. How are save schemas represented and migrated?
-6. How does each engine handle the representative rendering benchmark?
+6. How does Godot meet the rendering benchmark on measured low- and high-tier presets, with frame-time spikes tracked?
 7. What is the cost of integrating thousands of autonomous entities?
