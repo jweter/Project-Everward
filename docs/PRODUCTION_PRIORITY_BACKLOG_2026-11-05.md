@@ -1,5 +1,8 @@
 # Everward — P0/P1 Production Execution Backlog (2026-11-05)
 
+**Historical planning baseline — Godot routing override (2026-11-27):** This November 5 backlog is a player-outcome and quality dependency map, not the current Unreal production queue or actual PR status. ADR-0014 makes Godot the active engine; for current task selection use `CURRENT_EXECUTION_PLAN.md`, `GODOT_PATH_PLAN.md`, live #378 gate mappings and GitHub source/CI. Translate any Unreal capture/import/build requirement into Godot GDExtension/headless/in-engine evidence; do not presume an old Unreal test closes a Godot gate. Keep the original P0/P1 intent and R0–R6 criteria, but reconcile every listed issue/PR with current main before creating redundant work.
+
+
 **Status:** Owner-authorized, dependency-ordered planning baseline. PRs #353 (production gates) and #354 (generative audio) must be reviewed/merged in order before this doc becomes authoritative. No gameplay milestone, local Unreal check, asset or sound engine is claimed completed.
 **Governing sequence:** Current Phase 2 and PHASE2_VERTICAL_SLICE_PLAN.md; this queue is a *quality/production complement*, not a replacement for the earliest incomplete slice. Each implementation must independently re-read current main/CI/PRs/issue state because Iron God advances the project.
 
