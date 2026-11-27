@@ -104,6 +104,19 @@ public:
         }
     }
     void clear_bodies() noexcept { runtime_.clear_static_bodies(); }
+    // Moves a registered body (used for terrain proxy spheres that follow the ground under the probe).
+    bool move_sphere_body(const std::string& id, double x, double y, double z) {
+        if (id.empty() || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;
+        bool known = false;  // the simulation ignores unknown ids silently; report them instead
+        for (const StaticSphereBody& body : runtime_.static_bodies()) known = known || body.body_id == id;
+        if (!known) return false;
+        try {
+            runtime_.update_static_sphere_body_position(id, {x, y, z});
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
 
     struct ContactInfo {
         bool has_contact{false};
