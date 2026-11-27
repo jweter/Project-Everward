@@ -211,6 +211,9 @@ inline std::vector<std::string> run_native_parity() {
          fx.inventory_kg("iron_regolith"), energy0 - fx.stored_energy_j());
     const std::vector<std::string> fix_events = fx.drain_fix_it_events();
     line("fixit events %d first %s", static_cast<int>(fix_events.size()), fix_events.size() > 1 ? fix_events[1].c_str() : "");
+    // Fix_It's cumulative consumption equals what actually left storage (completed plus active repair).
+    line("fixit total consumed %.9f storage debit %.9f", fx.fix_it_info().total_material_consumed_kg,
+         5.0 - fx.storage_used_kg());
 
     // Review regression (#444): loading a save while Fix_It is running must discard the
     // old executor operation before the restored world advances.

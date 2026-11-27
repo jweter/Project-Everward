@@ -176,6 +176,7 @@ func _init() -> void:
 	print("fixit after state %s subsystem %s computation %.9f thermal %.9f storage %.9f inventory %.9f energy_used %.3f" % [fixed["state"], fixed["subsystem"], healed["computation"], healed["thermal"], fx.get_storage_used_kg(), fx.get_inventory_kg("iron_regolith"), energy0 - fx.get_stored_energy_j()])
 	var fix_events: PackedStringArray = fx.drain_fix_it_events()
 	print("fixit events %d first %s" % [fix_events.size(), fix_events[1] if fix_events.size() > 1 else ""])
+	print("fixit total consumed %.9f storage debit %.9f" % [fx.get_fix_it_status()["total_material_consumed_kg"], 5.0 - fx.get_storage_used_kg()])
 
 	# Review regression (#444): a successful load discards any in-flight Fix_It executor.
 	var load_fx = ClassDB.instantiate("EverwardSim")

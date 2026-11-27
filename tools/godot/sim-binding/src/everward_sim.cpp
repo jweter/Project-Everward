@@ -198,6 +198,7 @@ Dictionary EverwardSim::get_fix_it_status() const {
     d["material_required_kg"] = f.material_required_kg;
     d["material_consumed_kg"] = f.material_consumed_kg;
     d["last_completed_material_consumed_kg"] = f.last_completed_material_consumed_kg;
+    d["total_material_consumed_kg"] = f.total_material_consumed_kg;
     d["energy_required_j"] = f.energy_required_j;
     d["energy_consumed_j"] = f.energy_consumed_j;
     d["target_integrity"] = f.target_integrity;

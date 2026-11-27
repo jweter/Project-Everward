@@ -67,6 +67,9 @@ struct FixItInfo {
     double material_required_kg{0.0};
     double material_consumed_kg{0.0};
     double last_completed_material_consumed_kg{0.0};
+    // Every kilogram Fix_It has taken from storage since it was enabled (completed and active repairs), measured as
+    // the storage debit of each executor step.
+    double total_material_consumed_kg{0.0};
     double energy_required_j{0.0};
     double energy_consumed_j{0.0};
     double target_integrity{0.0};
@@ -110,6 +113,7 @@ public:
         fix_it_waiting_ = false;
         fix_it_repair_ = FixItRepairExecutor{};
         fix_it_last_completed_material_consumed_kg_ = 0.0;
+        fix_it_total_material_consumed_kg_ = 0.0;
         fix_it_last_decision_.reset();
         fix_it_last_event_.clear();
         fix_it_events_.clear();
@@ -353,6 +357,7 @@ public:
         out.enabled = fix_it_enabled_;
         out.last_event = fix_it_last_event_;
         out.last_completed_material_consumed_kg = fix_it_last_completed_material_consumed_kg_;
+        out.total_material_consumed_kg = fix_it_total_material_consumed_kg_;
         if (!fix_it_enabled_) return out;
         out.state = fix_it_running_ ? "repairing" : (fix_it_waiting_ ? "waiting" : "monitor");
         const auto& status = fix_it_repair_.status();
@@ -562,6 +567,7 @@ public:
             fix_it_waiting_ = false;
             fix_it_repair_ = FixItRepairExecutor{};
             fix_it_last_completed_material_consumed_kg_ = 0.0;
+        fix_it_total_material_consumed_kg_ = 0.0;
             fix_it_last_decision_.reset();
             fix_it_last_event_.clear();
             fix_it_events_.clear();
@@ -635,7 +641,9 @@ private:
     void advance_fix_it(double step_s) {
         char buf[320];
         if (fix_it_running_) {
+            const double stored_before = runtime_.snapshot().storage_used_kg;
             fix_it_repair_.advance(runtime_, step_s);
+            fix_it_total_material_consumed_kg_ += stored_before - runtime_.snapshot().storage_used_kg;
             const auto& status = fix_it_repair_.status();
             if (status.state == FixItExecutionState::Completed) {
                 fix_it_last_completed_material_consumed_kg_ = status.material_consumed_kg;
@@ -723,6 +731,7 @@ private:
     bool fix_it_waiting_{false};
     FixItRepairExecutor fix_it_repair_{};
     double fix_it_last_completed_material_consumed_kg_{0.0};
+    double fix_it_total_material_consumed_kg_{0.0};
     std::optional<FixItDecision> fix_it_last_decision_{};
     std::string fix_it_last_event_;
     std::vector<std::string> fix_it_events_;

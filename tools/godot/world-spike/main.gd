@@ -705,10 +705,9 @@ func _run_firstloop() -> void:
 	# material and in stored energy
 	var energy_before: float = sim.get_stored_energy_j()
 	await _until(func() -> bool: return float(sim.get_integrity()["computation"]) >= 0.25 - 1e-9, 40.0)
-	# Capture the executor's completed-repair receipt before another fixed step can start the
-	# next repair. This is independent of the deposit/inventory conservation equation.
-	var completed_repair: Dictionary = sim.get_fix_it_status()
-	var consumed: float = float(completed_repair["last_completed_material_consumed_kg"])
+	# Fix_It's cumulative storage debit (every completed repair and the active one), read in the same frame as the
+	# inventory and deposit, so conservation holds whichever fixed step the poll lands on (Codex #444).
+	var consumed: float = float(sim.get_fix_it_status()["total_material_consumed_kg"])
 	var gained: float = sim.get_inventory_kg(mat) - inv0
 	var spent: float = left0 - sim.get_world_deposit_remaining_kg("ore-1")
 	await _sim_run(1.0)
