@@ -130,6 +130,8 @@ func busy() -> bool:
 func say(text: String) -> void:
 	message = text
 	m.metrics.append("first-loop: " + text)
+	if m.evidence != null:
+		m.evidence.event("message", text)
 
 # ------------------------------------------------------------------------------------------- controls
 func handle_key(keycode: int) -> bool:
