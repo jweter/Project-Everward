@@ -9,14 +9,18 @@
 // twice.) Every operation that can see bad input returns a failure instead of throwing into the engine.
 
 #include "everward/simulation/first_loop_controls.hpp"
+#include "everward/simulation/fix_it.hpp"
 #include "everward/simulation/manipulator_hull_contact.hpp"
 #include "everward/simulation/manipulator_path_planner.hpp"
 #include "everward/simulation/mining.hpp"
 #include "everward/simulation/mining_staging.hpp"
 #include "everward/simulation/save_data.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <limits>
 #include <exception>
 #include <map>
 #include <optional>
@@ -51,6 +55,24 @@ struct StagingPlan {
     double tool_gap_m{0.0};
 };
 
+// Fix_It as the Unreal FixItRuntimeActor runs it: replan when idle, start a Repair decision only when stored
+// material and energy cover it, advance the executor, wait (never run) when short.
+struct FixItInfo {
+    bool enabled{false};
+    std::string state{"off"};     // off, monitor, waiting, repairing
+    std::string stage;
+    std::string subsystem;
+    std::string reason;
+    double progress{0.0};
+    double material_required_kg{0.0};
+    double material_consumed_kg{0.0};
+    double last_completed_material_consumed_kg{0.0};
+    double energy_required_j{0.0};
+    double energy_consumed_j{0.0};
+    double target_integrity{0.0};
+    std::string last_event;
+};
+
 struct ArmInfo {
     bool deployed{false};
     bool deploying{false};
@@ -83,6 +105,14 @@ public:
         deposits_.clear();
         pending_contacts_ = 0;
         accumulator_ticks_ = 0;
+        fix_it_enabled_ = false;
+        fix_it_running_ = false;
+        fix_it_waiting_ = false;
+        fix_it_repair_ = FixItRepairExecutor{};
+        fix_it_last_completed_material_consumed_kg_ = 0.0;
+        fix_it_last_decision_.reset();
+        fix_it_last_event_.clear();
+        fix_it_events_.clear();
     }
 
     // Commands return false for input the simulation rejects; no exception ever leaves this class.
@@ -93,6 +123,7 @@ public:
             while (accumulator_ticks_ >= kFixedStepTicks) {
                 runtime_.advance_wall_ticks(kFixedStepTicks);
                 rig_.advance(static_cast<double>(kFixedStepTicks) / SimulationClock::TicksPerSecond);
+                if (fix_it_enabled_) advance_fix_it(static_cast<double>(kFixedStepTicks) / SimulationClock::TicksPerSecond);
                 accumulator_ticks_ -= kFixedStepTicks;
                 consume_events();
             }
@@ -300,6 +331,54 @@ public:
         return out;
     }
 
+    // ------------------------------------------------------------------ Fix_It (#378 G02)
+    // Turns Fix_It on. With seed_damaged_awakening, an undamaged probe first wakes at the Unreal actor's Gen-1
+    // startup integrity (computation 18%, thermal 22%, sensors 35%, propulsion 40%).
+    void enable_fix_it(bool seed_damaged_awakening) {
+        fix_it_enabled_ = true;
+        const auto& i = runtime_.component_integrity();
+        if (seed_damaged_awakening && i.sensors >= 0.999 && i.propulsion >= 0.999 && i.computation >= 0.999 &&
+            i.thermal >= 0.999) {
+            runtime_.set_subsystem_integrity(PowerSubsystem::Computation, 0.18);
+            runtime_.set_subsystem_integrity(PowerSubsystem::Thermal, 0.22);
+            runtime_.set_subsystem_integrity(PowerSubsystem::Sensors, 0.35);
+            runtime_.set_subsystem_integrity(PowerSubsystem::Propulsion, 0.40);
+            fix_it_event("Fix_It active: Gen-1 startup integrity COMPUTATION 18%, THERMAL 22%, SENSORS 35%, PROPULSION 40%.");
+        }
+    }
+    [[nodiscard]] ComponentIntegritySnapshot integrity() const { return runtime_.component_integrity(); }
+    [[nodiscard]] double stored_energy_j() const { return runtime_.snapshot().stored_energy_j; }
+    [[nodiscard]] FixItInfo fix_it_info() const {
+        FixItInfo out;
+        out.enabled = fix_it_enabled_;
+        out.last_event = fix_it_last_event_;
+        out.last_completed_material_consumed_kg = fix_it_last_completed_material_consumed_kg_;
+        if (!fix_it_enabled_) return out;
+        out.state = fix_it_running_ ? "repairing" : (fix_it_waiting_ ? "waiting" : "monitor");
+        const auto& status = fix_it_repair_.status();
+        const std::optional<FixItDecision>& d = fix_it_running_ ? status.decision : fix_it_last_decision_;
+        if (d) {
+            out.stage = stage_name(d->stage);
+            out.subsystem = subsystem_name(d->subsystem);
+            out.reason = d->reason;
+            out.material_required_kg = d->material_required_kg;
+            out.energy_required_j = d->energy_required_j;
+            out.target_integrity = d->target_integrity;
+        }
+        if (fix_it_running_ && status.decision) {
+            out.progress = std::clamp(status.elapsed_s / status.decision->time_required_s, 0.0, 1.0);
+            out.material_consumed_kg = status.material_consumed_kg;
+            out.energy_consumed_j = status.energy_consumed_j;
+        }
+        return out;
+    }
+    // Fix_It's event lines since the last call (started, completed with the materials consumed, interrupted).
+    std::vector<std::string> drain_fix_it_events() {
+        std::vector<std::string> out;
+        out.swap(fix_it_events_);
+        return out;
+    }
+
     // World positions (simulation frame) of the arm's shoulder, elbow, wrist and tool tip, from the same forward
     // kinematics MiningSystem and the hull checks use, for drawing the arm. Empty when the arm id is invalid.
     [[nodiscard]] std::vector<Vector3d> arm_points(int arm) const {
@@ -476,6 +555,16 @@ public:
             has_deposit_ = new_has_deposit;
             deposit_remaining_kg_ = new_remaining;
             extracted_kg_ = new_extracted;
+            // In-progress Fix_It operations are intentionally not persisted yet. A load replaces
+            // the authoritative world state, so no executor decision/progress from the old world
+            // may run against the restored probe on the next fixed step.
+            fix_it_running_ = false;
+            fix_it_waiting_ = false;
+            fix_it_repair_ = FixItRepairExecutor{};
+            fix_it_last_completed_material_consumed_kg_ = 0.0;
+            fix_it_last_decision_.reset();
+            fix_it_last_event_.clear();
+            fix_it_events_.clear();
             return true;
         } catch (const std::exception&) {
             return false;
@@ -506,6 +595,90 @@ private:
             if (body.body_id == id) return body;
         }
         return std::nullopt;
+    }
+
+    static const char* subsystem_name(PowerSubsystem s) {
+        switch (s) {
+            case PowerSubsystem::Sensors: return "SENSORS";
+            case PowerSubsystem::Propulsion: return "PROPULSION";
+            case PowerSubsystem::Computation: return "COMPUTATION";
+            case PowerSubsystem::Thermal: return "THERMAL";
+        }
+        return "UNKNOWN";
+    }
+    static const char* stage_name(FixItStage s) {
+        switch (s) {
+            case FixItStage::Repair: return "REPAIR";
+            case FixItStage::Replacement: return "REPLACEMENT";
+            case FixItStage::Upgrade: return "UPGRADE";
+            case FixItStage::Redesign: return "REDESIGN";
+            case FixItStage::Evolution: return "EVOLUTION";
+        }
+        return "UNKNOWN";
+    }
+    void fix_it_event(std::string line) {
+        fix_it_last_event_ = line;
+        fix_it_events_.push_back(std::move(line));
+        if (fix_it_events_.size() > 64) fix_it_events_.erase(fix_it_events_.begin());
+    }
+    static std::string kg_breakdown(const std::map<std::string, double>& by_material) {
+        std::string out;
+        char buf[160];
+        for (const auto& [id, kg] : by_material) {
+            std::snprintf(buf, sizeof(buf), "%s%s %.2f kg", out.empty() ? "" : ", ", id.c_str(), kg);
+            out += buf;
+        }
+        return out.empty() ? std::string("nothing") : out;
+    }
+
+    // FixItRuntimeActor::AdvanceFixIt / ReplanOrStart, on the fixed step.
+    void advance_fix_it(double step_s) {
+        char buf[320];
+        if (fix_it_running_) {
+            fix_it_repair_.advance(runtime_, step_s);
+            const auto& status = fix_it_repair_.status();
+            if (status.state == FixItExecutionState::Completed) {
+                fix_it_last_completed_material_consumed_kg_ = status.material_consumed_kg;
+                fix_it_running_ = false;
+                fix_it_waiting_ = false;
+                std::snprintf(buf, sizeof(buf), "%s restored to %.0f%%; consumed %.2f kg (%s) and %.0f J.",
+                              subsystem_name(status.decision->subsystem), status.decision->target_integrity * 100.0,
+                              status.material_consumed_kg, kg_breakdown(status.material_consumed_breakdown_kg).c_str(),
+                              status.energy_consumed_j);
+                fix_it_event(buf);
+            } else if (status.state == FixItExecutionState::Interrupted) {
+                fix_it_running_ = false;
+                fix_it_waiting_ = true;
+                fix_it_event(status.detail);
+            }
+            return;
+        }
+        const auto& snap = runtime_.snapshot();
+        FixItResources resources;
+        resources.material_kg = snap.storage_used_kg;
+        resources.energy_j = snap.stored_energy_j;
+        resources.available_time_s = std::numeric_limits<double>::max();
+        fix_it_last_decision_ = FixItPlanner::plan_next(runtime_.component_integrity(), resources);
+        if (!fix_it_last_decision_) {
+            fix_it_waiting_ = false;
+            return;
+        }
+        const FixItDecision& d = *fix_it_last_decision_;
+        if (d.stage != FixItStage::Repair) {
+            fix_it_waiting_ = d.stage == FixItStage::Replacement;  // fabrication is not online yet
+            return;
+        }
+        if (snap.storage_used_kg + 1e-9 < d.material_required_kg || snap.stored_energy_j + 1e-6 < d.energy_required_j) {
+            fix_it_waiting_ = true;
+            return;
+        }
+        fix_it_repair_.start(d);
+        fix_it_running_ = true;
+        fix_it_waiting_ = false;
+        std::snprintf(buf, sizeof(buf), "%s %.0f%% -> %.0f%% // need %.2f kg, %.0f J, %.1f s // %s",
+                      subsystem_name(d.subsystem), d.integrity_before * 100.0, d.target_integrity * 100.0,
+                      d.material_required_kg, d.energy_required_j, d.time_required_s, d.reason.c_str());
+        fix_it_event(buf);
     }
 
     // Counts contacts for drain_contact_events and latches surveys from genuine ScanCompleted events (G05: a later
@@ -545,6 +718,14 @@ private:
     std::map<std::string, WorldDeposit> deposits_;
     int pending_contacts_{0};
     std::int64_t accumulator_ticks_{0};
+    bool fix_it_enabled_{false};
+    bool fix_it_running_{false};
+    bool fix_it_waiting_{false};
+    FixItRepairExecutor fix_it_repair_{};
+    double fix_it_last_completed_material_consumed_kg_{0.0};
+    std::optional<FixItDecision> fix_it_last_decision_{};
+    std::string fix_it_last_event_;
+    std::vector<std::string> fix_it_events_;
 };
 
 }  // namespace everward::binding

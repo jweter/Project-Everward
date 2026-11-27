@@ -9,6 +9,7 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_float64_array.hpp>
+#include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
 namespace godot {
@@ -64,6 +65,11 @@ public:
     Dictionary plan_staging(int64_t arm, const String& target_id) const;
     Dictionary plan_arm_path(int64_t arm, double shoulder, double elbow, double wrist) const;
     Dictionary mine_deposit(const String& target_id);
+    void enable_fix_it(bool seed_damaged_awakening);
+    Dictionary get_fix_it_status() const;
+    Dictionary get_integrity() const;
+    double get_stored_energy_j() const;
+    PackedStringArray drain_fix_it_events();
 
 private:
     everward::binding::SimCore core_;

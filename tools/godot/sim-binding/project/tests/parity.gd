@@ -156,4 +156,45 @@ func _init() -> void:
 	var fl_mined: Dictionary = fl.mine_deposit(ore)
 	print("mine %d extracted %.9f remaining %.9f gap %.9f arm %d material %s" % [1 if fl_mined["accepted"] else 0, fl_mined["extracted_kg"], fl_mined["remaining_kg"], fl_mined["tool_gap_m"], fl_mined["arm"], fl_mined["material_id"]])
 	print("inventory %.9f storage %.9f deposit %.9f" % [fl.get_inventory_kg(mat), fl.get_storage_used_kg(), fl.get_world_deposit_remaining_kg(ore)])
+
+	var fx = ClassDB.instantiate("EverwardSim")
+	fx.enable_fix_it(true)
+	var awake: Dictionary = fx.get_integrity()
+	print("fixit awake computation %.3f thermal %.3f sensors %.3f propulsion %.3f" % [awake["computation"], awake["thermal"], awake["sensors"], awake["propulsion"]])
+	for step in 50:
+		fx.advance_ticks(100000)
+	var idle: Dictionary = fx.get_fix_it_status()
+	print("fixit idle state %s subsystem %s need %.6f kg computation %.9f" % [idle["state"], idle["subsystem"], idle["material_required_kg"], fx.get_integrity()["computation"]])
+	fx.setup_bootstrap_deposit(250.0)
+	var fuel: Dictionary = fx.mine_once()
+	var energy0: float = fx.get_stored_energy_j()
+	print("fixit mined %d storage %.9f" % [1 if fuel["accepted"] else 0, fx.get_storage_used_kg()])
+	for step in 200:
+		fx.advance_ticks(100000)
+	var fixed: Dictionary = fx.get_fix_it_status()
+	var healed: Dictionary = fx.get_integrity()
+	print("fixit after state %s subsystem %s computation %.9f thermal %.9f storage %.9f inventory %.9f energy_used %.3f" % [fixed["state"], fixed["subsystem"], healed["computation"], healed["thermal"], fx.get_storage_used_kg(), fx.get_inventory_kg("iron_regolith"), energy0 - fx.get_stored_energy_j()])
+	var fix_events: PackedStringArray = fx.drain_fix_it_events()
+	print("fixit events %d first %s" % [fix_events.size(), fix_events[1] if fix_events.size() > 1 else ""])
+
+	# Review regression (#444): a successful load discards any in-flight Fix_It executor.
+	var load_fx = ClassDB.instantiate("EverwardSim")
+	load_fx.enable_fix_it(true)
+	load_fx.setup_bootstrap_deposit(250.0)
+	load_fx.mine_once()
+	load_fx.advance_ticks(100000)
+	var repair_was_running: bool = load_fx.get_fix_it_status()["state"] == "repairing"
+	var pristine_fx = ClassDB.instantiate("EverwardSim")
+	pristine_fx.setup_bootstrap_deposit(250.0)
+	pristine_fx.mine_once()
+	var fix_load := 1 if load_fx.load_json(pristine_fx.save_json()) else 0
+	load_fx.advance_ticks(100000)
+	var after_fix_load: Dictionary = load_fx.get_fix_it_status()
+	var loaded_computation: float = load_fx.get_integrity()["computation"]
+	var load_reset_ok: bool = repair_was_running and fix_load == 1 and absf(loaded_computation - 1.0) < 1e-12 and after_fix_load["state"] == "monitor"
+	if not load_reset_ok:
+		print("PARITY_ERROR Fix_It executor survived load_json")
+		quit(9)
+		return
+	print("fixit load reset %d computation %.9f state %s" % [1 if load_reset_ok else 0, loaded_computation, after_fix_load["state"]])
 	quit(0)

@@ -6,6 +6,8 @@ extends RefCounted
 #
 # Keys: R scan the nearest deposit (R again cancels), 1/2 select port/starboard arm, T deploy/stow the selected arm,
 # Y attach/detach its tool, P auto-approach (P or SPACE cancels), G mine.
+# Fix_It (#378 G02) runs inside the simulation on its own, as in the Unreal build: the probe wakes damaged, and Fix_It
+# repairs in canonical order only while stored material and energy cover the next step. This script shows it.
 
 const SCAN_RANGE_M := 250.0
 const SCAN_DURATION_S := 10.0          # Unreal Phase2ScanDurationSeconds
@@ -30,6 +32,7 @@ var waypoint_elapsed := 0.0
 var aligned := false
 var message := ""
 var last_mine: Dictionary = {}
+var fix_it_log: Array[String] = []
 var arm_meshes: Array = [[], []]        # per arm: 3 link cylinders + tool tip
 var scan_beam: MeshInstance3D
 var arm_mat: StandardMaterial3D
@@ -198,6 +201,9 @@ func mine() -> void:
 
 # ------------------------------------------------------------------------------------------- per frame
 func process(delta: float) -> void:
+	for line in m.sim.drain_fix_it_events():
+		fix_it_log.append(line)
+		m.metrics.append("Fix_It: " + line)
 	if approaching:
 		var p: PackedFloat64Array = m.sim.get_position()
 		var to := staging - Vector3(p[0], p[1], p[2])
@@ -304,7 +310,22 @@ func hud_lines() -> String:
 		var kg: float = m.sim.get_inventory_kg(dd["material"])
 		if kg > 0.0:
 			cargo += "  %s %.1f kg" % [dd["name"], kg]
-	return "TARGET %s\nARM %s %s  tool %s%s%s\nCARGO%s  storage %.1f / %.0f kg\n%s" % [
+	return "TARGET %s\nARM %s %s  tool %s%s%s\nCARGO%s  storage %.1f / %.0f kg\n%s\n%s" % [
 		target, ARM_NAMES[selected_arm], arm_state, "on" if st["tool_attached"] else "off",
 		"  APPROACHING" if approaching else "", "  ALIGNED" if aligned else "",
-		cargo if cargo != "" else " empty", m.sim.get_storage_used_kg(), m.sim.get_storage_capacity_kg(), message]
+		cargo if cargo != "" else " empty", m.sim.get_storage_used_kg(), m.sim.get_storage_capacity_kg(), fix_it_line(), message]
+
+# The Unreal FixItRuntimeActor summary format, plus the integrity of all four subsystems.
+func fix_it_line() -> String:
+	var f: Dictionary = m.sim.get_fix_it_status()
+	if not f["enabled"]:
+		return "FIX_IT // OFF"
+	var i: Dictionary = m.sim.get_integrity()
+	var health := "COMP %d%% THERM %d%% SENS %d%% PROP %d%%" % [int(round(float(i["computation"]) * 100.0)), int(round(float(i["thermal"]) * 100.0)), int(round(float(i["sensors"]) * 100.0)), int(round(float(i["propulsion"]) * 100.0))]
+	match String(f["state"]):
+		"repairing":
+			return "FIX_IT // REPAIR %s // %d%% // %.2f/%.2f KG // %s" % [f["subsystem"], int(float(f["progress"]) * 100.0), f["material_consumed_kg"], f["material_required_kg"], health]
+		"waiting":
+			return "FIX_IT // PRIORITY %s // WAITING: %.2f KG + %.0f KJ // STORED %.2f KG // %s" % [f["subsystem"], f["material_required_kg"], float(f["energy_required_j"]) / 1000.0, m.sim.get_storage_used_kg(), health]
+		_:
+			return "FIX_IT // MONITOR // %s" % health

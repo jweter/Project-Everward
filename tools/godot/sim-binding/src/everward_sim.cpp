@@ -36,6 +36,11 @@ void EverwardSim::_bind_methods() {
     ClassDB::bind_method(D_METHOD("plan_staging", "arm", "target_id"), &EverwardSim::plan_staging);
     ClassDB::bind_method(D_METHOD("plan_arm_path", "arm", "shoulder", "elbow", "wrist"), &EverwardSim::plan_arm_path);
     ClassDB::bind_method(D_METHOD("mine_deposit", "target_id"), &EverwardSim::mine_deposit);
+    ClassDB::bind_method(D_METHOD("enable_fix_it", "seed_damaged_awakening"), &EverwardSim::enable_fix_it);
+    ClassDB::bind_method(D_METHOD("get_fix_it_status"), &EverwardSim::get_fix_it_status);
+    ClassDB::bind_method(D_METHOD("get_integrity"), &EverwardSim::get_integrity);
+    ClassDB::bind_method(D_METHOD("get_stored_energy_j"), &EverwardSim::get_stored_energy_j);
+    ClassDB::bind_method(D_METHOD("drain_fix_it_events"), &EverwardSim::drain_fix_it_events);
     ClassDB::bind_method(D_METHOD("get_last_contact"), &EverwardSim::get_last_contact);
     ClassDB::bind_method(D_METHOD("drain_contact_events"), &EverwardSim::drain_contact_events);
     ClassDB::bind_method(D_METHOD("setup_bootstrap_deposit", "remaining_kg"), &EverwardSim::setup_bootstrap_deposit);
@@ -178,6 +183,41 @@ Dictionary EverwardSim::mine_deposit(const String& target_id) {
     d["material_id"] = String::utf8(r.material_id.c_str());
     d["reason"] = String::utf8(r.reason.c_str());
     return d;
+}
+
+void EverwardSim::enable_fix_it(bool seed_damaged_awakening) { core_.enable_fix_it(seed_damaged_awakening); }
+Dictionary EverwardSim::get_fix_it_status() const {
+    const auto f = core_.fix_it_info();
+    Dictionary d;
+    d["enabled"] = f.enabled;
+    d["state"] = String::utf8(f.state.c_str());
+    d["stage"] = String::utf8(f.stage.c_str());
+    d["subsystem"] = String::utf8(f.subsystem.c_str());
+    d["reason"] = String::utf8(f.reason.c_str());
+    d["progress"] = f.progress;
+    d["material_required_kg"] = f.material_required_kg;
+    d["material_consumed_kg"] = f.material_consumed_kg;
+    d["last_completed_material_consumed_kg"] = f.last_completed_material_consumed_kg;
+    d["energy_required_j"] = f.energy_required_j;
+    d["energy_consumed_j"] = f.energy_consumed_j;
+    d["target_integrity"] = f.target_integrity;
+    d["last_event"] = String::utf8(f.last_event.c_str());
+    return d;
+}
+Dictionary EverwardSim::get_integrity() const {
+    const auto i = core_.integrity();
+    Dictionary d;
+    d["sensors"] = i.sensors;
+    d["propulsion"] = i.propulsion;
+    d["computation"] = i.computation;
+    d["thermal"] = i.thermal;
+    return d;
+}
+double EverwardSim::get_stored_energy_j() const { return core_.stored_energy_j(); }
+PackedStringArray EverwardSim::drain_fix_it_events() {
+    PackedStringArray out;
+    for (const auto& line : core_.drain_fix_it_events()) out.push_back(String::utf8(line.c_str()));
+    return out;
 }
 
 bool EverwardSim::setup_bootstrap_deposit(double remaining_kg) { return core_.setup_bootstrap_deposit(remaining_kg); }
