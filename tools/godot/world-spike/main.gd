@@ -69,6 +69,7 @@ var firstloop_test := false      # --firstloop: headless acceptance run of the w
 var powertest := false           # --powertest: headless run of the G09 sensor-power drop and recovery
 var hudtest := false             # --hudtest: headless run of the G11 systems panel selection
 var approachtest := false        # --approachtest: headless run of the G10 auto-approach safety cases
+var contacttest := false         # --contacttest: headless run of the G07 compound-hull contact cases
 # G04/G12: the acceptance runs write report.json (exact build, timed events, checks, PASS/FAIL/INCONCLUSIVE).
 const Evidence = preload("res://evidence.gd")
 const INCONCLUSIVE_EXIT := 11
@@ -86,6 +87,7 @@ func _ready() -> void:
 	powertest = "--powertest" in args
 	hudtest = "--hudtest" in args
 	approachtest = "--approachtest" in args
+	contacttest = "--contacttest" in args
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -129,7 +131,9 @@ func _ready() -> void:
 	puff.width = 64
 	puff.height = 64
 	dust_mat.albedo_texture = puff
-	if approachtest:
+	if contacttest:
+		_run_contacttest.call_deferred()
+	elif approachtest:
 		_run_approachtest.call_deferred()
 	elif hudtest:
 		_run_hudtest.call_deferred()
@@ -281,7 +285,7 @@ func _build_clouds() -> void:
 
 func _scripted() -> bool:
 	# Any scripted run: no manual flight, no player input (they would move the camera between captures)
-	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest or approachtest
+	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest or approachtest or contacttest
 
 func _apply_look() -> void:
 	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
@@ -846,6 +850,87 @@ func _run_approachtest() -> void:
 	check.call("turn after alignment withdraws it", g_aligned and not first_loop.aligned and first_loop.message.contains("no longer aligned"), "aligned before the turn=%s, after=%s; %s" % [g_aligned, first_loop.aligned, first_loop.message])
 	_finish_evidence("APPROACHTEST", 12)
 
+# How far the probe's compound hull (the simulation's own five spheres) reaches into a body: > 0 is penetration.
+func _hull_penetration(body_id: String, body_radius: float) -> Dictionary:
+	var c: PackedFloat64Array = sim.get_body_center(body_id)
+	var body := Vector3(c[0], c[1], c[2])
+	var h: PackedFloat64Array = sim.get_hull_samples()
+	var worst := -INF
+	var nearest := -1
+	var centre_distance := Vector3(h[4], h[5], h[6]).distance_to(body)   # sample 1 is the hull centre
+	for i in h.size() / 4:
+		var depth: float = h[i * 4 + 3] + body_radius - Vector3(h[i * 4], h[i * 4 + 1], h[i * 4 + 2]).distance_to(body)
+		if depth > worst:
+			worst = depth
+			nearest = i
+	return {"depth": worst, "sample": nearest, "centre_distance": centre_distance}
+
+# One G07 case on a fresh simulation 300 m above the terrain: a body, an optional turn, the probe's and the body's
+# velocities, then run while tracking contacts, the deepest hull penetration and the closest approach.
+func _contact_case(body_pos: Vector3, body_radius: float, yaw: float, probe_v: Vector3, body_v: Vector3, seconds: float) -> Dictionary:
+	var origin := Vector3(0, 300, 0)
+	_place_ship(origin, origin + Vector3(0, 0, -100))
+	_sim_start(origin)
+	sim_contact_log.clear()
+	sim.add_sphere_body("body", body_pos.x, body_pos.y, body_pos.z, body_radius)
+	if body_v != Vector3.ZERO:
+		sim.set_sphere_body_velocity("body", body_v.x, body_v.y, body_v.z)
+	if yaw != 0.0:
+		sim.adjust_attitude(yaw, 0.0, 0.0)
+	var integrity0: Dictionary = sim.get_integrity()
+	sim.set_velocity(probe_v.x, probe_v.y, probe_v.z)
+	var deepest := -INF
+	var closest := INF
+	var first_sample := -1
+	var first_contact := {}
+	var t := 0.0
+	while t < seconds:
+		await _sim_run(0.05)
+		t += 0.05
+		var p: Dictionary = _hull_penetration("body", body_radius)
+		deepest = maxf(deepest, p["depth"])
+		closest = minf(closest, p["centre_distance"])
+		if first_contact.is_empty() and not sim_contact_log.is_empty():
+			first_contact = sim.get_last_contact()
+			first_sample = p["sample"]
+	return {"contacts": sim_contact_log.size(), "deepest": deepest, "closest_centre": closest, "sample": first_sample,
+		"normal_speed": float(first_contact.get("normal_speed", 0.0)), "integrity0": integrity0, "integrity1": sim.get_integrity(),
+		"velocity": sim.get_velocity()}
+
+func _contact_summary(c: Dictionary) -> String:
+	var i0: Dictionary = c["integrity0"]
+	var i1: Dictionary = c["integrity1"]
+	return "contacts %d; first touching sample %d; normal speed %.2f m/s; deepest hull penetration %.4f m; closest hull centre %.2f m; integrity sens %.3f->%.3f prop %.3f->%.3f comp %.3f->%.3f therm %.3f->%.3f; final velocity %s" % [
+		c["contacts"], c["sample"], c["normal_speed"], c["deepest"], c["closest_centre"], i0["sensors"], i1["sensors"], i0["propulsion"], i1["propulsion"], i0["computation"], i1["computation"], i0["thermal"], i1["thermal"], c["velocity"]]
+
+func _run_contacttest() -> void:
+	# G3 evidence for #378 G07: contact is decided by the probe's compound hull (five spheres: nose 0, centre 1, tail 2,
+	# port wing 3, starboard wing 4), not a coarse sphere; it turns with the probe; moving bodies are swept; the hull
+	# never ends up inside a body; impacts are reported with their speed.
+	_begin_evidence("contacttest")
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	if not ClassDB.class_exists("EverwardSim"):
+		_fail("simulation extension (EverwardSim) not loaded", 5)
+		return
+	var check := func(name: String, ok: bool, detail: String) -> void: evidence.check(name, ok, detail)
+	var miss: Dictionary = await _contact_case(Vector3(10, 5.3, 0), 1.0, 0.0, Vector3(2, 0, 0), Vector3.ZERO, 10.0)
+	check.call("near miss inside an 8 m sphere: no contact", miss["contacts"] == 0 and miss["closest_centre"] < 8.0 and miss["deepest"] < 0.0, _contact_summary(miss))
+	var wing: Dictionary = await _contact_case(Vector3(10, 4.5, 0), 1.0, 0.0, Vector3(2, 0, 0), Vector3.ZERO, 10.0)
+	check.call("starboard wing alone touches", wing["contacts"] >= 1 and wing["sample"] == 4 and wing["deepest"] <= 0.01, _contact_summary(wing))
+	var turned: Dictionary = await _contact_case(Vector3(10, 5.3, 0), 1.0, 90.0, Vector3(2, 0, 0), Vector3.ZERO, 10.0)
+	check.call("the hull turns with the probe", turned["contacts"] >= 1 and turned["sample"] == 0 and turned["deepest"] <= 0.01, _contact_summary(turned))
+	var mover: Dictionary = await _contact_case(Vector3(0, 12, 0), 1.0, 0.0, Vector3.ZERO, Vector3(0, -3, 0), 8.0)
+	# a moving body is hit once and then carries the probe (the core resolves contact in the body's frame); the hull may
+	# sit at most one 60 Hz step of the body's travel inside it, never deeper (before the fix: 144 contacts)
+	check.call("a moving body hits the stationary probe once", mover["contacts"] == 1 and absf(mover["normal_speed"] - 3.0) < 0.3 and mover["deepest"] <= 3.0 / 60.0 + 0.01, _contact_summary(mover))
+	var fast: Dictionary = await _contact_case(Vector3(16, 0, 0), 2.0, 0.0, Vector3(12, 0, 0), Vector3.ZERO, 3.0)
+	check.call("a fast impact is reported with its speed", fast["contacts"] >= 1 and absf(fast["normal_speed"] - 12.0) < 0.5 and fast["deepest"] <= 0.01, _contact_summary(fast))
+	# before the fix this was 37 contact events, computation 100% -> 13.7% and sensors -> 72% from one 12 m/s hit
+	var fastmover: Dictionary = await _contact_case(Vector3(0, 30, 0), 1.0, 0.0, Vector3.ZERO, Vector3(0, -12, 0), 4.0)
+	check.call("a fast moving body is one impact, not many", fastmover["contacts"] == 1 and absf(fastmover["normal_speed"] - 12.0) < 0.6 and fastmover["deepest"] <= 12.0 / 60.0 + 0.01 and float(fastmover["integrity1"]["computation"]) > 0.9, _contact_summary(fastmover))
+	_finish_evidence("CONTACTTEST", 13)
+
 func _run_hudtest() -> void:
 	# G3 evidence for #378 G11 through the real keys: ] with the panel closed never leaves the list or needs extra [
 	# presses; the open panel marks the capability that is really selected; acting uses it (arms and power).
@@ -1032,7 +1117,7 @@ func _input(event: InputEvent) -> void:
 	if first_loop != null and event is InputEventKey and event.pressed and not event.echo:
 		if first_loop.handle_key(event.keycode):
 			return
-	if _scripted() and not firstloop_test and not powertest and not hudtest and not approachtest:
+	if _scripted() and not firstloop_test and not powertest and not hudtest and not approachtest and not contacttest:
 		return
 	if sim_active and first_loop != null and first_loop.busy() and event is InputEventMouseMotion:
 		return   # the solved staging pose holds for the attitude it was solved at

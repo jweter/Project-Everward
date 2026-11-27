@@ -294,6 +294,23 @@ inline std::vector<std::string> run_native_parity() {
     const auto g10_c = ap.body_center("boulder-a");
     line("g10 blocked %s clear [%s] wing %s moved [%s] center %.3f %.3f %.3f unknown %d", g10_blocked.c_str(), g10_clear.c_str(),
          g10_wing.c_str(), g10_moved.c_str(), g10_c->x, g10_c->y, g10_c->z, ap.body_center("nope") ? 1 : 0);
+
+    // 12 (G3, #378 G07): the hull samples follow the probe's attitude, and a body moving into the stationary probe is
+    // one contact that then carries the probe along (contact resolved in the body's frame).
+    SimCore g07_mv;
+    g07_mv.adjust_attitude(90.0, 0.0, 0.0);
+    const auto g07_hull = g07_mv.hull_samples();
+    g07_mv.adjust_attitude(-90.0, 0.0, 0.0);
+    g07_mv.add_sphere_body("debris-m", -0.5, 30.0, 0.0, 1.0);
+    const int g07_vel_ok = g07_mv.set_sphere_body_velocity("debris-m", 0.0, -12.0, 0.0) ? 1 : 0;
+    const int g07_vel_unknown = g07_mv.set_sphere_body_velocity("nope", 0.0, 1.0, 0.0) ? 1 : 0;
+    int g07_contacts = 0;
+    for (int step = 0; step < 240; ++step) {
+        g07_mv.advance_ticks(16667);
+        g07_contacts += g07_mv.drain_contact_events();
+    }
+    line("g07 nose %.3f %.3f %.3f r %.2f vel %d unknown %d contacts %d probe-vy %.3f", g07_hull[0].center.x, g07_hull[0].center.y,
+         g07_hull[0].center.z, g07_hull[0].radius, g07_vel_ok, g07_vel_unknown, g07_contacts, g07_mv.velocity().y);
     return out;
 }
 
