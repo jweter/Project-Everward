@@ -1,26 +1,18 @@
 # Everward Roadmap
 
-## Continuous production-readiness overlay — approved direction (2026-11-05)
+## Current development authority — Godot and Phase 2 (2026-11-27)
 
-The numbered phases remain the **feature-order authority**. Effective for all current and future player-facing slices, a second **R0–R6 experience-gate layer** governs player outcome, UX/onboarding, Prime A art/animation, tactile and evolving audio, accessibility, persistence, performance, unattended Unreal verification and appropriately bounded subjective player review. See [Production Quality Gates](PRODUCTION_QUALITY_GATES.md) and [November 2026 professional review synthesis](PRODUCTION_REVIEW_INTEGRATION_2026-11-05.md).
+The owner-approved active production engine is **Godot** (ADR-0014 supersedes Unreal-first ADR-0001). Keep `src/simulation/` as authoritative deterministic C++20 game state and the current Godot integration under `tools/godot/`. Freeze unrelated Unreal feature work; preserve historical Unreal source and evidence until the separate G5 retirement decision.
 
-**P0 remains the earliest incomplete damaged-awakening → scan → mine → spend material/power → Fix_It → restored capability → repeatable objective chain.** The 2026-11-05 report's gap inventory predates merged PR #351 (starter-restoration objective implementation); implementation must be reevaluated, not duplicated, and **Unreal Product Reality remains a separate acceptance gate**. The four ongoing disciplines are gameplay/simulation, visual/player experience, objective QA/player evidence and audio/evolving sensorium. The audio implementation track is [Generative Audio Production Plan](GENERATIVE_AUDIO_PRODUCTION_PLAN.md): A0 event/alert baseline and A1 tactile mining/repair are phase-compatible near-term work; richer perception and algorithmic score are later gated and may not displace the first playable.
+The numbered phases below remain the **feature-order authority** and Everward's long-term vision is unchanged: physical travel, delayed information, resource-driven industry, observation-driven research, successor engineering, autonomous descendants and a distributed machine civilization. Engine migration is not permission to dilute a scientifically credible, visually rich, embodied 3D experience.
 
-This additive overlay does not mark any phase completed, supersede the existing reversible parallel-safe lane, or permit paid tooling, production branch bypass or owner-control changes.
+**Immediate P0:** damaged-awakening → scan/survey → staging and physical mining → inventory → spend material and energy in `Fix_It` → restored capability → repeatable objective, supported by visible feedback and unattended objective verification. The G0 Godot spike (#433), simulation binding (#437), flight/world (#440/#442), first mining loop (#443), and Fix_It (#444) have landed. These are **partial milestones**, not proof of the complete P0 player journey, owner-approved art quality, packaging or all #378 G01–G13 gates.
 
-**Tracked implementation:** [P0/P1 Production Execution Backlog (2026-11-05)](PRODUCTION_PRIORITY_BACKLOG_2026-11-05.md) reconciles current acceptance issues with new #355–#360 without duplicating #351. Priorities remain constrained by live repo state and Phase 2's earliest incomplete player journey.
+The R0–R6 cross-disciplinary production quality layer remains in force: gameplay/simulation, player experience and HUD, art/animation, tactile audio, accessibility, persistence/performance, deterministic/headless checks, real Godot presentation evidence and bounded subjective owner acceptance. See [Production Quality Gates](PRODUCTION_QUALITY_GATES.md), [Godot Path Plan](GODOT_PATH_PLAN.md), and [Visual Direction](VISUAL_DIRECTION.md). Update old Unreal-only test instructions according to the new engine authority; do not silently mark those historical results `GODOT_VERIFIED`.
 
+**Current milestone ladder:** G0 feasibility and G1 simulation parity implemented → G2 tested simulation flight/contact → G3 complete first loop and full save/behavioral parity → G4 credible Godot visual/game-feel and performance evidence → G5 preserve/archive old Unreal source with owner approval, then continue Phase 3 — One Star System.
 
-## Owner-approved first playable priority (2026-10-25)
-
-Prioritize one coherent, actually playable **Unreal Engine** One Probe loop over disconnected subsystem expansion: control the probe, observe/scan, gather resources, apply them to a meaningful construction/repair/progression action, and complete a repeatable objective. Preserve the existing simulation authority, physicality, visual scalability and Phase 2 gates. This is a milestone emphasis, not permission to skip Product Reality or replace the established Phase 2 roadmap. Decompose missing seams into small dependency-ready tasks and verify in the actual engine. See `docs/OWNER_APPROVED_ROADMAP_2026-10-25.md`.
-
-
-This is the master development roadmap. It preserves the core identity of physical travel, delayed information, resource-driven industry, probe genealogy, autonomous descendants, deterministic simulation, historical state, observation-driven research, and the transition from one machine to a distributed civilization.
-
-The player is explicitly the probe. The roadmap is sequenced to prove the game from the inside out rather than beginning with late-game spectacle.
-
-**Production engine direction:** Unreal Engine is accepted as the production target. Phase 1 technical work validated that direction, identified implementation risks, and proved the engine-independent simulation architecture before production gameplay began. Godot material may remain only as comparative benchmark evidence or historical prototype work unless a later accepted ADR explicitly supersedes ADR-0001.
+**Historical context:** the October/early-November Unreal-first priorities and benchmark exit artifacts remain useful as historical implementation evidence; they do not authorize new Unreal gameplay work.
 
 ## Phase 0 — Project Constitution
 
@@ -75,35 +67,26 @@ Proved long-duration headless deterministic simulation.
 
 ## Phase 2 — One Probe
 
-**Status:** **ACTIVE.** Production implementation began in PR #68 after the Phase 1 exit gate passed.
+**Status:** ACTIVE — Godot production development; migration G3 first loop remains incomplete. The historical Unreal project began with PR #68, but current engine direction is governed by ADR-0014.
 
-Current production foundation on `main`:
+Current foundation:
+- engine-independent deterministic C++20 core under `src/simulation/` with tests and physical simulation authority;
+- Godot GDExtension `EverwardSim` exposing validated simulation commands, state and native-versus-headless-Godot parity checks;
+- world spike under `tools/godot/world-spike/`, with procedural visuals and low-spec test routes;
+- bounded simulation-owned flight, movement/contact, scan/survey, staging, collision-aware arm path, mining, named inventory, energy-funded Fix_It and repair outcomes;
+- historical Unreal integration retained only as prior implementation/reference work.
 
-- top-level Unreal Engine 5.8 project under `unreal/`;
-- engine-independent C++20 authoritative simulation core under `src/simulation/`;
-- canonical first-probe state for identity, position/velocity, mass, energy, temperature, storage, and basic capabilities;
-- deterministic fixed-step movement integration and domain-event delivery;
-- `UProbeSimulationAdapter` as the single Unreal-side caller into authoritative simulation;
-- visible probe-relative movement and attitude control;
-- subsystem power/capability consequences and observable automation actions;
-- a physical collision/contact foundation with authoritative contact telemetry;
-- CMake/CTest production-core coverage integrated into GitHub Actions.
+Target state remains one physically embodied machine with mass, energy, storage, sensors, computation, propulsion, position, velocity, temperature, component capabilities, contact, software state and repeatable resource-backed recovery. The player must observe, move, scan, inspect, manage systems and understand consequences. The Godot runtime renders authoritative simulation and submits validated commands; it does not decide mechanical outcomes.
 
-Immediate development target: validate the current collision/contact build in Product Reality, then deepen physically grounded impact consequences, component structure, and the Prime Generation-1 body while preserving the simulation-authority boundary.
-
-Phase 2 target state remains one embodied machine with mass, energy, storage, sensors, computation, propulsion, position, velocity, temperature, component capabilities, physical contact, and software state.
-
-Player must be able to observe, scan, move, inspect systems, manage power, understand physical contact, and alter basic software policies.
-
-The Unreal layer presents authoritative simulation state and submits commands; it must never become the owner of mechanical truth. See ADR-0002, ADR-0012, `PHASE2_KICKOFF_SCAFFOLD.md`, `PHASE2_VERTICAL_SLICE_PLAN.md`, and `PROJECT_STATUS.md`.
+**Phase 2 exit gate:** the integrated first-loop chain is objectively verifiable and enjoyable in the real Godot game, saves/loads safely and provides clear visual/control/audio feedback at supported low-spec hardware. Machine-verifiable results, packaged/runtime tests and subjective art/game-feel review are separate acceptance evidence.
 
 ### Cross-phase continuous visual quality and experiential production
 
-**Effective immediately in Phase 2 and every later gameplay phase.** Everward must develop a compelling player experience and correct simulation together. Visual/audio/animation/HUD craft are not postponed until the late production phases. Each meaningful player-facing slice should improve the working Unreal experience, including readable consequences, environment composition, credible materials/lighting, mechanical movement, and appropriate audio where applicable.
+**Effective immediately in Phase 2 and every later gameplay phase.** Everward must develop a compelling player experience and correct simulation together. Visual/audio/animation/HUD craft are not postponed until the late production phases. Each meaningful player-facing slice should improve the working Godot experience, including readable consequences, environment composition, credible materials/lighting, mechanical movement, and appropriate audio where applicable.
 
-The accepted production standard is `CONTINUOUS_VISUAL_QUALITY.md`. It establishes the repeatable art-to-asset-to-Unreal pipeline, before/after gameplay capture, automated visual/performance assessment, low-spec parity, and periodic human milestone review of genuinely subjective qualities. The agents' definition of done differentiates **implemented**, **verified in Unreal**, and **artistically accepted**.
+The accepted production standard is `CONTINUOUS_VISUAL_QUALITY.md`. It establishes the repeatable art-to-asset-to-Godot pipeline, before/after gameplay capture, automated visual/performance assessment, low-spec parity, and periodic human milestone review of genuinely subjective qualities. The agents' definition of done differentiates **implemented**, **verified in Godot**, and **artistically accepted**.
 
-**Visual Milestone 01 — A Beautiful, Believable Awakening** is now the first integrated experiential quality checkpoint. Build and refine the *actual* damaged Prime Gen-1 / `Fix_It` recovery scene: atmospheric world composition, recognizable probe, credible lighting and material responses, articulated mining, clear scanner/HUD feedback, and a visibly consequential resource-funded repair. Acceptance requires an unedited, reproducible Unreal gameplay capture at gameplay and cinematic camera distances, correct mechanics, documented hardware/settings/performance, and appropriately limited subjective art review. A concept render or simulated green test alone never clears this gate.
+**Visual Milestone 01 — A Beautiful, Believable Awakening** is now the first integrated experiential quality checkpoint. Build and refine the *actual* damaged Prime Gen-1 / `Fix_It` recovery scene: atmospheric world composition, recognizable probe, credible lighting and material responses, articulated mining, clear scanner/HUD feedback, and a visibly consequential resource-funded repair. Acceptance requires an unedited, reproducible Godot gameplay capture at gameplay and cinematic camera distances, correct mechanics, documented hardware/settings/performance, and appropriately limited subjective art review. A concept render or simulated green test alone never clears this gate.
 
 The milestone proceeds as bounded visual improvements alongside the earliest incomplete gameplay slice; it does **not** authorize skipping missing mechanics, overriding Product Reality gates, replacing Probe A, or creating an entirely separate showcase demo. A physically plausible icy moon below a giant planet is a possible visual composition, not fixed world canon. The existing unattended-first test policy remains in force.
 
