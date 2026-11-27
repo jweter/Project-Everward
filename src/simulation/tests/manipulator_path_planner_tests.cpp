@@ -137,6 +137,75 @@ void test_invalid_arguments_throw() {
     assert(throws([&] { return plan(1.0, {0, 0, 0}, {1, 0, 0}, JointPathOptions{5.0, -1.0, 15.0}); }));
 }
 
+void test_a_goal_that_barely_differs_does_not_blow_up_the_search() {
+    // Codex review: a tiny non-zero delta used to become the grid spacing for the whole joint range
+    // (millions of guard calls). Spacing stays nominal, so the cost is bounded by the joint ranges.
+    long calls = 0;
+    const auto inner = banded_guard();
+    const ManipulatorRig::SelfCollisionGuard counted = [&calls, inner](ManipulatorArmId a, double f, ManipulatorArmAngles p) {
+        ++calls;
+        return inner(a, f, p);
+    };
+    const ManipulatorArmAngles goal{50.0, 25.00001, 0.0};
+    const auto path = plan_collision_free_joint_path(ManipulatorArmId::Port, 1.0, {0, 0, 0}, goal, counted);
+    assert(path.has_value());
+    assert(same_pose(path->back(), goal));
+    assert(calls < 400000);
+    ManipulatorRig rig = deployed_rig(ManipulatorArmId::Port, banded_guard());
+    assert(follow_joint_path(rig, ManipulatorArmId::Port, *path));
+
+    // The Codex scenario itself: goal elbow differs from the start by 1e-5 and the detour needs elbow >= 20.
+    long calls2 = 0;
+    const ManipulatorRig::SelfCollisionGuard counted2 = [&calls2, inner](ManipulatorArmId a, double f, ManipulatorArmAngles p) {
+        ++calls2;
+        return inner(a, f, p);
+    };
+    const auto hard = plan_collision_free_joint_path(ManipulatorArmId::Port, 1.0, {0, 0, 0}, {50.0, 0.00001, 0.0}, counted2);
+    assert(!hard.has_value() || same_pose(hard->back(), {50.0, 0.00001, 0.0}));
+    assert(calls2 < 400000);
+}
+
+void test_a_forbidden_sliver_between_samples_is_still_avoided() {
+    // Codex review: shoulder angles in (0.3, 0.9) are illegal unless the elbow is raised. The follower's real
+    // 0.75-degree frames land inside it, so a plain shoulder move must be rejected and a detour planned.
+    const ManipulatorRig::SelfCollisionGuard sliver = [](ManipulatorArmId, double, ManipulatorArmAngles a) {
+        return !(a.shoulder_degrees > 0.3 && a.shoulder_degrees < 0.9) || a.elbow_degrees >= 20.0;
+    };
+    const ManipulatorArmAngles goal{5.0, 0.0, 0.0};
+    ManipulatorRig stalled = deployed_rig(ManipulatorArmId::Port, sliver);
+    direct_slew(stalled, ManipulatorArmId::Port, goal, 600);
+    assert(stalled.arm(ManipulatorArmId::Port).angles.shoulder_degrees < 1.0);   // the direct command stalls
+
+    const auto path = plan_collision_free_joint_path(ManipulatorArmId::Port, 1.0, {0, 0, 0}, goal, sliver);
+    assert(path.has_value());
+    assert(path->size() >= 2);                                                   // not the one-segment shortcut
+    ManipulatorRig rig = deployed_rig(ManipulatorArmId::Port, sliver);
+    assert(follow_joint_path(rig, ManipulatorArmId::Port, *path));
+    assert(same_pose(rig.arm(ManipulatorArmId::Port).angles, goal));
+}
+
+void test_the_frame_time_is_validated_and_used() {
+    const auto guard = banded_guard();
+    bool threw = false;
+    try {
+        JointPathOptions bad;
+        bad.frame_seconds = 0.0;
+        (void)plan_collision_free_joint_path(ManipulatorArmId::Port, 1.0, {0, 0, 0}, {1, 0, 0}, guard, bad);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    assert(threw);
+    // A path planned for a slower frame rate is also followed successfully at that frame rate.
+    JointPathOptions slow;
+    slow.frame_seconds = 1.0 / 30.0;
+    const ManipulatorArmAngles goal{50.0, 25.0, 0.0};
+    const auto path = plan_collision_free_joint_path(ManipulatorArmId::Port, 1.0, {0, 0, 0}, goal, guard, slow);
+    assert(path.has_value());
+    ManipulatorRig rig = deployed_rig(ManipulatorArmId::Port, guard);
+    assert(follow_joint_path(rig, ManipulatorArmId::Port, *path, 1.0 / 30.0));
+    assert(same_pose(rig.arm(ManipulatorArmId::Port).angles, goal));
+}
+
 void test_follow_reports_a_stall_instead_of_hanging() {
     ManipulatorRig rig = deployed_rig(ManipulatorArmId::Port, banded_guard());
     // A direct (illegal-for-the-rig) waypoint into the band stalls; the follower must give up, not loop forever.
@@ -200,6 +269,9 @@ int main() {
     test_a_blocked_direct_slew_is_solved_by_a_detour();
     test_an_illegal_start_or_goal_or_a_sealed_wall_has_no_path();
     test_invalid_arguments_throw();
+    test_a_goal_that_barely_differs_does_not_blow_up_the_search();
+    test_a_forbidden_sliver_between_samples_is_still_avoided();
+    test_the_frame_time_is_validated_and_used();
     test_follow_reports_a_stall_instead_of_hanging();
     test_the_real_guards_block_the_direct_command_and_the_planned_path_mines();
     std::cout << "manipulator_path_planner_tests passed\n";
