@@ -1143,7 +1143,14 @@ func _finish_evidence(tag: String, fail_code: int) -> void:
 func _fail(reason: String, code: int) -> void:
 	# An incomplete route must not look like a completed feasibility test: record why and exit non-zero.
 	if evidence != null:
-		evidence.finish(OUT_DIR, reason)   # the harness could not set up the run: the report says INCONCLUSIVE
+		# The harness could not set up an acceptance run: the report says INCONCLUSIVE and the exit code agrees with it
+		# (11, not the route-specific code), so automation reading either sees the same result (Codex #451).
+		evidence.finish(OUT_DIR, reason)
+		metrics.append("INCONCLUSIVE: %s (exit %d)" % [reason, INCONCLUSIVE_EXIT])
+		_flush_metrics()
+		print(evidence.mode.to_upper(), " ", evidence.summary())
+		_quit_clean(INCONCLUSIVE_EXIT)
+		return
 	metrics.append("FAILED: %s (exit %d)" % [reason, code])
 	_flush_metrics()
 	print("AUTOTEST FAILED: ", reason)
