@@ -80,6 +80,27 @@ inline std::vector<std::string> run_native_parity() {
     const int mined = cmd.mine_once().accepted ? 1 : 0;
     line("invalid commands advance %d velocity %d deposit %d mine %d tick %lld", adv, vel, dep, mined,
          static_cast<long long>(cmd.tick()));
+
+    // 5 (G2): turn, thrust in the probe frame, and fly into a rock; the simulation reports the contact.
+    SimCore fly;
+    const int att = fly.adjust_attitude(30.0, 10.0, 0.0) ? 1 : 0;
+    const EulerAttitudeDegrees a = fly.attitude();
+    line("attitude ok %d yaw %.9f pitch %.9f roll %.9f", att, a.yaw, a.pitch, a.roll);
+    fly.adjust_attitude(-30.0, -10.0, 0.0);
+    const int thr = fly.adjust_local_velocity(10.0, 0.0, 0.0) ? 1 : 0;
+    const Vector3d v = fly.velocity();
+    line("thrust ok %d velocity %.9f %.9f %.9f", thr, v.x, v.y, v.z);
+    const int body = fly.add_sphere_body("rock-1", 30.0, 0.0, 0.0, 3.0) ? 1 : 0;
+    const int bad_body = fly.add_sphere_body("", 0.0, 0.0, 0.0, 1.0) ? 1 : 0;
+    int contacts = 0;
+    for (int step = 0; step < 50; ++step) {  // 5 s in 0.1 s steps
+        fly.advance_ticks(100000);
+        contacts += fly.drain_contact_events();
+    }
+    const auto c = fly.last_contact();
+    const Vector3d fp = fly.position();
+    line("flight body %d bad_body %d contacts %d has %d id %s normal_speed %.9f pos %.9f %.9f %.9f", body, bad_body,
+         contacts, c.has_contact ? 1 : 0, c.body_id.c_str(), c.normal_speed, fp.x, fp.y, fp.z);
     return out;
 }
 

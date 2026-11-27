@@ -14,7 +14,7 @@ The scenario sets a velocity and advances 0.6 s, mines six cycles from a 250 kg 
 
 `GODOT_VERIFIED` (approved by the owner on 2026-11-27) means: verified by an automated headless Godot run on the exact source commit, with the evidence recorded. It sits alongside `UNREAL_VERIFIED`; it does not replace or imply it, and neither implies a human playtest.
 
-**G1 is GODOT_VERIFIED for this scenario only:** 18 of 18 lines are identical between native and Godot 4.7.2 (headless, official build). The checker also fails correctly when the native side prints something else (negative control).
+**G1 is GODOT_VERIFIED for this scenario only:** 21 of 21 lines are identical between native and Godot 4.7.2 (headless, official build). The checker also fails correctly when the native side prints something else (negative control).
 
 ## Build (Windows)
 
@@ -44,6 +44,10 @@ On Godot 4.7.2 with this toolchain, the **first** headless `--import` of a proje
 
 Every later import and every run exits 0. So it is not caused by the simulation code, but its root cause (engine or preview compiler) is not established. `check_parity.py` reports it, checks that the cache exists, and re-imports once. It never accepts a crash or a mismatch in the parity run itself.
 
+## G2 flight and contact
+
+`EverwardSim` also exposes `adjust_attitude(yaw, pitch, roll)`, `adjust_local_velocity(x, y, z)` (the probe's own frame: x forward, y right, z up), `get_attitude()`, `get_velocity()`, `add_sphere_body(id, x, y, z, radius)`, `clear_bodies()`, `get_last_contact()` and `drain_contact_events()`. The parity scenario turns the probe, thrusts it and flies it into a rock: one contact event on that rock, identical natively and in Godot. The world spike uses this for simulation-driven flight (`--simflight`, see its README).
+
 ## Not covered yet
 
-Only this scenario is bound. Flight, contact, scanning, the arm path planner, HUD read models and the rest of the adapter surface are G2 and G3 work (`docs/GODOT_PATH_PLAN.md`).
+Scanning, the arm path planner, tractor field, HUD read models and the rest of the adapter surface are G3 work (`docs/GODOT_PATH_PLAN.md`).

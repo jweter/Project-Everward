@@ -63,6 +63,69 @@ public:
         }
     }
     [[nodiscard]] Vector3d position() const { return runtime_.snapshot().position_m; }
+    [[nodiscard]] Vector3d velocity() const { return runtime_.snapshot().velocity_mps; }
+    [[nodiscard]] EulerAttitudeDegrees attitude() const { return runtime_.snapshot().attitude_degrees; }
+
+    // G2 flight: turn the probe, and change velocity in the probe's own frame (x forward, y right, z up).
+    bool adjust_attitude(double yaw, double pitch, double roll) {
+        if (!std::isfinite(yaw) || !std::isfinite(pitch) || !std::isfinite(roll)) return false;
+        try {
+            runtime_.adjust_attitude_degrees({yaw, pitch, roll});
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
+    bool adjust_local_velocity(double x, double y, double z) {
+        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;
+        try {
+            runtime_.adjust_local_velocity_mps({x, y, z});
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
+
+    // Static sphere bodies the probe can collide with (rocks, boulders). The simulation owns contact.
+    bool add_sphere_body(const std::string& id, double x, double y, double z, double radius) {
+        if (id.empty() || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) || !std::isfinite(radius) ||
+            radius <= 0.0) {
+            return false;
+        }
+        try {
+            StaticSphereBody body;
+            body.body_id = id;
+            body.center_m = {x, y, z};
+            body.radius_m = radius;
+            runtime_.add_static_sphere_body(body);
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
+    void clear_bodies() noexcept { runtime_.clear_static_bodies(); }
+
+    struct ContactInfo {
+        bool has_contact{false};
+        std::string body_id;
+        Vector3d point{};
+        Vector3d normal{};
+        double normal_speed{0.0};
+        std::int64_t tick{0};
+    };
+    [[nodiscard]] ContactInfo last_contact() const {
+        const auto& s = runtime_.snapshot();
+        return ContactInfo{s.has_contact_history, s.last_contact_body_id, s.last_contact_point_m,
+                           s.last_contact_surface_normal, s.last_contact_normal_speed_mps, s.last_contact_tick};
+    }
+    // Drains the simulation's event queue and returns how many contact events it held.
+    int drain_contact_events() {
+        int contacts = 0;
+        for (const DomainEvent& e : runtime_.drain_events()) {
+            if (e.type == DomainEventType::Contact) ++contacts;
+        }
+        return contacts;
+    }
 
     // Deploy the port arm, attach its tool and register a surveyed deposit just beyond the tool tip (the same
     // setup the native save/deposit regression test uses).

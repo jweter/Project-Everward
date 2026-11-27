@@ -46,12 +46,21 @@ var shake := 0.0
 var hud: Label
 var shot_index := 0
 var tree_spots: Array[Vector3] = []
+# G2: when the Everward simulation extension is loaded and --simflight/--sim is given, the simulation moves the
+# ship and owns contact. Simulation frame: x forward, y right, z up (Unreal convention); Godot: -z forward, x right,
+# y up. A simulated point s maps to sim_origin + (s.y, s.z, -s.x); yaw is mirrored.
+var sim = null
+var sim_active := false
+var sim_origin := Vector3.ZERO
+var sim_contacts := 0
+var simflight := false
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	autotest = "--autotest" in args
 	explore = "--explore" in args
 	lookshots = "--lookshots" in args
+	simflight = "--simflight" in args
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -95,7 +104,9 @@ func _ready() -> void:
 	puff.width = 64
 	puff.height = 64
 	dust_mat.albedo_texture = puff
-	if lookshots:
+	if simflight:
+		_run_simflight.call_deferred()
+	elif lookshots:
 		seed(20261127)   # same trees and framings for every look, so they compare like for like
 		_run_lookshots.call_deferred()
 	elif autotest or explore:
@@ -235,7 +246,7 @@ func _build_clouds() -> void:
 
 func _scripted() -> bool:
 	# Any scripted run: no manual flight, no player input (they would move the camera between captures)
-	return autotest or explore or lookshots
+	return autotest or explore or lookshots or simflight
 
 func _apply_look() -> void:
 	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
@@ -332,6 +343,110 @@ func _run_lookshots() -> void:
 	_flush_metrics()
 	_quit_clean(0)
 
+# ------------------------------------------------------------------------------- G2: simulation-driven flight
+func _sim_start(origin: Vector3) -> bool:
+	if not ClassDB.class_exists("EverwardSim"):
+		return false
+	sim = ClassDB.instantiate("EverwardSim")
+	sim_origin = origin
+	sim_active = true
+	_sim_place_ship()
+	return true
+
+func _sim_to_godot(p: PackedFloat64Array) -> Vector3:
+	return sim_origin + Vector3(p[1], p[2], -p[0])
+
+func _godot_to_sim(g: Vector3) -> Vector3:
+	var d := g - sim_origin
+	return Vector3(-d.z, d.x, d.y)
+
+func _sim_basis() -> Basis:
+	var a: PackedFloat64Array = sim.get_attitude()
+	return Basis(Vector3.UP, deg_to_rad(-a[0])) * Basis(Vector3.RIGHT, deg_to_rad(a[1])) * Basis(Vector3.BACK, deg_to_rad(a[2]))
+
+func _sim_place_ship() -> void:
+	ship.global_transform = Transform3D(_sim_basis(), _sim_to_godot(sim.get_position()))
+
+func _sim_add_rock(id: String, godot_center: Vector3, radius: float) -> bool:
+	var s := _godot_to_sim(godot_center)
+	if not sim.add_sphere_body(id, s.x, s.y, s.z, radius):
+		return false
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = radius
+	sm.height = radius * 2.0
+	mi.mesh = sm
+	mi.material_override = rock_mat
+	add_child(mi)
+	mi.global_position = godot_center
+	return true
+
+func _sim_step(delta: float) -> void:
+	sim.advance_ticks(int(round(delta * 1000000.0)))
+	_sim_place_ship()
+	var n: int = sim.drain_contact_events()
+	if n > 0:
+		sim_contacts += n
+		var c: Dictionary = sim.get_last_contact()
+		_dust(_sim_to_godot(c["point"]), 30)
+		shake = maxf(shake, 0.5)
+
+func _sim_run(seconds: float) -> void:
+	var t := 0.0
+	while t < seconds:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+
+func _run_simflight() -> void:
+	# G2 evidence: the simulation, not scripted movement or engine physics, moves the ship and reports contact.
+	metrics.append("godot %s  renderer=%s" % [Engine.get_version_info()["string"], RenderingServer.get_video_adapter_name()])
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	var tool: VoxelTool = terrain.get_voxel_tool()
+	var peak := Vector3(0, -1000, 0)
+	for gx in range(-9, 10):
+		for gz in range(-9, 10):
+			var h = tool.raycast(Vector3(gx * 40.0, 480.0, gz * 40.0), Vector3.DOWN, 700.0)
+			if h != null and h.position.y > peak.y:
+				peak = Vector3(h.position)
+	_place_trees(700, 360.0, Vector3(peak.x, 0, peak.z))
+	var origin := peak + Vector3(0, 70, 320)
+	if not _sim_start(origin):
+		_fail("simulation extension (EverwardSim) not loaded", 5)
+		return
+	var ok := true
+	ok = ok and _sim_add_rock("boulder-1", origin + Vector3(0, 0, -70), 6.0)
+	ok = ok and _sim_add_rock("boulder-2", origin + Vector3(25, -8, -110), 9.0)
+	await _sim_run(0.5)
+	await _shot("sim_01_start")
+	sim.adjust_local_velocity(14.0, 0.0, 0.0)
+	await _sim_run(2.5)
+	await _shot("sim_02_approach")
+	var waited := 0.0
+	while sim_contacts == 0 and waited < 10.0:
+		await _sim_run(0.25)
+		waited += 0.25
+	await _shot("sim_03_contact")
+	var c: Dictionary = sim.get_last_contact()
+	var pos_err: float = ship.global_position.distance_to(_sim_to_godot(sim.get_position()))
+	metrics.append("sim contact events %d  body %s  normal_speed %.3f  ship-vs-sim position error %.6f m" % [sim_contacts, c["body_id"], c["normal_speed"], pos_err])
+	# turn 90 degrees and fly on: the ship must move where its nose points
+	sim.adjust_attitude(90.0, 0.0, 0.0)
+	var v: PackedFloat64Array = sim.get_velocity()
+	sim.adjust_local_velocity(10.0, 0.0, 0.0)
+	var before := ship.global_position
+	await _sim_run(2.0)
+	await _shot("sim_04_turned")
+	var moved := (ship.global_position - before).normalized()
+	var nose := -ship.global_transform.basis.z
+	var heading_dot := moved.dot(nose)
+	metrics.append("after 90 deg turn: velocity before thrust %.3f %.3f %.3f; heading dot %.4f; contacts %d" % [v[0], v[1], v[2], heading_dot, sim_contacts])
+	var passed: bool = ok and sim_contacts == 1 and c["body_id"] == "boulder-1" and pos_err < 0.001 and heading_dot > 0.99
+	metrics.append("SIMFLIGHT %s" % ("PASS" if passed else "FAIL"))
+	_flush_metrics()
+	print("SIMFLIGHT ", "PASS" if passed else "FAIL")
+	_quit_clean(0 if passed else 6)
+
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	hud = Label.new()
@@ -345,6 +460,8 @@ func _build_hud() -> void:
 # --------------------------------------------------------------------------------------- per frame
 func _process(delta: float) -> void:
 	trail_clock += delta
+	if sim_active:
+		_sim_step(delta)
 	if trail.is_empty() or trail_clock - trail[0].w > 0.22:
 		trail.push_front(Vector4(ship.global_position.x, ship.global_position.y, ship.global_position.z, trail_clock))
 		if trail.size() > TRAIL_POINTS:
@@ -596,6 +713,8 @@ func _place_trees(count: int = 700, area: float = 420.0, center: Vector3 = Vecto
 
 # ---------------------------------------------------------------------------------------- autotest
 func _save_shot(name: String) -> void:
+	if DisplayServer.get_name() == "headless":
+		return   # no renderer in headless runs (used while the owner is at the laptop); logic checks still run
 	var img := get_viewport().get_texture().get_image()
 	img.save_png("%s/%s.png" % [OUT_DIR, name])
 
@@ -758,41 +877,44 @@ func _run_autotest() -> void:
 	for m in tree_mats:
 		m.set_shader_parameter("shake_strength", 0.0)
 	await _shot("05_trees_shake_off")
-	var off_img := get_viewport().get_texture().get_image()
-	for m in tree_mats:
-		m.set_shader_parameter("shake_strength", 8.0)
-	await get_tree().create_timer(0.31).timeout
-	await _shot("05_trees_shake_on")
-	var on_img := get_viewport().get_texture().get_image()
-	var w := on_img.get_width()
-	var h := on_img.get_height()
-	# measure: pixels that changed (colour distance > 0.06) in a window around the tree vs an equal control window
-	var sp := cam.unproject_position(spot + Vector3(0, 5, 0))
-	var win := 90
-	var tree_rect := Rect2i(int(sp.x) - win, int(sp.y) - win, win * 2, win * 2).intersection(Rect2i(0, 40, w, h - 40))
-	var ctrl_rect := Rect2i(w - 2 * win - 20, 60, win * 2, win * 2)
-	var count_changed := func(r: Rect2i) -> Array:
-		var n := 0
-		var total := 0
-		for y in range(r.position.y, r.end.y, 2):
-			for x in range(r.position.x, r.end.x, 2):
-				total += 1
-				var ca := off_img.get_pixel(x, y)
-				var cb := on_img.get_pixel(x, y)
-				if absf(ca.r - cb.r) + absf(ca.g - cb.g) + absf(ca.b - cb.b) > 0.06:
-					n += 1
-		return [n, total]
-	var tr: Array = count_changed.call(tree_rect)
-	var cr: Array = count_changed.call(ctrl_rect)
-	metrics.append("tree shake on/off: tree window %s changed %d/%d ; control window %s changed %d/%d" % [str(tree_rect), tr[0], tr[1], str(ctrl_rect), cr[0], cr[1]])
-	var cmp := Image.create(w, h / 2, false, on_img.get_format())
-	var off_s := off_img.duplicate()
-	var on_s := on_img.duplicate()
-	off_s.resize(w / 2, h / 2)
-	on_s.resize(w / 2, h / 2)
-	cmp.blit_rect(off_s, Rect2i(0, 0, w / 2, h / 2), Vector2i(0, 0))
-	cmp.blit_rect(on_s, Rect2i(0, 0, w / 2, h / 2), Vector2i(w / 2, 0))
-	cmp.save_png(OUT_DIR + "/05_compare_off_left_on_right.png")
+	if DisplayServer.get_name() == "headless":
+		metrics.append("tree shake on/off: skipped (headless run has no renderer)")
+	else:
+		var off_img := get_viewport().get_texture().get_image()
+		for m in tree_mats:
+			m.set_shader_parameter("shake_strength", 8.0)
+		await get_tree().create_timer(0.31).timeout
+		await _shot("05_trees_shake_on")
+		var on_img := get_viewport().get_texture().get_image()
+		var w := on_img.get_width()
+		var h := on_img.get_height()
+		# measure: pixels that changed (colour distance > 0.06) in a window around the tree vs an equal control window
+		var sp := cam.unproject_position(spot + Vector3(0, 5, 0))
+		var win := 90
+		var tree_rect := Rect2i(int(sp.x) - win, int(sp.y) - win, win * 2, win * 2).intersection(Rect2i(0, 40, w, h - 40))
+		var ctrl_rect := Rect2i(w - 2 * win - 20, 60, win * 2, win * 2)
+		var count_changed := func(r: Rect2i) -> Array:
+			var n := 0
+			var total := 0
+			for y in range(r.position.y, r.end.y, 2):
+				for x in range(r.position.x, r.end.x, 2):
+					total += 1
+					var ca := off_img.get_pixel(x, y)
+					var cb := on_img.get_pixel(x, y)
+					if absf(ca.r - cb.r) + absf(ca.g - cb.g) + absf(ca.b - cb.b) > 0.06:
+						n += 1
+			return [n, total]
+		var tr: Array = count_changed.call(tree_rect)
+		var cr: Array = count_changed.call(ctrl_rect)
+		metrics.append("tree shake on/off: tree window %s changed %d/%d ; control window %s changed %d/%d" % [str(tree_rect), tr[0], tr[1], str(ctrl_rect), cr[0], cr[1]])
+		var cmp := Image.create(w, h / 2, false, on_img.get_format())
+		var off_s := off_img.duplicate()
+		var on_s := on_img.duplicate()
+		off_s.resize(w / 2, h / 2)
+		on_s.resize(w / 2, h / 2)
+		cmp.blit_rect(off_s, Rect2i(0, 0, w / 2, h / 2), Vector2i(0, 0))
+		cmp.blit_rect(on_s, Rect2i(0, 0, w / 2, h / 2), Vector2i(w / 2, 0))
+		cmp.save_png(OUT_DIR + "/05_compare_off_left_on_right.png")
 	# 4. drill into the mountain face
 	var face_h := peak.y * 0.5
 	var origin := Vector3(peak.x + 330, face_h, peak.z)

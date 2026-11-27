@@ -10,6 +10,14 @@ void EverwardSim::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_tick"), &EverwardSim::get_tick);
     ClassDB::bind_method(D_METHOD("set_velocity", "x", "y", "z"), &EverwardSim::set_velocity);
     ClassDB::bind_method(D_METHOD("get_position"), &EverwardSim::get_position);
+    ClassDB::bind_method(D_METHOD("get_velocity"), &EverwardSim::get_velocity);
+    ClassDB::bind_method(D_METHOD("get_attitude"), &EverwardSim::get_attitude);
+    ClassDB::bind_method(D_METHOD("adjust_attitude", "yaw", "pitch", "roll"), &EverwardSim::adjust_attitude);
+    ClassDB::bind_method(D_METHOD("adjust_local_velocity", "x", "y", "z"), &EverwardSim::adjust_local_velocity);
+    ClassDB::bind_method(D_METHOD("add_sphere_body", "id", "x", "y", "z", "radius"), &EverwardSim::add_sphere_body);
+    ClassDB::bind_method(D_METHOD("clear_bodies"), &EverwardSim::clear_bodies);
+    ClassDB::bind_method(D_METHOD("get_last_contact"), &EverwardSim::get_last_contact);
+    ClassDB::bind_method(D_METHOD("drain_contact_events"), &EverwardSim::drain_contact_events);
     ClassDB::bind_method(D_METHOD("setup_bootstrap_deposit", "remaining_kg"), &EverwardSim::setup_bootstrap_deposit);
     ClassDB::bind_method(D_METHOD("mine_once"), &EverwardSim::mine_once);
     ClassDB::bind_method(D_METHOD("get_inventory_kg", "material"), &EverwardSim::get_inventory_kg);
@@ -35,6 +43,41 @@ PackedFloat64Array EverwardSim::get_position() const {
     out.push_back(p.z);
     return out;
 }
+
+static PackedFloat64Array triple(double a, double b, double c) {
+    PackedFloat64Array out;
+    out.push_back(a);
+    out.push_back(b);
+    out.push_back(c);
+    return out;
+}
+
+PackedFloat64Array EverwardSim::get_velocity() const {
+    const auto v = core_.velocity();
+    return triple(v.x, v.y, v.z);
+}
+PackedFloat64Array EverwardSim::get_attitude() const {
+    const auto a = core_.attitude();
+    return triple(a.yaw, a.pitch, a.roll);
+}
+bool EverwardSim::adjust_attitude(double yaw, double pitch, double roll) { return core_.adjust_attitude(yaw, pitch, roll); }
+bool EverwardSim::adjust_local_velocity(double x, double y, double z) { return core_.adjust_local_velocity(x, y, z); }
+bool EverwardSim::add_sphere_body(const String& id, double x, double y, double z, double radius) {
+    return core_.add_sphere_body(std::string(id.utf8().get_data()), x, y, z, radius);
+}
+void EverwardSim::clear_bodies() { core_.clear_bodies(); }
+Dictionary EverwardSim::get_last_contact() const {
+    const auto c = core_.last_contact();
+    Dictionary d;
+    d["has_contact"] = c.has_contact;
+    d["body_id"] = String::utf8(c.body_id.c_str());
+    d["point"] = triple(c.point.x, c.point.y, c.point.z);
+    d["normal"] = triple(c.normal.x, c.normal.y, c.normal.z);
+    d["normal_speed"] = c.normal_speed;
+    d["tick"] = c.tick;
+    return d;
+}
+int64_t EverwardSim::drain_contact_events() { return core_.drain_contact_events(); }
 
 bool EverwardSim::setup_bootstrap_deposit(double remaining_kg) { return core_.setup_bootstrap_deposit(remaining_kg); }
 
