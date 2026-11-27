@@ -228,4 +228,6 @@ func _init() -> void:
 	for step in 105:
 		pw.advance_ticks(100000)
 	print("g09 cleared %d again %d sensors %.3f scan %d surveyed %d guidance %s" % [cleared, cleared_again, pw.get_power_allocations()[0], scan3, 1 if pw.is_surveyed("ore-p") else 0, "ready" if pw.get_scan_power_guidance()["state"] == "ready" else "below"])
+	var hs = ClassDB.instantiate("EverwardSim")
+	print("g11 sel %d %d %d %d %d %d" % [hs.bounded_selection(5, 1, 6), hs.bounded_selection(0, -1, 6), hs.bounded_selection(3, 10, 6), hs.bounded_selection(2, -1, 6), hs.bounded_selection(4, 1, 0), hs.bounded_selection(0, -3, 0)])
 	quit(0)

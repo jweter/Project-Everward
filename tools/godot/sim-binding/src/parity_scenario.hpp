@@ -275,6 +275,10 @@ inline std::vector<std::string> run_native_parity() {
     line("g09 cleared %d again %d sensors %.3f scan %d surveyed %d guidance %s", cleared, cleared_again,
          pw.power_allocations()[0], scan3, pw.is_surveyed("ore-p") ? 1 : 0,
          pw.scan_power_guidance().state == SensorPowerState::Ready ? "ready" : "below");
+
+    // 10 (G3, #378 G11): the HUD selection rule stays in range whatever the presses, and is 0 for an empty list.
+    line("g11 sel %d %d %d %d %d %d", bounded_selection(5, 1, 6), bounded_selection(0, -1, 6), bounded_selection(3, 10, 6),
+         bounded_selection(2, -1, 6), bounded_selection(4, 1, 0), bounded_selection(0, -3, 0));
     return out;
 }
 

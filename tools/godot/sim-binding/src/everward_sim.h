@@ -77,6 +77,7 @@ public:
     bool clear_policy();
     Dictionary get_policy_status() const;
     Dictionary get_scan_power_guidance() const;
+    int64_t bounded_selection(int64_t index, int64_t delta, int64_t count) const;
 
 private:
     everward::binding::SimCore core_;

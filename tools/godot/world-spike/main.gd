@@ -67,6 +67,7 @@ const FirstLoop = preload("res://first_loop.gd")
 var first_loop = null
 var firstloop_test := false      # --firstloop: headless acceptance run of the whole loop
 var powertest := false           # --powertest: headless run of the G09 sensor-power drop and recovery
+var hudtest := false             # --hudtest: headless run of the G11 systems panel selection
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -78,6 +79,7 @@ func _ready() -> void:
 	selftest_sim = "--selftest-sim" in args
 	firstloop_test = "--firstloop" in args
 	powertest = "--powertest" in args
+	hudtest = "--hudtest" in args
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -121,7 +123,9 @@ func _ready() -> void:
 	puff.width = 64
 	puff.height = 64
 	dust_mat.albedo_texture = puff
-	if powertest:
+	if hudtest:
+		_run_hudtest.call_deferred()
+	elif powertest:
 		_run_powertest.call_deferred()
 	elif firstloop_test:
 		_run_firstloop.call_deferred()
@@ -269,7 +273,7 @@ func _build_clouds() -> void:
 
 func _scripted() -> bool:
 	# Any scripted run: no manual flight, no player input (they would move the camera between captures)
-	return autotest or explore or lookshots or simflight or firstloop_test or powertest
+	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest
 
 func _apply_look() -> void:
 	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
@@ -733,6 +737,64 @@ func _run_firstloop() -> void:
 	print("FIRSTLOOP ", "PASS" if passed else "FAIL " + ", ".join(failed))
 	_quit_clean(0 if passed else 8)
 
+func _run_hudtest() -> void:
+	# G3 evidence for #378 G11 through the real keys: ] with the panel closed never leaves the list or needs extra [
+	# presses; the open panel marks the capability that is really selected; acting uses it (arms and power).
+	metrics.append("godot %s  renderer=%s" % [Engine.get_version_info()["string"], RenderingServer.get_video_adapter_name()])
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	if not _sim_start(ship.global_position):
+		_fail("simulation extension (EverwardSim) not loaded", 5)
+		return
+	first_loop = FirstLoop.new(self)
+	var checks: Array[String] = []
+	var failed: Array[String] = []
+	var check := func(name: String, ok: bool, detail: String) -> void:
+		checks.append("%s %s: %s" % ["PASS" if ok else "FAIL", name, detail])
+		if not ok:
+			failed.append(name)
+	first_loop.unbounded_selection_for_test = selftest_fail == "unbounded"
+	var last: int = FirstLoop.CAPABILITIES.size() - 1
+	for i in 10:
+		_press(KEY_BRACKETRIGHT)
+	check.call("] with the panel closed stays in range", not first_loop.panel_open and first_loop.selected_capability == last, "index %d of %d after 10 presses" % [first_loop.selected_capability, FirstLoop.CAPABILITIES.size()])
+	_press(KEY_BRACKETLEFT)
+	check.call("one [ moves back one", first_loop.selected_capability == last - 1 and first_loop.selected_arm == 0, "index %d (%s), selected arm %s" % [first_loop.selected_capability, FirstLoop.CAPABILITIES[first_loop.selected_capability] if first_loop.selected_capability >= 0 and first_loop.selected_capability <= last else "out of range", FirstLoop.ARM_NAMES[first_loop.selected_arm]])
+	_press(KEY_TAB)
+	await _sim_run(0.1)
+	var marked := ""
+	for l in hud.text.split("\n"):
+		if l.begins_with("> "):
+			marked = l
+	check.call("open panel marks the real selection", first_loop.panel_open and marked.begins_with("> PORT ARM"), marked)
+	_press(KEY_BRACKETRIGHT)
+	_press(KEY_T)
+	await _sim_run(0.3)
+	check.call("acting uses the selected arm", sim.get_arm_state(1)["deploying"] and not sim.get_arm_state(0)["deploying"] and not sim.get_arm_state(0)["deployed"], first_loop.message)
+	for i in 10:
+		_press(KEY_BRACKETLEFT)
+	_press(KEY_ENTER)
+	var off: float = sim.get_power_allocations()[0]
+	_press(KEY_ENTER)
+	var on: float = sim.get_power_allocations()[0]
+	check.call("Enter acts on the selected power subsystem", first_loop.selected_capability == 0 and off == 0.0 and on == FirstLoop.SENSOR_SCAN_MINIMUM_W, "SENSORS %d W then %d W" % [int(off), int(on)])
+	_press(KEY_BRACKETRIGHT)
+	_press(KEY_ENTER)
+	check.call("no invented minimum for propulsion", first_loop.message.contains("no operating minimum"), first_loop.message)
+	var empty_ok: bool = sim.bounded_selection(3, 1, 0) == 0 and sim.bounded_selection(0, -1, 0) == 0
+	check.call("empty list selects 0", empty_ok, "bounded_selection(3, +1, 0) = %d" % sim.bounded_selection(3, 1, 0))
+	_press(KEY_TAB)
+	await _sim_run(0.1)
+	check.call("closing the panel keeps the selection", not first_loop.panel_open and first_loop.selected_capability == 1 and hud.text.contains("TARGET"), "index %d" % first_loop.selected_capability)
+	for line in checks:
+		metrics.append(line)
+		print(line)
+	var passed := failed.is_empty()
+	metrics.append("HUDTEST %s" % ("PASS" if passed else "FAIL " + ", ".join(failed)))
+	_flush_metrics()
+	print("HUDTEST ", "PASS" if passed else "FAIL " + ", ".join(failed))
+	_quit_clean(0 if passed else 10)
+
 func _run_powertest() -> void:
 	# G3 evidence for #378 G09 through the real keys: the survival policy sheds sensor power at 50% stored energy,
 	# scanning is refused with the simulation's explanation, raising sensors alone does not hold while the policy is
@@ -880,7 +942,7 @@ func _input(event: InputEvent) -> void:
 	if first_loop != null and event is InputEventKey and event.pressed and not event.echo:
 		if first_loop.handle_key(event.keycode):
 			return
-	if _scripted() and not firstloop_test and not powertest:
+	if _scripted() and not firstloop_test and not powertest and not hudtest:
 		return
 	if sim_active and first_loop != null and first_loop.busy() and event is InputEventMouseMotion:
 		return   # the solved staging pose holds for the attitude it was solved at

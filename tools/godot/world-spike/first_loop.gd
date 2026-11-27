@@ -8,6 +8,9 @@ extends RefCounted
 # Y attach/detach its tool, P auto-approach (P or SPACE cancels), G mine.
 # Power (#378 G09): K installs the GEN1 BASIC SURVIVAL policy, L clears it, O sets Sensors to the 50 W scan minimum.
 # A refused scan shows the simulation's own explanation and recovery steps.
+# Systems panel (#378 G11): Tab shows it; [ and ] move the selection with the simulation's bounded_selection rule
+# whether or not the panel is open; selecting an arm makes it the arm T/Y/P act on; Enter on a power subsystem
+# toggles it between 0 W and its operating minimum.
 # Fix_It (#378 G02) runs inside the simulation on its own, as in the Unreal build: the probe wakes damaged, and Fix_It
 # repairs in canonical order only while stored material and energy cover the next step. This script shows it.
 
@@ -19,6 +22,8 @@ const WAYPOINT_TOLERANCE_DEG := 1e-3
 const WAYPOINT_TIMEOUT_S := 10.0
 const ARM_NAMES := ["PORT", "STARBOARD"]
 const SENSOR_SCAN_MINIMUM_W := 50.0     # ProbeRuntime::kGeneration1MinimumSensorPowerW
+const COMPUTATION_MINIMUM_W := 25.0      # ProbeRuntime::kGeneration1MinimumPolicyComputationPowerW
+const CAPABILITIES := ["SENSORS", "PROPULSION", "COMPUTATION", "THERMAL", "PORT ARM", "STARBOARD ARM"]
 
 var m                                   # the world-spike main node
 var deposits: Array[Dictionary] = []    # {id, material, name, center (Godot), radius, mesh, mat}
@@ -36,6 +41,9 @@ var aligned := false
 var message := ""
 var last_mine: Dictionary = {}
 var fix_it_log: Array[String] = []
+var panel_open := false
+var selected_capability := 0
+var unbounded_selection_for_test := false   # --hudtest --selftest-fail=unbounded: the old unclamped rule, must fail
 var arm_meshes: Array = [[], []]        # per arm: 3 link cylinders + tool tip
 var scan_beam: MeshInstance3D
 var arm_mat: StandardMaterial3D
@@ -140,7 +148,22 @@ func handle_key(keycode: int) -> bool:
 					say("scan refused: " + String(m.sim.get_last_scan_refusal()))
 		KEY_1, KEY_2:
 			selected_arm = 0 if keycode == KEY_1 else 1
+			selected_capability = 4 + selected_arm   # the panel and the arm keys always agree
 			say("%s arm selected" % ARM_NAMES[selected_arm])
+		KEY_TAB:
+			panel_open = not panel_open
+			say("systems panel " + ("open" if panel_open else "closed"))
+		KEY_BRACKETRIGHT, KEY_BRACKETLEFT:
+			var step := 1 if keycode == KEY_BRACKETRIGHT else -1
+			if unbounded_selection_for_test:
+				selected_capability += step
+			else:
+				selected_capability = int(m.sim.bounded_selection(selected_capability, step, CAPABILITIES.size()))
+			if selected_capability >= 4 and selected_capability < CAPABILITIES.size():
+				selected_arm = selected_capability - 4
+			say("%s selected" % (CAPABILITIES[selected_capability] if selected_capability >= 0 and selected_capability < CAPABILITIES.size() else "index %d (invalid)" % selected_capability))
+		KEY_ENTER, KEY_KP_ENTER:
+			act_on_selected()
 		KEY_T:
 			if m.sim.toggle_arm(selected_arm):
 				var st: Dictionary = m.sim.get_arm_state(selected_arm)
@@ -171,6 +194,38 @@ func handle_key(keycode: int) -> bool:
 		_:
 			return false
 	return true
+
+func act_on_selected() -> void:
+	var minimums := [SENSOR_SCAN_MINIMUM_W, 0.0, COMPUTATION_MINIMUM_W, 0.0]
+	if selected_capability >= 4:
+		say("%s: use T to deploy or stow, Y for the tool" % CAPABILITIES[selected_capability])
+		return
+	var minimum: float = minimums[selected_capability]
+	if minimum <= 0.0:
+		say("%s has no operating minimum to restore" % CAPABILITIES[selected_capability])
+		return
+	var current: float = m.sim.get_power_allocations()[selected_capability]
+	var target := 0.0 if current >= minimum else minimum
+	if m.sim.allocate_power(selected_capability, target):
+		say("%s power set to %d W" % [CAPABILITIES[selected_capability], int(target)])
+	else:
+		say("%s power change refused" % CAPABILITIES[selected_capability])
+
+# The panel text: one line per capability with its live state, the selected one marked with ">".
+func panel_lines() -> String:
+	var p: PackedFloat64Array = m.sim.get_power_allocations()
+	var i: Dictionary = m.sim.get_integrity()
+	var integ := [i["sensors"], i["propulsion"], i["computation"], i["thermal"]]
+	var out := "SYSTEMS  ([ ] select, Enter act, Tab close)"
+	for k in CAPABILITIES.size():
+		var state := ""
+		if k < 4:
+			state = "%d W  integrity %d%%" % [int(p[k]), int(round(float(integ[k]) * 100.0))]
+		else:
+			var st: Dictionary = m.sim.get_arm_state(k - 4)
+			state = ("deployed" if st["deployed"] and not st["stowing"] else ("moving" if st["deploying"] or st["stowing"] else "stowed")) + ("  tool on" if st["tool_attached"] else "")
+		out += "\n%s %s  %s" % [">" if k == selected_capability else " ", CAPABILITIES[k], state]
+	return out
 
 func toggle_approach() -> void:
 	if approaching:
@@ -323,6 +378,8 @@ func hud_lines() -> String:
 		var kg: float = m.sim.get_inventory_kg(dd["material"])
 		if kg > 0.0:
 			cargo += "  %s %.1f kg" % [dd["name"], kg]
+	if panel_open:
+		return panel_lines() + "\n" + message
 	return "TARGET %s\nARM %s %s  tool %s%s%s\nCARGO%s  storage %.1f / %.0f kg\n%s\n%s" % [
 		target, ARM_NAMES[selected_arm], arm_state, "on" if st["tool_attached"] else "off",
 		"  APPROACHING" if approaching else "", "  ALIGNED" if aligned else "",
