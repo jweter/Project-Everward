@@ -187,6 +187,29 @@ inline std::vector<std::string> run_native_parity() {
          fl_mined.remaining_kg, fl_mined.tool_gap_m, fl_mined.arm, fl_mined.material_id.c_str());
     line("inventory %.9f storage %.9f deposit %.9f", fl.inventory_kg(mat), fl.storage_used_kg(),
          fl.world_deposit_remaining_kg(ore));
+
+    // 8 (G3, #378 G02): Fix_It on the damaged awakening waits without material, then repairs with mined material.
+    SimCore fx;
+    fx.enable_fix_it(true);
+    const ComponentIntegritySnapshot awake = fx.integrity();
+    line("fixit awake computation %.3f thermal %.3f sensors %.3f propulsion %.3f", awake.computation, awake.thermal,
+         awake.sensors, awake.propulsion);
+    for (int step = 0; step < 50; ++step) fx.advance_ticks(100000);
+    const FixItInfo idle = fx.fix_it_info();
+    line("fixit idle state %s subsystem %s need %.6f kg computation %.9f", idle.state.c_str(), idle.subsystem.c_str(),
+         idle.material_required_kg, fx.integrity().computation);
+    fx.setup_bootstrap_deposit(250.0);
+    const MineResult fuel = fx.mine_once();
+    const double energy0 = fx.stored_energy_j();
+    line("fixit mined %d storage %.9f", fuel.accepted ? 1 : 0, fx.storage_used_kg());
+    for (int step = 0; step < 200; ++step) fx.advance_ticks(100000);
+    const FixItInfo fixed = fx.fix_it_info();
+    const ComponentIntegritySnapshot healed = fx.integrity();
+    line("fixit after state %s subsystem %s computation %.9f thermal %.9f storage %.9f inventory %.9f energy_used %.3f",
+         fixed.state.c_str(), fixed.subsystem.c_str(), healed.computation, healed.thermal, fx.storage_used_kg(),
+         fx.inventory_kg("iron_regolith"), energy0 - fx.stored_energy_j());
+    const std::vector<std::string> fix_events = fx.drain_fix_it_events();
+    line("fixit events %d first %s", static_cast<int>(fix_events.size()), fix_events.size() > 1 ? fix_events[1].c_str() : "");
     return out;
 }
 

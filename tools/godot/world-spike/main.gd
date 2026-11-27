@@ -615,6 +615,8 @@ func _run_firstloop() -> void:
 		_fail("simulation extension (EverwardSim) not loaded", 5)
 		return
 	first_loop = FirstLoop.new(self)
+	sim.enable_fix_it(true)   # the probe wakes damaged; Fix_It must wait for material, then repair with it (#378 G02)
+	var awake: Dictionary = sim.get_integrity()
 	var mat := "iron_bearing_silicate_regolith"
 	var checks: Array[String] = []
 	var failed: Array[String] = []
@@ -631,8 +633,11 @@ func _run_firstloop() -> void:
 		_press(KEY_R)
 		await _sim_run(1.0)
 		await _shot("loop_02_scanning")
-		await _until(func() -> bool: return sim.is_surveyed("ore-1"), 12.0)
-	check.call("scan completes survey", sim.is_surveyed("ore-1"), "surveyed after a %.0f s scan" % FirstLoop.SCAN_DURATION_S)
+		await _until(func() -> bool: return sim.is_surveyed("ore-1"), 45.0)
+	check.call("scan completes survey", sim.is_surveyed("ore-1"), "surveyed; a %.0f s scan takes %.1f s at %d%% sensor integrity" % [FirstLoop.SCAN_DURATION_S, FirstLoop.SCAN_DURATION_S / float(awake["sensors"]), int(float(awake["sensors"]) * 100.0)])
+	var fx0: Dictionary = sim.get_fix_it_status()
+	check.call("G02 Fix_It waits without material", fx0["state"] == "waiting" and fx0["subsystem"] == "COMPUTATION" and absf(float(sim.get_integrity()["computation"]) - 0.18) < 1e-12 and sim.get_storage_used_kg() == 0.0,
+		first_loop.fix_it_line())
 	_press(KEY_R)
 	await _sim_run(1.0)
 	_press(KEY_R)
@@ -660,9 +665,10 @@ func _run_firstloop() -> void:
 	for run in runs:
 		var arm: int = run[0]
 		var yaw_turn: float = run[1]
-		var label := "%s arm%s" % [FirstLoop.ARM_NAMES[arm], " yawed %d deg" % int(yaw_turn) if yaw_turn != 0.0 else ""]
 		if yaw_turn != 0.0:
-			sim.adjust_attitude(yaw_turn, 0.0, 0.0)
+			var yaw0: float = sim.get_attitude()[0]
+			sim.adjust_attitude(yaw_turn, 0.0, 0.0)   # damaged propulsion scales the trim by its integrity
+			yaw_turn = sim.get_attitude()[0] - yaw0
 		# MiningSystem credits the closest ready arm, so the other arm is detached and stowed to prove this one alone
 		var other := 1 - arm
 		if sim.get_arm_state(other)["deployed"]:
@@ -677,6 +683,7 @@ func _run_firstloop() -> void:
 			_press(KEY_T)
 			await _until(func() -> bool: return sim.get_arm_state(arm)["deployed"] and not sim.get_arm_state(arm)["deploying"], 4.0)
 			_press(KEY_Y)
+		var label := "%s arm%s" % [FirstLoop.ARM_NAMES[arm], " yawed %.1f deg" % yaw_turn if yaw_turn != 0.0 else ""]
 		_press(KEY_P)
 		var engaged: bool = first_loop.approaching
 		if arm == 0:
@@ -694,11 +701,22 @@ func _run_firstloop() -> void:
 		check.call("mine with " + label, engaged and done and first_loop.aligned and r["accepted"] and int(r["arm"]) == arm and after > before,
 			"engaged=%s aligned=%s accepted=%s arm=%d gap %.3f m; +%.1f kg; %s" % [engaged, first_loop.aligned, r["accepted"], int(r["arm"]), r["tool_gap_m"], after - before, first_loop.message])
 		await _shot("loop_04_mined_%s" % label.replace(" ", "_"))
+	# Fix_It: with mined material in storage it must repair computation to minimum useful operation, paying in that
+	# material and in stored energy
+	var energy_before: float = sim.get_stored_energy_j()
+	await _until(func() -> bool: return float(sim.get_integrity()["computation"]) >= 0.25 - 1e-9, 40.0)
+	await _sim_run(1.0)
+	await _shot("loop_05_fix_it")
+	var healed: Dictionary = sim.get_integrity()
+	var restored: bool = first_loop.fix_it_log.any(func(l: String) -> bool: return l.begins_with("COMPUTATION restored to 25%"))
 	var gained: float = sim.get_inventory_kg(mat) - inv0
 	var spent: float = left0 - sim.get_world_deposit_remaining_kg("ore-1")
-	check.call("named inventory equals deposit reduction", gained > 0.0 and absf(gained - spent) < 1e-9 and absf(sim.get_storage_used_kg() - sim.get_inventory_kg(mat)) < 1e-9,
-		"inventory +%.3f kg %s; deposit -%.3f kg; storage %.3f kg" % [gained, mat, spent, sim.get_storage_used_kg()])
-	check.call("HUD shows the loop", hud.text.contains("SURVEYED") and hud.text.contains("CARGO") and hud.text.contains("Iron-bearing regolith"), hud.text.replace("\n", " | "))
+	var consumed: float = spent - gained
+	check.call("G02 Fix_It repairs with mined material", restored and float(healed["computation"]) >= 0.25 - 1e-9 and consumed > 0.0 and sim.get_stored_energy_j() < energy_before,
+		"computation %.0f%% -> %.0f%%, thermal %.0f%% -> %.0f%%; Fix_It consumed %.3f kg %s; %s" % [float(awake["computation"]) * 100.0, float(healed["computation"]) * 100.0, float(awake["thermal"]) * 100.0, float(healed["thermal"]) * 100.0, consumed, mat, first_loop.fix_it_line()])
+	check.call("material is accounted for", gained > 0.0 and consumed >= 0.0 and absf(gained + consumed - spent) < 1e-9 and absf(sim.get_storage_used_kg() - sim.get_inventory_kg(mat)) < 1e-9,
+		"deposit -%.3f kg = inventory +%.3f kg + Fix_It %.3f kg; storage %.3f kg" % [spent, gained, consumed, sim.get_storage_used_kg()])
+	check.call("HUD shows the loop", hud.text.contains("SURVEYED") and hud.text.contains("CARGO") and hud.text.contains("Iron-bearing regolith") and hud.text.contains("FIX_IT //"), hud.text.replace("\n", " | "))
 	check.call("no contact during the loop", not sim_contact_log.has("ore-1"), "contacts: %s" % [sim_contact_log])
 	for line in checks:
 		metrics.append(line)
@@ -1086,6 +1104,7 @@ func _start_interactive() -> void:
 			_sim_add_rock("rock-a", ship.global_position + fwd * 90.0 + Vector3(-12, -4, 0), 7.0)
 			_sim_add_rock("rock-b", ship.global_position + fwd * 160.0 + Vector3(20, 6, 0), 10.0)
 			first_loop = FirstLoop.new(self)
+			sim.enable_fix_it(not ("--no-awakening" in OS.get_cmdline_user_args()))
 			var ground = terrain.get_voxel_tool().raycast(ship.global_position + fwd * 120.0 + Vector3(0, 200, 0), Vector3.DOWN, 900.0)
 			if ground != null:
 				first_loop.add_deposit("ore-1", Vector3(ground.position) + Vector3(0, 1.8, 0), 3.0, "iron_bearing_silicate_regolith", "Iron-bearing regolith", 120.0)

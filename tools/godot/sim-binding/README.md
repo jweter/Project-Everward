@@ -14,7 +14,7 @@ The scenario sets a velocity and advances 0.6 s, mines six cycles from a 250 kg 
 
 `GODOT_VERIFIED` (approved by the owner on 2026-11-27) means: verified by an automated headless Godot run on the exact source commit, with the evidence recorded. It sits alongside `UNREAL_VERIFIED`; it does not replace or imply it, and neither implies a human playtest.
 
-**The parity scenario is GODOT_VERIFIED:** 32 of 32 lines are identical between native and Godot 4.7.2 (headless, official build), covering the G1 tick/mining/save scenario, G2 flight and contact, and the G3 first loop. The checker also fails correctly when the native side prints something else (negative control).
+**The parity scenario is GODOT_VERIFIED:** 37 of 37 lines are identical between native and Godot 4.7.2 (headless, official build), covering the G1 tick/mining/save scenario, G2 flight and contact, the G3 first loop and Fix_It. The checker also fails correctly when the native side prints something else (negative control).
 
 ## Build (Windows)
 
@@ -67,6 +67,10 @@ The parity scenario runs the loop natively and in Godot: mining before the surve
 
 Known limits: world deposits are not in the save file yet (#378 G08 is separate work); arm points use `compound_contact.hpp`'s roll sign, which differs from the core's (#441), so they are exact only at zero roll.
 
+### Fix_It (#378 G02)
+
+`enable_fix_it(seed_damaged_awakening)` runs Fix_It on the fixed step exactly as the Unreal `FixItRuntimeActor` does: when idle it asks `FixItPlanner::plan_next` for the next decision, starts a Repair only when stored material and energy cover it (otherwise it waits and spends nothing), advances `FixItRepairExecutor`, and reports completion with the materials consumed. Replacement waits (fabrication is not online); Upgrade, Redesign and Evolution are only shown. With the awakening seed an undamaged probe first drops to the Unreal Gen-1 startup integrity (computation 18%, thermal 22%, sensors 35%, propulsion 40%), and the simulation's damage rules then apply: trims are scaled by propulsion integrity and scans take longer with damaged sensors. Read it with `get_fix_it_status()` (state off/monitor/waiting/repairing, stage, subsystem, reason, progress, material and energy required and consumed, last event), `get_integrity()`, `get_stored_energy_j()` and `drain_fix_it_events()`. The parity lines show it waiting for 0.98 kg with nothing stored, then, after one mined cycle, repairing computation from 18% to 25% and thermal to 25% with the mined material and stored energy.
+
 ## Not covered yet
 
-Fix_It repair (the rest of G02), tractor field, sensor power policy (G09) and the remaining adapter surface (`docs/GODOT_PATH_PLAN.md`).
+Fix_It replacement and fabrication, tractor field, sensor power policy (G09) and the remaining adapter surface (`docs/GODOT_PATH_PLAN.md`).
