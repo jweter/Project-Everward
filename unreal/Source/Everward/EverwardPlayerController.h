@@ -59,6 +59,7 @@ private:
     void CycleMiningTarget();
     void ToggleAutoApproachMiningTarget();
     void AdvanceAutoApproachMiningTarget(float DeltaSeconds);
+    void AdvanceArmAlignPath(float DeltaSeconds);
 
     void ToggleJoseTakeTheWheel();
     void AdvanceJoseTakeTheWheel(float DeltaSeconds);
@@ -108,6 +109,13 @@ private:
     double AutoApproachWristDegrees = 0.0;
     double AutoApproachToolGapMeters = 0.0;
     void AlignSelectedArmToMiningPose();
+    // Issue #378 G01: the planned, collision-free waypoints (X=shoulder, Y=elbow, Z=wrist) the selected arm follows to the solved
+    // mining pose; a direct three-joint command stalls at the edge of the hull's forbidden band.
+    TArray<FVector> ArmAlignWaypointDegrees;
+    int32 ArmAlignWaypointIndex = 0;
+    float ArmAlignWaypointElapsedSeconds = 0.0f;
+    bool bArmAlignStarboard = false;
+    void CommandArmAlignWaypoint(UProbeSimulationAdapter* Adapter);
 
     bool bJoseAutopilotEngaged = false;
     FString JoseDestinationTargetId;

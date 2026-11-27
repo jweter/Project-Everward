@@ -250,6 +250,7 @@ void AEverwardPlayerController::Tick(float DeltaSeconds)
     }
 
     AdvanceAutoApproachMiningTarget(DeltaSeconds);
+    AdvanceArmAlignPath(DeltaSeconds);
 
     // First mining interaction. G is intentionally global during this early
     // physical-work slice: the player should be able to position the probe,
