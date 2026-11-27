@@ -68,6 +68,10 @@ var first_loop = null
 var firstloop_test := false      # --firstloop: headless acceptance run of the whole loop
 var powertest := false           # --powertest: headless run of the G09 sensor-power drop and recovery
 var hudtest := false             # --hudtest: headless run of the G11 systems panel selection
+# G04/G12: the acceptance runs write report.json (exact build, timed events, checks, PASS/FAIL/INCONCLUSIVE).
+const Evidence = preload("res://evidence.gd")
+const INCONCLUSIVE_EXIT := 11
+var evidence = null
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -420,6 +424,8 @@ func _sim_step(delta: float) -> void:
 		sim_contacts += n
 		var c: Dictionary = sim.get_last_contact()
 		sim_contact_log.append(String(c["body_id"]))
+		if evidence != null:
+			evidence.event("contact", String(c["body_id"]))
 		_dust(_sim_to_godot(c["point"]), 30)
 		shake = maxf(shake, 0.5)
 
@@ -596,6 +602,8 @@ func _press(keycode: int) -> void:
 	e.keycode = keycode
 	e.physical_keycode = keycode
 	e.pressed = true
+	if evidence != null:
+		evidence.event("command", OS.get_keycode_string(keycode))
 	_input(e)
 
 func _until(cond: Callable, limit_s: float) -> bool:
@@ -607,7 +615,7 @@ func _until(cond: Callable, limit_s: float) -> bool:
 
 func _run_firstloop() -> void:
 	# G3 evidence for #378 G01/G02 (mining part), G05 and G06, through the real key handler and the simulation.
-	metrics.append("godot %s  renderer=%s" % [Engine.get_version_info()["string"], RenderingServer.get_video_adapter_name()])
+	_begin_evidence("firstloop")
 	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
 	await _wait_stream()
 	var vt: VoxelTool = terrain.get_voxel_tool()
@@ -617,6 +625,7 @@ func _run_firstloop() -> void:
 			var h = vt.raycast(Vector3(gx * 40.0, 480.0, gz * 40.0), Vector3.DOWN, 700.0)
 			if h != null and h.position.y > peak.y:
 				peak = Vector3(h.position)
+	evidence.precondition("terrain streamed", peak.y > -1000.0, "summit at %s" % str(peak))
 	_place_trees(500, 300.0, Vector3(peak.x, 0, peak.z))
 	var ore_center := peak + Vector3(0, 1.8, 0)
 	if not _sim_start(ore_center + Vector3(0, 14, 45)):
@@ -626,13 +635,8 @@ func _run_firstloop() -> void:
 	sim.enable_fix_it(true)   # the probe wakes damaged; Fix_It must wait for material, then repair with it (#378 G02)
 	var awake: Dictionary = sim.get_integrity()
 	var mat := "iron_bearing_silicate_regolith"
-	var checks: Array[String] = []
-	var failed: Array[String] = []
-	var check := func(name: String, ok: bool, detail: String) -> void:
-		checks.append("%s %s: %s" % ["PASS" if ok else "FAIL", name, detail])
-		if not ok:
-			failed.append(name)
-	check.call("deposit registered", first_loop.add_deposit("ore-1", ore_center, 3.0, mat, "Iron-bearing regolith", 120.0), "ore-1 r=3 m on the summit")
+	var check := func(name: String, ok: bool, detail: String) -> void: evidence.check(name, ok, detail)
+	evidence.precondition("deposit registered", first_loop.add_deposit("ore-1", ore_center, 3.0, mat, "Iron-bearing regolith", 120.0), "ore-1 r=3 m on the summit")
 	await _sim_run(0.5)
 	await _shot("loop_01_start")
 	_press(KEY_G)
@@ -728,32 +732,22 @@ func _run_firstloop() -> void:
 		"deposit -%.3f kg = inventory +%.3f kg + Fix_It %.3f kg; storage %.3f kg" % [spent, gained, consumed, sim.get_storage_used_kg()])
 	check.call("HUD shows the loop", hud.text.contains("SURVEYED") and hud.text.contains("CARGO") and hud.text.contains("Iron-bearing regolith") and hud.text.contains("FIX_IT //"), hud.text.replace("\n", " | "))
 	check.call("no contact during the loop", not sim_contact_log.has("ore-1"), "contacts: %s" % [sim_contact_log])
-	for line in checks:
-		metrics.append(line)
-		print(line)
-	var passed := failed.is_empty()
-	metrics.append("FIRSTLOOP %s" % ("PASS" if passed else "FAIL " + ", ".join(failed)))
-	_flush_metrics()
-	print("FIRSTLOOP ", "PASS" if passed else "FAIL " + ", ".join(failed))
-	_quit_clean(0 if passed else 8)
+	_finish_evidence("FIRSTLOOP", 8)
 
 func _run_hudtest() -> void:
 	# G3 evidence for #378 G11 through the real keys: ] with the panel closed never leaves the list or needs extra [
 	# presses; the open panel marks the capability that is really selected; acting uses it (arms and power).
-	metrics.append("godot %s  renderer=%s" % [Engine.get_version_info()["string"], RenderingServer.get_video_adapter_name()])
+	_begin_evidence("hudtest")
 	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
 	await _wait_stream()
 	if not _sim_start(ship.global_position):
 		_fail("simulation extension (EverwardSim) not loaded", 5)
 		return
 	first_loop = FirstLoop.new(self)
-	var checks: Array[String] = []
-	var failed: Array[String] = []
-	var check := func(name: String, ok: bool, detail: String) -> void:
-		checks.append("%s %s: %s" % ["PASS" if ok else "FAIL", name, detail])
-		if not ok:
-			failed.append(name)
+	var check := func(name: String, ok: bool, detail: String) -> void: evidence.check(name, ok, detail)
 	first_loop.unbounded_selection_for_test = selftest_fail == "unbounded"
+	evidence.precondition("canonical start", not first_loop.panel_open and first_loop.selected_capability == 0 and sim.get_power_allocations()[0] >= FirstLoop.SENSOR_SCAN_MINIMUM_W,
+		"panel closed, SENSORS selected, sensors %d W" % int(sim.get_power_allocations()[0]))
 	var last: int = FirstLoop.CAPABILITIES.size() - 1
 	for i in 10:
 		_press(KEY_BRACKETRIGHT)
@@ -786,35 +780,26 @@ func _run_hudtest() -> void:
 	_press(KEY_TAB)
 	await _sim_run(0.1)
 	check.call("closing the panel keeps the selection", not first_loop.panel_open and first_loop.selected_capability == 1 and hud.text.contains("TARGET"), "index %d" % first_loop.selected_capability)
-	for line in checks:
-		metrics.append(line)
-		print(line)
-	var passed := failed.is_empty()
-	metrics.append("HUDTEST %s" % ("PASS" if passed else "FAIL " + ", ".join(failed)))
-	_flush_metrics()
-	print("HUDTEST ", "PASS" if passed else "FAIL " + ", ".join(failed))
-	_quit_clean(0 if passed else 10)
+	_finish_evidence("HUDTEST", 10)
 
 func _run_powertest() -> void:
 	# G3 evidence for #378 G09 through the real keys: the survival policy sheds sensor power at 50% stored energy,
 	# scanning is refused with the simulation's explanation, raising sensors alone does not hold while the policy is
-	# installed, and clear -> raise -> scan recovers. --selftest-fail=noclear skips the clear and must fail.
-	metrics.append("godot %s  renderer=%s" % [Engine.get_version_info()["string"], RenderingServer.get_video_adapter_name()])
+	# installed, and clear -> raise -> scan recovers. --selftest-fail=noclear skips the clear and must fail;
+	# --selftest-fail=lowstart starts with sensors unpowered, which breaks the precondition: INCONCLUSIVE, not FAIL.
+	_begin_evidence("powertest")
 	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
 	await _wait_stream()
 	if not _sim_start(ship.global_position):
 		_fail("simulation extension (EverwardSim) not loaded", 5)
 		return
 	first_loop = FirstLoop.new(self)
-	var checks: Array[String] = []
-	var failed: Array[String] = []
-	var check := func(name: String, ok: bool, detail: String) -> void:
-		checks.append("%s %s: %s" % ["PASS" if ok else "FAIL", name, detail])
-		if not ok:
-			failed.append(name)
-	first_loop.add_deposit("ore-1", ship.global_position + Vector3(0, 0, -40), 3.0, "iron_bearing_silicate_regolith", "Iron-bearing regolith", 120.0)
+	var check := func(name: String, ok: bool, detail: String) -> void: evidence.check(name, ok, detail)
+	evidence.precondition("deposit registered", first_loop.add_deposit("ore-1", ship.global_position + Vector3(0, 0, -40), 3.0, "iron_bearing_silicate_regolith", "Iron-bearing regolith", 120.0), "ore-1 40 m ahead")
+	if selftest_fail == "lowstart":
+		sim.allocate_power(0, 0.0)
 	var p0: PackedFloat64Array = sim.get_power_allocations()
-	check.call("canonical start", p0[0] >= 50.0 and sim.get_scan_power_guidance()["state"] == "ready", "sensors %d W, guidance ready" % int(p0[0]))
+	evidence.precondition("canonical start", p0[0] >= 50.0 and sim.get_scan_power_guidance()["state"] == "ready", "sensors %d W, guidance %s" % [int(p0[0]), sim.get_scan_power_guidance()["state"]])
 	_press(KEY_K)
 	await _sim_run(0.3)
 	var shed: PackedFloat64Array = sim.get_power_allocations()
@@ -838,14 +823,7 @@ func _run_powertest() -> void:
 		"policy installed=%s; sensors %d W; scan started=%s; surveyed=%s" % [sim.get_policy_status()["installed"], int(sim.get_power_allocations()[0]), scanning, sim.is_surveyed("ore-1")])
 	_press(KEY_L)
 	check.call("clearing with no policy is refused", first_loop.message == "no software policy installed", first_loop.message)
-	for line in checks:
-		metrics.append(line)
-		print(line)
-	var passed := failed.is_empty()
-	metrics.append("POWERTEST %s" % ("PASS" if passed else "FAIL " + ", ".join(failed)))
-	_flush_metrics()
-	print("POWERTEST ", "PASS" if passed else "FAIL " + ", ".join(failed))
-	_quit_clean(0 if passed else 9)
+	_finish_evidence("POWERTEST", 9)
 
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
@@ -1143,8 +1121,36 @@ func _shot(name: String) -> void:
 	_save_shot(name)
 	metrics.append("shot %s fps=%d debris=%d" % [name, Engine.get_frames_per_second(), debris.size()])
 
+func _begin_evidence(mode: String) -> void:
+	evidence = Evidence.new(mode, OS.get_cmdline_user_args(), selftest_fail == "noidentity")
+	evidence.sim_tick = func() -> int: return int(sim.get_tick()) if sim != null and sim_active else -1
+	var b: Dictionary = evidence.report["build"]
+	metrics.append("godot %s  renderer=%s" % [Engine.get_version_info()["string"], RenderingServer.get_video_adapter_name()])
+	metrics.append("build %s%s" % [b["commit"] if b["known"] else "UNKNOWN", (" dirty (%d files)" % b["dirty_file_count"] if b["dirty"] else " clean") if b["known"] else ""])
+
+# Writes report.json, mirrors the checks into metrics.txt and exits: 0 PASS, fail_code FAIL, 11 INCONCLUSIVE.
+func _finish_evidence(tag: String, fail_code: int) -> void:
+	var v: String = evidence.finish(OUT_DIR)
+	for line in evidence.lines():
+		metrics.append(line)
+		print(line)
+	metrics.append("%s %s" % [tag, evidence.summary()])
+	metrics.append("report " + OUT_DIR.path_join("report.json"))
+	_flush_metrics()
+	print(tag, " ", evidence.summary())
+	_quit_clean(0 if v == "PASS" else (INCONCLUSIVE_EXIT if v == "INCONCLUSIVE" else fail_code))
+
 func _fail(reason: String, code: int) -> void:
 	# An incomplete route must not look like a completed feasibility test: record why and exit non-zero.
+	if evidence != null:
+		# The harness could not set up an acceptance run: the report says INCONCLUSIVE and the exit code agrees with it
+		# (11, not the route-specific code), so automation reading either sees the same result (Codex #451).
+		evidence.finish(OUT_DIR, reason)
+		metrics.append("INCONCLUSIVE: %s (exit %d)" % [reason, INCONCLUSIVE_EXIT])
+		_flush_metrics()
+		print(evidence.mode.to_upper(), " ", evidence.summary())
+		_quit_clean(INCONCLUSIVE_EXIT)
+		return
 	metrics.append("FAILED: %s (exit %d)" % [reason, code])
 	_flush_metrics()
 	print("AUTOTEST FAILED: ", reason)
