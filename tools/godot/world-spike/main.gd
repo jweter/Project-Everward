@@ -13,6 +13,8 @@ const MAX_DEBRIS := 140
 
 var autotest := false
 var explore := false
+var selftest_input := false
+var selftest_fail := ""
 var terrain: VoxelTerrain
 var ship: Node3D
 var cam: Camera3D
@@ -39,6 +41,10 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	autotest = "--autotest" in args
 	explore = "--explore" in args
+	selftest_input = "--selftest-input" in args
+	for sa in args:
+		if sa.begins_with("--selftest-fail="):
+			selftest_fail = sa.substr(16)
 	for a in args:
 		if a.begins_with("--out="):
 			OUT_DIR = a.substr(6)
@@ -75,6 +81,8 @@ func _ready() -> void:
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		_start_interactive.call_deferred()
+		if selftest_input:
+			_selftest_input.call_deferred()
 
 # ----------------------------------------------------------------------------------------- build
 func _build_environment() -> void:
@@ -285,9 +293,11 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		yaw -= event.relative.x * 0.0025
 		pitch = clampf(pitch - event.relative.y * 0.0025, -1.4, 1.4)
+	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED   # click the window to resume flying
 	elif event is InputEventKey and event.pressed:
 		if event.keycode == KEY_ESCAPE:
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
 		elif event.keycode == KEY_H:
 			var hit = terrain.get_voxel_tool().raycast(ship.global_position, -ship.global_transform.basis.z, 120.0)
 			var c: Vector3 = Vector3(hit.position) - ship.global_transform.basis.z * 18.0 if hit != null else ship.global_position - ship.global_transform.basis.z * 30.0
@@ -470,6 +480,17 @@ func _shot(name: String) -> void:
 	_save_shot(name)
 	metrics.append("shot %s fps=%d debris=%d" % [name, Engine.get_frames_per_second(), debris.size()])
 
+func _fail(reason: String, code: int) -> void:
+	# An incomplete route must not look like a completed feasibility test: record why and exit non-zero.
+	metrics.append("FAILED: %s (exit %d)" % [reason, code])
+	_flush_metrics()
+	print("AUTOTEST FAILED: ", reason)
+	# stop the voxel workers before quitting so the exit code is ours, not a shutdown crash
+	terrain.queue_free()
+	for i in 20:
+		await get_tree().process_frame
+	get_tree().quit(code)
+
 func _flush_metrics() -> void:
 	var f := FileAccess.open(OUT_DIR + "/metrics.txt", FileAccess.WRITE)
 	for l in metrics:
@@ -502,6 +523,27 @@ func _wait_terrain(at: Vector3) -> bool:
 			return true
 	return false
 
+func _selftest_input() -> void:
+	# Drives the real _input handler with synthetic events: Escape must release AND restore mouse capture,
+	# and a click while released must recapture it.
+	await get_tree().create_timer(1.0).timeout
+	var ok := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.pressed = true
+	_input(esc)
+	ok = ok and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE
+	_input(esc)
+	ok = ok and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	_input(esc)
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	_input(click)
+	ok = ok and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	print("SELFTEST_INPUT ", "PASS" if ok else "FAIL")
+	get_tree().quit(0 if ok else 1)
+
 func _start_interactive() -> void:
 	await _wait_stream()
 	_place_trees(700, 420.0, Vector3.ZERO)
@@ -533,6 +575,9 @@ func _run_autotest() -> void:
 	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
 	var ok: bool = await _wait_terrain(Vector3(0, 0, 0))
 	metrics.append("terrain streamed near origin: %s in %.1f s" % [ok, (Time.get_ticks_msec() - t_start) / 1000.0])
+	if not ok:
+		_fail("terrain did not stream in time", 2)
+		return
 	await _wait_stream()
 	# survey the heightfield to find the mountain
 	var tool: VoxelTool = terrain.get_voxel_tool()
@@ -554,6 +599,9 @@ func _run_autotest() -> void:
 		return
 	var trees: int = _place_trees(700, 360.0, Vector3(peak.x, 0, peak.z))
 	metrics.append("trees placed: %d" % trees)
+	if trees == 0:
+		_fail("no trees could be placed", 4)
+		return
 	# 1. overview of the mountain from outside, above the cloud layer
 	_place_ship(peak + Vector3(0, 130, 420), peak + Vector3(0, -40, 0))
 	await _shot("01_overview")
@@ -620,10 +668,10 @@ func _run_autotest() -> void:
 	var face_h := peak.y * 0.5
 	var origin := Vector3(peak.x + 330, face_h, peak.z)
 	var fh = tool.raycast(origin, (peak - origin).normalized() * Vector3(1, 0, 1), 700.0)
+	if selftest_fail == "face":
+		fh = null
 	if fh == null:
-		metrics.append("no mountain face found; stopping")
-		_flush_metrics()
-		get_tree().quit()
+		_fail("no mountain face found", 3)
 		return
 	var P: Vector3 = fh.position
 	var N: Vector3 = fh.normal if fh.normal.length() > 0.1 else Vector3(1, 0, 0)

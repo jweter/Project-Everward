@@ -17,7 +17,10 @@ Needs a Godot 4.7.x **with the Voxel Tools module compiled in**, for example `go
     # fly it yourself
     godot.windows.editor.x86_64.exe --path tools/godot/world-spike
     #   W/S thrust, mouse look, A/D strafe, Q/E down/up, Shift boost,
-    #   left mouse or F drill, H hollow out ahead, P screenshot, Esc release mouse
+    #   left mouse or F drill, H hollow out ahead, P screenshot,
+    #   Esc releases the mouse (Esc again, or a click in the window, recaptures it)
+
+Exit codes for `--autotest`: 0 route completed; 2 terrain did not stream in time; 3 no mountain face found (drilling, hollowing and crumbling skipped); 4 no trees could be placed. `metrics.txt` records the reason. Two self-tests exist for the checks that cannot be seen in screenshots: `-- --selftest-input` drives the real input handler with synthetic Escape and click events and exits 0 on PASS; `-- --autotest --selftest-fail=face` forces the missing-face failure and must exit 3.
 
 Keep the output folder outside the repository; the first launch also writes a `.godot/` import cache that is git-ignored.
 
@@ -30,13 +33,13 @@ Keep the output folder outside the repository; the first launch also writes a `.
 | Memory | about 1.2 GiB static |
 | Terrain | 289/289 sampled columns streamed; peak 204 m, cloud layer 110-240 m so the peak breaks through |
 | Voxel edit call | 47 edits, 0.05 ms average (the edit only; meshing happens asynchronously) |
-| Tree shake | with the shake on, 844 of 8100 sampled pixels changed in a window around the nearest tree against 0 in a control window; off/on frames differ visibly |
+| Tree shake | The vertex displacement runs: at 25x strength a window around the tree changed in 542 of 8100 sampled pixels against 0 in a control window, and the side-by-side off/on frame (`05_compare_off_left_on_right.png`) shows the tree bent differently. **The pixel count is noisy at the default strength**: across runs the tree window changed 208, 844 and 58 pixels while the control window (which also sees cloud and terrain changes) changed 0, 0 and 878. Treat the shake as visually confirmed, not statistically measured. |
 | Interactive mode | 900 frames with no input ran with no errors |
 
 ## Not verified / known limits
 
 - **How it looks on a real GPU.** Only the integrated GPU was available. Quality settings (cloud steps, shadows, resolution) are untuned for a desktop.
-- **Manual controls.** Keyboard and mouse flight, left-click drilling and H hollowing were not exercised by a person; only the scripted path and a no-input smoke run were.
+- **Manual controls.** Keyboard and mouse flight, left-click drilling and H hollowing were not exercised by a person; only the scripted path, a no-input smoke run and the Escape/click mouse-capture self-test were.
 - **Crumble is scripted, not structural.** Pieces of ceiling are removed in sequence; disconnected rock does not detect itself and fall. True structural collapse needs a connectivity pass (flood fill) that is not built.
 - **Cloud displacement is a visual trick** (trail cavity plus noise push), not a fluid simulation.
 - **Art is placeholder**: cone trees, a capsule ship, a procedural terrain shader, hazy hollow interiors (fog and sky ambient need tuning), and no sound.
