@@ -1,7 +1,8 @@
 # Continuous Visual Quality and Production — Everward
 
-**Status:** Accepted production direction, effective during Phase 2 and every later gameplay phase.
+**Status:** Accepted ongoing production standard, now applied to the **Godot** engine path (ADR-0014; 2026-11-27), effective during Phase 2 and every later gameplay phase. The cinematic scientific-realism target and Prime Gen-1 reference remain unchanged.
 **Scope:** Art direction, content production, animation, lighting, UI, audio feedback, performance, and verifiable player experience.
+**Asset/reference confidentiality:** Owner and third-party mood source images are not automatically redistributable. Follow `LOOK_DEVELOPMENT.md` and asset provenance policy; do not put original private reference files or unlicensed third-party imagery into this public repository.
 **Companion authorities:** `ROADMAP.md`, `VISUAL_DIRECTION.md`, `PHASE2_VERTICAL_SLICE_PLAN.md`, `CURRENT_EXECUTION_PLAN.md`, `UNATTENDED_VERIFICATION.md`, `WORLD_BUILDING_CRAFT_PLAYBOOK.md`, `GRAPHICS_SCALABILITY_STANDARD.md`, and `ASSET_ACQUISITION_PIPELINE.md`.
 
 ## Why this policy exists
@@ -12,7 +13,7 @@ A technically correct simulation is not yet a convincing, enjoyable game. Passin
 1. **Mechanical/gameplay integrity:** the authoritative simulation, usable controls, progression, player choice, and deterministic correctness.
 2. **Experiential production quality:** coherent art direction, credible physical materials, lighting, scale, motion, audio, readable HUD, atmosphere, and meaningful visual feedback.
 
-These tracks converge in the **same playable Unreal build**. The project must not accumulate a polished cinematic demo that is disconnected from the actual simulated game, nor defer every visual improvement until Phase 22.
+These tracks converge in the **same playable Godot build**. The project must not accumulate a polished cinematic demo that is disconnected from the actual simulated game, nor defer every visual improvement until Phase 22.
 
 The game's permanent high-end visual promise remains: **"Pause. Hide HUD. Take screenshot. Use as wallpaper."** This is an aspiration tested against actual gameplay captures, not a claim that current builds already meet it.
 
@@ -33,20 +34,20 @@ The game's permanent high-end visual promise remains: **"Pause. Hide HUD. Take s
 3. **Geometry and asset authoring:** use Blender or an equivalent suitable DCC tool for hard-surface components, modular parts, articulation/rigging, correct pivots, UVs, normal/detail baking, and appropriate LOD strategies. Choose tools on measured workflow value; don't make any one DCC product a requirement for every asset.
 4. **PBR/materials and environment:** create physically coherent roughness/metallic response, macro/meso/micro variation, scientifically plausible stellar lighting, authored landmarks, and scalable environment detail. Follow `WORLD_BUILDING_CRAFT_PLAYBOOK.md` and `VISUAL_DIRECTION.md`.
 5. **Licensed acquisition:** external models, materials, textures and HDRIs must use `ASSET_ACQUISITION_PIPELINE.md`. Asset discovery and import do not substitute for artistic fit, scale, performance, or commercial provenance checks.
-6. **Unreal integration:** use the production Unreal 5.8 project. Test pivots, scale, materials, rig/animation, collision match, camera behavior, integration with simulation state, quality presets, and packaging. The renderer never becomes the mechanical authority.
+6. **Godot integration:** use the current Godot game prototype under `tools/godot/world-spike/` with the authoritative `tools/godot/sim-binding/` GDExtension; evolve toward a shipping project only with tested, reviewed changes. Test pivots, scale, materials, rig/animation, collision match, camera behavior, integration with simulation state, quality presets, and packaging. The renderer never becomes the mechanical authority.
 7. **Experiential feedback:** implement responsive manipulation, thrusters, impacts, mining, sensor presentation, HUD transitions, machine-sonification, and sound. Every important mechanical action must communicate cause and effect.
 8. **Evidence and refinement:** capture gameplay, compare against approved references and last accepted build, diagnose shortcomings, improve one focused slice, and repeat.
 
 
 ## Procedural Mechanism Studio (gated optional track)
 
-`PROCEDURAL_MECHANISM_STUDIO.md` defines an approved *experimental process* for reference-driven procedural parts, state-linked articulation, exploded/cutaway repair views, modular drone families and automated visual QA. Its first priority is Prime A's physically accurate mining manipulator and tool interfaces in the actual Phase-2 gameplay path. Reuse the same mechanical state for pose, HUD and inspection, but keep the authoritative simulation separate from geometry/rendering. Only promote assets after measured Unreal, collision, LOD, licensing and low-spec performance checks. Render-only success is not player-facing acceptance.
+`PROCEDURAL_MECHANISM_STUDIO.md` defines an approved *experimental process* for reference-driven procedural parts, state-linked articulation, exploded/cutaway repair views, modular drone families and automated visual QA. Its first priority is Prime A's physically accurate mining manipulator and tool interfaces in the actual Phase-2 gameplay path. Reuse the same mechanical state for pose, HUD and inspection, but keep the authoritative simulation separate from geometry/rendering. Only promote assets after measured Godot, collision, LOD, licensing and low-spec performance checks. Render-only success is not player-facing acceptance.
 
 ## First production checkpoint: Visual Milestone 01 — A Beautiful, Believable Awakening
 
 **Status:** planned; not accepted or claimed complete.
 
-The target is a **real, interactable, reproducible Unreal gameplay sequence** that combines the canonical damaged-awakening progression with a compelling visual presentation.
+The target is a **real, interactable, reproducible Godot gameplay sequence** that combines the canonical damaged-awakening progression with a compelling visual presentation.
 
 **Scenario, without prematurely fixing unapproved world lore:**
 - The player awakens as the damaged canonical Prime Gen-1 probe, stranded on a moon or planetary surface, sustained by limited working power and sensors.
@@ -65,13 +66,13 @@ The target is a **real, interactable, reproducible Unreal gameplay sequence** th
 5. Capture/compare/improve the same playable sequence repeatedly rather than building an unrelated marketing-only scene.
 
 **Acceptance evidence:**
-- an **unedited gameplay capture** from the production Unreal build showing the actual sequence, not a concept image or render-only trailer;
-- exact tested commit/build identifier, Unreal version, machine/graphics preset, resolution, frame-time/memory results where measurable, scenario seed/state and capture metadata;
+- an **unedited gameplay capture** from the production Godot build showing the actual sequence, not a concept image or render-only trailer;
+- exact tested commit/build identifier, Godot version, machine/graphics preset, resolution, frame-time/memory results where measurable, scenario seed/state and capture metadata;
 - several reproducible camera views including normal gameplay and a cinematic/HUD-hidden shot, plus short motion/audio evidence where relevant;
 - correct Prime Gen-1 silhouette and clear relationship between art, manipulators, target, surface, visible collision, and authoritative mechanics;
 - readable actions, selectable mining/scan targets, unmistakable cause/effect for one repair, and no critical missing meshes, clipping, floating/tiling defects, broken animation or HUD occlusion;
 - the complete same mechanics work on Low/Emergency and higher presets, with cheaper effects replacing costly ones; **do not claim Ultra/Cinematic acceptance until run on qualifying hardware**;
-- deterministic/Unreal checks and relevant visual evidence recorded as `PASS`, `FAIL`, `REVIEW_REQUIRED`, `PRODUCT_REALITY_REQUIRED`, or `ENVIRONMENT_FAILURE`, with unresolved blockers explicitly carried forward;
+- deterministic/native-C++ and Godot checks and relevant visual evidence recorded as `PASS`, `FAIL`, `REVIEW_REQUIRED`, `PRODUCT_REALITY_REQUIRED`, or `ENVIRONMENT_FAILURE`, with unresolved blockers explicitly carried forward;
 - subjective **visual quality, clarity, atmosphere, and gameplay feel** receive a milestone review; automated scores are advisory and never fabricate human aesthetic approval.
 
 **Definition of done:** an integrated, genuine playable build presents an interesting and readable awakening with compelling visual/audio craft, verified authoritative mechanical consequences, and documented remaining gaps. Mechanical correctness alone, a series of screenshots alone, or an attractive mockup alone do not satisfy the milestone.
@@ -80,7 +81,7 @@ The target is a **real, interactable, reproducible Unreal gameplay sequence** th
 
 Default sequence:
 
-`small gameplay + presentation slice -> fast deterministic checks -> Unreal build/smoke and unattended scenario -> screenshots/motion/audio/telemetry + perf -> compare to references and last accepted build -> diagnosis -> repair -> re-verify`
+`small gameplay + presentation slice -> fast deterministic checks -> Godot GDExtension/native parity, build/smoke and unattended scenario -> screenshots/motion/audio/telemetry + perf -> compare to references and last accepted build -> diagnosis -> repair -> re-verify`
 
 Capture artifacts may include screenshots from pinned cameras and known lighting/seed, short video, metadata, frame-time/memory statistics, mesh/material validation, HUD-safe-area checks, telemetry, and logs.
 
@@ -109,7 +110,7 @@ For every relevant Phase-2+ gameplay slice:
 3. Link new visual/audio components to an authoritative mechanic or explicitly label them environmental presentation.
 4. Include the cheapest appropriate verifiable scenario and quality-preset considerations.
 5. Capture before/after evidence if available; avoid claiming results from screenshots generated separately from the running game.
-6. Record status honestly: **planned / implemented / verified in Unreal / artistically accepted** are distinct states.
+6. Record status honestly: **planned / implemented / `GODOT_VERIFIED` (exact-commit headless evidence) / visually verified in Godot / artistically accepted** are distinct states.
 7. Keep the existing priority rule: first repair broken/pending work; prefer the earliest incomplete gameplay slice; introduce tightly bounded experiential improvements whenever they directly strengthen that slice or provide a safe independent parallel lane.
 8. Update this document, phase plan or acceptance ledger when verified evidence changes the production approach; do not invent new visual work merely to avoid a blocked gameplay gate.
 9. Protect the owner's control of the laptop and unattended-work scheduling agreements; do not interrupt foreground play for capture jobs.
