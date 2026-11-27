@@ -157,6 +157,17 @@ func _init() -> void:
 	print("mine %d extracted %.9f remaining %.9f gap %.9f arm %d material %s" % [1 if fl_mined["accepted"] else 0, fl_mined["extracted_kg"], fl_mined["remaining_kg"], fl_mined["tool_gap_m"], fl_mined["arm"], fl_mined["material_id"]])
 	print("inventory %.9f storage %.9f deposit %.9f" % [fl.get_inventory_kg(mat), fl.get_storage_used_kg(), fl.get_world_deposit_remaining_kg(ore)])
 
+	var fl_save: String = fl.save_json()
+	var after_save: Dictionary = fl.mine_deposit(ore)
+	var extra := 1 if fl.add_deposit("ore-2", -30.0, 12.0, 0.0, 2.0, "nickel_regolith", "Nickel regolith", 80.0, 4.0) else 0
+	var fl_load := 1 if fl.load_json(fl_save) else 0
+	print("g08 after_save %d extra %d load %d surveyed %d deposit %.9f inventory %.9f ore2 %.3f" % [1 if after_save["accepted"] else 0, extra, fl_load, 1 if fl.is_surveyed(ore) else 0, fl.get_world_deposit_remaining_kg(ore), fl.get_inventory_kg(mat), fl.get_world_deposit_remaining_kg("ore-2")])
+	var resumed: Dictionary = fl.mine_deposit(ore)
+	print("g08 resumed %d deposit %.9f inventory %.9f" % [1 if resumed["accepted"] else 0, fl.get_world_deposit_remaining_kg(ore), fl.get_inventory_kg(mat)])
+	var blank = ClassDB.instantiate("EverwardSim")
+	var blank_load := 1 if fl.load_json(blank.save_json()) else 0
+	print("g08 blank load %d ore1 %.3f surveyed %d" % [blank_load, fl.get_world_deposit_remaining_kg(ore), 1 if fl.is_surveyed(ore) else 0])
+
 	var fx = ClassDB.instantiate("EverwardSim")
 	fx.enable_fix_it(true)
 	var awake: Dictionary = fx.get_integrity()

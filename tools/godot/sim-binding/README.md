@@ -14,7 +14,7 @@ The scenario sets a velocity and advances 0.6 s, mines six cycles from a 250 kg 
 
 `GODOT_VERIFIED` (approved by the owner on 2026-11-27) means: verified by an automated headless Godot run on the exact source commit, with the evidence recorded. It sits alongside `UNREAL_VERIFIED`; it does not replace or imply it, and neither implies a human playtest.
 
-**The parity scenario is GODOT_VERIFIED:** 39 of 39 lines are identical between native and Godot 4.7.2 (headless, official build), covering the G1 tick/mining/save scenario, G2 flight and contact, the G3 first loop and Fix_It. The checker also fails correctly when the native side prints something else (negative control).
+**The parity scenario is GODOT_VERIFIED:** 42 of 42 lines are identical between native and Godot 4.7.2 (headless, official build), covering the G1 tick/mining/save scenario, G2 flight and contact, the G3 first loop and Fix_It. The checker also fails correctly when the native side prints something else (negative control).
 
 ## Build (Windows)
 
@@ -65,7 +65,7 @@ Time now advances in the Unreal adapter's fixed step (16667 ticks, about 1/60 s)
 
 The parity scenario runs the loop natively and in Godot: mining before the survey is refused, the scan surveys, a cancelled rescan keeps the survey, mining from 40 m is refused, then staging, a 2 m/s approach, an 8-waypoint arm path and an accepted 5 kg cycle into named inventory.
 
-Known limits: world deposits are not in the save file yet (#378 G08 is separate work); arm points use `compound_contact.hpp`'s roll sign, which differs from the core's (#441), so they are exact only at zero roll.
+Saves (#378 G08): `save_json` writes every world deposit (material, display name, remaining and extracted kg, yield, survey) into the canonical save's additive `world_deposits` field (`save_data.hpp`, tested by `src/simulation/tests/world_deposit_save_tests.cpp`), and `load_json` restores exactly those, so a load can no longer leave a later, smaller deposit beside an earlier inventory or carry over deposits and surveys from the session. Fix_It progress is not saved (a load resets it). Known limits: arm points use `compound_contact.hpp`'s roll sign, which differs from the core's (#441), so they are exact only at zero roll.
 
 ### Fix_It (#378 G02)
 

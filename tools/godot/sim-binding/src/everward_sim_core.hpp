@@ -45,6 +45,7 @@ struct MineResult {
 // G3: a mineable deposit placed in the world (a registered static body plus its resource record).
 struct WorldDeposit {
     ResourceDeposit deposit;
+    double extracted_kg{0.0};
     bool surveyed{false};
 };
 
@@ -468,6 +469,7 @@ public:
         if (r.accepted) {
             runtime_.add_stored_material_kg(r.extracted_kg, r.material_id);
             d.deposit.remaining_kg = r.remaining_deposit_kg;
+            d.extracted_kg += r.extracted_kg;
             out.extracted_kg = r.extracted_kg;
             out.material_id = r.material_id;
         }
@@ -537,6 +539,10 @@ public:
             data.bootstrap_deposit_remaining_kg = deposit_remaining_kg_;
             data.bootstrap_extracted_kg = extracted_kg_;
         }
+        for (const auto& [id, d] : deposits_) {  // #378 G08: world deposits and their surveys
+            data.world_deposits.push_back({id, d.deposit.material_id, d.deposit.display_name, d.deposit.remaining_kg,
+                                           d.extracted_kg, d.deposit.extraction_kg_per_cycle, d.surveyed});
+        }
         save.probes.push_back(data);
         return serialize_save_game(save);
     }
@@ -555,11 +561,29 @@ public:
                 data.bootstrap_resource_surveyed && data.bootstrap_deposit_remaining_kg.has_value();
             const double new_remaining = new_has_deposit ? *data.bootstrap_deposit_remaining_kg : 0.0;
             const double new_extracted = data.bootstrap_extracted_kg.value_or(0.0);
+            // World deposits come back from the save (the schema guarantees each names a saved body); a save
+            // without them restores none, never keeping the current session's deposits or surveys.
+            std::map<std::string, WorldDeposit> new_deposits;
+            for (const WorldDepositSaveData& w : data.world_deposits) {
+                WorldDeposit d;
+                for (const StaticSphereBody& body : data.static_bodies) {
+                    if (body.body_id == w.body_id) d.deposit.body = body;
+                }
+                d.deposit.material_id = w.material_id;
+                d.deposit.display_name = w.display_name;
+                d.deposit.remaining_kg = w.remaining_kg;
+                d.deposit.extraction_kg_per_cycle = w.extraction_kg_per_cycle;
+                d.extracted_kg = w.extracted_kg;
+                d.surveyed = w.surveyed;
+                new_deposits.emplace(w.body_id, d);
+            }
             runtime_ = std::move(new_runtime);
             rig_ = std::move(new_rig);
             has_deposit_ = new_has_deposit;
             deposit_remaining_kg_ = new_remaining;
             extracted_kg_ = new_extracted;
+            deposits_ = std::move(new_deposits);
+            pending_contacts_ = 0;
             // In-progress Fix_It operations are intentionally not persisted yet. A load replaces
             // the authoritative world state, so no executor decision/progress from the old world
             // may run against the restored probe on the next fixed step.
@@ -567,7 +591,7 @@ public:
             fix_it_waiting_ = false;
             fix_it_repair_ = FixItRepairExecutor{};
             fix_it_last_completed_material_consumed_kg_ = 0.0;
-        fix_it_total_material_consumed_kg_ = 0.0;
+            fix_it_total_material_consumed_kg_ = 0.0;
             fix_it_last_decision_.reset();
             fix_it_last_event_.clear();
             fix_it_events_.clear();
