@@ -65,4 +65,22 @@ func _init() -> void:
 	var dep := 1 if cmd.setup_bootstrap_deposit(-1.0) else 0
 	var mined := 1 if cmd.mine_once()["accepted"] else 0
 	print("invalid commands advance %d velocity %d deposit %d mine %d tick %d" % [adv, vel, dep, mined, cmd.get_tick()])
+
+	var fly = ClassDB.instantiate("EverwardSim")
+	var att := 1 if fly.adjust_attitude(30.0, 10.0, 0.0) else 0
+	var a: PackedFloat64Array = fly.get_attitude()
+	print("attitude ok %d yaw %.9f pitch %.9f roll %.9f" % [att, a[0], a[1], a[2]])
+	fly.adjust_attitude(-30.0, -10.0, 0.0)
+	var thr := 1 if fly.adjust_local_velocity(10.0, 0.0, 0.0) else 0
+	var v: PackedFloat64Array = fly.get_velocity()
+	print("thrust ok %d velocity %.9f %.9f %.9f" % [thr, v[0], v[1], v[2]])
+	var body := 1 if fly.add_sphere_body("rock-1", 30.0, 0.0, 0.0, 3.0) else 0
+	var bad_body := 1 if fly.add_sphere_body("", 0.0, 0.0, 0.0, 1.0) else 0
+	var contacts := 0
+	for step in 50:
+		fly.advance_ticks(100000)
+		contacts += fly.drain_contact_events()
+	var c: Dictionary = fly.get_last_contact()
+	var fp: PackedFloat64Array = fly.get_position()
+	print("flight body %d bad_body %d contacts %d has %d id %s normal_speed %.9f pos %.9f %.9f %.9f" % [body, bad_body, contacts, 1 if c["has_contact"] else 0, c["body_id"], c["normal_speed"], fp[0], fp[1], fp[2]])
 	quit(0)

@@ -24,6 +24,14 @@ public:
     int64_t get_tick() const;
     bool set_velocity(double x, double y, double z);
     PackedFloat64Array get_position() const;
+    PackedFloat64Array get_velocity() const;
+    PackedFloat64Array get_attitude() const;
+    bool adjust_attitude(double yaw, double pitch, double roll);
+    bool adjust_local_velocity(double x, double y, double z);
+    bool add_sphere_body(const String& id, double x, double y, double z, double radius);
+    void clear_bodies();
+    Dictionary get_last_contact() const;
+    int64_t drain_contact_events();
     bool setup_bootstrap_deposit(double remaining_kg);
     Dictionary mine_once();
     double get_inventory_kg(const String& material) const;

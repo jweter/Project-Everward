@@ -1,0 +1,9 @@
+[configuration]
+entry_symbol = "everward_sim_init"
+compatibility_minimum = "4.5"
+reloadable = false
+
+[libraries]
+; built by tools/godot/sim-binding (see its README); relative to this file
+windows.debug.x86_64 = "../sim-binding/project/bin/everward_sim.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "../sim-binding/project/bin/everward_sim.windows.template_release.x86_64.dll"
