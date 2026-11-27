@@ -2,6 +2,8 @@
 
 This document governs scheduled and autonomous engineering work on Everward. It exists to keep progress high-value, reviewable, truthful, reversible, and aligned with the project's design and commercial constraints.
 
+**Current production engine (2026-11-27): Godot.** ADR-0014 supersedes Unreal-first ADR-0001. For player-visible work, read `GODOT_PATH_PLAN.md` and the current `PROJECT_STATUS.md` first. Keep `src/simulation/` mechanically authoritative. Treat old Unreal-only backlog instructions as historical unless an explicit owner-authorized preservation task requires them. No engine migration, MCP mailbox message, or SQLite memory entry can bypass CI, review, license, worker-lease, payment or owner-control boundaries.
+
 ## 1. Project isolation
 
 Everward is its own engineering and product context. Do not import product requirements, terminology, architecture, safety rules, roadmap priorities, implementation choices, music-processing requirements, or unrelated project assumptions from other repositories merely because they appeared in another conversation or project.
@@ -101,24 +103,24 @@ The slice must:
 
 Prefer finishing work over starting work.
 
-### Project liveness behind Unreal/Product Reality gates
+### Project liveness behind Godot/Product Reality gates
 
-Unreal Editor/UBT availability, laptop-only playtests, visual acceptance, packaged builds, and other human Product Reality evidence are **lane-local gates**, not permission to stop Everward development. A pending local test may block completion/acceptance of the mechanic that depends on it, but it does not block parallel-safe work authorized by the current vertical-slice plan.
+Godot runtime/editor availability, laptop-only playtests, visual acceptance, packaged builds, and other human Product Reality evidence are **lane-local gates**, not permission to stop Everward development. Historic Unreal/UBT resource gates do not authorize new Unreal feature work. A pending local test may block completion/acceptance of the mechanic that depends on it, but it does not block parallel-safe work authorized by the current vertical-slice plan.
 
 Before reporting Everward as blocked, parked, or waiting, inspect the current Phase-2 plan and issue queue and prove that no authorized parallel-safe P4/P5 slice is eligible. If any such slice exists, advance one in the same run. Examples include engine-independent deterministic mechanics, save/load and persistence foundations, interaction/resource/repair foundations, controls/HUD architecture that does not assume visual acceptance, tests/tooling, and other explicitly parallel-safe vertical-slice work.
 
-Do not spend consecutive scheduled runs merely waiting for a laptop or Unreal test. Keep Product Reality debt visible, preserve the earliest incomplete slice as the completion priority, and continue accumulating dependency-safe implementation behind it without claiming the blocked slice accepted.
+Do not spend consecutive scheduled runs merely waiting for a laptop or Godot test. Keep Product Reality debt visible, preserve the earliest incomplete slice as the completion priority, and continue accumulating dependency-safe implementation behind it without claiming the blocked slice accepted.
 
 ## 5A. Continuous experiential-production contract
 
-Player-facing progress means the actual Unreal build becomes more understandable, tactile, atmospheric, and appealing, **not only that more source tests pass**. Read `CONTINUOUS_VISUAL_QUALITY.md` when planning gameplay, Unreal presentation, content/asset, visual, audio, HUD, or environment slices.
+Player-facing progress means the actual Godot build becomes more understandable, tactile, atmospheric, and appealing, **not only that more source tests pass**. Read `CONTINUOUS_VISUAL_QUALITY.md` when planning gameplay, Godot presentation, content/asset, visual, audio, HUD, or environment slices.
 
 - Preserve the earliest incomplete gameplay milestone. Add phase-compatible presentation/feedback improvements to that mechanic instead of generating separate art-only showcase scenes.
 - Prefer a bounded change that improves a player's real action, world-readability or perceivable mechanical consequence, including state-driven visual and audio feedback.
-- Use a consistent, reproducible Unreal scenario and collect before/after captures/metadata where feasible. Fail closed when visual evidence is unavailable; do not claim aesthetic acceptance based solely on unit tests.
+- Use a consistent, reproducible Godot scenario and collect before/after captures/metadata where feasible. Fail closed when visual evidence is unavailable; do not claim aesthetic acceptance based solely on unit tests.
 - Apply canonical Prime Gen-1 design, commercial asset provenance, graphic-tier parity and current laptop resource constraints. Low-spec hardware does not authorize deleting mechanics or redefining the high-end art target.
 - Give machines ownership of objective regression, image/camera capture, instrumentation and diagnostic retries. A human is optional only for genuinely subjective art/game-feel milestone acceptance.
-- Report separately: planned, implemented, verified in Unreal, and artistically accepted. Identify the next visual/game-feel deficiency as well as the next functional dependency.
+- Report separately: planned, implemented, native-C++ tested, `GODOT_VERIFIED`, integrated Godot/visual-performance verified, and artistically accepted. Identify the next visual/game-feel deficiency as well as the next functional dependency.
 - Progress **Visual Milestone 01 — A Beautiful, Believable Awakening** incrementally beside the damaged-start -> scan -> mine -> resource -> `Fix_It` repair flow; do not clear its gate until an integrated unedited gameplay capture and all acceptance evidence exist.
 
 This requirement does not override the P0–P6 priority system, existing CI and merge policy, unattended test safety, or phase gate sequencing. It makes experiential quality part of the definition of done for player-visible work.
@@ -155,7 +157,7 @@ Whenever a change materially affects project truth, update the relevant authorit
 - `ERROR_RESOLUTION_LEDGER.md`;
 - feature-specific design documents.
 
-Do not allow documentation to remain knowingly stale after a change merges.
+Do not allow documentation to remain knowingly stale after a change merges. The MCP/SQLite handoff is advisory, not a substitute for updating the repository's authoritative decision, status, and implementation documents.
 
 ## 8. Operational memory
 
