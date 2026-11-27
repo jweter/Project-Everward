@@ -362,7 +362,7 @@ func _godot_to_sim(g: Vector3) -> Vector3:
 
 func _sim_basis() -> Basis:
 	var a: PackedFloat64Array = sim.get_attitude()
-	return Basis(Vector3.UP, deg_to_rad(-a[0])) * Basis(Vector3.RIGHT, deg_to_rad(a[1])) * Basis(Vector3.BACK, deg_to_rad(a[2]))
+	return Basis(Vector3.UP, deg_to_rad(-a[0])) * Basis(Vector3.RIGHT, deg_to_rad(a[1])) * Basis(Vector3.FORWARD, deg_to_rad(a[2]))
 
 func _sim_place_ship() -> void:
 	ship.global_transform = Transform3D(_sim_basis(), _sim_to_godot(sim.get_position()))
@@ -441,7 +441,17 @@ func _run_simflight() -> void:
 	var nose := -ship.global_transform.basis.z
 	var heading_dot := moved.dot(nose)
 	metrics.append("after 90 deg turn: velocity before thrust %.3f %.3f %.3f; heading dot %.4f; contacts %d" % [v[0], v[1], v[2], heading_dot, sim_contacts])
-	var passed: bool = ok and sim_contacts == 1 and c["body_id"] == "boulder-1" and pos_err < 0.001 and heading_dot > 0.99
+	# roll check: after a +90 degree roll, thrust toward the probe's own right must move the ship along its displayed right
+	sim.set_velocity(0.0, 0.0, 0.0)
+	sim.adjust_attitude(0.0, 0.0, 90.0)
+	sim.adjust_local_velocity(0.0, 8.0, 0.0)
+	var before_roll := ship.global_position
+	await _sim_run(1.5)
+	var right_dot := (ship.global_position - before_roll).normalized().dot(ship.global_transform.basis.x)
+	metrics.append("after +90 deg roll: thrust right moves along displayed right, dot %.4f" % right_dot)
+	sim.set_velocity(0.0, 0.0, 0.0)
+	sim.adjust_attitude(0.0, 0.0, -90.0)
+	var passed: bool = ok and sim_contacts == 1 and c["body_id"] == "boulder-1" and pos_err < 0.001 and heading_dot > 0.99 and right_dot > 0.99
 	metrics.append("SIMFLIGHT %s" % ("PASS" if passed else "FAIL"))
 	_flush_metrics()
 	print("SIMFLIGHT ", "PASS" if passed else "FAIL")
