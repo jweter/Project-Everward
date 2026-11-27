@@ -590,7 +590,7 @@ TArray<FEverwardProbeCapability> UProbeSimulationAdapter::GetInstalledCapabiliti
     else if (!bSensorsHaveOperatingPower)
     {
         const auto Guidance = Core->scan_power_guidance();
-        SensorReason = UTF8_TO_TCHAR(Guidance.message.c_str());
+        SensorReason = UTF8_TO_TCHAR(Guidance.compact_message.c_str());
     }
     SensorReason += TEXT(" // ") + IntegrityReason(*Core, everward::simulation::PowerSubsystem::Sensors);
     AddCapability(FName(TEXT("sensors")), TEXT("Sensors"),

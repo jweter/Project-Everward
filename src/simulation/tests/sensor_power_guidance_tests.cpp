@@ -115,6 +115,10 @@ int main() {
         assert(contains(dropped.message, "conserve_sensor_power"));
         const auto refusal = scan_refusal(runtime);
         assert(contains(refusal, dropped.message));
+        assert(dropped.compact_message == "Clear policy; raise power; scan");
+        assert(dropped.compact_message.size() <= 48);
+        // HUD command row reserves 14 characters for CMD REJECTED: and 3 for ellipsis.
+        assert(("CMD REJECTED: " + refusal).substr(0, 47).find(dropped.compact_message) != std::string::npos);
         assert(contains(refusal, "1) clear or disable the policy"));
         assert(contains(refusal, "2) raise Sensors"));
         assert(contains(refusal, "3) scan again"));
@@ -143,6 +147,9 @@ int main() {
         assert(low.state == SensorPowerState::BelowFloorManual);
         const auto refusal = scan_refusal(runtime);
         assert(contains(refusal, low.message));
+        assert(low.compact_message == "Raise Sensors to minimum; scan");
+        assert(low.compact_message.size() <= 48);
+        assert(("CMD REJECTED: " + refusal).substr(0, 47).find(low.compact_message) != std::string::npos);
         assert(contains(refusal, "Raise the Sensors power allocation"));
         assert(!contains(refusal, "clear or disable the policy"));
 

@@ -255,7 +255,7 @@ public:
         const auto guidance = scan_power_guidance();
         if (guidance.state != SensorPowerState::Ready) {
             throw std::runtime_error(
-                "sensors below minimum operating power: need >= " +
+                guidance.compact_message + ". sensors below minimum operating power: need >= " +
                 whole_watts(kGeneration1MinimumSensorPowerW) + " W. " + guidance.message);
         }
         core_.start_scan(target_id, duration_s);

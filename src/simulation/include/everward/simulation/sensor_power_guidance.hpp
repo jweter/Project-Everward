@@ -27,6 +27,8 @@ enum class SensorPowerState {
 struct SensorPowerGuidance {
     SensorPowerState state{SensorPowerState::Ready};
     std::string message;
+    // Action-first text fits both the 48-character status and 50-character command row.
+    std::string compact_message;
 };
 
 [[nodiscard]] inline SensorPowerGuidance sensor_power_guidance(
@@ -49,6 +51,7 @@ struct SensorPowerGuidance {
 
     if (policy_installed && policy_enabled) {
         guidance.state = SensorPowerState::BelowFloorPolicyInstalled;
+        guidance.compact_message = "Clear policy; raise power; scan";
         guidance.message =
             "Sensors are at " + current_text + "; scanning needs " + floor_text + ". The installed policy '" +
             std::string(policy_id) +
@@ -59,6 +62,7 @@ struct SensorPowerGuidance {
     }
 
     guidance.state = SensorPowerState::BelowFloorManual;
+    guidance.compact_message = "Raise Sensors to minimum; scan";
     guidance.message =
         "Sensors are at " + current_text + "; scanning needs " + floor_text +
         ". Raise the Sensors power allocation to at least " + floor_text + " and scan again.";
