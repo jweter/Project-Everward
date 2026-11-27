@@ -234,66 +234,43 @@ bool FEverwardG03MiningSuccessTest::RunTest(const FString& Parameters)
     const double StagingErrorMeters = (Adapter->GetProbePositionMeters() - Solution.ProbePositionMeters).Size();
     if (!TestTrue(TEXT("Probe reaches the solved staging position"), StagingErrorMeters < 0.05)) return false;
 
-    // 5. Align the joints to the solved pose through a collision-free intermediate
-    // trajectory, not a direct simultaneous slew. ManipulatorRig's installed hull
-    // self-collision guard (manipulator_hull_contact.hpp's
-    // make_hull_self_collision_guard(), wired in by
-    // ProbeSimulationAdapter::BuildManipulatorCollisionGuard) rejects a whole
-    // slew step -- freezing every joint, not just the offending one -- the
-    // instant any candidate pose would sweep the arm through the probe's own
-    // hull. Swinging the shoulder straight from its deployed rest angle (0 deg)
-    // toward this solution's ~50 deg with the elbow already at its final ~5 deg
-    // does exactly that for this canonical bootstrap deposit: the shoulder
-    // freezes partway and never reaches target, leaving the tool tip meters out
-    // of reach. Bending the elbow to a safe 90 deg first clears the forearm of
-    // that swept region for any shoulder angle, so: elbow to a safe waypoint,
-    // then the shoulder sweep, then elbow/wrist down to their final solved
-    // values with the shoulder now already out of the way. Each stage is
-    // confirmed actually converged (not merely ticked and hoped) before the
-    // next begins. 8 s per stage bounds even the widest possible single-joint
-    // swing (wrist's full 360-degree range) at the real 45 deg/s slew rate
-    // (manipulator.hpp's kJointSlewDegreesPerSecond).
-    auto JointsConverged = [](const FEverwardManipulatorArmState& S, double ToleranceDegrees) {
-        return FMath::Abs(S.ShoulderDegrees - S.CommandedShoulderDegrees) <= ToleranceDegrees &&
-            FMath::Abs(S.ElbowDegrees - S.CommandedElbowDegrees) <= ToleranceDegrees &&
-            FMath::Abs(S.WristDegrees - S.CommandedWristDegrees) <= ToleranceDegrees;
-    };
-    constexpr double SafeElbowWaypointDegrees = 90.0;
-
-    if (!TestTrue(TEXT("Elbow waypoint target accepted"),
-        Adapter->CommandSetManipulatorJointTargetDegrees(
-            Arm, EEverwardManipulatorJoint::Elbow, SafeElbowWaypointDegrees).bAccepted)) return false;
-    for (int32 Settle = 0; Settle < 4; ++Settle)
+    // 5. Align the arm exactly as the player's align control does. ManipulatorRig's hull guard rejects a whole slew
+    // frame the instant a candidate pose would sweep through the probe's hull, so a direct three-joint command stalls
+    // the shoulder near 10 degrees on its way to the solved ~50 (reproduced in manipulator_path_planner_tests). The
+    // adapter plans collision-free waypoints from the arm's current angles under the live guard; each is commanded
+    // and confirmed converged before the next. 10 s per waypoint bounds even a full 360-degree wrist swing at the
+    // real 45 deg/s slew (manipulator.hpp's kJointSlewDegreesPerSecond).
+    TArray<FVector> Path;
+    if (!TestTrue(TEXT("A collision-free joint path to the solved mining pose exists"),
+        Adapter->PlanArmPathToDegrees(
+            Arm, Solution.ShoulderDegrees, Solution.ElbowDegrees, Solution.WristDegrees, Path))) return false;
+    for (const FVector& Waypoint : Path)
     {
-        if (!Fixture.TickFor(2.0f, this)) return false;
-    }
-    if (!TestTrue(TEXT("Elbow reaches its safe waypoint before the shoulder sweeps"), ArmState(State))) return false;
-    if (!TestTrue(TEXT("Elbow waypoint actually converged"), JointsConverged(State, 0.5))) return false;
-
-    if (!TestTrue(TEXT("Shoulder target accepted"),
-        Adapter->CommandSetManipulatorJointTargetDegrees(
-            Arm, EEverwardManipulatorJoint::Shoulder, Solution.ShoulderDegrees).bAccepted)) return false;
-    for (int32 Settle = 0; Settle < 4; ++Settle)
-    {
-        if (!Fixture.TickFor(2.0f, this)) return false;
-    }
-    if (!TestTrue(TEXT("Shoulder state readable after the sweep"), ArmState(State))) return false;
-    if (!TestTrue(TEXT("Shoulder actually reaches the solved angle, not stuck on the hull guard"),
-        JointsConverged(State, 0.5))) return false;
-
-    if (!TestTrue(TEXT("Elbow target accepted"),
-        Adapter->CommandSetManipulatorJointTargetDegrees(
-            Arm, EEverwardManipulatorJoint::Elbow, Solution.ElbowDegrees).bAccepted)) return false;
-    if (!TestTrue(TEXT("Wrist target accepted"),
-        Adapter->CommandSetManipulatorJointTargetDegrees(
-            Arm, EEverwardManipulatorJoint::Wrist, Solution.WristDegrees).bAccepted)) return false;
-    for (int32 Settle = 0; Settle < 4; ++Settle)
-    {
-        if (!Fixture.TickFor(2.0f, this)) return false;
+        if (!TestTrue(TEXT("Waypoint shoulder target accepted"),
+            Adapter->CommandSetManipulatorJointTargetDegrees(
+                Arm, EEverwardManipulatorJoint::Shoulder, Waypoint.X).bAccepted)) return false;
+        if (!TestTrue(TEXT("Waypoint elbow target accepted"),
+            Adapter->CommandSetManipulatorJointTargetDegrees(
+                Arm, EEverwardManipulatorJoint::Elbow, Waypoint.Y).bAccepted)) return false;
+        if (!TestTrue(TEXT("Waypoint wrist target accepted"),
+            Adapter->CommandSetManipulatorJointTargetDegrees(
+                Arm, EEverwardManipulatorJoint::Wrist, Waypoint.Z).bAccepted)) return false;
+        bool bArrived = false;
+        for (int32 Chunk = 0; Chunk < 20 && !bArrived; ++Chunk)
+        {
+            if (!Fixture.TickFor(0.5f, this)) return false;
+            if (!TestTrue(TEXT("Arm state readable while following the planned path"), ArmState(State))) return false;
+            bArrived = FMath::Abs(State.ShoulderDegrees - Waypoint.X) <= 0.01 &&
+                FMath::Abs(State.ElbowDegrees - Waypoint.Y) <= 0.01 &&
+                FMath::Abs(State.WristDegrees - Waypoint.Z) <= 0.01;
+        }
+        if (!TestTrue(TEXT("Arm reaches each planned waypoint, not stuck on the hull guard"), bArrived)) return false;
     }
     if (!TestTrue(TEXT("Final arm state readable"), ArmState(State))) return false;
-    if (!TestTrue(TEXT("Elbow and wrist settle onto the solved pose with the shoulder clear"),
-        JointsConverged(State, 0.5))) return false;
+    if (!TestTrue(TEXT("Arm ends on the solved mining pose"),
+        FMath::Abs(State.ShoulderDegrees - Solution.ShoulderDegrees) <= 0.5 &&
+        FMath::Abs(State.ElbowDegrees - Solution.ElbowDegrees) <= 0.5 &&
+        FMath::Abs(State.WristDegrees - Solution.WristDegrees) <= 0.5)) return false;
 
     // 6. The actual G01 success assertion FEverwardG03RejectedMiningTest deliberately
     // stops short of: a real accepted mine_once with positive named-material inventory
