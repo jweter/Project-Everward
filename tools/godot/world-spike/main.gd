@@ -12,6 +12,7 @@ const TRAIL_LIFE := 9.0
 const MAX_DEBRIS := 140
 
 const Looks = preload("res://looks.gd")
+const TreeBuilder = preload("res://tree_builder.gd")
 
 var autotest := false
 var lookshots := false
@@ -286,7 +287,7 @@ func _run_lookshots() -> void:
 		return
 	# hide only the ship's meshes: the camera, cloud layer and terrain viewer are children of the ship
 	for child in ship.get_children():
-		if child is MeshInstance3D:
+		if child is MeshInstance3D or child is Light3D:
 			child.visible = false
 	_place_ship(peak + Vector3(0, 130, 420), peak + Vector3(0, -40, 0))
 	await _wait_stream()   # the ship is the streaming viewer; let the new area mesh before the shot
@@ -311,6 +312,20 @@ func _run_lookshots() -> void:
 		ship.look_at(spot + Vector3(0, 5, 0), Vector3.UP)
 		await _wait_stream()
 	await _shot("look_%s_B_forest" % tag)
+	# close-up: from whichever of eight directions the ground is open (no higher than the tree's base),
+	# stand 20 m out and 10 m up and look at mid-trunk, so the tree is seen against open ground or sky
+	var best_dir := Vector3(1, 0, 0)
+	var best_ground := 1e9
+	for k in 8:
+		var dir8 := Vector3(cos(k * TAU / 8.0), 0, sin(k * TAU / 8.0))
+		var gp = tool.raycast(Vector3(spot.x, 480.0, spot.z) + dir8 * 20.0, Vector3.DOWN, 700.0)
+		var gy8: float = 1e9 if gp == null else float(gp.position.y)
+		if gy8 < best_ground:
+			best_ground = gy8
+			best_dir = dir8
+	_place_ship(spot + best_dir * 20.0 + Vector3(0, maxf(10.0, best_ground - spot.y + 4.0), 0), spot + Vector3(0, 7, 0))
+	await _wait_stream()
+	await _shot("look_%s_D_trees_close" % tag)
 	_place_ship(peak + Vector3(-90, -40, 260), peak + Vector3(0, 20, 0))
 	await _wait_stream()   # the ship is the streaming viewer; let the new area mesh before the shot
 	await _shot("look_%s_C_mountain" % tag)
@@ -540,43 +555,43 @@ func _place_trees(count: int = 700, area: float = 420.0, center: Vector3 = Vecto
 		var p: Vector3 = Vector3(hit.position)
 		if hit.normal.y < 0.86 or p.y > 125.0 or p.y < 0.0:
 			continue
-		var s := randf_range(0.75, 1.7)
+		var s := randf_range(0.75, 1.25)
 		var b := Basis(Vector3.UP, randf() * TAU).scaled(Vector3(s, s, s))
-		transforms.append(Transform3D(b, p + Vector3(0, -0.4, 0)))
+		transforms.append(Transform3D(b, p + Vector3(0, -0.3, 0)))
 		tree_spots.append(p)
 	if transforms.is_empty():
 		return 0
-	var st := SurfaceTool.new()
-	var trunk := CylinderMesh.new()
-	trunk.top_radius = 0.22
-	trunk.bottom_radius = 0.38
-	trunk.height = 3.2
-	trunk.radial_segments = 6
-	trunk.rings = 1
-	st.append_from(trunk, 0, Transform3D(Basis(), Vector3(0, 1.6, 0)))
-	for j in 3:
-		var cone := CylinderMesh.new()
-		cone.top_radius = 0.0
-		cone.bottom_radius = 2.4 - j * 0.55
-		cone.height = 3.6
-		cone.radial_segments = 8
-		cone.rings = 1
-		st.append_from(cone, 0, Transform3D(Basis(), Vector3(0, 3.3 + j * 2.2, 0)))
-	var mesh := st.commit()
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = mesh
-	mm.instance_count = transforms.size()
-	for i in transforms.size():
-		mm.set_instance_transform(i, transforms[i])
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	var mat := ShaderMaterial.new()
-	mat.shader = load("res://tree.gdshader")
-	mmi.material_override = mat
-	tree_mats.append(mat)
-	_apply_tree_look(mat)
-	add_child(mmi)
+	# Two species, two variants each (tree_builder.gd). Broadleaf in the low valleys, conifers higher up.
+	var builder := TreeBuilder.new(4242)
+	var variants := [builder.build_conifer(), builder.build_conifer(), builder.build_broadleaf(), builder.build_broadleaf()]
+	var needle_tex := TreeBuilder.make_texture(TreeBuilder.NEEDLE, 11)
+	var leaf_tex := TreeBuilder.make_texture(TreeBuilder.LEAF, 23)
+	var groups: Array = [[], [], [], []]
+	for xf in transforms:
+		var broadleaf := xf.origin.y < 90.0 and randf() < 0.7
+		groups[(2 if broadleaf else 0) + randi() % 2].append(xf)
+	for v in 4:
+		var list: Array = groups[v]
+		if list.is_empty():
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = variants[v]
+		mm.instance_count = list.size()
+		for i in list.size():
+			mm.set_instance_transform(i, list[i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.visibility_range_end = 650.0
+		mmi.visibility_range_end_margin = 60.0
+		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		var mat := ShaderMaterial.new()
+		mat.shader = load("res://tree.gdshader")
+		mat.set_shader_parameter("leaf_tex", needle_tex if v < 2 else leaf_tex)
+		mmi.material_override = mat
+		tree_mats.append(mat)
+		_apply_tree_look(mat)
+		add_child(mmi)
 	return transforms.size()
 
 # ---------------------------------------------------------------------------------------- autotest
