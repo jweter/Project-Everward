@@ -1,3 +1,4 @@
+#include "everward/simulation/impact_damage.hpp"
 #include "everward/simulation/sensor_power_guidance.hpp"
 #include "everward/simulation/software_policy.hpp"
 
@@ -168,6 +169,22 @@ int main() {
         (void)guidance_for(runtime);
         assert(runtime.snapshot().power_allocated_sensors_w == before);
         assert(runtime.policy_status().installed);
+    }
+
+    // The damage-aware runtime the adapters hold gives the same guidance as the runtime it wraps (the Unreal adapter
+    // calls it through DamageAwareProbeRuntime; before the forward existed that call could not compile).
+    {
+        DamageAwareProbeRuntime damaged = DamageAwareProbeRuntime::make_canonical_ev0001();
+        assert(damaged.scan_power_guidance().state == SensorPowerState::Ready);
+        damaged.allocate_power(PowerSubsystem::Sensors, 0.0);
+        assert(damaged.scan_power_guidance().state == SensorPowerState::BelowFloorManual);
+        damaged.install_policy(sensor_conservation_policy());
+        const SensorPowerGuidance g = damaged.scan_power_guidance();
+        assert(g.state == SensorPowerState::BelowFloorPolicyInstalled);
+        assert(contains(g.message, "clear or disable the policy"));
+        damaged.clear_policy();
+        damaged.allocate_power(PowerSubsystem::Sensors, 50.0);
+        assert(damaged.scan_power_guidance().state == SensorPowerState::Ready);
     }
 
     std::cout << "sensor_power_guidance_tests passed\n";

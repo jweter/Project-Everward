@@ -489,6 +489,9 @@ public:
     [[nodiscard]] SoftwarePolicyStatus policy_status() const noexcept {
         return runtime_.policy_status();
     }
+    // Issue #378 G09: the sensor-power explanation and recovery steps. The Unreal adapter (and the Godot binding)
+    // hold a DamageAwareProbeRuntime, so the wrapper must forward this or the adapter cannot compile.
+    [[nodiscard]] SensorPowerGuidance scan_power_guidance() const { return runtime_.scan_power_guidance(); }
     [[nodiscard]] const SoftwarePolicy* active_policy() const noexcept {
         return runtime_.active_policy();
     }
