@@ -17,6 +17,9 @@ if env.get("is_msvc", False):
 else:
     env.Append(CXXFLAGS=["-std=c++20"])
 
+# No "lib" prefix on POSIX, so every platform's file matches project/everward_sim.gdextension (Codex #455).
+env["SHLIBPREFIX"] = ""
+
 sources = ["src/everward_sim.cpp", "src/register_types.cpp"]
 library = env.SharedLibrary(
     "project/bin/everward_sim{}{}".format(env["suffix"], env["SHLIBSUFFIX"]), source=sources

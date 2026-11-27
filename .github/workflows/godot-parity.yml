@@ -52,21 +52,23 @@ jobs:
         id: godot-cpp-cache
         uses: actions/cache@v4
         with:
-          path: godot-cpp
-          key: godot-cpp-${{ env.GODOT_CPP_COMMIT }}-linux-template_debug-exceptions
+          path: /tmp/gc
+          key: godot-cpp-${{ env.GODOT_CPP_COMMIT }}-linux-template_debug-exceptions-tmpgc
 
       - name: Fetch godot-cpp at the pinned commit
         if: steps.godot-cpp-cache.outputs.cache-hit != 'true'
         run: |
-          git init godot-cpp
-          git -C godot-cpp remote add origin https://github.com/godotengine/godot-cpp.git
-          git -C godot-cpp fetch --depth 1 origin "$GODOT_CPP_COMMIT"
-          git -C godot-cpp checkout --detach FETCH_HEAD
-          test "$(git -C godot-cpp rev-parse HEAD)" = "$GODOT_CPP_COMMIT"
+          # a short path: SCons archives godot-cpp with one sh -c command, and long absolute object paths exceed
+          # the kernel's single-argument limit ("Argument list too long", first CI run)
+          git init /tmp/gc
+          git -C /tmp/gc remote add origin https://github.com/godotengine/godot-cpp.git
+          git -C /tmp/gc fetch --depth 1 origin "$GODOT_CPP_COMMIT"
+          git -C /tmp/gc checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/gc rev-parse HEAD)" = "$GODOT_CPP_COMMIT"
 
       - name: Build the EverwardSim extension
         working-directory: tools/godot/sim-binding
-        run: scons -j"$(nproc)" godot_cpp="$GITHUB_WORKSPACE/godot-cpp" platform=linux target=template_debug disable_exceptions=no
+        run: scons -j"$(nproc)" godot_cpp=/tmp/gc platform=linux target=template_debug disable_exceptions=no
 
       - name: Build the native parity reference
         run: g++ -std=c++20 -O2 -I src/simulation/include tools/godot/sim-binding/src/native_parity_main.cpp -o native_parity
