@@ -95,4 +95,65 @@ func _init() -> void:
 		mv_contacts += mv.drain_contact_events()
 	var mp: PackedFloat64Array = mv.get_position()
 	print("moved body %d unknown %d contacts %d pos %.9f" % [moved, moved_unknown, mv_contacts, mp[0]])
+
+	var ore := "ore-1"
+	var mat := "iron_bearing_silicate_regolith"
+	var fl = ClassDB.instantiate("EverwardSim")
+	var fl_dep := 1 if fl.add_deposit(ore, 40.0, 0.0, 0.0, 2.0, mat, "Iron-bearing regolith", 120.0, 5.0) else 0
+	var dup := 1 if fl.add_deposit(ore, 0.0, 0.0, 0.0, 1.0, mat, "", 1.0, 1.0) else 0
+	var early: Dictionary = fl.mine_deposit(ore)
+	print("deposit %d dup %d early %d reason %s" % [fl_dep, dup, 1 if early["accepted"] else 0, early["reason"]])
+	var scan := 1 if fl.start_scan(ore, 10.0) else 0
+	for step in 105:
+		fl.advance_ticks(100000)
+	print("scan %d surveyed %d scanning %d" % [scan, 1 if fl.is_surveyed(ore) else 0, 1 if fl.is_scanning() else 0])
+	var rescan := 1 if fl.start_scan(ore, 10.0) else 0
+	fl.advance_ticks(1000000)
+	var cancelled := 1 if fl.cancel_scan() else 0
+	print("rescan %d cancelled %d surveyed %d" % [rescan, cancelled, 1 if fl.is_surveyed(ore) else 0])
+	var joint_early := 1 if fl.set_joint_targets(0, 10.0, 10.0, 0.0) else 0
+	var toggle := 1 if fl.toggle_arm(0) else 0
+	for step in 22:
+		fl.advance_ticks(100000)
+	var tool := 1 if fl.attach_tool(0) else 0
+	var arm: Dictionary = fl.get_arm_state(0)
+	print("joint_early %d toggle %d tool %d deployed %d accepts %d fraction %.9f" % [joint_early, toggle, tool, 1 if arm["deployed"] else 0, 1 if arm["accepts_joint_commands"] else 0, arm["deployment_fraction"]])
+	var far: Dictionary = fl.mine_deposit(ore)
+	print("far %d gap %.9f reason %s" % [1 if far["accepted"] else 0, far["tool_gap_m"], far["reason"]])
+	var plan: Dictionary = fl.plan_staging(0, ore)
+	var pp: PackedFloat64Array = plan["position"]
+	var pa: PackedFloat64Array = plan["angles"]
+	print("staging %d pos %.9f %.9f %.9f angles %.3f %.3f %.3f gap %.9f" % [1 if plan["has_solution"] else 0, pp[0], pp[1], pp[2], pa[0], pa[1], pa[2], plan["tool_gap_m"]])
+	var approach_steps := 0
+	var dist := 0.0
+	while approach_steps < 600:
+		var cur: PackedFloat64Array = fl.get_position()
+		var dx: float = pp[0] - cur[0]
+		var dy: float = pp[1] - cur[1]
+		var dz: float = pp[2] - cur[2]
+		dist = sqrt(dx * dx + dy * dy + dz * dz)
+		if dist <= 0.25:
+			fl.set_velocity(0.0, 0.0, 0.0)
+			break
+		var speed: float = minf(2.0, maxf(0.25, dist))
+		fl.set_velocity(dx / dist * speed, dy / dist * speed, dz / dist * speed)
+		fl.advance_ticks(100000)
+		approach_steps += 1
+	print("approach steps %d dist %.9f contacts %d" % [approach_steps, dist, fl.drain_contact_events()])
+	var path: Dictionary = fl.plan_arm_path(0, pa[0], pa[1], pa[2])
+	var reached := 0
+	var waypoints: Array = path["waypoints"]
+	for w in waypoints:
+		fl.set_joint_targets(0, w[0], w[1], w[2])
+		for step in 100:
+			var ja: PackedFloat64Array = fl.get_arm_state(0)["angles"]
+			if absf(ja[0] - w[0]) < 1e-6 and absf(ja[1] - w[1]) < 1e-6 and absf(ja[2] - w[2]) < 1e-6:
+				reached += 1
+				break
+			fl.advance_ticks(100000)
+	var posed: PackedFloat64Array = fl.get_arm_state(0)["angles"]
+	print("path %d waypoints %d reached %d angles %.6f %.6f %.6f" % [1 if path["ok"] else 0, waypoints.size(), reached, posed[0], posed[1], posed[2]])
+	var fl_mined: Dictionary = fl.mine_deposit(ore)
+	print("mine %d extracted %.9f remaining %.9f gap %.9f arm %d material %s" % [1 if fl_mined["accepted"] else 0, fl_mined["extracted_kg"], fl_mined["remaining_kg"], fl_mined["tool_gap_m"], fl_mined["arm"], fl_mined["material_id"]])
+	print("inventory %.9f storage %.9f deposit %.9f" % [fl.get_inventory_kg(mat), fl.get_storage_used_kg(), fl.get_world_deposit_remaining_kg(ore)])
 	quit(0)

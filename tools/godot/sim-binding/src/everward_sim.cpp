@@ -17,6 +17,25 @@ void EverwardSim::_bind_methods() {
     ClassDB::bind_method(D_METHOD("add_sphere_body", "id", "x", "y", "z", "radius"), &EverwardSim::add_sphere_body);
     ClassDB::bind_method(D_METHOD("clear_bodies"), &EverwardSim::clear_bodies);
     ClassDB::bind_method(D_METHOD("move_sphere_body", "id", "x", "y", "z"), &EverwardSim::move_sphere_body);
+    ClassDB::bind_method(D_METHOD("add_deposit", "id", "x", "y", "z", "radius", "material_id", "display_name",
+                                  "remaining_kg", "kg_per_cycle"),
+                         &EverwardSim::add_deposit);
+    ClassDB::bind_method(D_METHOD("is_surveyed", "id"), &EverwardSim::is_surveyed);
+    ClassDB::bind_method(D_METHOD("get_world_deposit_remaining_kg", "id"), &EverwardSim::get_world_deposit_remaining_kg);
+    ClassDB::bind_method(D_METHOD("start_scan", "target_id", "duration_s"), &EverwardSim::start_scan);
+    ClassDB::bind_method(D_METHOD("cancel_scan"), &EverwardSim::cancel_scan);
+    ClassDB::bind_method(D_METHOD("is_scanning"), &EverwardSim::is_scanning);
+    ClassDB::bind_method(D_METHOD("get_scan_remaining_s"), &EverwardSim::get_scan_remaining_s);
+    ClassDB::bind_method(D_METHOD("get_scan_target"), &EverwardSim::get_scan_target);
+    ClassDB::bind_method(D_METHOD("toggle_arm", "arm"), &EverwardSim::toggle_arm);
+    ClassDB::bind_method(D_METHOD("attach_tool", "arm"), &EverwardSim::attach_tool);
+    ClassDB::bind_method(D_METHOD("detach_tool", "arm"), &EverwardSim::detach_tool);
+    ClassDB::bind_method(D_METHOD("set_joint_targets", "arm", "shoulder", "elbow", "wrist"), &EverwardSim::set_joint_targets);
+    ClassDB::bind_method(D_METHOD("get_arm_state", "arm"), &EverwardSim::get_arm_state);
+    ClassDB::bind_method(D_METHOD("get_arm_points", "arm"), &EverwardSim::get_arm_points);
+    ClassDB::bind_method(D_METHOD("plan_staging", "arm", "target_id"), &EverwardSim::plan_staging);
+    ClassDB::bind_method(D_METHOD("plan_arm_path", "arm", "shoulder", "elbow", "wrist"), &EverwardSim::plan_arm_path);
+    ClassDB::bind_method(D_METHOD("mine_deposit", "target_id"), &EverwardSim::mine_deposit);
     ClassDB::bind_method(D_METHOD("get_last_contact"), &EverwardSim::get_last_contact);
     ClassDB::bind_method(D_METHOD("drain_contact_events"), &EverwardSim::drain_contact_events);
     ClassDB::bind_method(D_METHOD("setup_bootstrap_deposit", "remaining_kg"), &EverwardSim::setup_bootstrap_deposit);
@@ -82,6 +101,84 @@ Dictionary EverwardSim::get_last_contact() const {
     return d;
 }
 int64_t EverwardSim::drain_contact_events() { return core_.drain_contact_events(); }
+
+static std::string to_std(const String& s) { return std::string(s.utf8().get_data()); }
+static PackedFloat64Array angles3(const everward::simulation::ManipulatorArmAngles& a) {
+    return triple(a.shoulder_degrees, a.elbow_degrees, a.wrist_degrees);
+}
+
+bool EverwardSim::add_deposit(const String& id, double x, double y, double z, double radius, const String& material_id,
+                              const String& display_name, double remaining_kg, double kg_per_cycle) {
+    return core_.add_deposit(to_std(id), x, y, z, radius, to_std(material_id), to_std(display_name), remaining_kg,
+                             kg_per_cycle);
+}
+bool EverwardSim::is_surveyed(const String& id) const { return core_.is_surveyed(to_std(id)); }
+double EverwardSim::get_world_deposit_remaining_kg(const String& id) const {
+    return core_.world_deposit_remaining_kg(to_std(id));
+}
+bool EverwardSim::start_scan(const String& target_id, double duration_s) {
+    return core_.start_scan(to_std(target_id), duration_s);
+}
+bool EverwardSim::cancel_scan() { return core_.cancel_scan(); }
+bool EverwardSim::is_scanning() const { return core_.is_scanning(); }
+double EverwardSim::get_scan_remaining_s() const { return core_.scan_remaining_s(); }
+String EverwardSim::get_scan_target() const { return String::utf8(core_.scan_target().c_str()); }
+bool EverwardSim::toggle_arm(int64_t arm) { return core_.toggle_arm(static_cast<int>(arm)); }
+bool EverwardSim::attach_tool(int64_t arm) { return core_.attach_tool(static_cast<int>(arm)); }
+bool EverwardSim::detach_tool(int64_t arm) { return core_.detach_tool(static_cast<int>(arm)); }
+bool EverwardSim::set_joint_targets(int64_t arm, double shoulder, double elbow, double wrist) {
+    return core_.set_joint_targets(static_cast<int>(arm), shoulder, elbow, wrist);
+}
+Dictionary EverwardSim::get_arm_state(int64_t arm) const {
+    const auto a = core_.arm_info(static_cast<int>(arm));
+    Dictionary d;
+    d["deployed"] = a.deployed;
+    d["deploying"] = a.deploying;
+    d["stowing"] = a.stowing;
+    d["tool_attached"] = a.tool_attached;
+    d["accepts_joint_commands"] = a.accepts_joint_commands;
+    d["deployment_fraction"] = a.deployment_fraction;
+    d["angles"] = angles3(a.angles);
+    d["commanded"] = angles3(a.commanded);
+    return d;
+}
+Array EverwardSim::get_arm_points(int64_t arm) const {
+    Array out;
+    for (const auto& p : core_.arm_points(static_cast<int>(arm))) out.push_back(triple(p.x, p.y, p.z));
+    return out;
+}
+Dictionary EverwardSim::plan_staging(int64_t arm, const String& target_id) const {
+    const auto p = core_.plan_staging(static_cast<int>(arm), to_std(target_id));
+    Dictionary d;
+    d["has_solution"] = p.has_solution;
+    d["position"] = triple(p.probe_position.x, p.probe_position.y, p.probe_position.z);
+    d["angles"] = angles3(p.angles);
+    d["tool_gap_m"] = p.tool_gap_m;
+    return d;
+}
+Dictionary EverwardSim::plan_arm_path(int64_t arm, double shoulder, double elbow, double wrist) const {
+    const auto path = core_.plan_arm_path(static_cast<int>(arm), shoulder, elbow, wrist);
+    Dictionary d;
+    Array waypoints;
+    if (path) {
+        for (const auto& w : *path) waypoints.push_back(angles3(w));
+    }
+    d["ok"] = path.has_value();
+    d["waypoints"] = waypoints;
+    return d;
+}
+Dictionary EverwardSim::mine_deposit(const String& target_id) {
+    const auto r = core_.mine_deposit(to_std(target_id));
+    Dictionary d;
+    d["accepted"] = r.accepted;
+    d["extracted_kg"] = r.extracted_kg;
+    d["remaining_kg"] = r.remaining_kg;
+    d["tool_gap_m"] = r.tool_gap_m;
+    d["arm"] = r.arm;
+    d["material_id"] = String::utf8(r.material_id.c_str());
+    d["reason"] = String::utf8(r.reason.c_str());
+    return d;
+}
 
 bool EverwardSim::setup_bootstrap_deposit(double remaining_kg) { return core_.setup_bootstrap_deposit(remaining_kg); }
 

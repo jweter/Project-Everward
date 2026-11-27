@@ -6,6 +6,7 @@
 #include "everward_sim_core.hpp"
 
 #include <godot_cpp/classes/ref_counted.hpp>
+#include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_float64_array.hpp>
 #include <godot_cpp/variant/string.hpp>
@@ -43,6 +44,26 @@ public:
     bool has_deposit() const;
     String save_json() const;
     bool load_json(const String& json);
+
+    // G3 first loop
+    bool add_deposit(const String& id, double x, double y, double z, double radius, const String& material_id,
+                     const String& display_name, double remaining_kg, double kg_per_cycle);
+    bool is_surveyed(const String& id) const;
+    double get_world_deposit_remaining_kg(const String& id) const;
+    bool start_scan(const String& target_id, double duration_s);
+    bool cancel_scan();
+    bool is_scanning() const;
+    double get_scan_remaining_s() const;
+    String get_scan_target() const;
+    bool toggle_arm(int64_t arm);
+    bool attach_tool(int64_t arm);
+    bool detach_tool(int64_t arm);
+    bool set_joint_targets(int64_t arm, double shoulder, double elbow, double wrist);
+    Dictionary get_arm_state(int64_t arm) const;
+    Array get_arm_points(int64_t arm) const;
+    Dictionary plan_staging(int64_t arm, const String& target_id) const;
+    Dictionary plan_arm_path(int64_t arm, double shoulder, double elbow, double wrist) const;
+    Dictionary mine_deposit(const String& target_id);
 
 private:
     everward::binding::SimCore core_;
