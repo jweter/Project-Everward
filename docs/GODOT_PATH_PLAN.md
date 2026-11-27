@@ -1,6 +1,6 @@
 # Godot path plan
 
-**Status:** direction approved by the owner on 2026-11-27 ("Godot is the next development path"). Unreal is frozen: no new Unreal feature work, and every #378 gate item that needs the native Unreal run stays **unverified** (nothing is ticked). The visual quality of Godot is **not yet judged**; the only Godot evidence is the feasibility spike in `tools/godot/world-spike` (see its README for measurements and limits), run on the dev laptop's integrated GPU.
+**Status:** direction approved by the owner on 2026-11-27 ("Godot is the next development path"). Unreal is frozen: no new Unreal feature work, and every #378 gate item that needs the native Unreal run stays **unverified** (nothing is ticked). The visual quality of Godot is **not yet judged**; the only Godot evidence is the feasibility spike in `tools/godot/world-spike`, merged in #433 (see its README for how to run it, the measurements and the limits), run on the dev laptop's integrated GPU.
 
 **Why:** the native Unreal verification run needs more RAM than the dev laptop has free, and the laptop is not upgradable. Godot runs the same spike at 44-60 FPS on that laptop and runs headless for automated tests.
 
@@ -30,7 +30,7 @@ The paid Aura playtest tooling was Unreal-specific and owner-only; no replacemen
 
 | Phase | Scope | Exit evidence |
 |---|---|---|
-| G0 | Feasibility spike (done, #433) | Scripted route, screenshots, metrics, README limits |
+| G0 | Feasibility spike (done: merged in #433 as `tools/godot/world-spike`; run it per its README) | `-- --autotest` route, screenshots, `metrics.txt`, README limits table |
 | G1 | Binding spike: a GDExtension that ticks the canonical probe and returns a snapshot | A headless Godot script ticks N steps, runs one mining cycle and a save/load round trip, and its numbers equal the C++ test's |
 | G2 | Flight and world: the spike's terrain, clouds and trees driven by the simulated probe, contact events from the simulation | Scripted flight where simulated position, not engine physics, moves the ship; contact reported once per impact |
 | G3 | First-loop parity with #378 G01-G13, re-expressed for Godot, including the planned arm path and the HUD | Headless test per gate item with the same pass criteria; the status vocabulary gains `GODOT_VERIFIED` (proposed, needs owner approval) |
