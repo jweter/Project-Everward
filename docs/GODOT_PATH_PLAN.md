@@ -1,10 +1,12 @@
 # Godot path plan
 
-**Status:** direction approved by the owner on 2026-11-27 ("Godot is the next development path"). Unreal is frozen: no new Unreal feature work, and every #378 gate item that needs the native Unreal run stays **unverified** (nothing is ticked). The visual quality of Godot is **not yet judged**; the only Godot evidence is the feasibility spike in `tools/godot/world-spike`, merged in #433 (see its README for how to run it, the measurements and the limits), run on the dev laptop's integrated GPU.
+**Status (2026-11-27):** **Godot is the owner-approved active production development path** (ADR-0014). New Unreal feature work is frozen; the existing Unreal source is retained as historical/reference material until the G5 archival gate. Engine migration does not close any #378 G01–G13 item without its own evidence. See `docs/ENGINE_DIRECTION.md` and `docs/DECISION_LOG.md`.
 
-**Why:** the native Unreal verification run needs more RAM than the dev laptop has free, and the laptop is not upgradable. Godot runs the same spike at 44-60 FPS on that laptop and runs headless for automated tests.
+**Current implemented evidence:** world-feasibility spike #433; palette/looks and refined procedural trees #436/#439; simulation GDExtension/native parity #437; simulation-driven flight/contact #440/#442; scan → survey → approach → collision-aware arm path → mine #443; resource-funded Fix_It repair #444. These were merged. They do not prove the entire first playable, save/restore of every world state, final sound/visual quality, or packaged distribution.
 
-**Rule that does not change:** `src/simulation` owns authoritative state. The engine is presentation and input only.
+**Why Godot:** Unreal native verification exceeded the feasible free-memory budget on the non-upgradable laptop. Godot's initial scripted world route was 44–60 FPS on its integrated GPU, with a transient dip to approximately 13 FPS during drilling (later tree work reported a higher route FPS and a still-significant drilling dip). C++ simulation + headless Godot now allow bounded automated behavioral verification. A successful headless run does not constitute owner-approved game feel or high-end visual acceptance.
+
+**Invariant:** `src/simulation/` alone owns authoritative mechanical state. Godot presents and submits validated commands through the GDExtension; it must not fork simulation truth. Owner-approved mood/reference images remain outside this **public** repository; commit only appropriately licensed or derived assets and values under the existing provenance gate.
 
 ## What stays and what is replaced
 
@@ -16,7 +18,7 @@
 | All C++ and Python tests that do not need Unreal | HUD (`EverwardHUD`, about 1,300 lines; its read models `ProbeHUDReadModel` and `PeripheralHUDLayout` are already plain C++ and are reused) |
 | | Test environments and the Fix-It actor; the 12 native Unreal automation tests |
 
-The paid Aura playtest tooling was Unreal-specific and owner-only; no replacement is planned.
+The paid Aura playtest tooling was Unreal-specific and owner-only. It remains historical, and no paid Godot equivalent or automated paid use is authorized.
 
 ## Mapping
 
@@ -28,18 +30,20 @@ The paid Aura playtest tooling was Unreal-specific and owner-only; no replacemen
 
 ## Phases and the evidence each one must produce
 
-| Phase | Scope | Exit evidence |
+| Stage | Present status | Required acceptance evidence |
 |---|---|---|
-| G0 | Feasibility spike (done: merged in #433 as `tools/godot/world-spike`; run it per its README) | `-- --autotest` route, screenshots, `metrics.txt`, README limits table |
-| G1 | Binding spike: a GDExtension that ticks the canonical probe and returns a snapshot (in review: #437, `tools/godot/sim-binding`; parity 14/14 lines identical) | A headless Godot script ticks N steps, runs one mining cycle and a save/load round trip, and its numbers equal the C++ test's |
-| G2 | Flight and world: the spike's terrain, clouds and trees driven by the simulated probe, contact events from the simulation | Scripted flight where simulated position, not engine physics, moves the ship; contact reported once per impact |
-| G3 | First-loop parity with #378 G01-G13, re-expressed for Godot, including the planned arm path and the HUD (in progress: scan, survey latch, staging, arm path, mining and Fix_It repair are in `--firstloop` with G05 and G06; save of world deposits and the remaining items follow) | Headless test per gate item with the same pass criteria; the status vocabulary gains `GODOT_VERIFIED` (approved by the owner on 2026-11-27) |
-| G4 | Visual pass on the dev laptop's integrated GPU now (the desktop is unavailable for two months or more); a real-GPU pass later | The owner's judgment on screenshots and a flythrough; quality settings that hold 30+ FPS on the laptop; tuning list |
-| G5 | Retire Unreal | Parity evidence for every gate item, then archive `unreal/` in a normal PR |
+| **G0 — Feasibility** | Implemented, #433 merged | Reproducible world spike, `--autotest` route, captures/metrics and documented laptop limits |
+| **G1 — C++ binding** | Implemented, #437 merged | `EverwardSim` GDExtension, native-vs-Godot exact-source headless parity of canonical simulation and tested save/load behavior |
+| **G2 — Flight/world** | Implemented for bounded pathways, #440/#442 merged | Sim-driven position/orientation, input and contact checks; the three ground-following proxy spheres remain a *terrain approximation* |
+| **G3 — First loop** | In progress, #443/#444 merged | Damaged awakening → scan → survey → physically approach/align/mine → spend stored material and energy on Fix_It → visibly restore capability → repeatable objective, plus persisted world state and remaining #378 G01–G13 equivalent checks |
+| **G4 — Integrated visual/game-feel** | Not accepted | Real Godot captures/flythrough; 30+ FPS target on the current laptop with measured frame-time spikes; readable HUD, credible machine/world art, feedback and bounded owner review; high-end desktop GPU results remain unverified |
+| **G5 — Retire Unreal** | Not started | Required Godot parity and product acceptance, preserved historical evidence and a separate reviewed owner-authorized archival PR |
+
+**Status meanings:** `GODOT_VERIFIED` means an automated headless Godot run on the **exact source commit**, with captured evidence. It is not a synonym for `UNREAL_VERIFIED`, human art/game-feel acceptance, full gameplay acceptance, or commercial readiness. Keep incomplete gate items open even if their subcomponents merge.
 
 ## Risks
 
-- **Look.** Godot has no Nanite or Lumen equivalent; "epic" must come from custom shaders and art. Unproven until G4 on a real GPU.
+- **Look.** Godot lacks Unreal's Nanite/Lumen pipeline; cinematic quality must be built through purposeful lighting, PBR materials, shaders, art, VFX and measured graphics tiers. G4 is still open; laptop evidence is not a substitute for a future desktop GPU assessment.
 - **GDExtension build.** godot-cpp plus the existing MSVC toolchain must build C++20 headers cleanly; G1 exists to find out early.
 - **Voxel Tools.** The spike uses a third-party prebuilt Godot with the voxel module compiled in. A shipping path likely wants the GDExtension build or a build from source; building Godot from source is memory-heavy on this laptop.
 - **Destruction.** The spike's crumble is scripted ceiling removal; physically correct collapse (disconnected rock falls) needs a connectivity pass.
@@ -48,5 +52,5 @@ The paid Aura playtest tooling was Unreal-specific and owner-only; no replacemen
 ## Owner decisions (2026-11-27)
 
 - **godot-cpp and SCons:** permission granted. G1 uses the godot-cpp 4.5 branch (forward-compatible with Godot 4.7).
-- **Desktop GPU:** unavailable for two months or more. All Godot work, including the G4 look pass, targets the dev laptop's Intel Iris Xe until then, and claims about how it looks on a real GPU stay out of scope.
+- **Desktop GPU:** unavailable at the November 27 decision. For now, G4 targets the dev laptop's Intel Iris Xe; desktop GPU quality/performance claims stay out of scope until measured. Do not interpret laptop feasibility as final visual acceptance.
 - **`GODOT_VERIFIED`:** approved. It means verified by an automated headless Godot run on the exact source commit with recorded evidence. It does not imply `UNREAL_VERIFIED` or a human playtest.
