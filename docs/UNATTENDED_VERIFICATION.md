@@ -29,11 +29,11 @@ An unattended worker must identify repository, branch, exact SHA, request, engin
 
 Pending worker verification blocks only the dependent lane. Deterministic simulation, interaction/manipulator/resource/mining/repair foundations, save/load, controls/HUD architecture, component/damage/recovery work, and test infrastructure continue when independent.
 
-## Everward application
+## Everward application — active Godot path
 
-Objective checks such as UBT compilation, Unreal Automation tests, packaged startup, deterministic fixed-step behavior, save/load round trips, component/system state, resource/mining/repair invariants, input-state transitions, HUD data contracts, crash detection, screenshots, and reproducible telemetry should move into CI or the unattended worker.
+Objective checks such as native C++ compilation, Godot GDExtension/native parity, exact-head `--firstloop` tests, deterministic fixed-step behavior, save/load round trips, component, resource, mining and repair invariants, controls/HUD checks, crash detection, screenshots and reproducible telemetry should run through CI or an authorized unattended worker where feasible. Treat **missing or invalid assertions** as failures even if a process exits zero. Track the known first-GDExtension-import crash separately; successful import-cache creation does not establish passing runtime behavior.
 
-The private Windows worker currently runs full preflight, the UBT editor build, the headless Unreal smoke, and then a bounded low-spec startup/process-memory check that reuses the manual `-LowSpec -MeasureMemory` launch contract. That last check records startup survival and working-set facts for the exact tested commit only. Missing telemetry is `REVIEW_REQUIRED`, an editor exit is `FAIL`, and neither result, nor a PASS, is visual, control-feel, frame-time, or gameplay acceptance. See `docs/UNATTENDED_WINDOWS_PRODUCT_REALITY.md`.
+**Legacy Unreal worker history:** the earlier Windows worker used UBT editor builds, headless Unreal smoke and bounded low-spec startup/memory checks. Those historic results are not Godot verification and do not grant current worker authority. The Godot worker path, packaged-game testing and full player interaction capture require explicit current implementation and evidence before being marked operational.
 
 Human review remains appropriate for irreducibly subjective gameplay feel, visual quality, pacing, artistic presentation, or product-direction decisions. Even then, automate setup, navigation, evidence capture, and regression checks so Jeremy evaluates only the final subjective question.
 
