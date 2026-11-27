@@ -14,7 +14,7 @@ The scenario sets a velocity and advances 0.6 s, mines six cycles from a 250 kg 
 
 `GODOT_VERIFIED` (approved by the owner on 2026-11-27) means: verified by an automated headless Godot run on the exact source commit, with the evidence recorded. It sits alongside `UNREAL_VERIFIED`; it does not replace or imply it, and neither implies a human playtest.
 
-**The parity scenario is GODOT_VERIFIED:** 45 of 45 lines are identical between native and Godot 4.7.2 (headless, official build), covering the G1 tick/mining/save scenario, G2 flight and contact, the G3 first loop and Fix_It. The checker also fails correctly when the native side prints something else (negative control).
+**The parity scenario is GODOT_VERIFIED:** 46 of 46 lines are identical between native and Godot 4.7.2 (headless, official build), covering the G1 tick/mining/save scenario, G2 flight and contact, the G3 first loop and Fix_It. The checker also fails correctly when the native side prints something else (negative control).
 
 ## Build (Windows)
 
@@ -74,6 +74,8 @@ Saves (#378 G08): `save_json` writes every world deposit (material, display name
 ### Power and software policy (#378 G09)
 
 `allocate_power(subsystem, watts)` (0 sensors, 1 propulsion, 2 computation, 3 thermal), `get_power_allocations()`, `install_basic_survival_policy()` (the Unreal adapter's GEN1 BASIC SURVIVAL policy rule for rule), `clear_policy()`, `get_policy_status()`, `get_scan_power_guidance()` (the simulation's `sensor_power_guidance`) and `get_last_scan_refusal()` (why the last `start_scan` was refused). The parity lines reproduce the G09 drop: at 50% stored energy the policy sheds sensors to 0 W, scans are refused with "Clear policy; raise power; scan", raising sensors alone does not hold while the policy is installed, and clear, raise, scan surveys.
+
+`bounded_selection(index, delta, count)` is `first_loop_controls.hpp`'s HUD selection rule (#378 G11), used by the world spike's Systems panel.
 
 ## Not covered yet
 

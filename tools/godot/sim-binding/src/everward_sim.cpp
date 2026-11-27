@@ -48,6 +48,7 @@ void EverwardSim::_bind_methods() {
     ClassDB::bind_method(D_METHOD("clear_policy"), &EverwardSim::clear_policy);
     ClassDB::bind_method(D_METHOD("get_policy_status"), &EverwardSim::get_policy_status);
     ClassDB::bind_method(D_METHOD("get_scan_power_guidance"), &EverwardSim::get_scan_power_guidance);
+    ClassDB::bind_method(D_METHOD("bounded_selection", "index", "delta", "count"), &EverwardSim::bounded_selection);
     ClassDB::bind_method(D_METHOD("get_last_contact"), &EverwardSim::get_last_contact);
     ClassDB::bind_method(D_METHOD("drain_contact_events"), &EverwardSim::drain_contact_events);
     ClassDB::bind_method(D_METHOD("setup_bootstrap_deposit", "remaining_kg"), &EverwardSim::setup_bootstrap_deposit);
@@ -259,6 +260,14 @@ Dictionary EverwardSim::get_scan_power_guidance() const {
     d["message"] = String::utf8(g.message.c_str());
     d["compact"] = String::utf8(g.compact_message.c_str());
     return d;
+}
+
+// #378 G11: the HUD selection rule from first_loop_controls.hpp, so the Godot panel uses the simulation's own rule.
+int64_t EverwardSim::bounded_selection(int64_t index, int64_t delta, int64_t count) const {
+    const auto clamp_int = [](int64_t v) {
+        return static_cast<int>(std::clamp<int64_t>(v, std::numeric_limits<int>::min(), std::numeric_limits<int>::max()));
+    };
+    return everward::simulation::bounded_selection(clamp_int(index), clamp_int(delta), clamp_int(count));
 }
 
 bool EverwardSim::setup_bootstrap_deposit(double remaining_kg) { return core_.setup_bootstrap_deposit(remaining_kg); }
