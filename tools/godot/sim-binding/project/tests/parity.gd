@@ -241,4 +241,16 @@ func _init() -> void:
 	var g10_wing: String = ap.get_approach_blocker(32.0, 5.5, 0.0)
 	var g10_c: PackedFloat64Array = ap.get_body_center("boulder-a")
 	print("g10 blocked %s clear [%s] wing %s moved [%s] center %.3f %.3f %.3f unknown %d" % [g10_blocked, g10_clear, g10_wing, g10_moved, g10_c[0], g10_c[1], g10_c[2], 1 if ap.get_body_center("nope").size() > 0 else 0])
+	var g07_mv = ClassDB.instantiate("EverwardSim")
+	g07_mv.adjust_attitude(90.0, 0.0, 0.0)
+	var g07_hull: PackedFloat64Array = g07_mv.get_hull_samples()
+	g07_mv.adjust_attitude(-90.0, 0.0, 0.0)
+	g07_mv.add_sphere_body("debris-m", -0.5, 30.0, 0.0, 1.0)
+	var g07_vel_ok := 1 if g07_mv.set_sphere_body_velocity("debris-m", 0.0, -12.0, 0.0) else 0
+	var g07_vel_unknown := 1 if g07_mv.set_sphere_body_velocity("nope", 0.0, 1.0, 0.0) else 0
+	var g07_contacts := 0
+	for step in 240:
+		g07_mv.advance_ticks(16667)
+		g07_contacts += g07_mv.drain_contact_events()
+	print("g07 nose %.3f %.3f %.3f r %.2f vel %d unknown %d contacts %d probe-vy %.3f" % [g07_hull[0], g07_hull[1], g07_hull[2], g07_hull[3], g07_vel_ok, g07_vel_unknown, g07_contacts, g07_mv.get_velocity()[1]])
 	quit(0)

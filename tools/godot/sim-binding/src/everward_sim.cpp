@@ -43,6 +43,8 @@ void EverwardSim::_bind_methods() {
     ClassDB::bind_method(D_METHOD("drain_fix_it_events"), &EverwardSim::drain_fix_it_events);
     ClassDB::bind_method(D_METHOD("get_last_scan_refusal"), &EverwardSim::get_last_scan_refusal);
     ClassDB::bind_method(D_METHOD("get_approach_blocker", "x", "y", "z"), &EverwardSim::get_approach_blocker);
+    ClassDB::bind_method(D_METHOD("set_sphere_body_velocity", "id", "x", "y", "z"), &EverwardSim::set_sphere_body_velocity);
+    ClassDB::bind_method(D_METHOD("get_hull_samples"), &EverwardSim::get_hull_samples);
     ClassDB::bind_method(D_METHOD("get_body_center", "id"), &EverwardSim::get_body_center);
     ClassDB::bind_method(D_METHOD("allocate_power", "subsystem", "watts"), &EverwardSim::allocate_power);
     ClassDB::bind_method(D_METHOD("get_power_allocations"), &EverwardSim::get_power_allocations);
@@ -231,6 +233,20 @@ PackedStringArray EverwardSim::drain_fix_it_events() {
     return out;
 }
 
+bool EverwardSim::set_sphere_body_velocity(const String& id, double x, double y, double z) {
+    return core_.set_sphere_body_velocity(id.utf8().get_data(), x, y, z);
+}
+// Flat [x, y, z, radius] per hull sample, simulation frame.
+PackedFloat64Array EverwardSim::get_hull_samples() const {
+    PackedFloat64Array out;
+    for (const auto& s : core_.hull_samples()) {
+        out.push_back(s.center.x);
+        out.push_back(s.center.y);
+        out.push_back(s.center.z);
+        out.push_back(s.radius);
+    }
+    return out;
+}
 String EverwardSim::get_approach_blocker(double x, double y, double z) const {
     return String::utf8(core_.approach_blocker(x, y, z).c_str());
 }

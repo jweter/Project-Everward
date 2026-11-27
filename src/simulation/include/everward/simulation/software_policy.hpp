@@ -537,8 +537,14 @@ private:
 
         const ProbeCollisionSphereSample& sample =
             state.compound_collision_envelope.samples[earliest.sample_hit.sample_index];
-        const CompoundContactResolution resolution = resolve_compound_contact(
-            earliest.sample_hit, attitude, sample, body_at_contact, absolute_incoming_velocity);
+        // The velocity is resolved in the body's rest frame and moved back to the world frame: the probe keeps its
+        // own tangential motion but can no longer move into the body faster than the body moves (its normal
+        // component becomes the body's). For a stationary body this is exactly the previous resolution. Resolving the
+        // absolute velocity instead left a stationary probe at rest under a moving body, so the body hit it again on
+        // every following tick -- 37 contact events and their damage for one 12 m/s impact (#378 G07).
+        CompoundContactResolution resolution = resolve_compound_contact(
+            earliest.sample_hit, attitude, sample, body_at_contact, relative_velocity);
+        resolution.resolved_velocity = contact_add(resolution.resolved_velocity, earliest.body->velocity_mps);
 
         core_.resolve_contact(
             earliest.body->body_id,

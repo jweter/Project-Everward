@@ -190,6 +190,32 @@ public:
         }
     }
     void clear_bodies() noexcept { runtime_.clear_static_bodies(); }
+    // G07: a body that moves by itself (a tractor target, debris). The simulation advances it every step and sweeps it
+    // against the probe, unlike move_sphere_body, which teleports it between steps.
+    bool set_sphere_body_velocity(const std::string& id, double x, double y, double z) {
+        if (id.empty() || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) || !find_body(id)) return false;
+        try {
+            runtime_.update_static_sphere_body_velocity(id, {x, y, z});
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
+    struct HullSample {
+        Vector3d center;
+        double radius;
+    };
+    // G07: the probe's authoritative compound collision envelope placed at its current pose (world centres and radii),
+    // the geometry contact is decided with.
+    [[nodiscard]] std::vector<HullSample> hull_samples() const {
+        const auto& s = runtime_.snapshot();
+        std::vector<HullSample> out;
+        for (const ProbeCollisionSphereSample& sample : s.compound_collision_envelope.samples) {
+            out.push_back({contact_add(s.position_m, rotate_local_contact_offset(sample.local_center_m, s.attitude_degrees)),
+                           sample.radius_m});
+        }
+        return out;
+    }
     // Moves a registered body (used for terrain proxy spheres that follow the ground under the probe).
     bool move_sphere_body(const std::string& id, double x, double y, double z) {
         if (id.empty() || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;

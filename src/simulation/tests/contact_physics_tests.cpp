@@ -206,6 +206,56 @@ int main() {
         assert(!has_event(events, DomainEventType::Contact));
     }
 
+    // #378 G07: a body moving into a stationary probe hits it once, not on every tick. After the contact the probe
+    // must move away with the body's normal velocity; before the fix it stayed at rest, the body kept arriving, and a
+    // single 12 m/s impact produced dozens of contact events (each one an impact to the damage model).
+    {
+        ProbeRuntime runtime;
+        // Comes from +y toward the starboard wing sample (local {-0.5, 3, 0}, radius 1.0) at 12 m/s.
+        runtime.add_static_sphere_body(
+            StaticSphereBody{"debris", {-0.5, 30.0, 0.0}, 1.0, "", 0.0, {0.0, -12.0, 0.0}});
+        (void)runtime.drain_events();
+        int contacts = 0;
+        for (int tick = 0; tick < 240; ++tick) {  // 4 s at 60 Hz
+            runtime.advance_wall_ticks(SimulationClock::TicksPerSecond / 60);
+            for (const auto& event : runtime.drain_events()) {
+                if (event.type == DomainEventType::Contact) ++contacts;
+            }
+        }
+        const auto& state = runtime.snapshot();
+        assert(contacts == 1);
+        assert(state.last_contact_body_id == "debris");
+        assert(nearly_equal(state.last_contact_normal_speed_mps, 12.0));
+        assert(nearly_equal(state.velocity_mps.y, -12.0));   // carried along the normal at the body's speed
+        assert(nearly_equal(state.velocity_mps.x, 0.0));     // no invented tangential motion
+        // The body (from +y) stays above the wing; the hull is at most one tick of the body's travel inside it while
+        // carried, and that overlap does not grow (combined radius 2.0 m).
+        const double wing_y = state.position_m.y + 3.0;
+        const double body_y = runtime.static_bodies().front().center_m.y;
+        assert(body_y > wing_y);
+        assert(body_y - wing_y > 2.0 - 12.0 / 60.0 - 1e-6);
+    }
+
+    // The same rule keeps a probe's own tangential motion past a moving body: only the approaching normal part is
+    // removed, measured against the body's motion.
+    {
+        ProbeRuntime runtime;
+        runtime.add_static_sphere_body(
+            StaticSphereBody{"slider", {5.75, 30.0, 0.0}, 1.0, "", 0.0, {0.0, -12.0, 0.0}});  // meets the wing ~2.08 s in, 6.25 m along x
+        runtime.set_velocity_mps({3.0, 0.0, 0.0});
+        (void)runtime.drain_events();
+        int contacts = 0;
+        for (int tick = 0; tick < 240; ++tick) {
+            runtime.advance_wall_ticks(SimulationClock::TicksPerSecond / 60);
+            for (const auto& event : runtime.drain_events()) {
+                if (event.type == DomainEventType::Contact) ++contacts;
+            }
+        }
+        assert(contacts == 1);
+        assert(nearly_equal(runtime.snapshot().velocity_mps.x, 3.0));   // its own motion past the body is kept
+        assert(nearly_equal(runtime.snapshot().velocity_mps.y, -12.0));
+    }
+
     std::cout << "Physical contact foundation tests passed\n";
     return 0;
 }
