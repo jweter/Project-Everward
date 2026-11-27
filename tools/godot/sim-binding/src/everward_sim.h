@@ -20,11 +20,11 @@ protected:
 
 public:
     void reset();
-    void advance_ticks(int64_t wall_ticks);
+    bool advance_ticks(int64_t wall_ticks);
     int64_t get_tick() const;
-    void set_velocity(double x, double y, double z);
+    bool set_velocity(double x, double y, double z);
     PackedFloat64Array get_position() const;
-    void setup_bootstrap_deposit(double remaining_kg);
+    bool setup_bootstrap_deposit(double remaining_kg);
     Dictionary mine_once();
     double get_inventory_kg(const String& material) const;
     double get_extracted_kg() const;

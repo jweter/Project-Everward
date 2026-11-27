@@ -3,6 +3,7 @@
 // steps from GDScript through the binding (tests/parity.gd); both print the same lines and must match.
 #include "everward_sim_core.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -71,6 +72,14 @@ inline std::vector<std::string> run_native_parity() {
     }
     const int bad_loaded = sim.load_json(bad) ? 1 : 0;
     line("invalid mass load %d inventory %.9f", bad_loaded, sim.inventory_kg("iron_regolith"));
+    // 4: invalid commands are rejected at the boundary instead of throwing into the engine.
+    SimCore cmd;
+    const int adv = cmd.advance_ticks(-1) ? 1 : 0;
+    const int vel = cmd.set_velocity(std::nan(""), 0.0, 0.0) ? 1 : 0;
+    const int dep = cmd.setup_bootstrap_deposit(-1.0) ? 1 : 0;
+    const int mined = cmd.mine_once().accepted ? 1 : 0;
+    line("invalid commands advance %d velocity %d deposit %d mine %d tick %lld", adv, vel, dep, mined,
+         static_cast<long long>(cmd.tick()));
     return out;
 }
 

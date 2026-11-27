@@ -8,13 +8,13 @@ A GDExtension that runs the real Everward simulation (`src/simulation`) inside G
 - `project/tests/parity.gd`: the same steps from GDScript through the extension.
 - `check_parity.py`: runs both and fails on any difference.
 
-The scenario sets a velocity and advances 0.6 s, mines six cycles from a 250 kg deposit, saves, mines four more, loads the save, mines two more, then feeds in a corrupt save, which must be rejected with nothing changed. Three review regressions follow: a 600 kg deposit must fill the 500 kg hold (storage counted once, as the game's mining bridge does); loading a save taken before the deposit existed must clear the deposit; and a well-formed save with an invalid value (`mass_kg` of -1) must be rejected, never thrown into Godot.
+The scenario sets a velocity and advances 0.6 s, mines six cycles from a 250 kg deposit, saves, mines four more, loads the save, mines two more, then feeds in a corrupt save, which must be rejected with nothing changed. Three review regressions follow: a 600 kg deposit must fill the 500 kg hold (storage counted once, as the game's mining bridge does); loading a save taken before the deposit existed must clear the deposit; a well-formed save with an invalid value (`mass_kg` of -1) must be rejected, never thrown into Godot; and invalid commands (negative ticks, a NaN velocity, a negative deposit) must return false and leave the simulation untouched. No C++ exception crosses the Godot boundary: every command validates its input and contains simulation errors.
 
 ## Status vocabulary
 
 `GODOT_VERIFIED` (approved by the owner on 2026-11-27) means: verified by an automated headless Godot run on the exact source commit, with the evidence recorded. It sits alongside `UNREAL_VERIFIED`; it does not replace or imply it, and neither implies a human playtest.
 
-**G1 is GODOT_VERIFIED for this scenario only:** 17 of 17 lines are identical between native and Godot 4.7.2 (headless, official build). The checker also fails correctly when the native side prints something else (negative control).
+**G1 is GODOT_VERIFIED for this scenario only:** 18 of 18 lines are identical between native and Godot 4.7.2 (headless, official build). The checker also fails correctly when the native side prints something else (negative control).
 
 ## Build (Windows)
 

@@ -23,9 +23,9 @@ void EverwardSim::_bind_methods() {
 }
 
 void EverwardSim::reset() { core_.reset(); }
-void EverwardSim::advance_ticks(int64_t wall_ticks) { core_.advance_ticks(wall_ticks); }
+bool EverwardSim::advance_ticks(int64_t wall_ticks) { return core_.advance_ticks(wall_ticks); }
 int64_t EverwardSim::get_tick() const { return core_.tick(); }
-void EverwardSim::set_velocity(double x, double y, double z) { core_.set_velocity(x, y, z); }
+bool EverwardSim::set_velocity(double x, double y, double z) { return core_.set_velocity(x, y, z); }
 
 PackedFloat64Array EverwardSim::get_position() const {
     const auto p = core_.position();
@@ -36,7 +36,7 @@ PackedFloat64Array EverwardSim::get_position() const {
     return out;
 }
 
-void EverwardSim::setup_bootstrap_deposit(double remaining_kg) { core_.setup_bootstrap_deposit(remaining_kg); }
+bool EverwardSim::setup_bootstrap_deposit(double remaining_kg) { return core_.setup_bootstrap_deposit(remaining_kg); }
 
 Dictionary EverwardSim::mine_once() {
     const auto r = core_.mine_once();

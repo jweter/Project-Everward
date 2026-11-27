@@ -11,6 +11,7 @@
 #include "everward/simulation/mining.hpp"
 #include "everward/simulation/save_data.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <exception>
 #include <optional>
@@ -41,20 +42,39 @@ public:
         has_deposit_ = false;
     }
 
-    void advance_ticks(std::int64_t wall_ticks) { runtime_.advance_wall_ticks(wall_ticks); }
+    // Commands return false for input the simulation rejects; no exception ever leaves this class.
+    bool advance_ticks(std::int64_t wall_ticks) {
+        if (wall_ticks < 0) return false;
+        try {
+            runtime_.advance_wall_ticks(wall_ticks);
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
     [[nodiscard]] std::int64_t tick() const { return runtime_.tick(); }
-    void set_velocity(double x, double y, double z) { runtime_.set_velocity_mps({x, y, z}); }
+    bool set_velocity(double x, double y, double z) {
+        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;
+        try {
+            runtime_.set_velocity_mps({x, y, z});
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
     [[nodiscard]] Vector3d position() const { return runtime_.snapshot().position_m; }
 
     // Deploy the port arm, attach its tool and register a surveyed deposit just beyond the tool tip (the same
     // setup the native save/deposit regression test uses).
-    void setup_bootstrap_deposit(double remaining_kg) {
+    bool setup_bootstrap_deposit(double remaining_kg) {
+        if (!std::isfinite(remaining_kg) || remaining_kg < 0.0) return false;
         rig_ = ManipulatorRig{};
         rig_.begin_deploy(ManipulatorArmId::Port);
         rig_.advance(ManipulatorRig::kDeployStowDurationS);
         rig_.attach_tool(ManipulatorArmId::Port);
         deposit_remaining_kg_ = remaining_kg;
         has_deposit_ = true;
+        return true;
     }
 
     MineResult mine_once() {
@@ -63,12 +83,17 @@ public:
             out.reason = "no deposit";
             return out;
         }
-        MiningSystem mining;  // fresh per attempt, like the game's mining bridge
-        mining.add_deposit(deposit_at_tool_tip(deposit_remaining_kg_));
-        mining.mark_surveyed(kTarget);
-        const auto& snap = runtime_.snapshot();
-        const MiningAttemptResult r =
-            mining.mine_once(kTarget, rig_, ProbeWorldPose{}, snap.storage_used_kg, snap.storage_capacity_kg);
+        MiningAttemptResult r;
+        try {
+            MiningSystem mining;  // fresh per attempt, like the game's mining bridge
+            mining.add_deposit(deposit_at_tool_tip(deposit_remaining_kg_));
+            mining.mark_surveyed(kTarget);
+            const auto& snap = runtime_.snapshot();
+            r = mining.mine_once(kTarget, rig_, ProbeWorldPose{}, snap.storage_used_kg, snap.storage_capacity_kg);
+        } catch (const std::exception& e) {
+            out.reason = std::string("rejected: ") + e.what();
+            return out;
+        }
         out.accepted = r.accepted;
         out.remaining_kg = r.remaining_deposit_kg;
         out.reason = r.detail;

@@ -59,4 +59,10 @@ func _init() -> void:
 			stop += 1
 		bad = bad.substr(0, start) + "-1" + bad.substr(stop)
 	print("invalid mass load %d inventory %.9f" % [1 if sim.load_json(bad) else 0, sim.get_inventory_kg("iron_regolith")])
+	var cmd = ClassDB.instantiate("EverwardSim")
+	var adv := 1 if cmd.advance_ticks(-1) else 0
+	var vel := 1 if cmd.set_velocity(NAN, 0.0, 0.0) else 0
+	var dep := 1 if cmd.setup_bootstrap_deposit(-1.0) else 0
+	var mined := 1 if cmd.mine_once()["accepted"] else 0
+	print("invalid commands advance %d velocity %d deposit %d mine %d tick %d" % [adv, vel, dep, mined, cmd.get_tick()])
 	quit(0)
