@@ -12,10 +12,11 @@ RUNNER = ROOT / "tools" / "run_unreal_native_g03.ps1"
 class G03NativeContractTests(unittest.TestCase):
     def test_seven_native_unreal_automation_tests_are_registered(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
-        self.assertEqual(source.count("IMPLEMENT_SIMPLE_AUTOMATION_TEST("), 7)
+        self.assertEqual(source.count("IMPLEMENT_SIMPLE_AUTOMATION_TEST("), 8)
         for name in (
             "Everward.G03.Native.ScanSurveyPersistsAfterCancel",
             "Everward.G03.Native.MiningRejectsWithoutSurveyAndTool",
+            "Everward.G03.Native.MiningSuccessCreditsInventoryAndReducesDeposit",
             "Everward.G03.Native.ArmToggleReversesAndJointControlsStayHonest",
             "Everward.G03.Native.RestorationObjectiveCycleMirror",
             "Everward.G03.Native.RestorationObjectiveCycleCompletes",
@@ -79,7 +80,7 @@ class G03NativeContractTests(unittest.TestCase):
         import re
         registrations = set(re.findall(r'"(Everward\.G03\.Native\.[^"]+)"', native))
         required = set(re.findall(r"'(Everward\.G03\.Native\.[^']+)'", runner))
-        self.assertEqual(len(registrations), 11)
+        self.assertEqual(len(registrations), 12)
         self.assertEqual(required, registrations)
         self.assertIn("[int]$Parsed.failed -ne 0", runner)
         self.assertIn("[int]$Parsed.succeeded -lt $RequiredTestNames.Count", runner)
