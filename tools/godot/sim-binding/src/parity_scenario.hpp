@@ -3,6 +3,7 @@
 // steps from GDScript through the binding (tests/parity.gd); both print the same lines and must match.
 #include "everward_sim_core.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -115,6 +116,77 @@ inline std::vector<std::string> run_native_parity() {
     }
     const Vector3d mp = mv.position();
     line("moved body %d unknown %d contacts %d pos %.9f", moved, moved_unknown, mv_contacts, mp.x);
+
+    // 7 (G3): the first loop on a world deposit -- scan, survey, staging, approach, arm path, mine -- plus the
+    // rejections that must hold on the way (unsurveyed, out of reach) and the G05 survey latch.
+    const char* ore = "ore-1";
+    const char* mat = "iron_bearing_silicate_regolith";
+    SimCore fl;
+    const int fl_dep = fl.add_deposit(ore, 40.0, 0.0, 0.0, 2.0, mat, "Iron-bearing regolith", 120.0, 5.0) ? 1 : 0;
+    const int dup = fl.add_deposit(ore, 0.0, 0.0, 0.0, 1.0, mat, "", 1.0, 1.0) ? 1 : 0;
+    const MineResult early = fl.mine_deposit(ore);
+    line("deposit %d dup %d early %d reason %s", fl_dep, dup, early.accepted ? 1 : 0, early.reason.c_str());
+    const int scan = fl.start_scan(ore, 10.0) ? 1 : 0;
+    for (int step = 0; step < 105; ++step) fl.advance_ticks(100000);
+    line("scan %d surveyed %d scanning %d", scan, fl.is_surveyed(ore) ? 1 : 0, fl.is_scanning() ? 1 : 0);
+    const int rescan = fl.start_scan(ore, 10.0) ? 1 : 0;
+    fl.advance_ticks(1000000);
+    const int cancelled = fl.cancel_scan() ? 1 : 0;
+    line("rescan %d cancelled %d surveyed %d", rescan, cancelled, fl.is_surveyed(ore) ? 1 : 0);
+    const int joint_early = fl.set_joint_targets(0, 10.0, 10.0, 0.0) ? 1 : 0;
+    const int toggle = fl.toggle_arm(0) ? 1 : 0;
+    for (int step = 0; step < 22; ++step) fl.advance_ticks(100000);
+    const int tool = fl.attach_tool(0) ? 1 : 0;
+    const ArmInfo arm = fl.arm_info(0);
+    line("joint_early %d toggle %d tool %d deployed %d accepts %d fraction %.9f", joint_early, toggle, tool,
+         arm.deployed ? 1 : 0, arm.accepts_joint_commands ? 1 : 0, arm.deployment_fraction);
+    const MineResult far = fl.mine_deposit(ore);
+    line("far %d gap %.9f reason %s", far.accepted ? 1 : 0, far.tool_gap_m, far.reason.c_str());
+    const StagingPlan plan = fl.plan_staging(0, ore);
+    line("staging %d pos %.9f %.9f %.9f angles %.3f %.3f %.3f gap %.9f", plan.has_solution ? 1 : 0, plan.probe_position.x,
+         plan.probe_position.y, plan.probe_position.z, plan.angles.shoulder_degrees, plan.angles.elbow_degrees,
+         plan.angles.wrist_degrees, plan.tool_gap_m);
+    int approach_steps = 0;
+    double dist = 0.0;
+    for (; approach_steps < 600; ++approach_steps) {  // the Unreal auto-approach: <= 2 m/s, stop within 0.25 m
+        const Vector3d cur = fl.position();
+        const Vector3d d{plan.probe_position.x - cur.x, plan.probe_position.y - cur.y, plan.probe_position.z - cur.z};
+        dist = std::sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
+        if (dist <= 0.25) {
+            fl.set_velocity(0.0, 0.0, 0.0);
+            break;
+        }
+        const double speed = std::min(2.0, std::max(0.25, dist));
+        fl.set_velocity(d.x / dist * speed, d.y / dist * speed, d.z / dist * speed);
+        fl.advance_ticks(100000);
+    }
+    line("approach steps %d dist %.9f contacts %d", approach_steps, dist, fl.drain_contact_events());
+    const auto path = fl.plan_arm_path(0, plan.angles.shoulder_degrees, plan.angles.elbow_degrees,
+                                       plan.angles.wrist_degrees);
+    int reached = 0;
+    if (path) {
+        for (const ManipulatorArmAngles& w : *path) {
+            fl.set_joint_targets(0, w.shoulder_degrees, w.elbow_degrees, w.wrist_degrees);
+            for (int step = 0; step < 100; ++step) {
+                const ArmInfo ja = fl.arm_info(0);
+                if (std::fabs(ja.angles.shoulder_degrees - w.shoulder_degrees) < 1e-6 &&
+                    std::fabs(ja.angles.elbow_degrees - w.elbow_degrees) < 1e-6 &&
+                    std::fabs(ja.angles.wrist_degrees - w.wrist_degrees) < 1e-6) {
+                    ++reached;
+                    break;
+                }
+                fl.advance_ticks(100000);
+            }
+        }
+    }
+    const ArmInfo posed = fl.arm_info(0);
+    line("path %d waypoints %d reached %d angles %.6f %.6f %.6f", path ? 1 : 0, path ? static_cast<int>(path->size()) : 0,
+         reached, posed.angles.shoulder_degrees, posed.angles.elbow_degrees, posed.angles.wrist_degrees);
+    const MineResult fl_mined = fl.mine_deposit(ore);
+    line("mine %d extracted %.9f remaining %.9f gap %.9f arm %d material %s", fl_mined.accepted ? 1 : 0, fl_mined.extracted_kg,
+         fl_mined.remaining_kg, fl_mined.tool_gap_m, fl_mined.arm, fl_mined.material_id.c_str());
+    line("inventory %.9f storage %.9f deposit %.9f", fl.inventory_kg(mat), fl.storage_used_kg(),
+         fl.world_deposit_remaining_kg(ore));
     return out;
 }
 

@@ -14,7 +14,7 @@ The scenario sets a velocity and advances 0.6 s, mines six cycles from a 250 kg 
 
 `GODOT_VERIFIED` (approved by the owner on 2026-11-27) means: verified by an automated headless Godot run on the exact source commit, with the evidence recorded. It sits alongside `UNREAL_VERIFIED`; it does not replace or imply it, and neither implies a human playtest.
 
-**G1 is GODOT_VERIFIED for this scenario only:** 22 of 22 lines are identical between native and Godot 4.7.2 (headless, official build). The checker also fails correctly when the native side prints something else (negative control).
+**The parity scenario is GODOT_VERIFIED:** 32 of 32 lines are identical between native and Godot 4.7.2 (headless, official build), covering the G1 tick/mining/save scenario, G2 flight and contact, and the G3 first loop. The checker also fails correctly when the native side prints something else (negative control).
 
 ## Build (Windows)
 
@@ -48,6 +48,25 @@ Every later import and every run exits 0. So it is not caused by the simulation 
 
 `EverwardSim` also exposes `adjust_attitude(yaw, pitch, roll)`, `adjust_local_velocity(x, y, z)` (the probe's own frame: x forward, y right, z up), `get_attitude()`, `get_velocity()`, `add_sphere_body(id, x, y, z, radius)`, `clear_bodies()`, `move_sphere_body(id, x, y, z)` (false for an unknown id; the simulation itself ignores unknown ids silently), `get_last_contact()` and `drain_contact_events()`. The parity scenario turns the probe, thrusts it and flies it into a rock: one contact event on that rock, identical natively and in Godot. The world spike uses this for simulation-driven flight (`--simflight`, see its README).
 
+## G3 first loop
+
+Time now advances in the Unreal adapter's fixed step (16667 ticks, about 1/60 s): `advance_ticks` accumulates wall time and steps the runtime and the manipulator rig together, so the arm path planner's frame time equals the follower's. The rig carries the adapter's collision guard (hull self-collision plus every registered body).
+
+| Method | What it does |
+|---|---|
+| `add_deposit(id, x, y, z, radius, material_id, display_name, remaining_kg, kg_per_cycle)` | registers a body the probe collides with plus the resource it holds |
+| `start_scan(id, seconds)`, `cancel_scan()`, `is_scanning()`, `get_scan_remaining_s()`, `get_scan_target()` | the simulation's scan lifecycle |
+| `is_surveyed(id)` | latched from a genuine `ScanCompleted` event for that id (`first_loop_controls.hpp`); a later cancelled scan never clears it (#378 G05) |
+| `toggle_arm(arm)` | 0 port, 1 starboard; the direction comes from `arm_toggle_command`, so a press mid-deploy stows and mid-stow deploys (G06) |
+| `attach_tool(arm)`, `detach_tool(arm)`, `set_joint_targets(arm, s, e, w)`, `get_arm_state(arm)`, `get_arm_points(arm)` | the rig; points are world shoulder, elbow, wrist and tool tip for drawing |
+| `plan_staging(arm, id)` | the #375 solver (`mining_staging_solution`), same call as the Unreal adapter |
+| `plan_arm_path(arm, s, e, w)` | `plan_collision_free_joint_path` waypoints with the rig's guard |
+| `mine_deposit(id)` | `MiningSystem::mine_once` from the probe's real pose; a fresh system per attempt, as `ProbeMiningBridge` does |
+
+The parity scenario runs the loop natively and in Godot: mining before the survey is refused, the scan surveys, a cancelled rescan keeps the survey, mining from 40 m is refused, then staging, a 2 m/s approach, an 8-waypoint arm path and an accepted 5 kg cycle into named inventory.
+
+Known limits: world deposits are not in the save file yet (#378 G08 is separate work); arm points use `compound_contact.hpp`'s roll sign, which differs from the core's (#441), so they are exact only at zero roll.
+
 ## Not covered yet
 
-Scanning, the arm path planner, tractor field, HUD read models and the rest of the adapter surface are G3 work (`docs/GODOT_PATH_PLAN.md`).
+Fix_It repair (the rest of G02), tractor field, sensor power policy (G09) and the remaining adapter surface (`docs/GODOT_PATH_PLAN.md`).

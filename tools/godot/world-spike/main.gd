@@ -62,6 +62,10 @@ var sim_contact_log: Array[String] = []
 # where that ray hits it. The simulation then decides terrain contact like any other contact.
 const TERRAIN_PROXY_RADIUS := 40.0
 const TERRAIN_PROXY_IDS := ["terrain-down", "terrain-velocity", "terrain-nose"]
+# G3: the first gameplay loop (scan, survey, approach, arm, mine) on the simulation; see first_loop.gd.
+const FirstLoop = preload("res://first_loop.gd")
+var first_loop = null
+var firstloop_test := false      # --firstloop: headless acceptance run of the whole loop
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -71,6 +75,7 @@ func _ready() -> void:
 	simflight = "--simflight" in args
 	sim_manual = "--sim" in args
 	selftest_sim = "--selftest-sim" in args
+	firstloop_test = "--firstloop" in args
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -114,7 +119,9 @@ func _ready() -> void:
 	puff.width = 64
 	puff.height = 64
 	dust_mat.albedo_texture = puff
-	if simflight:
+	if firstloop_test:
+		_run_firstloop.call_deferred()
+	elif simflight:
 		_run_simflight.call_deferred()
 	elif lookshots:
 		seed(20261127)   # same trees and framings for every look, so they compare like for like
@@ -258,7 +265,7 @@ func _build_clouds() -> void:
 
 func _scripted() -> bool:
 	# Any scripted run: no manual flight, no player input (they would move the camera between captures)
-	return autotest or explore or lookshots or simflight
+	return autotest or explore or lookshots or simflight or firstloop_test
 
 func _apply_look() -> void:
 	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
@@ -431,6 +438,10 @@ func _sim_terrain_proxies() -> void:
 		sim.move_sphere_body(TERRAIN_PROXY_IDS[i], s.x, s.y, s.z)
 
 func _sim_manual_flight(delta: float) -> void:
+	if first_loop != null and first_loop.busy():
+		if Input.is_key_pressed(KEY_SPACE) and first_loop.approaching:
+			first_loop.cancel_approach("mining auto-approach cancelled")
+		return
 	var boost := 2.5 if Input.is_key_pressed(KEY_SHIFT) else 1.0
 	var accel := 18.0 * boost * delta
 	var dv := Vector3.ZERO   # simulation frame: x forward, y right, z up
@@ -571,6 +582,133 @@ func _run_simflight() -> void:
 	print("SIMFLIGHT ", "PASS" if passed else "FAIL")
 	_quit_clean(0 if passed else 6)
 
+# ----------------------------------------------------------------------------- G3: first gameplay loop
+func _press(keycode: int) -> void:
+	var e := InputEventKey.new()
+	e.keycode = keycode
+	e.physical_keycode = keycode
+	e.pressed = true
+	_input(e)
+
+func _until(cond: Callable, limit_s: float) -> bool:
+	var waited := 0.0
+	while not cond.call() and waited < limit_s:
+		await _sim_run(0.1)
+		waited += 0.1
+	return cond.call()
+
+func _run_firstloop() -> void:
+	# G3 evidence for #378 G01/G02 (mining part), G05 and G06, through the real key handler and the simulation.
+	metrics.append("godot %s  renderer=%s" % [Engine.get_version_info()["string"], RenderingServer.get_video_adapter_name()])
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	var vt: VoxelTool = terrain.get_voxel_tool()
+	var peak := Vector3(0, -1000, 0)
+	for gx in range(-9, 10):
+		for gz in range(-9, 10):
+			var h = vt.raycast(Vector3(gx * 40.0, 480.0, gz * 40.0), Vector3.DOWN, 700.0)
+			if h != null and h.position.y > peak.y:
+				peak = Vector3(h.position)
+	_place_trees(500, 300.0, Vector3(peak.x, 0, peak.z))
+	var ore_center := peak + Vector3(0, 1.8, 0)
+	if not _sim_start(ore_center + Vector3(0, 14, 45)):
+		_fail("simulation extension (EverwardSim) not loaded", 5)
+		return
+	first_loop = FirstLoop.new(self)
+	var mat := "iron_bearing_silicate_regolith"
+	var checks: Array[String] = []
+	var failed: Array[String] = []
+	var check := func(name: String, ok: bool, detail: String) -> void:
+		checks.append("%s %s: %s" % ["PASS" if ok else "FAIL", name, detail])
+		if not ok:
+			failed.append(name)
+	check.call("deposit registered", first_loop.add_deposit("ore-1", ore_center, 3.0, mat, "Iron-bearing regolith", 120.0), "ore-1 r=3 m on the summit")
+	await _sim_run(0.5)
+	await _shot("loop_01_start")
+	_press(KEY_G)
+	check.call("unsurveyed mining refused", not first_loop.last_mine["accepted"] and String(first_loop.last_mine["reason"]).contains("scan target first"), first_loop.last_mine["reason"])
+	if selftest_fail != "noscan":
+		_press(KEY_R)
+		await _sim_run(1.0)
+		await _shot("loop_02_scanning")
+		await _until(func() -> bool: return sim.is_surveyed("ore-1"), 12.0)
+	check.call("scan completes survey", sim.is_surveyed("ore-1"), "surveyed after a %.0f s scan" % FirstLoop.SCAN_DURATION_S)
+	_press(KEY_R)
+	await _sim_run(1.0)
+	_press(KEY_R)
+	check.call("G05 cancelled rescan keeps survey", sim.is_surveyed("ore-1") and not sim.is_scanning(), first_loop.message)
+	_press(KEY_G)
+	check.call("mining with stowed arm refused", not first_loop.last_mine["accepted"], first_loop.last_mine["reason"])
+	# G06: a press during the deploy reverses it into a stow, and a press during that stow deploys again
+	_press(KEY_T)
+	await _sim_run(0.5)
+	var mid: Dictionary = sim.get_arm_state(0)
+	_press(KEY_T)
+	await _sim_run(0.2)
+	var reversed: Dictionary = sim.get_arm_state(0)
+	_press(KEY_T)
+	var redeployed: bool = await _until(func() -> bool: return sim.get_arm_state(0)["deployed"] and not sim.get_arm_state(0)["deploying"], 4.0)
+	check.call("G06 toggle reverses both ways", mid["deploying"] and reversed["stowing"] and redeployed, "mid %.2f deploying=%s; after second press stowing=%s; deployed again=%s" % [mid["deployment_fraction"], mid["deploying"], reversed["stowing"], redeployed])
+	_press(KEY_Y)
+	check.call("tool attached", sim.get_arm_state(0)["tool_attached"], first_loop.message)
+	_press(KEY_G)
+	check.call("out-of-reach mining refused", not first_loop.last_mine["accepted"] and String(first_loop.last_mine["reason"]).contains("not in reach"), first_loop.last_mine["reason"])
+	var inv0: float = sim.get_inventory_kg(mat)
+	var left0: float = sim.get_world_deposit_remaining_kg("ore-1")
+	# port arm, starboard arm, then the probe yawed 35 degrees: approach, align, mine
+	var runs := [[0, 0.0], [1, 0.0], [1, 35.0]]
+	for run in runs:
+		var arm: int = run[0]
+		var yaw_turn: float = run[1]
+		var label := "%s arm%s" % [FirstLoop.ARM_NAMES[arm], " yawed %d deg" % int(yaw_turn) if yaw_turn != 0.0 else ""]
+		if yaw_turn != 0.0:
+			sim.adjust_attitude(yaw_turn, 0.0, 0.0)
+		# MiningSystem credits the closest ready arm, so the other arm is detached and stowed to prove this one alone
+		var other := 1 - arm
+		if sim.get_arm_state(other)["deployed"]:
+			_press(KEY_1 if other == 0 else KEY_2)
+			if sim.get_arm_state(other)["tool_attached"]:
+				_press(KEY_Y)
+			_press(KEY_T)
+			await _until(func() -> bool: return not sim.get_arm_state(other)["deployed"], 6.0)
+		_press(KEY_1 if arm == 0 else KEY_2)
+		var st: Dictionary = sim.get_arm_state(arm)
+		if not st["deployed"]:
+			_press(KEY_T)
+			await _until(func() -> bool: return sim.get_arm_state(arm)["deployed"] and not sim.get_arm_state(arm)["deploying"], 4.0)
+			_press(KEY_Y)
+		_press(KEY_P)
+		var engaged: bool = first_loop.approaching
+		if arm == 0:
+			# selecting the other arm during the approach and during the alignment must not redirect either (Codex #443)
+			_press(KEY_2)
+			await _until(func() -> bool: return first_loop.waypoint_index >= 0 or first_loop.aligned, 120.0)
+			_press(KEY_1)
+			_press(KEY_2)
+		var done: bool = await _until(func() -> bool: return first_loop.aligned or (not first_loop.busy() and not first_loop.approaching), 120.0)
+		await _shot("loop_03_aligned_%s" % label.replace(" ", "_"))
+		var before: float = sim.get_inventory_kg(mat)
+		_press(KEY_G)
+		var r: Dictionary = first_loop.last_mine
+		var after: float = sim.get_inventory_kg(mat)
+		check.call("mine with " + label, engaged and done and first_loop.aligned and r["accepted"] and int(r["arm"]) == arm and after > before,
+			"engaged=%s aligned=%s accepted=%s arm=%d gap %.3f m; +%.1f kg; %s" % [engaged, first_loop.aligned, r["accepted"], int(r["arm"]), r["tool_gap_m"], after - before, first_loop.message])
+		await _shot("loop_04_mined_%s" % label.replace(" ", "_"))
+	var gained: float = sim.get_inventory_kg(mat) - inv0
+	var spent: float = left0 - sim.get_world_deposit_remaining_kg("ore-1")
+	check.call("named inventory equals deposit reduction", gained > 0.0 and absf(gained - spent) < 1e-9 and absf(sim.get_storage_used_kg() - sim.get_inventory_kg(mat)) < 1e-9,
+		"inventory +%.3f kg %s; deposit -%.3f kg; storage %.3f kg" % [gained, mat, spent, sim.get_storage_used_kg()])
+	check.call("HUD shows the loop", hud.text.contains("SURVEYED") and hud.text.contains("CARGO") and hud.text.contains("Iron-bearing regolith"), hud.text.replace("\n", " | "))
+	check.call("no contact during the loop", not sim_contact_log.has("ore-1"), "contacts: %s" % [sim_contact_log])
+	for line in checks:
+		metrics.append(line)
+		print(line)
+	var passed := failed.is_empty()
+	metrics.append("FIRSTLOOP %s" % ("PASS" if passed else "FAIL " + ", ".join(failed)))
+	_flush_metrics()
+	print("FIRSTLOOP ", "PASS" if passed else "FAIL " + ", ".join(failed))
+	_quit_clean(0 if passed else 8)
+
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	hud = Label.new()
@@ -585,6 +723,8 @@ func _build_hud() -> void:
 func _process(delta: float) -> void:
 	trail_clock += delta
 	if sim_active:
+		if first_loop != null:
+			first_loop.process(delta)
 		_sim_step(delta)
 	if trail.is_empty() or trail_clock - trail[0].w > 0.22:
 		trail.push_front(Vector4(ship.global_position.x, ship.global_position.y, ship.global_position.z, trail_clock))
@@ -604,6 +744,8 @@ func _process(delta: float) -> void:
 	if not _scripted():
 		_manual_flight(delta)
 	hud.text = "FPS %d   alt %d m   speed %d m/s   debris %d" % [Engine.get_frames_per_second(), int(ship.global_position.y), int(speed), debris.size()]
+	if first_loop != null:
+		hud.text += "\n" + first_loop.hud_lines()
 
 func _push_trail_uniform() -> void:
 	var arr := PackedVector4Array()
@@ -659,8 +801,13 @@ func _manual_flight(delta: float) -> void:
 		_drill_step()
 
 func _input(event: InputEvent) -> void:
-	if _scripted():
+	if first_loop != null and event is InputEventKey and event.pressed and not event.echo:
+		if first_loop.handle_key(event.keycode):
+			return
+	if _scripted() and not firstloop_test:
 		return
+	if sim_active and first_loop != null and first_loop.busy() and event is InputEventMouseMotion:
+		return   # the solved staging pose holds for the attitude it was solved at
 	if sim_active and event is InputEventMouseMotion and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or selftest_sim):
 		# mouse right turns right (+yaw in the simulation frame), mouse up raises the nose
 		sim.adjust_attitude(event.relative.x * 0.12, -event.relative.y * 0.12, 0.0)
@@ -677,7 +824,7 @@ func _input(event: InputEvent) -> void:
 			var hit = terrain.get_voxel_tool().raycast(ship.global_position, -ship.global_transform.basis.z, 120.0)
 			var c: Vector3 = Vector3(hit.position) - ship.global_transform.basis.z * 18.0 if hit != null else ship.global_position - ship.global_transform.basis.z * 30.0
 			hollow(c, 17.0)
-		elif event.keycode == KEY_P:
+		elif event.keycode == KEY_F12:
 			_save_shot("manual_%03d" % shot_index)
 			shot_index += 1
 
@@ -938,6 +1085,10 @@ func _start_interactive() -> void:
 			var fwd := -ship.global_transform.basis.z
 			_sim_add_rock("rock-a", ship.global_position + fwd * 90.0 + Vector3(-12, -4, 0), 7.0)
 			_sim_add_rock("rock-b", ship.global_position + fwd * 160.0 + Vector3(20, 6, 0), 10.0)
+			first_loop = FirstLoop.new(self)
+			var ground = terrain.get_voxel_tool().raycast(ship.global_position + fwd * 120.0 + Vector3(0, 200, 0), Vector3.DOWN, 900.0)
+			if ground != null:
+				first_loop.add_deposit("ore-1", Vector3(ground.position) + Vector3(0, 1.8, 0), 3.0, "iron_bearing_silicate_regolith", "Iron-bearing regolith", 120.0)
 		else:
 			push_warning("--sim given but the EverwardSim extension is not loaded; using engine flight")
 
