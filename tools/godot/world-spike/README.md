@@ -28,7 +28,7 @@ Simulation-driven flight (Godot path G2): `-- --simflight` makes the Everward si
 
 Every mode also runs `--headless` (no window): screenshots and the image-based tree-shake check are then skipped and say so in `metrics.txt`.
 
-Exit codes for `--autotest`: 0 route completed; 2 terrain did not stream in time; 3 no mountain face found (drilling, hollowing and crumbling skipped); 4 no trees could be placed. `metrics.txt` records the reason. Two self-tests exist for the checks that cannot be seen in screenshots: `-- --selftest-input` drives the real input handler with synthetic Escape and click events and exits 0 on PASS; `-- --autotest --selftest-fail=face` forces the missing-face failure and must exit 3.
+Exit codes for `--autotest`: 0 route completed; 2 terrain did not stream in time; 3 no mountain face found (drilling, hollowing and crumbling skipped); 4 no trees could be placed. `metrics.txt` records the reason. Two self-tests exist for the checks that cannot be seen in screenshots: `-- --selftest-input` drives the real input handler with synthetic Escape and click events and exits 0 on PASS; `-- --autotest --selftest-fail=face` forces the missing-face failure and must exit 3; `-- --simflight --selftest-fail=clearance` makes the final ground-clearance ray miss and must exit 6 (a missing clearance measurement is a failure, never a pass).
 
 Keep the output folder outside the repository; the first launch also writes a `.godot/` import cache that is git-ignored.
 
