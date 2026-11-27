@@ -6,7 +6,7 @@ Everward aims for **cinematic scientific realism**: physically legible and groun
 
 This is a first-class product requirement, not optional polish. Everward should be built as a high-fidelity 3D space experience in which the player feels physically present as the probe.
 
-The accepted production direction is Unreal Engine. See `ENGINE_DIRECTION.md` and `TECHNOLOGY_DECISIONS.md`.
+The accepted production development direction is **Godot** (ADR-0014). See `ENGINE_DIRECTION.md`, `GODOT_PATH_PLAN.md`, `LOOK_DEVELOPMENT.md`, and `TECHNOLOGY_DECISIONS.md`. This does **not** reduce the permanent cinematic scientific-realism target.
 
 The project should avoid four failure modes:
 
@@ -33,7 +33,7 @@ The player should be able to watch mining equipment operating against a gas gian
 
 The first visual acceptance checkpoint is **Visual Milestone 01 — A Beautiful, Believable Awakening**: an unedited capture of the real Prime Gen-1 damaged-awakening, physically reachable mining, resource-funded `Fix_It` repair and visibly restored capability. The canonical probe identity must remain intact; the scene's story/atmosphere must emerge from verified game state, not a separate cinematic mockup.
 
-Artwork, purchased models, shaders, concept images and AI critique can accelerate production, but cannot substitute for working Unreal integration and repeatable Product Reality evidence.
+Artwork, purchased models, shaders, concept images and AI critique can accelerate production, but cannot substitute for working Godot integration and repeatable Product Reality evidence.
 
 ## Scalability promise
 
@@ -152,9 +152,9 @@ Everward should actively learn from mature environment-art, level-design, proced
 
 The canonical learning/adoption process is maintained in `WORLD_BUILDING_CRAFT_PLAYBOOK.md`. External techniques begin as candidates, are prototyped and measured, and become project standards only when they improve Everward without violating scientific realism, simulation truth, scalability, or performance requirements.
 
-## Unreal production direction
+## Godot production direction
 
-Unreal Engine is the intended production presentation/runtime engine because Everward's visual identity requires a serious path toward high-end real-time 3D rendering, lighting, materials, volumetrics, particles, cinematic cameras, and large-environment presentation.
+Godot is the active production presentation/input engine as approved November 27, 2026. The C++ simulation remains authoritative. Implement high-quality 3D lighting, physical materials, planetary effects, clouds, particles, and cinematic viewpoints through measured Godot-specific scenes, shaders, assets and graphics presets. Do not assume Unreal rendering features or their performance characteristics transfer automatically.
 
 The engine must not own independent mechanical truth. Simulation state remains authoritative and presentation consumes it.
 
@@ -178,4 +178,4 @@ The benchmark should continue to measure:
 
 The benchmark should eventually be captured across multiple quality presets rather than only at maximum fidelity. Low and Minimum must be evaluated for readability and playability, while Ultra/Cinematic measures the full visual target.
 
-The benchmark's role is now to validate Unreal and expose material technical risk. Godot remains useful comparative evidence, but a simpler or lighter implementation does not by itself override the accepted cinematic 3D product direction.
+The earlier Unreal benchmark remains historical evidence. Current Godot G0–G4 benchmarks validate feasibility, native simulation integration, visual craft, frame-time behavior and player-facing quality. The integrated-GPU results are provisional; future desktop GPU and subjective artistic evidence must be measured before acceptance. Simpler implementation does not override the accepted cinematic 3D product direction.
