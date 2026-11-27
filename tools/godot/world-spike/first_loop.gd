@@ -451,7 +451,10 @@ func hud_lines() -> String:
 		return panel_lines() + "\n" + message
 	return "TARGET %s\nARM %s %s  tool %s%s%s\nCARGO%s  storage %.1f / %.0f kg\n%s\n%s" % [
 		target, ARM_NAMES[selected_arm], arm_state, "on" if st["tool_attached"] else "off",
-		"  APPROACHING" if approaching else "", "  ALIGNED" if aligned else "",
+		# the operation's own arm is named: it can differ from the selected arm shown on this line (selecting another arm
+		# never redirects an operation), and an unnamed "ALIGNED" next to it would claim the wrong arm is ready
+		"  APPROACHING for %s" % ARM_NAMES[op_arm] if approaching else ("  ALIGNING %s" % ARM_NAMES[op_arm] if waypoint_index >= 0 else ""),
+		"  %s ALIGNED" % ARM_NAMES[op_arm] if aligned else "",
 		cargo if cargo != "" else " empty", m.sim.get_storage_used_kg(), m.sim.get_storage_capacity_kg(), fix_it_line() + "\n" + power_line(), message]
 
 # Power and policy, with the simulation's compact recovery hint whenever scanning is blocked (G09).
