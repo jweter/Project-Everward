@@ -13,6 +13,7 @@
 #include "everward/simulation/manipulator_hull_contact.hpp"
 #include "everward/simulation/manipulator_reach.hpp"
 #include "everward/simulation/mining_staging.hpp"
+#include "everward/simulation/manipulator_path_planner.hpp"
 #include "everward/simulation/first_loop_controls.hpp"
 #include "everward/simulation/manipulator_collection.hpp"
 #include "everward/simulation/manipulator_grasp.hpp"
@@ -702,6 +703,34 @@ FEverwardMiningStagingSolution UProbeSimulationAdapter::GetMiningStagingSolution
     Result.WristDegrees = Solution->angles.wrist_degrees;
     Result.ToolSurfaceGapMeters = Solution->tool_surface_gap_m;
     return Result;
+}
+
+bool UProbeSimulationAdapter::PlanArmPathToDegrees(EEverwardManipulatorArmId ArmId, double ShoulderDegrees, double ElbowDegrees, double WristDegrees, TArray<FVector>& OutWaypointDegrees) const
+{
+    OutWaypointDegrees.Reset();
+    if (Core == nullptr || Manipulators == nullptr) return false;
+    const everward::simulation::ManipulatorArmId SimulationArmId = ToSimulationManipulatorArmId(ArmId);
+    const everward::simulation::ManipulatorArmState& State = Manipulators->arm(SimulationArmId);
+    try
+    {
+        everward::simulation::JointPathOptions Options;
+        Options.frame_seconds = FixedStepSeconds;
+        const auto Path = everward::simulation::plan_collision_free_joint_path(
+            SimulationArmId, State.deployment_fraction, State.angles,
+            everward::simulation::ManipulatorArmAngles{ShoulderDegrees, ElbowDegrees, WristDegrees},
+            BuildManipulatorCollisionGuard(Core), Options);
+        if (!Path.has_value()) return false;
+        for (const everward::simulation::ManipulatorArmAngles& Waypoint : *Path)
+        {
+            OutWaypointDegrees.Add(FVector(Waypoint.shoulder_degrees, Waypoint.elbow_degrees, Waypoint.wrist_degrees));
+        }
+        return true;
+    }
+    catch (const std::exception&)
+    {
+        OutWaypointDegrees.Reset();
+        return false;
+    }
 }
 
 FEverwardProbeCommandResult UProbeSimulationAdapter::GetLastCommandResult() const { return LastCommandResult; }
