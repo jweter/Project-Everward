@@ -20,6 +20,8 @@ Needs a Godot 4.7.x **with the Voxel Tools module compiled in**, for example `go
     #   left mouse or F drill, H hollow out ahead, P screenshot,
     #   Esc releases the mouse (Esc again, or a click in the window, recaptures it)
 
+Looks: add `--look=ember_dusk|moonrise|storm_ridge|autumn_mist` to any run to apply a palette from the owner's references (`looks.gd`; see `docs/LOOK_DEVELOPMENT.md`). `-- --lookshots --look=NAME --out=FOLDER` renders the same three framings for comparison and exits 0.
+
 Exit codes for `--autotest`: 0 route completed; 2 terrain did not stream in time; 3 no mountain face found (drilling, hollowing and crumbling skipped); 4 no trees could be placed. `metrics.txt` records the reason. Two self-tests exist for the checks that cannot be seen in screenshots: `-- --selftest-input` drives the real input handler with synthetic Escape and click events and exits 0 on PASS; `-- --autotest --selftest-fail=face` forces the missing-face failure and must exit 3.
 
 Keep the output folder outside the repository; the first launch also writes a `.godot/` import cache that is git-ignored.

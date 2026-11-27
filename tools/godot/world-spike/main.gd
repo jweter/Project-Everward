@@ -11,7 +11,16 @@ const TRAIL_POINTS := 16
 const TRAIL_LIFE := 9.0
 const MAX_DEBRIS := 140
 
+const Looks = preload("res://looks.gd")
+
 var autotest := false
+var lookshots := false
+var look: Dictionary = {}
+var look_name := ""
+var env_ref: Environment
+var sky_ref: ProceduralSkyMaterial
+var sun_ref: DirectionalLight3D
+var terrain_mat: ShaderMaterial
 var explore := false
 var selftest_input := false
 var selftest_fail := ""
@@ -41,6 +50,14 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	autotest = "--autotest" in args
 	explore = "--explore" in args
+	lookshots = "--lookshots" in args
+	for la in args:
+		if la.begins_with("--look="):
+			look_name = la.substr(7)
+			if Looks.LOOKS.has(look_name):
+				look = Looks.LOOKS[look_name]
+			else:
+				push_error("unknown look " + look_name + "; known: " + ", ".join(Looks.names()))
 	selftest_input = "--selftest-input" in args
 	for sa in args:
 		if sa.begins_with("--selftest-fail="):
@@ -54,6 +71,7 @@ func _ready() -> void:
 	_build_ship()
 	_build_clouds()
 	_build_hud()
+	_apply_look()
 	rock_mat = StandardMaterial3D.new()
 	rock_mat.albedo_color = Color(0.55, 0.5, 0.44)
 	rock_mat.roughness = 0.95
@@ -76,7 +94,10 @@ func _ready() -> void:
 	puff.width = 64
 	puff.height = 64
 	dust_mat.albedo_texture = puff
-	if autotest or explore:
+	if lookshots:
+		seed(20261127)   # same trees and framings for every look, so they compare like for like
+		_run_lookshots.call_deferred()
+	elif autotest or explore:
 		_run_autotest.call_deferred()
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -106,6 +127,8 @@ func _build_environment() -> void:
 	env.fog_light_color = Color(0.66, 0.76, 0.9)
 	env.fog_density = 0.0009
 	env.fog_aerial_perspective = 0.5
+	env_ref = env
+	sky_ref = psm
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -115,6 +138,7 @@ func _build_environment() -> void:
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.directional_shadow_max_distance = 500.0
+	sun_ref = sun
 	add_child(sun)
 
 func _build_terrain() -> void:
@@ -138,6 +162,7 @@ func _build_terrain() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://terrain.gdshader")
 	terrain.material_override = mat
+	terrain_mat = mat
 	add_child(terrain)
 
 func _build_ship() -> void:
@@ -206,6 +231,87 @@ func _build_clouds() -> void:
 	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	cam.add_child(q)
 	_push_trail_uniform()
+
+func _apply_look() -> void:
+	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
+	var sd := sun_ref.global_transform.basis.z
+	cloud_mat.set_shader_parameter("sun_dir", sd)
+	if look.is_empty():
+		return
+	sky_ref.sky_top_color = look["sky_top"]
+	sky_ref.sky_horizon_color = look["sky_horizon"]
+	sky_ref.ground_horizon_color = look["sky_horizon"]
+	sky_ref.ground_bottom_color = look["ground"]
+	env_ref.ambient_light_energy = look["ambient_energy"]
+	env_ref.fog_light_color = look["fog_color"]
+	env_ref.fog_density = look["fog_density"]
+	sun_ref.rotation_degrees = Vector3(look["sun_pitch"], look["sun_yaw"], 0.0)
+	sun_ref.light_color = look["sun_color"]
+	sun_ref.light_energy = look["sun_energy"]
+	cloud_mat.set_shader_parameter("sun_dir", sun_ref.transform.basis.z)
+	cloud_mat.set_shader_parameter("sun_color", look["cloud_lit"])
+	cloud_mat.set_shader_parameter("ambient_color", look["cloud_shadow"])
+	cloud_mat.set_shader_parameter("coverage", look["coverage"])
+	for key in ["grass_a", "grass_b", "rock_a", "rock_b"]:
+		terrain_mat.set_shader_parameter(key, look[key])
+	terrain_mat.set_shader_parameter("snow_color", look["snow"])
+
+func _apply_tree_look(mat: ShaderMaterial) -> void:
+	if look.is_empty():
+		return
+	mat.set_shader_parameter("base_color", look["foliage_base"])
+	mat.set_shader_parameter("tip_color", look["foliage_tip"])
+	mat.set_shader_parameter("trunk_color", look["trunk"])
+	mat.set_shader_parameter("autumn_color", look["autumn"])
+	mat.set_shader_parameter("autumn_mix", look["autumn_mix"])
+
+func _run_lookshots() -> void:
+	# Same three framings for any --look, so presets can be compared side by side.
+	var tag := look_name if look_name != "" else "default"
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	var tool: VoxelTool = terrain.get_voxel_tool()
+	var peak := Vector3(0, -1000, 0)
+	for gx in range(-9, 10):
+		for gz in range(-9, 10):
+			var h = tool.raycast(Vector3(gx * 40.0, 480.0, gz * 40.0), Vector3.DOWN, 700.0)
+			if h != null and h.position.y > peak.y:
+				peak = Vector3(h.position)
+	if _place_trees(700, 360.0, Vector3(peak.x, 0, peak.z)) == 0:
+		_fail("no trees could be placed", 4)
+		return
+	# hide only the ship's meshes: the camera, cloud layer and terrain viewer are children of the ship
+	for child in ship.get_children():
+		if child is MeshInstance3D:
+			child.visible = false
+	_place_ship(peak + Vector3(0, 130, 420), peak + Vector3(0, -40, 0))
+	await _wait_stream()   # the ship is the streaming viewer; let the new area mesh before the shot
+	await _shot("look_%s_A_overview" % tag)
+	var spot := tree_spots[0]
+	for sp in tree_spots:
+		if sp.y > 20.0 and sp.y < 80.0:
+			spot = sp
+			break
+	# forest view: stand the camera on the measured ground near the chosen tree, looking across the trees
+	var cam_xz := spot + Vector3(45, 0, 70)
+	var g = tool.raycast(Vector3(cam_xz.x, 480.0, cam_xz.z), Vector3.DOWN, 700.0)
+	var ground_y: float = spot.y if g == null else float(g.position.y)
+	_place_ship(Vector3(cam_xz.x, maxf(ground_y, spot.y) + 14.0, cam_xz.z), spot + Vector3(0, 5, 0))
+	await _wait_stream()   # the ship is the streaming viewer; let the new area mesh before the shot
+	# now that the area is loaded, make sure the camera is above the real ground, not inside a slope
+	for i in 6:
+		var under = tool.raycast(ship.global_position + Vector3(0, 300, 0), Vector3.DOWN, 400.0)
+		if under == null or float(under.position.y) < ship.global_position.y - 10.0:
+			break
+		ship.global_position.y = float(under.position.y) + 14.0
+		ship.look_at(spot + Vector3(0, 5, 0), Vector3.UP)
+		await _wait_stream()
+	await _shot("look_%s_B_forest" % tag)
+	_place_ship(peak + Vector3(-90, -40, 260), peak + Vector3(0, 20, 0))
+	await _wait_stream()   # the ship is the streaming viewer; let the new area mesh before the shot
+	await _shot("look_%s_C_mountain" % tag)
+	_flush_metrics()
+	_quit_clean(0)
 
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
@@ -465,6 +571,7 @@ func _place_trees(count: int = 700, area: float = 420.0, center: Vector3 = Vecto
 	mat.shader = load("res://tree.gdshader")
 	mmi.material_override = mat
 	tree_mats.append(mat)
+	_apply_tree_look(mat)
 	add_child(mmi)
 	return transforms.size()
 
@@ -485,6 +592,9 @@ func _fail(reason: String, code: int) -> void:
 	metrics.append("FAILED: %s (exit %d)" % [reason, code])
 	_flush_metrics()
 	print("AUTOTEST FAILED: ", reason)
+	_quit_clean(code)
+
+func _quit_clean(code: int) -> void:
 	# stop the voxel workers before quitting so the exit code is ours, not a shutdown crash
 	terrain.queue_free()
 	for i in 20:
