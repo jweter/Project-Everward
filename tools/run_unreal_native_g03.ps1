@@ -103,6 +103,7 @@ if ($null -eq $Parsed.failed -or $null -eq $Parsed.succeeded) {
 $RequiredTestNames = @(
     'Everward.G03.Native.ScanSurveyPersistsAfterCancel'
     'Everward.G03.Native.MiningRejectsWithoutSurveyAndTool'
+    'Everward.G03.Native.MiningSuccessCreditsInventoryAndReducesDeposit'
     'Everward.G03.Native.ArmToggleReversesAndJointControlsStayHonest'
     'Everward.G03.Native.RestorationObjectiveCycleMirror'
     'Everward.G03.Native.RestorationObjectiveCycleCompletes'

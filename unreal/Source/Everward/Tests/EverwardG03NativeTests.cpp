@@ -161,6 +161,155 @@ bool FEverwardG03RejectedMiningTest::RunTest(const FString& Parameters)
         Adapter->GetStoredMaterialInventory().IsEmpty());
     return !HasAnyErrors();
 }
+// G01/G02 first-playable-loop success path: FEverwardG03RejectedMiningTest above
+// deliberately proves only the rejection half (no survey, no tool); this drives the
+// same adapter commands AEverwardPlayerController's P/G mining controls use
+// (ToggleAutoApproachMiningTarget / AlignSelectedArmToMiningPose / CommandMineBootstrapTarget)
+// all the way to an accepted mine_once with a real inventory/storage/deposit delta and
+// visible feedback. Teleport-free: velocity + ticking moves the probe to the staging
+// solution's position the same way live auto-approach does, just without a human waiting.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FEverwardG03MiningSuccessTest,
+    "Everward.G03.Native.MiningSuccessCreditsInventoryAndReducesDeposit",
+    EverwardNativeFlags)
+
+bool FEverwardG03MiningSuccessTest::RunTest(const FString& Parameters)
+{
+    FEverwardNativeTestFixture Fixture;
+    if (!Fixture.Start(this)) return false;
+    UProbeSimulationAdapter* Adapter = Fixture.Adapter;
+    const FString TargetId = AEverwardPhase2TestEnvironment::BootstrapScanTargetId;
+    const EEverwardManipulatorArmId Arm = EEverwardManipulatorArmId::Port;
+
+    // 1. Scan and survey, exactly as ScanSurveyPersistsAfterCancel proves.
+    if (!TestTrue(TEXT("Sensors can be powered"),
+        Adapter->CommandAllocatePower(EEverwardPowerSubsystem::Sensors, 100.0).bAccepted)) return false;
+    if (!TestTrue(TEXT("Scan accepted"), Adapter->CommandStartScan(TargetId, 0.25).bAccepted)) return false;
+    if (!Fixture.TickFor(0.80f, this)) return false;
+    if (!TestTrue(TEXT("Bootstrap deposit is surveyed"), Adapter->GetMiningStatus().bSurveyed)) return false;
+
+    // 2. Deploy the port arm and attach its tool. 2.2 s split in two calls, as the
+    // arm-toggle test above documents: a float32 0.02 s step makes 100 frames fall
+    // just short of kDeployStowDurationS's exact 2.0 s.
+    if (!TestTrue(TEXT("Port arm begins deploying"),
+        Adapter->CommandDeployManipulatorArm(Arm).bAccepted)) return false;
+    if (!Fixture.TickFor(1.5f, this) || !Fixture.TickFor(0.7f, this)) return false;
+
+    auto ArmState = [Adapter, Arm](FEverwardManipulatorArmState& Out) {
+        for (const FEverwardManipulatorArmState& ArmLoopState : Adapter->GetManipulatorArmStates())
+        {
+            if (ArmLoopState.ArmId == Arm) { Out = ArmLoopState; return true; }
+        }
+        return false;
+    };
+    FEverwardManipulatorArmState State;
+    if (!TestTrue(TEXT("Port arm state readable"), ArmState(State))) return false;
+    if (!TestTrue(TEXT("Port arm fully deployed before attaching its tool"),
+        State.bIsDeployed && !State.bIsDeploying && !State.bIsStowing)) return false;
+    if (!TestTrue(TEXT("Tool attaches to the deployed arm"),
+        Adapter->CommandAttachManipulatorTool(Arm).bAccepted)) return false;
+    if (!TestTrue(TEXT("Attached arm state readable"), ArmState(State))) return false;
+    TestTrue(TEXT("Arm reports its tool attached"), State.bToolAttached);
+
+    // 3. The same real kinematic solver #375 and live auto-approach (P) use: a staging
+    // position plus the joint angles that put the tool tip in reach.
+    const FEverwardMiningStagingSolution Solution = Adapter->GetMiningStagingSolution(Arm, TargetId);
+    if (!TestTrue(TEXT("A collision-free mining pose exists for the port arm"), Solution.bHasSolution))
+    {
+        return false;
+    }
+
+    // 4. Move to the staging position the same way auto-approach does (set velocity,
+    // let ticking integrate it) rather than teleporting: one second at a velocity
+    // numerically equal to the remaining delta covers exactly that delta, then velocity
+    // is zeroed before any further ticking so later joint-settle ticks cannot drift the
+    // probe back out of reach.
+    const FVector StartPositionMeters = Adapter->GetProbePositionMeters();
+    const FVector DeltaMeters = Solution.ProbePositionMeters - StartPositionMeters;
+    if (!TestTrue(TEXT("Approach velocity accepted"),
+        Adapter->CommandSetVelocityMetersPerSecond(DeltaMeters).bAccepted)) return false;
+    if (!Fixture.TickFor(1.0f, this)) return false;
+    if (!TestTrue(TEXT("Velocity stops at the staging position"),
+        Adapter->CommandSetVelocityMetersPerSecond(FVector::ZeroVector).bAccepted)) return false;
+    const double StagingErrorMeters = (Adapter->GetProbePositionMeters() - Solution.ProbePositionMeters).Size();
+    if (!TestTrue(TEXT("Probe reaches the solved staging position"), StagingErrorMeters < 0.05)) return false;
+
+    // 5. Align the arm exactly as the player's align control does. ManipulatorRig's hull guard rejects a whole slew
+    // frame the instant a candidate pose would sweep through the probe's hull, so a direct three-joint command stalls
+    // the shoulder near 10 degrees on its way to the solved ~50 (reproduced in manipulator_path_planner_tests). The
+    // adapter plans collision-free waypoints from the arm's current angles under the live guard; each is commanded
+    // and confirmed converged before the next. 10 s per waypoint bounds even a full 360-degree wrist swing at the
+    // real 45 deg/s slew (manipulator.hpp's kJointSlewDegreesPerSecond).
+    TArray<FVector> Path;
+    if (!TestTrue(TEXT("A collision-free joint path to the solved mining pose exists"),
+        Adapter->PlanArmPathToDegrees(
+            Arm, Solution.ShoulderDegrees, Solution.ElbowDegrees, Solution.WristDegrees, Path))) return false;
+    for (const FVector& Waypoint : Path)
+    {
+        if (!TestTrue(TEXT("Waypoint shoulder target accepted"),
+            Adapter->CommandSetManipulatorJointTargetDegrees(
+                Arm, EEverwardManipulatorJoint::Shoulder, Waypoint.X).bAccepted)) return false;
+        if (!TestTrue(TEXT("Waypoint elbow target accepted"),
+            Adapter->CommandSetManipulatorJointTargetDegrees(
+                Arm, EEverwardManipulatorJoint::Elbow, Waypoint.Y).bAccepted)) return false;
+        if (!TestTrue(TEXT("Waypoint wrist target accepted"),
+            Adapter->CommandSetManipulatorJointTargetDegrees(
+                Arm, EEverwardManipulatorJoint::Wrist, Waypoint.Z).bAccepted)) return false;
+        bool bArrived = false;
+        for (int32 Chunk = 0; Chunk < 20 && !bArrived; ++Chunk)
+        {
+            if (!Fixture.TickFor(0.5f, this)) return false;
+            if (!TestTrue(TEXT("Arm state readable while following the planned path"), ArmState(State))) return false;
+            bArrived = FMath::Abs(State.ShoulderDegrees - Waypoint.X) <= 0.01 &&
+                FMath::Abs(State.ElbowDegrees - Waypoint.Y) <= 0.01 &&
+                FMath::Abs(State.WristDegrees - Waypoint.Z) <= 0.01;
+        }
+        if (!TestTrue(TEXT("Arm reaches each planned waypoint, not stuck on the hull guard"), bArrived)) return false;
+    }
+    if (!TestTrue(TEXT("Final arm state readable"), ArmState(State))) return false;
+    if (!TestTrue(TEXT("Arm ends on the solved mining pose"),
+        FMath::Abs(State.ShoulderDegrees - Solution.ShoulderDegrees) <= 0.5 &&
+        FMath::Abs(State.ElbowDegrees - Solution.ElbowDegrees) <= 0.5 &&
+        FMath::Abs(State.WristDegrees - Solution.WristDegrees) <= 0.5)) return false;
+
+    // 6. The actual G01 success assertion FEverwardG03RejectedMiningTest deliberately
+    // stops short of: a real accepted mine_once with positive named-material inventory
+    // and storage delta, a reduced deposit, and visible unambiguous feedback -- not
+    // just a non-crash.
+    const FEverwardMiningStatus Before = Adapter->GetMiningStatus();
+    const FEverwardProbeTelemetry TelemetryBefore = Adapter->GetProbeTelemetry();
+
+    const FEverwardProbeCommandResult Attempt = Adapter->CommandMineBootstrapTarget();
+    if (!TestTrue(TEXT("Surveyed, tooled, in-reach mining is accepted"), Attempt.bAccepted))
+    {
+        AddError(FString::Printf(TEXT("Mining rejected: %s"), *Attempt.Detail));
+        return false;
+    }
+    TestTrue(TEXT("Accepted mining reports visible, human-readable feedback"),
+        Attempt.Detail.Contains(TEXT("MINED")));
+
+    const FEverwardMiningStatus After = Adapter->GetMiningStatus();
+    const FEverwardProbeTelemetry TelemetryAfter = Adapter->GetProbeTelemetry();
+    TestEqual(TEXT("Exactly one extraction cycle's worth of material is credited"),
+        After.ExtractedMaterialKilograms - Before.ExtractedMaterialKilograms, Before.ExtractionKilogramsPerCycle);
+    TestEqual(TEXT("The deposit shrinks by the same amount that was extracted"),
+        Before.DepositRemainingKilograms - After.DepositRemainingKilograms, Before.ExtractionKilogramsPerCycle);
+    TestTrue(TEXT("Storage actually increases, not just the mining status widget"),
+        TelemetryAfter.StorageUsedKilograms > TelemetryBefore.StorageUsedKilograms);
+
+    const TArray<FEverwardMaterialInventoryEntry> Inventory = Adapter->GetStoredMaterialInventory();
+    bool bFoundMinedMaterial = false;
+    for (const FEverwardMaterialInventoryEntry& Entry : Inventory)
+    {
+        bFoundMinedMaterial |= Entry.Kilograms > 0.0;
+    }
+    TestTrue(TEXT("Mined mass lands in named inventory, not an anonymous number"), bFoundMinedMaterial);
+    TestFalse(TEXT("Automation notice records acceptance, not rejection"),
+        Adapter->GetLastAutomationNotice().bRejected);
+
+    return !HasAnyErrors();
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FEverwardG03ArmToggleTest,
     "Everward.G03.Native.ArmToggleReversesAndJointControlsStayHonest",
