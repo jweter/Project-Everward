@@ -679,6 +679,12 @@ func _run_firstloop() -> void:
 			_press(KEY_Y)
 		_press(KEY_P)
 		var engaged: bool = first_loop.approaching
+		if arm == 0:
+			# selecting the other arm during the approach and during the alignment must not redirect either (Codex #443)
+			_press(KEY_2)
+			await _until(func() -> bool: return first_loop.waypoint_index >= 0 or first_loop.aligned, 120.0)
+			_press(KEY_1)
+			_press(KEY_2)
 		var done: bool = await _until(func() -> bool: return first_loop.aligned or (not first_loop.busy() and not first_loop.approaching), 120.0)
 		await _shot("loop_03_aligned_%s" % label.replace(" ", "_"))
 		var before: float = sim.get_inventory_kg(mat)

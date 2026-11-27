@@ -18,6 +18,7 @@ const ARM_NAMES := ["PORT", "STARBOARD"]
 var m                                   # the world-spike main node
 var deposits: Array[Dictionary] = []    # {id, material, name, center (Godot), radius, mesh, mat}
 var selected_arm := 0
+var op_arm := 0                         # the arm the active approach and alignment were solved for
 var approaching := false
 var staging := Vector3.ZERO             # simulation frame
 var staging_angles := PackedFloat64Array()
@@ -171,6 +172,7 @@ func toggle_approach() -> void:
 	staging = Vector3(p[0], p[1], p[2])
 	staging_angles = plan["angles"]
 	staging_gap = plan["tool_gap_m"]
+	op_arm = selected_arm   # selecting another arm later never redirects this operation
 	approach_target = d["id"]
 	approaching = true
 	aligned = false
@@ -214,32 +216,32 @@ func process(delta: float) -> void:
 	_draw()
 
 func _align() -> void:
-	var st: Dictionary = m.sim.get_arm_state(selected_arm)
+	var st: Dictionary = m.sim.get_arm_state(op_arm)
 	if not st["deployed"] or st["deploying"] or st["stowing"] or not st["tool_attached"]:
-		say("mining pose reached; fully deploy the %s arm and attach its tool, then press P to align it" % ARM_NAMES[selected_arm])
+		say("mining pose reached; fully deploy the %s arm and attach its tool, then press P to align it" % ARM_NAMES[op_arm])
 		return
-	var path: Dictionary = m.sim.plan_arm_path(selected_arm, staging_angles[0], staging_angles[1], staging_angles[2])
+	var path: Dictionary = m.sim.plan_arm_path(op_arm, staging_angles[0], staging_angles[1], staging_angles[2])
 	if not path["ok"]:
-		say("no collision-free joint path for the %s arm to the mining pose; rotate the probe and press P again" % ARM_NAMES[selected_arm])
+		say("no collision-free joint path for the %s arm to the mining pose; rotate the probe and press P again" % ARM_NAMES[op_arm])
 		return
 	waypoints = path["waypoints"]
 	waypoint_index = 0
 	_command_waypoint()
-	say("mining pose reached: aligning %s arm (planned tool-tip gap %.2f m)" % [ARM_NAMES[selected_arm], staging_gap])
+	say("mining pose reached: aligning %s arm (planned tool-tip gap %.2f m)" % [ARM_NAMES[op_arm], staging_gap])
 
 func _command_waypoint() -> void:
 	waypoint_elapsed = 0.0
 	if waypoint_index >= waypoints.size():
 		waypoint_index = -1
 		aligned = true
-		say("%s arm aligned; press G to mine" % ARM_NAMES[selected_arm])
+		say("%s arm aligned; press G to mine" % ARM_NAMES[op_arm])
 		return
 	var w: PackedFloat64Array = waypoints[waypoint_index]
-	m.sim.set_joint_targets(selected_arm, w[0], w[1], w[2])
+	m.sim.set_joint_targets(op_arm, w[0], w[1], w[2])
 
 func _follow(delta: float) -> void:
 	var w: PackedFloat64Array = waypoints[waypoint_index]
-	var a: PackedFloat64Array = m.sim.get_arm_state(selected_arm)["angles"]
+	var a: PackedFloat64Array = m.sim.get_arm_state(op_arm)["angles"]
 	if absf(a[0] - w[0]) < WAYPOINT_TOLERANCE_DEG and absf(a[1] - w[1]) < WAYPOINT_TOLERANCE_DEG and absf(a[2] - w[2]) < WAYPOINT_TOLERANCE_DEG:
 		waypoint_index += 1
 		_command_waypoint()
