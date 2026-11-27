@@ -71,6 +71,10 @@ Saves (#378 G08): `save_json` writes every world deposit (material, display name
 
 `enable_fix_it(seed_damaged_awakening)` runs Fix_It on the fixed step exactly as the Unreal `FixItRuntimeActor` does: when idle it asks `FixItPlanner::plan_next` for the next decision, starts a Repair only when stored material and energy cover it (otherwise it waits and spends nothing), advances `FixItRepairExecutor`, and reports completion with the materials consumed. Replacement waits (fabrication is not online); Upgrade, Redesign and Evolution are only shown. With the awakening seed an undamaged probe first drops to the Unreal Gen-1 startup integrity (computation 18%, thermal 22%, sensors 35%, propulsion 40%), and the simulation's damage rules then apply: trims are scaled by propulsion integrity and scans take longer with damaged sensors. Read it with `get_fix_it_status()` (state off/monitor/waiting/repairing, stage, subsystem, reason, progress, material and energy required and consumed, last event), `get_integrity()`, `get_stored_energy_j()` and `drain_fix_it_events()`. The parity lines show it waiting for 0.98 kg with nothing stored, then, after one mined cycle, repairing computation from 18% to 25% and thermal to 25% with the mined material and stored energy.
 
+### Power and software policy (#378 G09)
+
+`allocate_power(subsystem, watts)` (0 sensors, 1 propulsion, 2 computation, 3 thermal), `get_power_allocations()`, `install_basic_survival_policy()` (the Unreal adapter's GEN1 BASIC SURVIVAL policy rule for rule), `clear_policy()`, `get_policy_status()`, `get_scan_power_guidance()` (the simulation's `sensor_power_guidance`) and `get_last_scan_refusal()` (why the last `start_scan` was refused). The parity lines reproduce the G09 drop: at 50% stored energy the policy sheds sensors to 0 W, scans are refused with "Clear policy; raise power; scan", raising sensors alone does not hold while the policy is installed, and clear, raise, scan surveys.
+
 ## Not covered yet
 
 Fix_It replacement and fabrication, tractor field, sensor power policy (G09) and the remaining adapter surface (`docs/GODOT_PATH_PLAN.md`).

@@ -6,6 +6,8 @@ extends RefCounted
 #
 # Keys: R scan the nearest deposit (R again cancels), 1/2 select port/starboard arm, T deploy/stow the selected arm,
 # Y attach/detach its tool, P auto-approach (P or SPACE cancels), G mine.
+# Power (#378 G09): K installs the GEN1 BASIC SURVIVAL policy, L clears it, O sets Sensors to the 50 W scan minimum.
+# A refused scan shows the simulation's own explanation and recovery steps.
 # Fix_It (#378 G02) runs inside the simulation on its own, as in the Unreal build: the probe wakes damaged, and Fix_It
 # repairs in canonical order only while stored material and energy cover the next step. This script shows it.
 
@@ -16,6 +18,7 @@ const APPROACH_TOLERANCE := 0.25       # Unreal AutoApproachStopToleranceMeters
 const WAYPOINT_TOLERANCE_DEG := 1e-3
 const WAYPOINT_TIMEOUT_S := 10.0
 const ARM_NAMES := ["PORT", "STARBOARD"]
+const SENSOR_SCAN_MINIMUM_W := 50.0     # ProbeRuntime::kGeneration1MinimumSensorPowerW
 
 var m                                   # the world-spike main node
 var deposits: Array[Dictionary] = []    # {id, material, name, center (Godot), radius, mesh, mat}
@@ -134,7 +137,7 @@ func handle_key(keycode: int) -> bool:
 				elif m.sim.start_scan(d["id"], SCAN_DURATION_S):
 					say("scanning " + String(d["name"]))
 				else:
-					say("scan refused by the simulation")
+					say("scan refused: " + String(m.sim.get_last_scan_refusal()))
 		KEY_1, KEY_2:
 			selected_arm = 0 if keycode == KEY_1 else 1
 			say("%s arm selected" % ARM_NAMES[selected_arm])
@@ -151,6 +154,16 @@ func handle_key(keycode: int) -> bool:
 				say("%s tool %s" % [ARM_NAMES[selected_arm], "detached" if m.sim.detach_tool(selected_arm) else "detach refused"])
 			else:
 				say("%s tool %s" % [ARM_NAMES[selected_arm], "attached" if m.sim.attach_tool(selected_arm) else "needs a fully deployed arm"])
+		KEY_K:
+			say("GEN1 BASIC SURVIVAL policy %s" % ("installed" if m.sim.install_basic_survival_policy() else "refused"))
+		KEY_L:
+			say("software policy cleared" if m.sim.clear_policy() else "no software policy installed")
+		KEY_O:
+			var was_scanning: bool = m.sim.is_scanning()
+			if m.sim.allocate_power(0, SENSOR_SCAN_MINIMUM_W):
+				say("sensors power set to %d W" % int(SENSOR_SCAN_MINIMUM_W))
+			else:
+				say("sensor power change refused" + (" (scan was running)" if was_scanning else ""))
 		KEY_P:
 			toggle_approach()
 		KEY_G:
@@ -313,7 +326,17 @@ func hud_lines() -> String:
 	return "TARGET %s\nARM %s %s  tool %s%s%s\nCARGO%s  storage %.1f / %.0f kg\n%s\n%s" % [
 		target, ARM_NAMES[selected_arm], arm_state, "on" if st["tool_attached"] else "off",
 		"  APPROACHING" if approaching else "", "  ALIGNED" if aligned else "",
-		cargo if cargo != "" else " empty", m.sim.get_storage_used_kg(), m.sim.get_storage_capacity_kg(), fix_it_line(), message]
+		cargo if cargo != "" else " empty", m.sim.get_storage_used_kg(), m.sim.get_storage_capacity_kg(), fix_it_line() + "\n" + power_line(), message]
+
+# Power and policy, with the simulation's compact recovery hint whenever scanning is blocked (G09).
+func power_line() -> String:
+	var p: PackedFloat64Array = m.sim.get_power_allocations()
+	var pol: Dictionary = m.sim.get_policy_status()
+	var g: Dictionary = m.sim.get_scan_power_guidance()
+	var line := "POWER SENS %d W (scan %d) PROP %d COMP %d THERM %d // POLICY %s" % [int(p[0]), int(SENSOR_SCAN_MINIMUM_W), int(p[1]), int(p[2]), int(p[3]), String(pol["policy_id"]) if pol["installed"] else "none"]
+	if g["state"] != "ready":
+		line += " // " + String(g["compact"])
+	return line
 
 # The Unreal FixItRuntimeActor summary format, plus the integrity of all four subsystems.
 func fix_it_line() -> String:

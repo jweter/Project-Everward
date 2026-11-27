@@ -66,6 +66,7 @@ const TERRAIN_PROXY_IDS := ["terrain-down", "terrain-velocity", "terrain-nose"]
 const FirstLoop = preload("res://first_loop.gd")
 var first_loop = null
 var firstloop_test := false      # --firstloop: headless acceptance run of the whole loop
+var powertest := false           # --powertest: headless run of the G09 sensor-power drop and recovery
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -76,6 +77,7 @@ func _ready() -> void:
 	sim_manual = "--sim" in args
 	selftest_sim = "--selftest-sim" in args
 	firstloop_test = "--firstloop" in args
+	powertest = "--powertest" in args
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -119,7 +121,9 @@ func _ready() -> void:
 	puff.width = 64
 	puff.height = 64
 	dust_mat.albedo_texture = puff
-	if firstloop_test:
+	if powertest:
+		_run_powertest.call_deferred()
+	elif firstloop_test:
 		_run_firstloop.call_deferred()
 	elif simflight:
 		_run_simflight.call_deferred()
@@ -265,7 +269,7 @@ func _build_clouds() -> void:
 
 func _scripted() -> bool:
 	# Any scripted run: no manual flight, no player input (they would move the camera between captures)
-	return autotest or explore or lookshots or simflight or firstloop_test
+	return autotest or explore or lookshots or simflight or firstloop_test or powertest
 
 func _apply_look() -> void:
 	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
@@ -729,6 +733,58 @@ func _run_firstloop() -> void:
 	print("FIRSTLOOP ", "PASS" if passed else "FAIL " + ", ".join(failed))
 	_quit_clean(0 if passed else 8)
 
+func _run_powertest() -> void:
+	# G3 evidence for #378 G09 through the real keys: the survival policy sheds sensor power at 50% stored energy,
+	# scanning is refused with the simulation's explanation, raising sensors alone does not hold while the policy is
+	# installed, and clear -> raise -> scan recovers. --selftest-fail=noclear skips the clear and must fail.
+	metrics.append("godot %s  renderer=%s" % [Engine.get_version_info()["string"], RenderingServer.get_video_adapter_name()])
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	if not _sim_start(ship.global_position):
+		_fail("simulation extension (EverwardSim) not loaded", 5)
+		return
+	first_loop = FirstLoop.new(self)
+	var checks: Array[String] = []
+	var failed: Array[String] = []
+	var check := func(name: String, ok: bool, detail: String) -> void:
+		checks.append("%s %s: %s" % ["PASS" if ok else "FAIL", name, detail])
+		if not ok:
+			failed.append(name)
+	first_loop.add_deposit("ore-1", ship.global_position + Vector3(0, 0, -40), 3.0, "iron_bearing_silicate_regolith", "Iron-bearing regolith", 120.0)
+	var p0: PackedFloat64Array = sim.get_power_allocations()
+	check.call("canonical start", p0[0] >= 50.0 and sim.get_scan_power_guidance()["state"] == "ready", "sensors %d W, guidance ready" % int(p0[0]))
+	_press(KEY_K)
+	await _sim_run(0.3)
+	var shed: PackedFloat64Array = sim.get_power_allocations()
+	check.call("policy sheds sensor power", sim.get_policy_status()["installed"] and shed[0] == 0.0, "sensors %d W after GEN1 BASIC SURVIVAL at %.0f%% stored energy" % [int(shed[0]), sim.get_stored_energy_j() / 1.0e7])
+	_press(KEY_R)
+	var refusal: String = first_loop.message
+	check.call("scan refused with recovery steps", not sim.is_scanning() and refusal.contains("clear or disable the policy") and refusal.contains("50 W"), refusal)
+	check.call("HUD shows the blocker", hud.text.contains("POLICY gen1_basic_survival") and hud.text.contains("Clear policy; raise power; scan"), first_loop.power_line())
+	_press(KEY_O)
+	await _sim_run(0.3)
+	_press(KEY_R)
+	check.call("raising sensors alone does not hold", sim.get_power_allocations()[0] == 0.0 and not sim.is_scanning(), "sensors %d W; %s" % [int(sim.get_power_allocations()[0]), first_loop.message])
+	if selftest_fail != "noclear":
+		_press(KEY_L)
+	_press(KEY_O)
+	await _sim_run(0.3)
+	_press(KEY_R)
+	var scanning: bool = sim.is_scanning()
+	await _until(func() -> bool: return sim.is_surveyed("ore-1"), 15.0)
+	check.call("clear, raise, scan recovers", not sim.get_policy_status()["installed"] and scanning and sim.is_surveyed("ore-1") and sim.get_scan_power_guidance()["state"] == "ready",
+		"policy installed=%s; sensors %d W; scan started=%s; surveyed=%s" % [sim.get_policy_status()["installed"], int(sim.get_power_allocations()[0]), scanning, sim.is_surveyed("ore-1")])
+	_press(KEY_L)
+	check.call("clearing with no policy is refused", first_loop.message == "no software policy installed", first_loop.message)
+	for line in checks:
+		metrics.append(line)
+		print(line)
+	var passed := failed.is_empty()
+	metrics.append("POWERTEST %s" % ("PASS" if passed else "FAIL " + ", ".join(failed)))
+	_flush_metrics()
+	print("POWERTEST ", "PASS" if passed else "FAIL " + ", ".join(failed))
+	_quit_clean(0 if passed else 9)
+
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	hud = Label.new()
@@ -824,7 +880,7 @@ func _input(event: InputEvent) -> void:
 	if first_loop != null and event is InputEventKey and event.pressed and not event.echo:
 		if first_loop.handle_key(event.keycode):
 			return
-	if _scripted() and not firstloop_test:
+	if _scripted() and not firstloop_test and not powertest:
 		return
 	if sim_active and first_loop != null and first_loop.busy() and event is InputEventMouseMotion:
 		return   # the solved staging pose holds for the attitude it was solved at

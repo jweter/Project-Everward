@@ -209,4 +209,23 @@ func _init() -> void:
 		quit(9)
 		return
 	print("fixit load reset %d computation %.9f state %s" % [1 if load_reset_ok else 0, loaded_computation, after_fix_load["state"]])
+	var pw = ClassDB.instantiate("EverwardSim")
+	pw.add_deposit("ore-p", 30.0, 0.0, 0.0, 2.0, "iron_regolith", "", 50.0, 5.0)
+	var pol := 1 if pw.install_basic_survival_policy() else 0
+	pw.advance_ticks(100000)
+	var p1: PackedFloat64Array = pw.get_power_allocations()
+	var scan1 := 1 if pw.start_scan("ore-p", 10.0) else 0
+	print("g09 policy %d sensors %.3f scan %d guidance %s" % [pol, p1[0], scan1, pw.get_scan_power_guidance()["compact"]])
+	pw.allocate_power(0, 50.0)
+	pw.advance_ticks(100000)
+	var scan2 := 1 if pw.start_scan("ore-p", 10.0) else 0
+	print("g09 raised-with-policy sensors %.3f scan %d" % [pw.get_power_allocations()[0], scan2])
+	var cleared := 1 if pw.clear_policy() else 0
+	var cleared_again := 1 if pw.clear_policy() else 0
+	pw.allocate_power(0, 50.0)
+	pw.advance_ticks(100000)
+	var scan3 := 1 if pw.start_scan("ore-p", 10.0) else 0
+	for step in 105:
+		pw.advance_ticks(100000)
+	print("g09 cleared %d again %d sensors %.3f scan %d surveyed %d guidance %s" % [cleared, cleared_again, pw.get_power_allocations()[0], scan3, 1 if pw.is_surveyed("ore-p") else 0, "ready" if pw.get_scan_power_guidance()["state"] == "ready" else "below"])
 	quit(0)

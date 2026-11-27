@@ -253,14 +253,64 @@ public:
     }
 
     bool start_scan(const std::string& target_id, double duration_s) {
-        if (target_id.empty() || !std::isfinite(duration_s) || duration_s <= 0.0) return false;
+        last_scan_refusal_.clear();
+        if (target_id.empty() || !std::isfinite(duration_s) || duration_s <= 0.0) {
+            last_scan_refusal_ = "invalid scan request";
+            return false;
+        }
         try {
             runtime_.start_scan(target_id, duration_s);
+            return true;
+        } catch (const std::exception& e) {
+            last_scan_refusal_ = e.what();  // e.g. the sensor-power guidance (G09)
+            return false;
+        }
+    }
+    [[nodiscard]] const std::string& last_scan_refusal() const { return last_scan_refusal_; }
+
+    // ------------------------------------------------------------------ power and software policy (#378 G09)
+    // Subsystems: 0 sensors, 1 propulsion, 2 computation, 3 thermal. Lowering sensors below the scan floor during a
+    // scan cancels it (the simulation's rule).
+    bool allocate_power(int subsystem, double watts) {
+        const auto s = power_subsystem(subsystem);
+        if (!s || !std::isfinite(watts) || watts < 0.0) return false;
+        try {
+            runtime_.allocate_power(*s, watts);
             return true;
         } catch (const std::exception&) {
             return false;
         }
     }
+    [[nodiscard]] std::vector<double> power_allocations() const {
+        const auto& s = runtime_.snapshot();
+        return {s.power_allocated_sensors_w, s.power_allocated_propulsion_w, s.power_allocated_computation_w,
+                s.power_allocated_thermal_w};
+    }
+    // The Unreal adapter's GEN1 BASIC SURVIVAL policy (CommandInstallBasicSurvivalPolicy), rule for rule: shed sensor
+    // power below 60% stored energy, shed propulsion above 350 K.
+    bool install_basic_survival_policy() {
+        try {
+            SoftwarePolicy policy;
+            policy.id = "gen1_basic_survival";
+            policy.rules = {
+                {"shed_sensors_below_60_percent_energy", PolicyConditionKind::EnergyFractionBelow, 0.60,
+                 PolicyActionKind::SetPowerAllocation, PowerSubsystem::Sensors, 0.0},
+                {"shed_propulsion_above_350_kelvin", PolicyConditionKind::TemperatureAboveKelvin, 350.0,
+                 PolicyActionKind::SetPowerAllocation, PowerSubsystem::Propulsion, 0.0},
+            };
+            runtime_.install_policy(std::move(policy));
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
+    bool clear_policy() {
+        if (!runtime_.policy_status().installed) return false;
+        runtime_.clear_policy();
+        return true;
+    }
+    [[nodiscard]] SoftwarePolicyStatus policy_status() const { return runtime_.policy_status(); }
+    [[nodiscard]] SensorPowerGuidance scan_power_guidance() const { return runtime_.scan_power_guidance(); }
     bool cancel_scan() {
         try {
             runtime_.cancel_scan();
@@ -614,6 +664,16 @@ private:
                 [this]() -> const std::vector<StaticSphereBody>& { return runtime_.static_bodies(); }));
     }
 
+    [[nodiscard]] static std::optional<PowerSubsystem> power_subsystem(int s) {
+        switch (s) {
+            case 0: return PowerSubsystem::Sensors;
+            case 1: return PowerSubsystem::Propulsion;
+            case 2: return PowerSubsystem::Computation;
+            case 3: return PowerSubsystem::Thermal;
+            default: return std::nullopt;
+        }
+    }
+
     [[nodiscard]] static std::optional<ManipulatorArmId> arm_id(int arm) {
         if (arm == 0) return ManipulatorArmId::Port;
         if (arm == 1) return ManipulatorArmId::Starboard;
@@ -750,6 +810,7 @@ private:
     std::map<std::string, WorldDeposit> deposits_;
     int pending_contacts_{0};
     std::int64_t accumulator_ticks_{0};
+    std::string last_scan_refusal_;
     bool fix_it_enabled_{false};
     bool fix_it_running_{false};
     bool fix_it_waiting_{false};

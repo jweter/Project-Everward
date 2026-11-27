@@ -70,6 +70,13 @@ public:
     Dictionary get_integrity() const;
     double get_stored_energy_j() const;
     PackedStringArray drain_fix_it_events();
+    String get_last_scan_refusal() const;
+    bool allocate_power(int64_t subsystem, double watts);
+    PackedFloat64Array get_power_allocations() const;
+    bool install_basic_survival_policy();
+    bool clear_policy();
+    Dictionary get_policy_status() const;
+    Dictionary get_scan_power_guidance() const;
 
 private:
     everward::binding::SimCore core_;

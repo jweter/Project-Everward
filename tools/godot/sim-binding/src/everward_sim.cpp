@@ -41,6 +41,13 @@ void EverwardSim::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_integrity"), &EverwardSim::get_integrity);
     ClassDB::bind_method(D_METHOD("get_stored_energy_j"), &EverwardSim::get_stored_energy_j);
     ClassDB::bind_method(D_METHOD("drain_fix_it_events"), &EverwardSim::drain_fix_it_events);
+    ClassDB::bind_method(D_METHOD("get_last_scan_refusal"), &EverwardSim::get_last_scan_refusal);
+    ClassDB::bind_method(D_METHOD("allocate_power", "subsystem", "watts"), &EverwardSim::allocate_power);
+    ClassDB::bind_method(D_METHOD("get_power_allocations"), &EverwardSim::get_power_allocations);
+    ClassDB::bind_method(D_METHOD("install_basic_survival_policy"), &EverwardSim::install_basic_survival_policy);
+    ClassDB::bind_method(D_METHOD("clear_policy"), &EverwardSim::clear_policy);
+    ClassDB::bind_method(D_METHOD("get_policy_status"), &EverwardSim::get_policy_status);
+    ClassDB::bind_method(D_METHOD("get_scan_power_guidance"), &EverwardSim::get_scan_power_guidance);
     ClassDB::bind_method(D_METHOD("get_last_contact"), &EverwardSim::get_last_contact);
     ClassDB::bind_method(D_METHOD("drain_contact_events"), &EverwardSim::drain_contact_events);
     ClassDB::bind_method(D_METHOD("setup_bootstrap_deposit", "remaining_kg"), &EverwardSim::setup_bootstrap_deposit);
@@ -219,6 +226,39 @@ PackedStringArray EverwardSim::drain_fix_it_events() {
     PackedStringArray out;
     for (const auto& line : core_.drain_fix_it_events()) out.push_back(String::utf8(line.c_str()));
     return out;
+}
+
+String EverwardSim::get_last_scan_refusal() const { return String::utf8(core_.last_scan_refusal().c_str()); }
+bool EverwardSim::allocate_power(int64_t subsystem, double watts) {
+    return core_.allocate_power(static_cast<int>(subsystem), watts);
+}
+PackedFloat64Array EverwardSim::get_power_allocations() const {
+    PackedFloat64Array out;
+    for (double w : core_.power_allocations()) out.push_back(w);
+    return out;
+}
+bool EverwardSim::install_basic_survival_policy() { return core_.install_basic_survival_policy(); }
+bool EverwardSim::clear_policy() { return core_.clear_policy(); }
+Dictionary EverwardSim::get_policy_status() const {
+    const auto s = core_.policy_status();
+    Dictionary d;
+    d["installed"] = s.installed;
+    d["enabled"] = s.enabled;
+    d["executor_available"] = s.executor_available;
+    d["policy_id"] = String::utf8(s.policy_id.c_str());
+    d["rule_count"] = static_cast<int64_t>(s.rule_count);
+    return d;
+}
+Dictionary EverwardSim::get_scan_power_guidance() const {
+    const auto g = core_.scan_power_guidance();
+    Dictionary d;
+    const char* state = g.state == everward::simulation::SensorPowerState::Ready ? "ready"
+        : g.state == everward::simulation::SensorPowerState::BelowFloorPolicyInstalled ? "below_floor_policy"
+                                                                                      : "below_floor_manual";
+    d["state"] = String(state);
+    d["message"] = String::utf8(g.message.c_str());
+    d["compact"] = String::utf8(g.compact_message.c_str());
+    return d;
 }
 
 bool EverwardSim::setup_bootstrap_deposit(double remaining_kg) { return core_.setup_bootstrap_deposit(remaining_kg); }
