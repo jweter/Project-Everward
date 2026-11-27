@@ -86,6 +86,15 @@ struct ProbeSaveData {
     // event for the bootstrap deposit. Do not infer it from partial scan
     // confidence or the last selected body after loading.
     bool bootstrap_resource_surveyed = false;
+    // Issue #378 G08: the bootstrap deposit's remaining mass and the total already extracted
+    // live outside DamageAwareProbeRuntime (the Unreal adapter's mining bridge). Without them a
+    // save/load pair desyncs the deposit from the restored inventory: loading an older save
+    // kept the later, smaller deposit, and a fresh session started the deposit full again while
+    // the inventory came back, which duplicates material. Additive v2 fields: absent (or null)
+    // on every save captured before this existed and read back as nullopt, meaning "not
+    // recorded" -- the caller keeps its own value rather than inventing one.
+    std::optional<double> bootstrap_deposit_remaining_kg{};
+    std::optional<double> bootstrap_extracted_kg{};
     // ManipulatorRig is not composed inside DamageAwareProbeRuntime (see
     // manipulator.hpp's header comment), so it is captured/restored here as
     // plain arm state rather than as a whole ManipulatorRig -- the rig's
@@ -844,6 +853,14 @@ namespace detail {
     object.set("selected_target_id", JsonValue(data.selected_target_id));
     object.set("last_completed_scan_target_id", JsonValue(data.last_completed_scan_target_id));
     object.set("bootstrap_resource_surveyed", JsonValue(data.bootstrap_resource_surveyed));
+    object.set(
+        "bootstrap_deposit_remaining_kg",
+        data.bootstrap_deposit_remaining_kg.has_value()
+            ? JsonValue(*data.bootstrap_deposit_remaining_kg)
+            : JsonValue());
+    object.set(
+        "bootstrap_extracted_kg",
+        data.bootstrap_extracted_kg.has_value() ? JsonValue(*data.bootstrap_extracted_kg) : JsonValue());
     object.set("port_manipulator_arm", detail::manipulator_arm_state_to_json(data.port_manipulator_arm));
     object.set(
         "starboard_manipulator_arm",
@@ -887,6 +904,21 @@ namespace detail {
     }
     if (const JsonValue* surveyed = value.find("bootstrap_resource_surveyed")) {
         data.bootstrap_resource_surveyed = surveyed->as_bool();
+    }
+    for (const auto& [key, target] :
+         {std::pair<const char*, std::optional<double>*>{
+              "bootstrap_deposit_remaining_kg", &data.bootstrap_deposit_remaining_kg},
+          std::pair<const char*, std::optional<double>*>{
+              "bootstrap_extracted_kg", &data.bootstrap_extracted_kg}}) {
+        const JsonValue* field = value.find(key);
+        if (field == nullptr || field->is_null()) {
+            continue;  // older save: not recorded
+        }
+        const double kilograms = field->as_double();
+        if (!std::isfinite(kilograms) || kilograms < 0.0) {
+            throw std::runtime_error(std::string(key) + " must be finite and non-negative");
+        }
+        *target = kilograms;
     }
     data.port_manipulator_arm =
         detail::manipulator_arm_state_from_json(value.require("port_manipulator_arm"));
