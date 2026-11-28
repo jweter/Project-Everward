@@ -17,11 +17,16 @@ timed events, checks; see `tools/godot/world-spike/evidence.gd`), `metrics.txt`,
 | PASS | the mode's report says PASS and the engine log has no script errors |
 | FAIL | a check failed while every precondition held, or every check passed but the game exited abnormally (a crash on the way out is still a finding): the report lists the failed checks and the exact command to reproduce |
 | REVIEW_REQUIRED | mechanics passed but a person must look: script errors, or rendered frames (never machine-passed) |
-| ENVIRONMENT_FAILURE | the run could not establish its situation: report INCONCLUSIVE, no fresh report, timeout, too little RAM, or a rendered run without frames |
+| ENVIRONMENT_FAILURE | the run could not establish its situation: report INCONCLUSIVE, no fresh report, timeout, too little RAM, or a rendered run that saved fewer frames than its mode takes (`visualtest` 3, `firstloop` 5 of its 9) |
+
+The runner decides whether a playtest is believed, so its own reading of the evidence is tested:
+`python tools/godot/playtest/test_run_playtest.py` (no dependencies, seconds, no Godot) drives the real command line
+against a stand-in executable that writes the evidence of a crashed run, a stale directory, a short rendered run, and
+so on, and asserts the classification. Every runner defect found in review has a case here.
 
 Evidence is never shared between runs: only a `report.json` and frames written after the run started count, and a run directory that already holds evidence stops that run instead of mixing the two.
 
-Headless runs record the visual status `NOT_RUN`; only `--rendered` captures frames. Exit code 0 for PASS or
+Headless runs record the visual status `NOT_RUN`; only `--rendered` renders. `--rendered` runs `visualtest`, whose checks read the frames themselves, and a first loop whose frames are only captured (REVIEW_REQUIRED). `visualtest` reports VERIFIED only when those checks passed (artistic quality still unjudged); when they failed, the run was inconclusive, or the engine log has script errors, the visual status says so instead — it never claims a verification the checks rejected. With no renderer `visualtest` is INCONCLUSIVE, so a visual pass is never reported without a frame. Exit code 0 for PASS or
 REVIEW_REQUIRED overall, 1 for FAIL, 2 for ENVIRONMENT_FAILURE.
 
 Modes (each also runnable alone, see `tools/godot/world-spike/README.md`): `firstloop` (damaged awakening, scan,
@@ -41,11 +46,12 @@ that is not shipped. A shipped game must exclude `main.gd`'s test modes (planned
 export feature tag).
 
 ## Next slices (planned, not built yet)
-1. ~~Runner, classification, reports~~ (this PR).
-2. Rendered checks that are machine-verified: project each mining-arm tip and hull sample to the screen and compare
-   with the drawn meshes (geometry vs picture), HUD bounding boxes for overlap/clipping, non-blank and
-   not-uniform frames, FPS/frame-time and memory thresholds per run.
-3. ~~Seeded exploratory player foundation~~: bounded random real-input sequences, interrupted mining and recovery, conservation, no-contact, HUD and replay trace are implemented in `--exploretest`. **Still pending:** save/load mid-operation, moving-target exploration and persisted failing-seed regression corpus.
+1. ~~Runner, classification, reports~~.
+2. ~~Machine-verified rendered checks~~: `--visualtest` compares drawn-vs-simulated arm geometry, probe and arm
+   placement, HUD fit and simulation agreement, frame variety, frame rate and memory on real rendered frames.
+3. ~~Seeded exploratory player foundation~~: bounded random real-input sequences, interrupted mining and recovery,
+   conservation, no-contact, HUD and replay trace are implemented in `--exploretest`. **Still pending:** save/load
+   mid-operation, moving-target exploration and a persisted failing-seed regression corpus.
 4. Optional local vision review through Ollama, advisory only, if it runs acceptably on Azathoth.
 5. Iron God: run the headless suite unattended under worker authority and post `playtest.json` summaries through the
    approved mailbox; repair handoffs cite the failing run's reproduction command.

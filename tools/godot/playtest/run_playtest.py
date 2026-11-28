@@ -37,7 +37,12 @@ SCHEMA = "everward.godot.playtest/1"
 HERE = Path(__file__).resolve().parent
 WORLD = HERE.parent / "world-spike"
 DEFAULT_MODES = ["firstloop", "powertest", "hudtest", "approachtest", "contacttest", "exploretest"]
-RENDERED_FRAMES_MIN = 5          # --firstloop takes 9 screenshots when a renderer exists
+MACHINE_JUDGED_VISUAL = "visualtest"   # checks the frames themselves; the others only capture them
+# How many usable frames a rendered mode has to save before its result means anything. This is per mode because the
+# modes photograph different amounts: --firstloop takes 9 screenshots across the loop, --visualtest takes 3 and
+# inspects them. One flat minimum of 5 classified every successful --visualtest as ENVIRONMENT_FAILURE (Codex #458).
+RENDERED_FRAMES_MIN = {"visualtest": 3, "firstloop": 5}
+RENDERED_FRAMES_MIN_DEFAULT = 3  # a rendered mode nobody has characterised still has to produce something to look at
 
 
 def free_ram_gb() -> float | None:
@@ -146,13 +151,34 @@ def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeou
     else:
         entry.update(classification="ENVIRONMENT_FAILURE", reason=f"unknown verdict {verdict!r}")
     if rendered:
+        judged = mode == MACHINE_JUDGED_VISUAL
         frames = sorted(str(f.name) for f in run_dir.glob("*.png")
                         if f.stat().st_size > 20000 and f.stat().st_mtime >= started.timestamp())
         entry["frames"] = frames
-        if len(frames) < RENDERED_FRAMES_MIN:
-            entry["visual"] = f"ENVIRONMENT_FAILURE ({len(frames)} rendered frames captured)"
+        least = RENDERED_FRAMES_MIN.get(mode, RENDERED_FRAMES_MIN_DEFAULT)
+        if len(frames) < least:
+            entry["visual"] = f"ENVIRONMENT_FAILURE ({len(frames)} of the {least} frames this mode saves)"
             if entry["classification"] == "PASS":
-                entry.update(classification="ENVIRONMENT_FAILURE", reason="rendered run produced no usable frames")
+                entry.update(classification="ENVIRONMENT_FAILURE",
+                             reason=f"rendered run saved {len(frames)} usable frames, fewer than the {least} "
+                                    f"{mode} captures: the run did not get far enough to be believed")
+        elif judged:
+            # VERIFIED means the visual checks ran on real frames and passed. A failed, inconclusive or
+            # script-error run inspected frames too, and has to report what that inspection found: claiming
+            # verification the checks rejected is the one thing a visual status must never do (Codex #458).
+            total = entry.get("checks_total", 0)
+            if entry["classification"] == "PASS":
+                entry["visual"] = (f"VERIFIED ({total} deterministic checks on {len(frames)} rendered frames; "
+                                   "artistic quality not judged)")
+            elif entry["classification"] == "FAIL":
+                entry["visual"] = (f"FAILED ({len(entry.get('failed', []))} of {total} visual checks failed on "
+                                   f"{len(frames)} rendered frames)")
+            elif entry["classification"] == "REVIEW_REQUIRED":
+                entry["visual"] = (f"REVIEW_REQUIRED ({len(frames)} rendered frames inspected, but the engine log "
+                                   f"has {entry['script_errors']} script errors)")
+            else:
+                entry["visual"] = (f"INCONCLUSIVE ({len(frames)} rendered frames saved; the run could not establish "
+                                   "its own situation)")
         else:
             entry["visual"] = f"REVIEW_REQUIRED ({len(frames)} frames captured; not machine-judged)"
             if entry["classification"] == "PASS":
@@ -225,6 +251,7 @@ def main() -> int:
     runs = [run_mode(a.godot, m, out, False, a.seed, a.timeout, a.min_free_ram_gb,
                      a.mode_arg + ([f"--steps={a.explore_steps}"] if m == "exploretest" else [])) for m in modes]
     if a.rendered:
+        runs.append(run_mode(a.godot, "visualtest", out, True, a.seed, a.timeout, a.min_free_ram_gb, a.mode_arg))
         runs.append(run_mode(a.godot, "firstloop", out, True, a.seed, a.timeout, a.min_free_ram_gb, a.mode_arg))
     for r in runs:
         print(f"{r['classification']:<20} {r['mode']}{' (rendered)' if r['rendered'] else ''}  {r.get('reason', '')}")
