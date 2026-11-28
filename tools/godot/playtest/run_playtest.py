@@ -67,6 +67,14 @@ def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeou
              extra: list[str] | None = None) -> dict:
     run_dir = out / (mode + ("-rendered" if rendered else ""))
     run_dir.mkdir(parents=True, exist_ok=True)
+    # Evidence from an earlier run must never be read as this one's (Codex #456): a run that writes nothing would
+    # otherwise inherit the old report.json and its old frames. Only files written after this run started count, and
+    # a run directory that already holds evidence stops the run instead of mixing the two.
+    stale = sorted(f.name for f in run_dir.iterdir() if f.is_file())
+    if stale:
+        return {"mode": mode, "rendered": rendered, "out": str(run_dir), "command": "",
+                "visual": "NOT_RUN", "classification": "ENVIRONMENT_FAILURE",
+                "reason": f"run directory already holds evidence ({', '.join(stale[:4])}); use a fresh --out"}
     cmd = [godot] + ([] if rendered else ["--headless"]) + ["--path", str(WORLD), "--", f"--{mode}",
                                                           f"--out={run_dir.as_posix()}", f"--seed={seed}"] + (extra or [])
     entry = {"mode": mode, "rendered": rendered, "command": subprocess.list2cmdline(cmd), "out": str(run_dir),
@@ -88,7 +96,7 @@ def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeou
     entry["script_errors"] = log.count("SCRIPT ERROR")
     report_path = run_dir / "report.json"
     report = None
-    if report_path.exists() and report_path.stat().st_mtime >= started.timestamp() - 1:
+    if report_path.exists() and report_path.stat().st_mtime >= started.timestamp():
         try:
             report = json.loads(report_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -115,12 +123,18 @@ def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeou
         entry.update(classification="FAIL", reason="; ".join(entry["reasons"]))
     elif verdict == "PASS":
         entry.update(classification="PASS", reason="")
-        if entry["script_errors"]:
+        # A report is written before the engine shuts down, so a PASS report plus an abnormal exit means the game
+        # crashed or failed on the way out: a finding, never a pass (Codex #456).
+        if code != 0:
+            entry.update(classification="FAIL",
+                         reason=f"every check passed but the game exited abnormally (code {code})")
+        elif entry["script_errors"]:
             entry.update(classification="REVIEW_REQUIRED", reason=f"{entry['script_errors']} script errors in the engine log")
     else:
         entry.update(classification="ENVIRONMENT_FAILURE", reason=f"unknown verdict {verdict!r}")
     if rendered:
-        frames = sorted(str(f.name) for f in run_dir.glob("*.png") if f.stat().st_size > 20000)
+        frames = sorted(str(f.name) for f in run_dir.glob("*.png")
+                        if f.stat().st_size > 20000 and f.stat().st_mtime >= started.timestamp())
         entry["frames"] = frames
         if len(frames) < RENDERED_FRAMES_MIN:
             entry["visual"] = f"ENVIRONMENT_FAILURE ({len(frames)} rendered frames captured)"

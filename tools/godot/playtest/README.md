@@ -15,9 +15,11 @@ timed events, checks; see `tools/godot/world-spike/evidence.gd`), `metrics.txt`,
 | Result | Meaning |
 |---|---|
 | PASS | the mode's report says PASS and the engine log has no script errors |
-| FAIL | a check failed while every precondition held: a finding about the game; the report lists the failed checks and the exact command to reproduce |
+| FAIL | a check failed while every precondition held, or every check passed but the game exited abnormally (a crash on the way out is still a finding): the report lists the failed checks and the exact command to reproduce |
 | REVIEW_REQUIRED | mechanics passed but a person must look: script errors, or rendered frames (never machine-passed) |
 | ENVIRONMENT_FAILURE | the run could not establish its situation: report INCONCLUSIVE, no fresh report, timeout, too little RAM, or a rendered run without frames |
+
+Evidence is never shared between runs: only a `report.json` and frames written after the run started count, and a run directory that already holds evidence stops that run instead of mixing the two.
 
 Headless runs record the visual status `NOT_RUN`; only `--rendered` captures frames. Exit code 0 for PASS or
 REVIEW_REQUIRED overall, 1 for FAIL, 2 for ENVIRONMENT_FAILURE.
