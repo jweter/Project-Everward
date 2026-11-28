@@ -36,7 +36,7 @@ from pathlib import Path
 SCHEMA = "everward.godot.playtest/1"
 HERE = Path(__file__).resolve().parent
 WORLD = HERE.parent / "world-spike"
-DEFAULT_MODES = ["firstloop", "powertest", "hudtest", "approachtest", "contacttest"]
+DEFAULT_MODES = ["firstloop", "powertest", "hudtest", "approachtest", "contacttest", "exploretest"]
 RENDERED_FRAMES_MIN = 5          # --firstloop takes 9 screenshots when a renderer exists
 
 
@@ -195,7 +195,8 @@ def main() -> int:
     ap.add_argument("--godot", default=os.environ.get("EVERWARD_GODOT", ""), help="godot-voxel editor build")
     ap.add_argument("--out", default="", help="report directory (default C:/IronGod/TestTemp/playtest/<UTC>)")
     ap.add_argument("--modes", default=",".join(DEFAULT_MODES))
-    ap.add_argument("--seed", type=int, default=1, help="recorded and passed to every mode (reproducibility)")
+    ap.add_argument("--seed", type=int, default=1, help="seed for reproducible exploratory action sequence")
+    ap.add_argument("--explore-steps", type=int, default=12, help="number of bounded seeded input actions (1 to 64)")
     ap.add_argument("--rendered", action="store_true", help="also run --firstloop in a window and capture frames")
     ap.add_argument("--exclusive", action="store_true", help="the worker has the machine to itself (required by --rendered)")
     ap.add_argument("--min-free-ram-gb", type=float, default=2.0)
@@ -204,6 +205,9 @@ def main() -> int:
     a = ap.parse_args()
     if not a.godot or not Path(a.godot).exists():
         print("ENVIRONMENT_FAILURE: pass --godot or set EVERWARD_GODOT to the godot-voxel editor build")
+        return 2
+    if a.explore_steps < 1 or a.explore_steps > 64 or a.seed < 0:
+        print("ENVIRONMENT_FAILURE: --explore-steps must be 1..64 and --seed must be nonnegative")
         return 2
     if a.rendered and not a.exclusive:
         print("refused: --rendered opens a game window; add --exclusive only when nobody is using the machine")
@@ -218,7 +222,8 @@ def main() -> int:
         # An empty automation parameter must never read as a clean suite (Codex #456).
         print("ENVIRONMENT_FAILURE: no scenarios selected (--modes is empty)")
         return 2
-    runs = [run_mode(a.godot, m, out, False, a.seed, a.timeout, a.min_free_ram_gb, a.mode_arg) for m in modes]
+    runs = [run_mode(a.godot, m, out, False, a.seed, a.timeout, a.min_free_ram_gb,
+                     a.mode_arg + ([f"--steps={a.explore_steps}"] if m == "exploretest" else [])) for m in modes]
     if a.rendered:
         runs.append(run_mode(a.godot, "firstloop", out, True, a.seed, a.timeout, a.min_free_ram_gb, a.mode_arg))
     for r in runs:
