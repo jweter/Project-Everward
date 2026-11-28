@@ -37,6 +37,7 @@ SCHEMA = "everward.godot.playtest/1"
 HERE = Path(__file__).resolve().parent
 WORLD = HERE.parent / "world-spike"
 DEFAULT_MODES = ["firstloop", "powertest", "hudtest", "approachtest", "contacttest"]
+MACHINE_JUDGED_VISUAL = "visualtest"   # checks the frames themselves; the others only capture them
 RENDERED_FRAMES_MIN = 5          # --firstloop takes 9 screenshots when a renderer exists
 
 
@@ -146,6 +147,7 @@ def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeou
     else:
         entry.update(classification="ENVIRONMENT_FAILURE", reason=f"unknown verdict {verdict!r}")
     if rendered:
+        judged = mode == MACHINE_JUDGED_VISUAL
         frames = sorted(str(f.name) for f in run_dir.glob("*.png")
                         if f.stat().st_size > 20000 and f.stat().st_mtime >= started.timestamp())
         entry["frames"] = frames
@@ -153,6 +155,9 @@ def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeou
             entry["visual"] = f"ENVIRONMENT_FAILURE ({len(frames)} rendered frames captured)"
             if entry["classification"] == "PASS":
                 entry.update(classification="ENVIRONMENT_FAILURE", reason="rendered run produced no usable frames")
+        elif judged:
+            entry["visual"] = (f"VERIFIED ({entry.get('checks_total', 0)} deterministic checks on {len(frames)} "
+                               "rendered frames; artistic quality not judged)")
         else:
             entry["visual"] = f"REVIEW_REQUIRED ({len(frames)} frames captured; not machine-judged)"
             if entry["classification"] == "PASS":
@@ -220,6 +225,7 @@ def main() -> int:
         return 2
     runs = [run_mode(a.godot, m, out, False, a.seed, a.timeout, a.min_free_ram_gb, a.mode_arg) for m in modes]
     if a.rendered:
+        runs.append(run_mode(a.godot, "visualtest", out, True, a.seed, a.timeout, a.min_free_ram_gb, a.mode_arg))
         runs.append(run_mode(a.godot, "firstloop", out, True, a.seed, a.timeout, a.min_free_ram_gb, a.mode_arg))
     for r in runs:
         print(f"{r['classification']:<20} {r['mode']}{' (rendered)' if r['rendered'] else ''}  {r.get('reason', '')}")

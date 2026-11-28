@@ -21,7 +21,7 @@ timed events, checks; see `tools/godot/world-spike/evidence.gd`), `metrics.txt`,
 
 Evidence is never shared between runs: only a `report.json` and frames written after the run started count, and a run directory that already holds evidence stops that run instead of mixing the two.
 
-Headless runs record the visual status `NOT_RUN`; only `--rendered` captures frames. Exit code 0 for PASS or
+Headless runs record the visual status `NOT_RUN`; only `--rendered` renders. `--rendered` runs `visualtest`, whose checks read the frames themselves (visual status VERIFIED, artistic quality still unjudged), and a first loop whose frames are only captured (REVIEW_REQUIRED). With no renderer `visualtest` is INCONCLUSIVE, so a visual pass is never reported without a frame. Exit code 0 for PASS or
 REVIEW_REQUIRED overall, 1 for FAIL, 2 for ENVIRONMENT_FAILURE.
 
 Modes (each also runnable alone, see `tools/godot/world-spike/README.md`): `firstloop` (damaged awakening, scan,
@@ -39,10 +39,9 @@ that is not shipped. A shipped game must exclude `main.gd`'s test modes (planned
 export feature tag).
 
 ## Next slices (planned, not built yet)
-1. ~~Runner, classification, reports~~ (this PR).
-2. Rendered checks that are machine-verified: project each mining-arm tip and hull sample to the screen and compare
-   with the drawn meshes (geometry vs picture), HUD bounding boxes for overlap/clipping, non-blank and
-   not-uniform frames, FPS/frame-time and memory thresholds per run.
+1. ~~Runner, classification, reports~~.
+2. ~~Machine-verified rendered checks: drawn-vs-simulated arm geometry, probe and arm on screen, HUD fit and
+   agreement with the simulation, frame variety, frame rate and memory~~ (`--visualtest`).
 3. Seeded exploratory player: random but reproducible key sequences (invalid actions, interrupted operations,
    save/load mid-operation) with invariants (no stuck state past a timeout, conservation, no contact during
    approach, HUD agrees with the simulation); a failing seed becomes a regression case.

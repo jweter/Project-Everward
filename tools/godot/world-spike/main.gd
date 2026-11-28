@@ -70,6 +70,7 @@ var powertest := false           # --powertest: headless run of the G09 sensor-p
 var hudtest := false             # --hudtest: headless run of the G11 systems panel selection
 var approachtest := false        # --approachtest: headless run of the G10 auto-approach safety cases
 var contacttest := false         # --contacttest: headless run of the G07 compound-hull contact cases
+var visualtest := false          # --visualtest: RENDERED run; checks real frames, drawn-vs-simulated geometry, HUD, performance
 # G04/G12: the acceptance runs write report.json (exact build, timed events, checks, PASS/FAIL/INCONCLUSIVE).
 const Evidence = preload("res://evidence.gd")
 const INCONCLUSIVE_EXIT := 11
@@ -88,6 +89,7 @@ func _ready() -> void:
 	hudtest = "--hudtest" in args
 	approachtest = "--approachtest" in args
 	contacttest = "--contacttest" in args
+	visualtest = "--visualtest" in args
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -131,7 +133,9 @@ func _ready() -> void:
 	puff.width = 64
 	puff.height = 64
 	dust_mat.albedo_texture = puff
-	if contacttest:
+	if visualtest:
+		_run_visualtest.call_deferred()
+	elif contacttest:
 		_run_contacttest.call_deferred()
 	elif approachtest:
 		_run_approachtest.call_deferred()
@@ -285,7 +289,7 @@ func _build_clouds() -> void:
 
 func _scripted() -> bool:
 	# Any scripted run: no manual flight, no player input (they would move the camera between captures)
-	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest or approachtest or contacttest
+	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest or approachtest or contacttest or visualtest
 
 func _apply_look() -> void:
 	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
@@ -903,6 +907,162 @@ func _contact_summary(c: Dictionary) -> String:
 	return "contacts %d; first touching sample %d; normal speed %.2f m/s; deepest hull penetration %.4f m; closest hull centre %.2f m; integrity sens %.3f->%.3f prop %.3f->%.3f comp %.3f->%.3f therm %.3f->%.3f; final velocity %s" % [
 		c["contacts"], c["sample"], c["normal_speed"], c["deepest"], c["closest_centre"], i0["sensors"], i1["sensors"], i0["propulsion"], i1["propulsion"], i0["computation"], i1["computation"], i0["thermal"], i1["thermal"], c["velocity"]]
 
+# ------------------------------------------------------------------- G3: rendered visual checks (#378 G04/G07/G10)
+# Mean colour of a band of the frame, rows [from, to) as fractions of the height.
+func _band_mean(img: Image, from_f: float, to_f: float) -> Color:
+	var h := img.get_height()
+	var w := img.get_width()
+	var y0 := int(h * from_f)
+	var y1 := maxi(y0 + 1, int(h * to_f))
+	var sum := Color(0, 0, 0)
+	var n := 0
+	for y in range(y0, mini(y1, h), 2):
+		for x in range(0, w, 8):
+			sum += img.get_pixel(x, y)
+			n += 1
+	return sum / maxf(1.0, float(n))
+
+# How much the frame varies: the number of distinct quantised colours on a coarse grid. A blank, frozen or
+# single-colour frame scores very low however bright it is.
+func _frame_variety(img: Image) -> int:
+	var seen := {}
+	for y in range(0, img.get_height(), 7):
+		for x in range(0, img.get_width(), 7):
+			var c := img.get_pixel(x, y)
+			seen[Vector3i(int(c.r * 16), int(c.g * 16), int(c.b * 16))] = true
+	return seen.size()
+
+func _frame() -> Image:
+	await RenderingServer.frame_post_draw
+	return get_viewport().get_texture().get_image()
+
+func _run_visualtest() -> void:
+	# What a headless run cannot establish (#378 G04): that a real frame looks right. This mode runs the first loop
+	# with a renderer and checks the frames themselves -- the world is drawn, the probe and its arm are visible and
+	# drawn where the simulation says they are, the HUD fits on screen and reads the simulation, and the frame rate
+	# and memory hold. With no renderer it is INCONCLUSIVE, never PASS.
+	# Negative controls: --selftest-fail=armdrift moves the drawn tool tip 1 m off the simulated one;
+	# =hudoff pushes the HUD off screen; =blankframe hides the world.
+	_begin_evidence("visualtest")
+	var headless := DisplayServer.get_name() == "headless" or RenderingServer.get_video_adapter_name() == ""
+	evidence.precondition("a renderer is present", not headless,
+		"display %s, adapter %s" % [DisplayServer.get_name(), RenderingServer.get_video_adapter_name()])
+	if headless:
+		_finish_evidence("VISUALTEST", 14)   # no frame was inspected: INCONCLUSIVE, never a visual pass
+		return
+	_place_ship(Vector3(0, 300, 0), Vector3(0, 0, -100))
+	await _wait_stream()
+	var vt: VoxelTool = terrain.get_voxel_tool()
+	var peak := Vector3(0, -1000, 0)
+	for gx in range(-9, 10):
+		for gz in range(-9, 10):
+			var h = vt.raycast(Vector3(gx * 40.0, 480.0, gz * 40.0), Vector3.DOWN, 700.0)
+			if h != null and h.position.y > peak.y:
+				peak = Vector3(h.position)
+	evidence.precondition("terrain streamed", peak.y > -1000.0, "summit at %s" % str(peak))
+	var ore_center := peak + Vector3(0, 1.8, 0)
+	if not _sim_start(ore_center + Vector3(0, 14, 45)):
+		_fail("simulation extension (EverwardSim) not loaded", 5)
+		return
+	first_loop = FirstLoop.new(self)
+	var check := func(name: String, ok: bool, detail: String) -> void: evidence.check(name, ok, detail)
+	evidence.precondition("deposit registered",
+		first_loop.add_deposit("ore-1", ore_center, 3.0, "iron_bearing_silicate_regolith", "Iron-bearing regolith", 120.0),
+		"ore-1 on the summit")
+	if selftest_fail == "blankframe":
+		terrain.visible = false
+		ship.visible = false
+		for d in first_loop.deposits:
+			(d["mesh"] as MeshInstance3D).visible = false
+	await _sim_run(0.5)
+	await _shot("visual_01_world")
+
+	# 1. the world is actually drawn: a varied frame, with sky above and ground below
+	var img: Image = await _frame()
+	var variety := _frame_variety(img)
+	var sky := _band_mean(img, 0.0, 0.12)
+	var ground := _band_mean(img, 0.80, 1.0)
+	var split: float = absf(sky.get_luminance() - ground.get_luminance())
+	check.call("the frame is a drawn world, not a blank screen", variety >= 24 and split >= 0.02,
+		"%d distinct colours; sky luminance %.3f vs ground %.3f (difference %.3f) at %dx%d" % [variety, sky.get_luminance(), ground.get_luminance(), split, img.get_width(), img.get_height()])
+
+	# 2. the probe is on screen, in front of the camera, and visible against the sky
+	var cam := get_viewport().get_camera_3d()
+	var screen := cam.unproject_position(ship.global_position)
+	var on_screen: bool = not cam.is_position_behind(ship.global_position) and Rect2(Vector2.ZERO, Vector2(img.get_width(), img.get_height())).has_point(screen)
+	var probe_pixel := img.get_pixel(clampi(int(screen.x), 0, img.get_width() - 1), clampi(int(screen.y), 0, img.get_height() - 1)) if on_screen else Color(0, 0, 0)
+	check.call("the probe is drawn where the camera looks", on_screen and probe_pixel.get_luminance() > 0.02 and absf(probe_pixel.get_luminance() - sky.get_luminance()) > 0.02,
+		"probe at screen %s of %dx%d; pixel %s vs sky %s" % [str(screen.round()), img.get_width(), img.get_height(), probe_pixel.to_html(false), sky.to_html(false)])
+
+	# 3. the drawn arm is where the simulation says it is: every joint and the tool tip, both arms
+	_press(KEY_1)
+	_press(KEY_T)
+	await _until(func() -> bool: return sim.get_arm_state(0)["deployed"] and not sim.get_arm_state(0)["deploying"], 6.0)
+	_press(KEY_Y)
+	await _sim_run(0.3)
+	if selftest_fail == "armdrift":
+		(first_loop.arm_meshes[0][3] as MeshInstance3D).global_position += Vector3(1, 0, 0)
+	var worst := 0.0
+	var worst_name := ""
+	for arm in 2:
+		var pts: Array = sim.get_arm_points(arm)
+		var tip_drawn: Vector3 = (first_loop.arm_meshes[arm][3] as MeshInstance3D).global_position
+		var tip_sim: Vector3 = _sim_to_godot(pts[3])
+		if tip_drawn.distance_to(tip_sim) > worst:
+			worst = tip_drawn.distance_to(tip_sim)
+			worst_name = "%s tool tip" % FirstLoop.ARM_NAMES[arm]
+	check.call("the drawn arm matches the simulated arm", worst <= 0.01,
+		"worst disagreement %.4f m (%s); the simulation decides the pose, the mesh only draws it" % [worst, worst_name])
+
+	# 4. the deployed arm is visible on screen, not hidden behind the camera or off the edge
+	var tip: Vector3 = (first_loop.arm_meshes[0][3] as MeshInstance3D).global_position
+	var tip_screen := cam.unproject_position(tip)
+	check.call("the deployed arm is on screen", not cam.is_position_behind(tip) and Rect2(Vector2.ZERO, Vector2(img.get_width(), img.get_height())).has_point(tip_screen),
+		"port tool tip at %s of %dx%d" % [str(tip_screen.round()), img.get_width(), img.get_height()])
+	await _shot("visual_02_arm")
+
+	# 5. the HUD fits on screen, reads the simulation, and stays readable
+	if selftest_fail == "hudoff":
+		hud.position = Vector2(-4000, -4000)
+	await _sim_run(0.2)
+	var vp := Vector2(img.get_width(), img.get_height())
+	var hud_rect := Rect2(hud.position, hud.size)
+	var inside: bool = Rect2(Vector2.ZERO, vp).encloses(hud_rect)
+	var lines: int = hud.text.split("\n").size()
+	check.call("the HUD fits on screen", inside and hud.size.x > 100.0 and hud.size.y > 40.0,
+		"HUD rect %s in a %s viewport, %d lines" % [str(hud_rect), str(vp), lines])
+	check.call("the HUD shows the simulation's own state", hud.text.contains("SURVEYED") == sim.is_surveyed("ore-1") and hud.text.contains("ARM PORT") and hud.text.contains("tool on") == bool(sim.get_arm_state(0)["tool_attached"]),
+		hud.text.split("\n")[1] if lines > 1 else hud.text)
+
+	# 6. frame rate, worst frame and memory hold while the loop runs (warm up first, then measure)
+	await _sim_run(1.0)
+	var frames := 0
+	var worst_frame_ms := 0.0
+	var mem0 := OS.get_static_memory_usage()
+	var elapsed := 0.0
+	while elapsed < 4.0:
+		var dt := await _tick_seconds()
+		elapsed += dt
+		frames += 1
+		worst_frame_ms = maxf(worst_frame_ms, dt * 1000.0)
+	var fps := float(frames) / maxf(0.001, elapsed)
+	var grew_mb := float(OS.get_static_memory_usage() - mem0) / 1048576.0
+	check.call("the frame rate holds", fps >= 15.0 and worst_frame_ms <= 400.0,
+		"%.1f FPS over %.1f s, worst frame %.0f ms, renderer %s" % [fps, elapsed, worst_frame_ms, RenderingServer.get_video_adapter_name()])
+	check.call("memory is steady while drawing", grew_mb <= 150.0,
+		"static memory grew %.1f MB over %.1f s (now %.0f MB)" % [grew_mb, elapsed, OS.get_static_memory_usage() / 1048576.0])
+	await _shot("visual_03_steady")
+	var shots: Array[String] = []
+	for f in DirAccess.get_files_at(OUT_DIR):
+		if f.begins_with("visual_") and f.ends_with(".png"):
+			shots.append(f)
+	check.call("rendered frames were saved as evidence", shots.size() >= 3, "frames: %s" % [shots])
+	_finish_evidence("VISUALTEST", 14)
+
+func _tick_seconds() -> float:
+	await get_tree().process_frame
+	return get_process_delta_time()
+
 func _run_contacttest() -> void:
 	# G3 evidence for #378 G07: contact is decided by the probe's compound hull (five spheres: nose 0, centre 1, tail 2,
 	# port wing 3, starboard wing 4), not a coarse sphere; it turns with the probe; moving bodies are swept; the hull
@@ -1117,7 +1277,7 @@ func _input(event: InputEvent) -> void:
 	if first_loop != null and event is InputEventKey and event.pressed and not event.echo:
 		if first_loop.handle_key(event.keycode):
 			return
-	if _scripted() and not firstloop_test and not powertest and not hudtest and not approachtest and not contacttest:
+	if _scripted() and not firstloop_test and not powertest and not hudtest and not approachtest and not contacttest and not visualtest:
 		return
 	if sim_active and first_loop != null and first_loop.busy() and event is InputEventMouseMotion:
 		return   # the solved staging pose holds for the attitude it was solved at
