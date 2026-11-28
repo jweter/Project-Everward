@@ -64,12 +64,16 @@ const TERRAIN_PROXY_RADIUS := 40.0
 const TERRAIN_PROXY_IDS := ["terrain-down", "terrain-velocity", "terrain-nose"]
 # G3: the first gameplay loop (scan, survey, approach, arm, mine) on the simulation; see first_loop.gd.
 const FirstLoop = preload("res://first_loop.gd")
+const ExploreTest = preload("res://explore_test.gd")
 var first_loop = null
 var firstloop_test := false      # --firstloop: headless acceptance run of the whole loop
 var powertest := false           # --powertest: headless run of the G09 sensor-power drop and recovery
 var hudtest := false             # --hudtest: headless run of the G11 systems panel selection
 var approachtest := false        # --approachtest: headless run of the G10 auto-approach safety cases
 var contacttest := false         # --contacttest: headless run of the G07 compound-hull contact cases
+var exploretest := false          # --exploretest: seeded, real-key-command exploratory gameplay acceptance
+var explore_seed := 1
+var explore_steps := 12
 # G04/G12: the acceptance runs write report.json (exact build, timed events, checks, PASS/FAIL/INCONCLUSIVE).
 const Evidence = preload("res://evidence.gd")
 const INCONCLUSIVE_EXIT := 11
@@ -88,6 +92,7 @@ func _ready() -> void:
 	hudtest = "--hudtest" in args
 	approachtest = "--approachtest" in args
 	contacttest = "--contacttest" in args
+	exploretest = "--exploretest" in args
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -97,6 +102,10 @@ func _ready() -> void:
 				push_error("unknown look " + look_name + "; known: " + ", ".join(Looks.names()))
 	selftest_input = "--selftest-input" in args
 	for sa in args:
+		if sa.begins_with("--seed="):
+			explore_seed = int(sa.substr(7))
+		if sa.begins_with("--steps="):
+			explore_steps = int(sa.substr(8))
 		if sa.begins_with("--selftest-fail="):
 			selftest_fail = sa.substr(16)
 	for a in args:
@@ -131,7 +140,9 @@ func _ready() -> void:
 	puff.width = 64
 	puff.height = 64
 	dust_mat.albedo_texture = puff
-	if contacttest:
+	if exploretest:
+		_run_exploretest.call_deferred()
+	elif contacttest:
 		_run_contacttest.call_deferred()
 	elif approachtest:
 		_run_approachtest.call_deferred()
@@ -285,7 +296,7 @@ func _build_clouds() -> void:
 
 func _scripted() -> bool:
 	# Any scripted run: no manual flight, no player input (they would move the camera between captures)
-	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest or approachtest or contacttest
+	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest or approachtest or contacttest or exploretest
 
 func _apply_look() -> void:
 	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
@@ -620,6 +631,10 @@ func _until(cond: Callable, limit_s: float) -> bool:
 		await _sim_run(0.1)
 		waited += 0.1
 	return cond.call()
+
+func _run_exploretest() -> void:
+	# G3 exploratory player: command trace and invariants are bound to an exact build and seed.
+	await ExploreTest.new(self).run(explore_seed, explore_steps)
 
 func _run_firstloop() -> void:
 	# G3 evidence for #378 G01/G02 (mining part), G05 and G06, through the real key handler and the simulation.
