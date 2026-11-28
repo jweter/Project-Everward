@@ -112,6 +112,91 @@ explain. A scheme that cannot pass that is a broken scheme, not a taste.
 4. **Playtest: `--schemetest`**, the acceptance pass of §7 across all ten.
 5. Tuning passes with the owner, one scheme at a time, using the exported knobs.
 
+## 10. Reconciliation with the flight benchmark (2026-11-28)
+
+The owner commissioned a 1986-2026 spaceflight control benchmark and passed it in as notes. It is a research
+document and says so: its rankings, 0-5 scores and proposed keybindings are its author's engineering judgement
+rather than measured consensus, and the quoted review percentages are from retrieved snapshots. Treated as design
+input, not as fact, three of its conclusions change this document and one of its recommendations cannot be built
+yet. The checks below are against this repository's code, not against the benchmark's claims.
+
+### 10.1 Its architecture is better than ten schemes, and they reconcile
+
+The benchmark's central point is sharper than section 5's table:
+
+> It would need one physics engine with three control-assistance configurations.
+
+That is right, and it is the same insight as "a scheme is data": the axis that actually matters is **how much the
+flight computer helps**, not which game a preset is named after. So the structure becomes two levels:
+
+- **Assist level** is the primary control: Assisted, Semi-assisted, Newtonian. One physics, three amounts of help.
+- **The ten schemes remain presets** that set an assist level plus the bindings and feel parameters. "Six Degrees"
+  is Newtonian with roll and no brake; "Drift Assist" is Assisted with heavy damping. They are starting points for
+  the owner to feel, which is what he asked for, and they are no longer pretending to be ten architectures.
+
+### 10.2 Two things it recommends cannot be expressed yet, and one already can
+
+Checked in the code:
+
+- **Thrust ignores mass.** `adjust_local_velocity_mps()` adds a velocity delta directly; `mass_kg` (2500 kg
+  default) is consulted only by impact kinetic energy, the tractor field and save/load. So thrust-to-weight is
+  currently meaningless and **a probe carrying 500 kg of ore accelerates exactly like an empty one** — which is
+  precisely the Space Engineers lesson the benchmark asks for, and the TWR formula it gives has nothing to apply
+  to. This is the prerequisite for most of section 7 of the benchmark.
+- **The precedent for fixing it is already here.** `tractor_field.hpp` integrates properly: force, then
+  `seconds / probe.mass_kg`. Thrust should follow that, not invent a second convention.
+- **Gravity exists in the core and never reaches Godot.** `integrate_gravity()` applies
+  `gravitational_acceleration()` per step, and is an exact no-op when no planetary body is registered. The
+  GDExtension exposes no planetary body, so **the Godot game has no gravity at all**. Liftoff needing TWR above 1,
+  the ascent profile in benchmark section 6, and orbital insertion all depend on registering one.
+- **There is no atmosphere anywhere.** No drag, density or lift term exists in the core, so the benchmark's
+  `F_D` formula has no counterpart to extend.
+
+### 10.3 Its keybinding table collides with the first loop
+
+The proposed defaults cannot be adopted as written. Six keys are already load-bearing in Everward:
+
+| Key | Benchmark proposes | Everward uses it for |
+|---|---|---|
+| `G` | landing gear | **mine** — the payoff key of the whole first loop |
+| `T` | target selection | **deploy / stow the selected arm** |
+| `L` | landing assistance | clear the software policy |
+| `H` | horizon alignment | hollow out terrain |
+| `Q` / `E` | roll | vertical thrust (up / down) |
+| `Space` | upward thrust | brake / cancel an operation |
+
+This is a data problem rather than a design conflict, and the binding system already solves it: `input_binding.hpp`
+has semantic actions, `DeviceKind`, rebinding and clear/rebind outcomes. Both layouts can exist as named presets
+with per-preset bindings. What must not happen is a silent rebind of `G` or `T`, which would break mining and the
+manipulator for anyone who had learned them.
+
+Worth noting the benchmark independently proposes `Q`/`E` for roll, which this document had as the missing sixth
+axis. The disagreement is only about where vertical thrust goes.
+
+### 10.4 Adopted, in order
+
+1. **Mass-aware thrust** (`F·dt/m`, following `tractor_field.hpp`), because cargo, damage and spacecraft design
+   should all change handling, and nothing else in the benchmark works without it.
+2. **Relative velocity matching** on one key — the benchmark reports this as the single most-praised control in
+   Outer Wilds, it costs little, and it belongs to the same family as the autopilot. It also fits the owner's
+   reason for building José.
+3. **Intelligent flight control**, Star Citizen's actual contribution: the player states intent and the flight
+   computer resolves it into whatever the available thrusters can do. Everward is already shaped for this — the
+   simulation owns authority and scales it by subsystem integrity — and it is how a damaged probe should fly.
+4. **Register a planetary body for the Godot path**, which switches gravity on and makes landing, TWR and
+   the ascent profile real rather than notional.
+5. **Atmosphere** (density, drag, lift) once gravity is in, since reentry and aerodynamic ascent depend on it.
+
+### 10.5 Deferred, and why
+
+Reentry heating, stall modelling, orbital trajectory prediction and an advanced autopilot are all downstream of
+items 1 and 4 above: none can be tuned, or even tested, against a probe whose thrust does not know its own mass.
+The benchmark scores them 6-8 out of 10 and that ordering is accepted; they are simply not next.
+
+One rule from the benchmark is adopted outright and should outlast every scheme in this document:
+
+> The spacecraft should not suddenly switch physics models when it crosses an arbitrary atmospheric boundary.
+
 ## 9. Out of scope here
 
 Joystick, HOTAS and gamepad hardware support (the binding system already has `DeviceKind`; wiring real devices is
