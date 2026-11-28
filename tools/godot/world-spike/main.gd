@@ -527,6 +527,12 @@ func _selftest_sim() -> void:
 	_quit_clean(0 if forward_ok and yaw_ok else 7)
 
 func _sim_run(seconds: float) -> void:
+	if exploretest:
+		# The exploratory player is scheduled by fixed simulation frames, NOT wall-clock
+		# time: same seed + count => the same input arrives on the same authoritative tick.
+		for _i in maxi(0, int(round(seconds * 60.0))):
+			await get_tree().process_frame
+		return
 	var t := 0.0
 	while t < seconds:
 		await get_tree().process_frame
@@ -1049,6 +1055,10 @@ func _build_hud() -> void:
 
 # --------------------------------------------------------------------------------------- per frame
 func _process(delta: float) -> void:
+	if exploretest:
+		# Isolated developer-only deterministic clock. Do not change player gameplay,
+		# other test modes, or how the actual engine renders its frames.
+		delta = 1.0 / 60.0
 	trail_clock += delta
 	if sim_active:
 		if first_loop != null:
