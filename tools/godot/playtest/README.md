@@ -32,8 +32,10 @@ REVIEW_REQUIRED overall, 1 for FAIL, 2 for ENVIRONMENT_FAILURE.
 Modes (each also runnable alone, see `tools/godot/world-spike/README.md`): `firstloop` (damaged awakening, scan,
 survey, approach, both arms and a rotated probe, mine, cargo, Fix_It repair with material and energy, conservation,
 HUD), `powertest` (G09 power policy drop and recovery), `hudtest` (G11 Systems panel), `approachtest` (G10 obstacles,
-turns, moving targets), `contacttest` (G07 compound hull, moving bodies, impact damage). `--mode-arg` passes an
+turns, moving targets), `contacttest` (G07 compound hull, moving bodies, impact damage), and **`exploretest`** (seeded real-input sequences, per-step inventory/repair/energy/integrity invariants, and genuine player-command recovery to a successful mine). `--mode-arg` passes an
 argument to every mode, e.g. `--mode-arg=--selftest-fail=noclear` to prove a FAIL is reported.
+
+Seeded exploration runs by default with the six-mode headless suite. Use `--seed 23 --explore-steps 20` to generate a deterministic 20-action trace and the same playable recovery challenge on each run. The report contains the input sequence, simulation ticks, resource/repair totals and failure reasons; replay with the same seed, steps and exact commit. `--modes exploretest --mode-arg=--selftest-fail=explore-invariant` is a **negative control** which must fail without altering mechanics or material. It tests a bounded set of currently supported real keys (scan, mining refusal, arm selection/deploy/tool, policy, sensor power, Systems panel); it does not yet claim broad, intelligent exploration or human-like perception.
 
 **Laptop protection:** headless by default (no window, no input capture); `--rendered` is refused without
 `--exclusive`; every run first needs `--min-free-ram-gb` (default 2) free or is an ENVIRONMENT_FAILURE. No network,
@@ -45,11 +47,11 @@ export feature tag).
 
 ## Next slices (planned, not built yet)
 1. ~~Runner, classification, reports~~.
-2. ~~Machine-verified rendered checks: drawn-vs-simulated arm geometry, probe and arm on screen, HUD fit and
-   agreement with the simulation, frame variety, frame rate and memory~~ (`--visualtest`).
-3. Seeded exploratory player: random but reproducible key sequences (invalid actions, interrupted operations,
-   save/load mid-operation) with invariants (no stuck state past a timeout, conservation, no contact during
-   approach, HUD agrees with the simulation); a failing seed becomes a regression case.
+2. ~~Machine-verified rendered checks~~: `--visualtest` compares drawn-vs-simulated arm geometry, probe and arm
+   placement, HUD fit and simulation agreement, frame variety, frame rate and memory on real rendered frames.
+3. ~~Seeded exploratory player foundation~~: bounded random real-input sequences, interrupted mining and recovery,
+   conservation, no-contact, HUD and replay trace are implemented in `--exploretest`. **Still pending:** save/load
+   mid-operation, moving-target exploration and a persisted failing-seed regression corpus.
 4. Optional local vision review through Ollama, advisory only, if it runs acceptably on Azathoth.
 5. Iron God: run the headless suite unattended under worker authority and post `playtest.json` summaries through the
    approved mailbox; repair handoffs cite the failing run's reproduction command.
