@@ -327,12 +327,28 @@ func run() -> void:
 	_tap(KEY_Y)
 	await m._sim_run(0.3)
 	_tap(KEY_P)
-	await m._until(func() -> bool: return fl.aligned, 25.0)
-	_tap(KEY_G)
-	var mined: bool = await m._until(func() -> bool: return m.sim.get_inventory_kg(MATERIAL) > cargo_before + EPS, 20.0)
-	_check("G mines the surveyed deposit and puts material in cargo", mined,
-		"cargo %.3f -> %.3f kg, aligned=%s, message: %s"
-		% [cargo_before, m.sim.get_inventory_kg(MATERIAL), fl.aligned, fl.message])
+	# Budget the flight from the speed the probe can actually fly, not from a number that was true once. The
+	# autopilot is scaled by propulsion integrity (#461), so at the awakening's 40% it covers the same 40 m at
+	# 0.8 m/s instead of 2.0. A flat 25 s used to be ample and silently became too short: the wait expired, G was
+	# pressed 11.9 m out, the simulation correctly refused an out-of-reach mine, the approach then finished, and
+	# the alignment message overwrote the refusal -- so the failure read as "aligned, told to press G, nothing
+	# happened" and looked like a game defect (#468). Same lesson as the damaged scan: derive the budget.
+	var target: Dictionary = fl.nearest_deposit()
+	var gap: float = 40.0
+	if not target.is_empty():
+		gap = maxf(1.0, m.ship.global_position.distance_to(target["center"]))
+	var flight_budget: float = gap / maxf(0.1, fl.approach_speed_mps()) + 25.0
+	var ready: bool = await m._until(func() -> bool: return fl.aligned, flight_budget)
+	m.evidence.precondition("the arm reached the mining pose before G was pressed", ready,
+		"%.1f m to the target at %.2f m/s (%d%% propulsion) allowed %.0f s; aligned=%s. Pressing G before the "
+		% [gap, fl.approach_speed_mps(), int(round(fl.propulsion_effectiveness() * 100.0)), flight_budget, ready]
+		+ "approach lands tests a refusal, not the mine.")
+	if ready:
+		_tap(KEY_G)
+		var mined: bool = await m._until(func() -> bool: return m.sim.get_inventory_kg(MATERIAL) > cargo_before + EPS, 20.0)
+		_check("G mines the surveyed deposit and puts material in cargo", mined,
+			"cargo %.3f -> %.3f kg, aligned=%s, message: %s"
+			% [cargo_before, m.sim.get_inventory_kg(MATERIAL), fl.aligned, fl.message])
 
 	# --- a key the game does not use -------------------------------------------------------------------------------
 	# The inventory is only meaningful if an unbound key is inert: a handler that swallowed everything would pass
