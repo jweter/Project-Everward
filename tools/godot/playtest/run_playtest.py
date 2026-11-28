@@ -63,6 +63,12 @@ def free_ram_gb() -> float | None:
     return m.ullAvailPhys / 1024 ** 3
 
 
+def _text(stream) -> str:
+    if stream is None:
+        return ""
+    return stream if isinstance(stream, str) else stream.decode("utf-8", "replace")
+
+
 def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeout: int, min_ram: float,
              extra: list[str] | None = None) -> dict:
     run_dir = out / (mode + ("-rendered" if rendered else ""))
@@ -89,7 +95,9 @@ def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeou
         p = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=timeout)
         log, code = p.stdout + p.stderr, p.returncode
     except subprocess.TimeoutExpired as e:
-        log, code = (e.stdout or "") if isinstance(e.stdout, str) else "", None
+        # Keep whatever the run printed before it hung: that output is the only clue to why (Codex #456). Python may
+        # hand these back as bytes even with text=True, and stderr was being dropped either way.
+        log, code = _text(e.stdout) + _text(e.stderr), None
     entry["seconds"] = round((dt.datetime.now(dt.timezone.utc) - started).total_seconds(), 1)
     entry["exit_code"] = code
     (run_dir / "engine.log").write_text(log, encoding="utf-8")
@@ -196,7 +204,9 @@ def main() -> int:
         print("refused: --rendered opens a game window; add --exclusive only when nobody is using the machine")
         return 2
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out = Path(a.out or f"C:/IronGod/TestTemp/playtest/{stamp}")
+    # Absolute: Godot's --path changes the process working directory, so a relative --out would make the scenario
+    # write beside the world spike while the runner looked for it here and reported a missing report (Codex #456).
+    out = Path(a.out or f"C:/IronGod/TestTemp/playtest/{stamp}").resolve()
     out.mkdir(parents=True, exist_ok=True)
     runs = [run_mode(a.godot, m.strip(), out, False, a.seed, a.timeout, a.min_free_ram_gb, a.mode_arg)
             for m in a.modes.split(",") if m.strip()]
