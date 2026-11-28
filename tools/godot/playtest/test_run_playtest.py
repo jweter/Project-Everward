@@ -114,6 +114,42 @@ def a_short_first_loop_is_an_environment_failure(d: Path) -> None:
 
 
 @case
+def a_failed_visual_check_never_reads_as_verified(d: Path) -> None:
+    """VERIFIED has to mean the visual checks passed on real frames. A run whose arm-geometry check failed has
+    inspected frames too, and must report what the inspection found (Codex #458)."""
+    stub = make_stub(d, {"visualtest": {"frames": 3, "verdict": "FAIL", "failed": [2],
+                                        "reasons": ["the drawn arm matches the simulated arm"], "exit": 14}})
+    code, _, summary = run(stub, d / "out", "--modes=,", "--rendered", "--exclusive")
+    visual = result(summary, "visualtest")
+    assert visual["classification"] == "FAIL", visual
+    assert "VERIFIED" not in visual["visual"], visual["visual"]
+    assert visual["visual"].startswith("FAILED"), visual["visual"]
+    assert code == 1, code
+
+
+@case
+def an_inconclusive_visual_run_never_reads_as_verified(d: Path) -> None:
+    """Nor may a run that could not establish its own situation claim verification."""
+    stub = make_stub(d, {"visualtest": {"frames": 3, "verdict": "INCONCLUSIVE",
+                                        "reasons": ["build identity unknown"], "exit": 11}})
+    _, _, summary = run(stub, d / "out", "--modes=,", "--rendered", "--exclusive")
+    visual = result(summary, "visualtest")
+    assert visual["classification"] == "ENVIRONMENT_FAILURE", visual
+    assert "VERIFIED" not in visual["visual"], visual["visual"]
+    assert visual["visual"].startswith("INCONCLUSIVE"), visual["visual"]
+
+
+@case
+def script_errors_hold_back_a_visual_verification(d: Path) -> None:
+    """Checks can pass while the engine log is full of script errors; that is for a person, not a VERIFIED stamp."""
+    stub = make_stub(d, {"visualtest": {"frames": 3, "stdout": "SCRIPT ERROR: res://main.gd:1 - boom"}})
+    _, _, summary = run(stub, d / "out", "--modes=,", "--rendered", "--exclusive")
+    visual = result(summary, "visualtest")
+    assert visual["classification"] == "REVIEW_REQUIRED", visual
+    assert "VERIFIED" not in visual["visual"], visual["visual"]
+
+
+@case
 def captured_but_unjudged_frames_need_review(d: Path) -> None:
     """Only --visualtest inspects frames. A rendered --firstloop captures them for a person, so its frames are never
     a visual pass on their own -- the owner's rule that no visual result is reported without inspection."""

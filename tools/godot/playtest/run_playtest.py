@@ -163,8 +163,22 @@ def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeou
                              reason=f"rendered run saved {len(frames)} usable frames, fewer than the {least} "
                                     f"{mode} captures: the run did not get far enough to be believed")
         elif judged:
-            entry["visual"] = (f"VERIFIED ({entry.get('checks_total', 0)} deterministic checks on {len(frames)} "
-                               "rendered frames; artistic quality not judged)")
+            # VERIFIED means the visual checks ran on real frames and passed. A failed, inconclusive or
+            # script-error run inspected frames too, and has to report what that inspection found: claiming
+            # verification the checks rejected is the one thing a visual status must never do (Codex #458).
+            total = entry.get("checks_total", 0)
+            if entry["classification"] == "PASS":
+                entry["visual"] = (f"VERIFIED ({total} deterministic checks on {len(frames)} rendered frames; "
+                                   "artistic quality not judged)")
+            elif entry["classification"] == "FAIL":
+                entry["visual"] = (f"FAILED ({len(entry.get('failed', []))} of {total} visual checks failed on "
+                                   f"{len(frames)} rendered frames)")
+            elif entry["classification"] == "REVIEW_REQUIRED":
+                entry["visual"] = (f"REVIEW_REQUIRED ({len(frames)} rendered frames inspected, but the engine log "
+                                   f"has {entry['script_errors']} script errors)")
+            else:
+                entry["visual"] = (f"INCONCLUSIVE ({len(frames)} rendered frames saved; the run could not establish "
+                                   "its own situation)")
         else:
             entry["visual"] = f"REVIEW_REQUIRED ({len(frames)} frames captured; not machine-judged)"
             if entry["classification"] == "PASS":

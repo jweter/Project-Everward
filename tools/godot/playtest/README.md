@@ -26,7 +26,7 @@ so on, and asserts the classification. Every runner defect found in review has a
 
 Evidence is never shared between runs: only a `report.json` and frames written after the run started count, and a run directory that already holds evidence stops that run instead of mixing the two.
 
-Headless runs record the visual status `NOT_RUN`; only `--rendered` renders. `--rendered` runs `visualtest`, whose checks read the frames themselves (visual status VERIFIED, artistic quality still unjudged), and a first loop whose frames are only captured (REVIEW_REQUIRED). With no renderer `visualtest` is INCONCLUSIVE, so a visual pass is never reported without a frame. Exit code 0 for PASS or
+Headless runs record the visual status `NOT_RUN`; only `--rendered` renders. `--rendered` runs `visualtest`, whose checks read the frames themselves, and a first loop whose frames are only captured (REVIEW_REQUIRED). `visualtest` reports VERIFIED only when those checks passed (artistic quality still unjudged); when they failed, the run was inconclusive, or the engine log has script errors, the visual status says so instead — it never claims a verification the checks rejected. With no renderer `visualtest` is INCONCLUSIVE, so a visual pass is never reported without a frame. Exit code 0 for PASS or
 REVIEW_REQUIRED overall, 1 for FAIL, 2 for ENVIRONMENT_FAILURE.
 
 Modes (each also runnable alone, see `tools/godot/world-spike/README.md`): `firstloop` (damaged awakening, scan,
