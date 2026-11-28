@@ -170,14 +170,19 @@ func run() -> void:
 	_check("1 selects the port arm", fl.selected_arm == 0,
 		"selected_arm=%d, message: %s" % [fl.selected_arm, fl.message])
 
+	# Both halves assert the transition, not the resulting value: "closed" is the resting state, so a TAB that does
+	# nothing at all would satisfy "the panel is closed" and the second check would pass while the control is dead.
 	var panel_before: bool = fl.panel_open
 	_tap(KEY_TAB)
 	await m._sim_run(0.1)
-	_check("TAB opens the systems panel", fl.panel_open != panel_before and fl.panel_open,
-		"panel_open %s -> %s, HUD now shows %d lines" % [panel_before, fl.panel_open, fl.hud_lines().split("\n").size()])
+	var panel_opened: bool = fl.panel_open
+	_check("TAB opens the systems panel", panel_opened and not panel_before,
+		"panel_open %s -> %s, HUD now shows %d lines"
+		% [panel_before, panel_opened, fl.hud_lines().split("\n").size()])
 	_tap(KEY_TAB)
 	await m._sim_run(0.1)
-	_check("TAB closes it again", not fl.panel_open, "panel_open=%s" % fl.panel_open)
+	_check("TAB closes it again", panel_opened and not fl.panel_open,
+		"panel_open %s -> %s -> %s" % [panel_before, panel_opened, fl.panel_open])
 
 	var cap0: int = fl.selected_capability
 	_tap(KEY_BRACKETRIGHT)
