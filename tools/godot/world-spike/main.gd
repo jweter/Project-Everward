@@ -65,6 +65,7 @@ const TERRAIN_PROXY_IDS := ["terrain-down", "terrain-velocity", "terrain-nose"]
 # G3: the first gameplay loop (scan, survey, approach, arm, mine) on the simulation; see first_loop.gd.
 const FirstLoop = preload("res://first_loop.gd")
 const ExploreTest = preload("res://explore_test.gd")
+const ControlTest = preload("res://control_test.gd")
 var first_loop = null
 var firstloop_test := false      # --firstloop: headless acceptance run of the whole loop
 var powertest := false           # --powertest: headless run of the G09 sensor-power drop and recovery
@@ -73,6 +74,7 @@ var approachtest := false        # --approachtest: headless run of the G10 auto-
 var contacttest := false         # --contacttest: headless run of the G07 compound-hull contact cases
 var visualtest := false           # --visualtest: RENDERED run; checks real frames, drawn-vs-simulated geometry, HUD, performance
 var exploretest := false          # --exploretest: seeded, real-key-command exploratory gameplay acceptance
+var controltest := false          # --controltest: every control pressed, with the effect each one must have
 var explore_seed := 1
 var explore_steps := 12
 # G04/G12: the acceptance runs write report.json (exact build, timed events, checks, PASS/FAIL/INCONCLUSIVE).
@@ -95,6 +97,7 @@ func _ready() -> void:
 	contacttest = "--contacttest" in args
 	visualtest = "--visualtest" in args
 	exploretest = "--exploretest" in args
+	controltest = "--controltest" in args
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -144,6 +147,8 @@ func _ready() -> void:
 	dust_mat.albedo_texture = puff
 	if visualtest:
 		_run_visualtest.call_deferred()
+	elif controltest:
+		_run_controltest.call_deferred()
 	elif exploretest:
 		_run_exploretest.call_deferred()
 	elif contacttest:
@@ -641,6 +646,11 @@ func _until(cond: Callable, limit_s: float) -> bool:
 		await _sim_run(0.1)
 		waited += 0.1
 	return cond.call()
+
+func _run_controltest() -> void:
+	# Every control, with the effect it must have. Deliberately NOT a _scripted() mode: scripted runs switch manual
+	# flight off, and a flight control cannot be tested with flight off.
+	await ControlTest.new(self).run()
 
 func _run_exploretest() -> void:
 	# G3 exploratory player: command trace and invariants are bound to an exact build and seed.
@@ -1306,7 +1316,7 @@ func _input(event: InputEvent) -> void:
 		return
 	if sim_active and first_loop != null and first_loop.busy() and event is InputEventMouseMotion:
 		return   # the solved staging pose holds for the attitude it was solved at
-	if sim_active and event is InputEventMouseMotion and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or selftest_sim):
+	if sim_active and event is InputEventMouseMotion and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or selftest_sim or controltest):
 		# mouse right turns right (+yaw in the simulation frame), mouse up raises the nose
 		sim.adjust_attitude(event.relative.x * 0.12, -event.relative.y * 0.12, 0.0)
 		return
