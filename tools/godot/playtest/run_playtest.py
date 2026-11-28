@@ -94,6 +94,11 @@ def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeou
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=timeout)
         log, code = p.stdout + p.stderr, p.returncode
+    except OSError as e:
+        # --godot exists but will not launch (not an executable, a directory, the wrong architecture): a setup
+        # problem, so the suite keeps its classified report instead of dying on a traceback (Codex #456).
+        entry.update(classification="ENVIRONMENT_FAILURE", reason=f"could not launch {godot}: {e}")
+        return entry
     except subprocess.TimeoutExpired as e:
         # Keep whatever the run printed before it hung: that output is the only clue to why (Codex #456). Python may
         # hand these back as bytes even with text=True, and stderr was being dropped either way.
@@ -208,8 +213,12 @@ def main() -> int:
     # write beside the world spike while the runner looked for it here and reported a missing report (Codex #456).
     out = Path(a.out or f"C:/IronGod/TestTemp/playtest/{stamp}").resolve()
     out.mkdir(parents=True, exist_ok=True)
-    runs = [run_mode(a.godot, m.strip(), out, False, a.seed, a.timeout, a.min_free_ram_gb, a.mode_arg)
-            for m in a.modes.split(",") if m.strip()]
+    modes = [m.strip() for m in a.modes.split(",") if m.strip()]
+    if not modes and not a.rendered:
+        # An empty automation parameter must never read as a clean suite (Codex #456).
+        print("ENVIRONMENT_FAILURE: no scenarios selected (--modes is empty)")
+        return 2
+    runs = [run_mode(a.godot, m, out, False, a.seed, a.timeout, a.min_free_ram_gb, a.mode_arg) for m in modes]
     if a.rendered:
         runs.append(run_mode(a.godot, "firstloop", out, True, a.seed, a.timeout, a.min_free_ram_gb, a.mode_arg))
     for r in runs:
