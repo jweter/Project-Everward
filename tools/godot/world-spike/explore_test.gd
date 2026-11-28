@@ -99,7 +99,7 @@ func run(test_seed: int, steps: int) -> void:
 		var after := _stock()
 		var ok := _invariant(before, after)
 		# The negative control corrupts ONLY the test verdict, never game state or cargo.
-		if m.selftest_fail == "explore-invariant" and i == 2:
+		if m.selftest_fail == "explore-invariant" and i == 0:
 			ok = false
 		var name := OS.get_keycode_string(keycode)
 		trace.append({"index": i, "key": name, "wait_s": wait_s, "tick": after["tick"],
