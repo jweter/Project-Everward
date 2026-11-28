@@ -1,0 +1,87 @@
+name: Godot parity
+
+# #378 G03 for the Godot path: on every change to the simulation core or the EverwardSim binding, build the
+# GDExtension and the native reference on a clean runner, run the parity scenario in the official headless Godot
+# 4.7.2 and require every line to match (tools/godot/sim-binding/check_parity.py). The world-spike acceptance modes
+# need the custom godot-voxel engine build and still run locally (their report.json records the exact build).
+
+on:
+  pull_request:
+    paths:
+      - "src/simulation/**"
+      - "tools/godot/sim-binding/**"
+      - ".github/workflows/godot-parity.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/simulation/**"
+      - "tools/godot/sim-binding/**"
+      - ".github/workflows/godot-parity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: godot-parity-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7.2-stable"
+  # the godot-cpp commit the binding is built and verified with locally (4.5 API, forward-compatible with 4.7)
+  GODOT_CPP_COMMIT: "27d9dd23c83871e0619fca5dc2cddfbfd69e926a"
+
+jobs:
+  parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install SCons
+        run: python -m pip install "scons==4.9.1"
+
+      - name: Restore godot-cpp build
+        id: godot-cpp-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/gc
+          key: godot-cpp-${{ env.GODOT_CPP_COMMIT }}-linux-template_debug-exceptions-tmpgc
+
+      - name: Fetch godot-cpp at the pinned commit
+        if: steps.godot-cpp-cache.outputs.cache-hit != 'true'
+        run: |
+          # a short path: SCons archives godot-cpp with one sh -c command, and long absolute object paths exceed
+          # the kernel's single-argument limit ("Argument list too long", first CI run)
+          git init /tmp/gc
+          git -C /tmp/gc remote add origin https://github.com/godotengine/godot-cpp.git
+          git -C /tmp/gc fetch --depth 1 origin "$GODOT_CPP_COMMIT"
+          git -C /tmp/gc checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/gc rev-parse HEAD)" = "$GODOT_CPP_COMMIT"
+
+      - name: Build the EverwardSim extension
+        working-directory: tools/godot/sim-binding
+        run: scons -j"$(nproc)" godot_cpp=/tmp/gc platform=linux target=template_debug disable_exceptions=no
+
+      - name: Build the native parity reference
+        run: g++ -std=c++20 -O2 -I src/simulation/include tools/godot/sim-binding/src/native_parity_main.cpp -o native_parity
+
+      - name: Fetch and verify the official Godot build
+        run: |
+          base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}"
+          zip="Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          curl -fsSL --retry 3 -o "$zip" "$base/$zip"
+          curl -fsSL --retry 3 -o SHA512-SUMS.txt "$base/SHA512-SUMS.txt"
+          grep " ${zip}\$" SHA512-SUMS.txt | sha512sum -c -
+          unzip -q "$zip"
+          chmod +x "Godot_v${GODOT_VERSION}_linux.x86_64"
+
+      - name: Run the parity scenario (native vs headless Godot)
+        run: python tools/godot/sim-binding/check_parity.py --godot "./Godot_v${GODOT_VERSION}_linux.x86_64" --native ./native_parity
