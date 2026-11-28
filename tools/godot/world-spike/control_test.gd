@@ -303,14 +303,18 @@ func run() -> void:
 	_check("P commands the approach to the surveyed deposit", went,
 		"approaching=%s waypoint=%d aligned=%s, message: %s"
 		% [fl.approaching, fl.waypoint_index, fl.aligned, fl.message])
-	# SPACE during an operation is the player's abort, and it is read from the flight path, not handle_key.
-	if fl.approaching:
+	# SPACE during an operation is the player's abort, and it is read from the flight path, not handle_key. It can
+	# only be tested while an approach is genuinely running, so the approach being in flight is a PRECONDITION: if
+	# one cannot be caught, the run is INCONCLUSIVE and says why. Recording a pass for a control that was never
+	# pressed would let the whole inventory report PASS without the abort ever being exercised (Codex #459).
+	var in_flight: bool = fl.approaching
+	m.evidence.precondition("an approach is under way for SPACE to abort", in_flight,
+		"approaching=%s waypoint=%d aligned=%s after P; the approach runs at %.1f m/s, so it should still be in "
+		"flight here" % [fl.approaching, fl.waypoint_index, fl.aligned, FirstLoop.APPROACH_SPEED])
+	if in_flight:
 		await _hold(KEY_SPACE, 0.3)
 		_check("SPACE cancels an approach that is under way", not fl.approaching,
 			"approaching=%s, message: %s" % [fl.approaching, fl.message])
-	else:
-		_check("SPACE cancels an approach that is under way", true,
-			"approach already finished before the abort could be timed; not exercised this run")
 
 	# --- mining ---------------------------------------------------------------------------------------------
 	var cargo_before: float = m.sim.get_inventory_kg(MATERIAL)
