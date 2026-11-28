@@ -11,6 +11,28 @@ const TRAIL_POINTS := 16
 const TRAIL_LIFE := 9.0
 const MAX_DEBRIS := 140
 
+# ------------------------------------------------------------------------------------------ tunable by hand
+# Presentation only, and exported on purpose: these are the numbers that decide whether the probe FEELS right, and
+# nobody can settle them by reading a report. Drag them in the inspector while the game runs instead of asking for
+# a code change and a rebuild per guess.
+#
+# What is deliberately NOT here: anything the simulation owns. Handling, thrust, turn authority, scan duration,
+# reach, power minimums and repair costs live in the C++ core and are identical in every engine. An @export that
+# shadowed one of those would let the picture disagree with the physics, which is the one thing this whole Godot
+# layer exists to prevent. Those are core changes, with parity evidence.
+@export_group("Camera")
+@export var cam_offset := Vector3(0, 2.6, 9.5)              ## chase position behind and above the probe, in metres
+@export_range(-45.0, 45.0, 0.5) var cam_pitch_deg := -8.0   ## nose-down tilt of the chase camera
+@export_range(30.0, 110.0, 1.0) var cam_fov := 70.0
+@export_range(100.0, 6000.0, 50.0) var cam_far := 3000.0
+
+@export_group("Feel")
+@export_range(0.0, 4.0, 0.05) var shake_decay := 1.2          ## how fast impact shake settles, per second
+@export_range(0.0, 2.0, 0.05) var shake_on_contact := 0.5     ## shake from a terrain contact
+@export_range(0.0, 1.0, 0.01) var shake_on_drill := 0.05      ## shake from one drill step
+@export_range(0.0, 2.0, 0.05) var shake_on_hollow := 0.6      ## shake from hollowing a cavity
+@export_range(0.0, 30.0, 0.5) var trail_life_s := TRAIL_LIFE  ## how long the cloud-parting trail persists
+
 const Looks = preload("res://looks.gd")
 const TreeBuilder = preload("res://tree_builder.gd")
 
@@ -65,6 +87,7 @@ const TERRAIN_PROXY_IDS := ["terrain-down", "terrain-velocity", "terrain-nose"]
 # G3: the first gameplay loop (scan, survey, approach, arm, mine) on the simulation; see first_loop.gd.
 const FirstLoop = preload("res://first_loop.gd")
 const ExploreTest = preload("res://explore_test.gd")
+const SoakTest = preload("res://soak_test.gd")
 var first_loop = null
 var firstloop_test := false      # --firstloop: headless acceptance run of the whole loop
 var powertest := false           # --powertest: headless run of the G09 sensor-power drop and recovery
@@ -73,6 +96,8 @@ var approachtest := false        # --approachtest: headless run of the G10 auto-
 var contacttest := false         # --contacttest: headless run of the G07 compound-hull contact cases
 var visualtest := false           # --visualtest: RENDERED run; checks real frames, drawn-vs-simulated geometry, HUD, performance
 var exploretest := false          # --exploretest: seeded, real-key-command exploratory gameplay acceptance
+var soaktest := false             # --soaktest: a long session, judged on drift in memory, nodes and frame rate
+var soak_minutes := 2.0
 var explore_seed := 1
 var explore_steps := 12
 # G04/G12: the acceptance runs write report.json (exact build, timed events, checks, PASS/FAIL/INCONCLUSIVE).
@@ -95,6 +120,10 @@ func _ready() -> void:
 	contacttest = "--contacttest" in args
 	visualtest = "--visualtest" in args
 	exploretest = "--exploretest" in args
+	soaktest = "--soaktest" in args
+	for la in args:
+		if la.begins_with("--minutes="):
+			soak_minutes = maxf(0.0, la.substr(10).to_float())
 	for la in args:
 		if la.begins_with("--look="):
 			look_name = la.substr(7)
@@ -144,6 +173,8 @@ func _ready() -> void:
 	dust_mat.albedo_texture = puff
 	if visualtest:
 		_run_visualtest.call_deferred()
+	elif soaktest:
+		_run_soaktest.call_deferred()
 	elif exploretest:
 		_run_exploretest.call_deferred()
 	elif contacttest:
@@ -262,10 +293,10 @@ func _build_ship() -> void:
 	glow.position = Vector3(0, 0, 2.8)
 	ship.add_child(glow)
 	cam = Camera3D.new()
-	cam.position = Vector3(0, 2.6, 9.5)
-	cam.rotation_degrees = Vector3(-8, 0, 0)
-	cam.far = 3000.0
-	cam.fov = 70.0
+	cam.position = cam_offset
+	cam.rotation_degrees = Vector3(cam_pitch_deg, 0, 0)
+	cam.far = cam_far
+	cam.fov = cam_fov
 	ship.add_child(cam)
 	viewer = VoxelViewer.new()
 	viewer.view_distance = 384
@@ -300,7 +331,7 @@ func _build_clouds() -> void:
 
 func _scripted() -> bool:
 	# Any scripted run: no manual flight, no player input (they would move the camera between captures)
-	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest or approachtest or contacttest or visualtest or exploretest
+	return autotest or explore or lookshots or simflight or firstloop_test or powertest or hudtest or approachtest or contacttest or visualtest or exploretest or soaktest
 
 func _apply_look() -> void:
 	# Design tokens -> scene: sky, fog, sun, clouds, terrain. Trees get theirs when they are created.
@@ -450,7 +481,7 @@ func _sim_step(delta: float) -> void:
 		if evidence != null:
 			evidence.event("contact", String(c["body_id"]))
 		_dust(_sim_to_godot(c["point"]), 30)
-		shake = maxf(shake, 0.5)
+		shake = maxf(shake, shake_on_contact)
 
 func _sim_velocity_godot() -> Vector3:
 	var v: PackedFloat64Array = sim.get_velocity()
@@ -641,6 +672,10 @@ func _until(cond: Callable, limit_s: float) -> bool:
 		await _sim_run(0.1)
 		waited += 0.1
 	return cond.call()
+
+func _run_soaktest() -> void:
+	# The long run: the only mode that can see a leak or a slow slide in frame rate.
+	await SoakTest.new(self).run(soak_minutes)
 
 func _run_exploretest() -> void:
 	# G3 exploratory player: command trace and invariants are bound to an exact build and seed.
@@ -1235,7 +1270,7 @@ func _process(delta: float) -> void:
 	if shake > 0.0:
 		cam.h_offset = randf_range(-1.0, 1.0) * shake
 		cam.v_offset = randf_range(-1.0, 1.0) * shake
-		shake = maxf(0.0, shake - delta * 1.2)
+		shake = maxf(0.0, shake - delta * shake_decay)
 	else:
 		cam.h_offset = 0.0
 		cam.v_offset = 0.0
@@ -1251,7 +1286,7 @@ func _push_trail_uniform() -> void:
 	for i in TRAIL_POINTS:
 		if i < trail.size():
 			var age := trail_clock - trail[i].w
-			var k := clampf(1.0 - age / TRAIL_LIFE, 0.0, 1.0)
+			var k := clampf(1.0 - age / maxf(0.01, trail_life_s), 0.0, 1.0)
 			var r := 17.0 * sqrt(k)
 			arr[i] = Vector4(trail[i].x, trail[i].y, trail[i].z, r if k > 0.0 else 0.0)
 		else:
@@ -1344,12 +1379,12 @@ func _drill_step() -> void:
 		carve(p, 4.6)
 		_spawn_debris(Vector3(hit.position), 2, -dir)
 		_dust(Vector3(hit.position), 14)
-		shake = maxf(shake, 0.05)
+		shake = maxf(shake, shake_on_drill)
 
 func hollow(center: Vector3, radius: float) -> void:
 	cavity_center = center
 	carve(center, radius)
-	shake = 0.6
+	shake = shake_on_hollow
 	_dust(center, 80)
 	_spawn_debris(center + Vector3(0, radius * 0.5, 0), 26, Vector3.DOWN)
 	_crumble(center, radius)
