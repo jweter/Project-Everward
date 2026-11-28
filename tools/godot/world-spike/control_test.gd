@@ -309,8 +309,11 @@ func run() -> void:
 	# pressed would let the whole inventory report PASS without the abort ever being exercised (Codex #459).
 	var in_flight: bool = fl.approaching
 	m.evidence.precondition("an approach is under way for SPACE to abort", in_flight,
-		"approaching=%s waypoint=%d aligned=%s after P; the approach runs at %.1f m/s, so it should still be in "
-		"flight here" % [fl.approaching, fl.waypoint_index, fl.aligned, FirstLoop.APPROACH_SPEED])
+		# GDScript has no implicit concatenation of adjacent string literals: the two halves of this message used
+		# to sit on separate lines with nothing joining them, which does not parse. It took main's whole world
+		# spike down, because a preload that fails to parse fails main.gd with it.
+		("approaching=%s waypoint=%d aligned=%s after P; the approach runs at %.1f m/s, so it should still be in "
+		+ "flight here") % [fl.approaching, fl.waypoint_index, fl.aligned, FirstLoop.APPROACH_SPEED])
 	if in_flight:
 		await _hold(KEY_SPACE, 0.3)
 		_check("SPACE cancels an approach that is under way", not fl.approaching,
