@@ -19,7 +19,7 @@ extends RefCounted
 
 const SCAN_RANGE_M := 250.0
 const SCAN_DURATION_S := 10.0          # Unreal Phase2ScanDurationSeconds
-const APPROACH_SPEED := 2.0            # Unreal AutoApproachSpeedMetersPerSecond
+const APPROACH_SPEED := 2.0            # Unreal AutoApproachSpeedMetersPerSecond (nominal, at full propulsion)
 const APPROACH_TOLERANCE := 0.25       # Unreal AutoApproachStopToleranceMeters
 const WAYPOINT_TOLERANCE_DEG := 1e-3
 const WAYPOINT_TIMEOUT_S := 10.0
@@ -238,9 +238,26 @@ func panel_lines() -> String:
 		out += "\n%s %s  %s" % [">" if k == selected_capability else " ", CAPABILITIES[k], state]
 	return out
 
+# How fast José can fly, given the propulsion the probe has left. The player's manual thrust is scaled by exactly
+# this factor in impact_damage.hpp, so the autopilot and the hands now obey the same limit: at the 40% propulsion
+# of the awakening José crawls at 0.8 m/s instead of gliding at 2.0, and with propulsion dead it cannot fly at all.
+func approach_speed_mps() -> float:
+	return APPROACH_SPEED * propulsion_effectiveness()
+
+
+func propulsion_effectiveness() -> float:
+	return clampf(float(m.sim.get_integrity()["propulsion"]), 0.0, 1.0)
+
+
 func toggle_approach() -> void:
 	if approaching:
 		cancel_approach("mining auto-approach cancelled")
+		return
+	# José was added because flying by hand was hard; it was never meant to be a way around a wrecked drive. With
+	# no propulsion left there is nothing for it to fly with, and the player is stranded either way -- Fix_It is
+	# the way out, not the autopilot.
+	if propulsion_effectiveness() <= 0.0:
+		say("auto-approach unavailable: propulsion offline. Repair it with Fix_It before flying")
 		return
 	var d := nearest_deposit()
 	if d.is_empty():
@@ -335,7 +352,12 @@ func process(delta: float) -> void:
 			m.sim.set_velocity(0.0, 0.0, 0.0)
 			_align()
 		else:
-			var spd := minf(APPROACH_SPEED, maxf(0.25, dist))
+			# José flies the probe with the propulsion the probe actually has. It used to call set_velocity()
+			# directly, and set_velocity_mps passes through the damage layer unscaled while the player's own
+			# adjust_local_velocity_mps is multiplied by propulsion integrity -- so a probe that could not move a
+			# metre by hand was carried to the mining pose at full speed, and every mining trip could skip the
+			# damaged-machine premise. Same rule as the scan, which already takes 10/0.35 s at 35% sensors.
+			var spd := minf(approach_speed_mps(), maxf(0.25, dist))
 			var v := to / dist * spd
 			if not m.sim.set_velocity(v.x, v.y, v.z):
 				cancel_approach("auto-approach stopped: velocity refused")
@@ -453,7 +475,9 @@ func hud_lines() -> String:
 		target, ARM_NAMES[selected_arm], arm_state, "on" if st["tool_attached"] else "off",
 		# the operation's own arm is named: it can differ from the selected arm shown on this line (selecting another arm
 		# never redirects an operation), and an unnamed "ALIGNED" next to it would claim the wrong arm is ready
-		"  APPROACHING for %s" % ARM_NAMES[op_arm] if approaching else ("  ALIGNING %s" % ARM_NAMES[op_arm] if waypoint_index >= 0 else ""),
+		# While José is flying, say how fast and why: a crawl at 40% propulsion is the damage showing, not a stall,
+		# and the player should not have to guess which.
+		"  APPROACHING for %s at %.1f m/s (%d%% propulsion)" % [ARM_NAMES[op_arm], approach_speed_mps(), int(round(propulsion_effectiveness() * 100.0))] if approaching else ("  ALIGNING %s" % ARM_NAMES[op_arm] if waypoint_index >= 0 else ""),
 		"  %s ALIGNED" % ARM_NAMES[op_arm] if aligned else "",
 		cargo if cargo != "" else " empty", m.sim.get_storage_used_kg(), m.sim.get_storage_capacity_kg(), fix_it_line() + "\n" + power_line(), message]
 

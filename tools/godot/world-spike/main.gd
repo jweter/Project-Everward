@@ -741,6 +741,23 @@ func _run_firstloop() -> void:
 		var label := "%s arm%s" % [FirstLoop.ARM_NAMES[arm], " yawed %.1f deg" % yaw_turn if yaw_turn != 0.0 else ""]
 		_press(KEY_P)
 		var engaged: bool = first_loop.approaching
+		# The autopilot flies with the propulsion the probe actually has. Sampled on the first case only, while the
+		# probe is still far enough out that the speed is not being tapered for arrival: a probe that cannot be
+		# flown by hand must not be carried at full speed either (set_velocity_mps is unscaled in the damage layer,
+		# the player's adjust_local_velocity_mps is not).
+		if arm == 0 and first_loop.approaching:
+			await _sim_run(0.4)
+			var avel: PackedFloat64Array = sim.get_velocity()
+			var measured := Vector3(avel[0], avel[1], avel[2]).length()
+			var prop: float = first_loop.propulsion_effectiveness()
+			var want: float = FirstLoop.APPROACH_SPEED * prop
+			var apos: PackedFloat64Array = sim.get_position()
+			var far_out: bool = first_loop.staging.distance_to(Vector3(apos[0], apos[1], apos[2])) > 5.0
+			check.call("the autopilot flies at the propulsion the probe has",
+				not far_out or absf(measured - want) < 0.05,
+				"%.3f m/s measured against %.1f nominal x %d%% propulsion = %.3f expected%s"
+				% [measured, FirstLoop.APPROACH_SPEED, int(round(prop * 100.0)), want,
+					"" if far_out else " (inside the arrival taper, so not asserted)"])
 		if arm == 0:
 			# selecting the other arm during the approach and during the alignment must not redirect either (Codex #443)
 			_press(KEY_2)
