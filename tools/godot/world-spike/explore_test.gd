@@ -113,6 +113,23 @@ func run(test_seed: int, steps: int) -> void:
 				after["tick"], m.first_loop.message])
 		valid = valid and ok
 
+	# Save/load in the middle of exploration (possibly while a scan is running).
+	# Only validate persistence promises the canonical save actually makes.
+	var before_load: Dictionary = _stock()
+	var was_surveyed: bool = m.sim.is_surveyed(DEPOSIT)
+	var snapshot: String = m.sim.save_json()
+	var loaded: bool = m.sim.load_json(snapshot)
+	var after_load: Dictionary = _stock()
+	m.evidence.event("explore", "seed=%d save_load=%s" % [test_seed, loaded])
+	m.evidence.check("seeded mid-session save/load preserves world resources",
+		loaded and not snapshot.is_empty() and _invariant(before_load, after_load) and
+		absf(after_load["deposit"] - before_load["deposit"]) < 1e-9 and
+		absf(after_load["cargo"] - before_load["cargo"]) < 1e-9 and
+		m.sim.is_surveyed(DEPOSIT) == was_surveyed,
+		"load=%s deposit %.3f->%.3f cargo %.3f->%.3f surveyed %s->%s" %
+		[loaded, before_load["deposit"], after_load["deposit"], before_load["cargo"],
+			after_load["cargo"], was_surveyed, m.sim.is_surveyed(DEPOSIT)])
+
 	# Recover using player commands, not a fresh simulation or direct inventory mutation.
 	# An arbitrary prelude may have left the Systems panel open or a scan in progress.
 	if m.first_loop.panel_open:
@@ -168,6 +185,17 @@ func run(test_seed: int, steps: int) -> void:
 		m.evidence.check("seeded mining maintains independent material balance",
 			_invariant(before_mine, after_mine), "deposit %.3f + cargo %.3f + repair %.3f = %.3f" %
 			[after_mine["deposit"], after_mine["cargo"], after_mine["consumed"], START_KG])
+		var energy_before_repair: float = after_mine["energy"]
+		var repaired: bool = await m._until(func() -> bool:
+			return float(m.sim.get_integrity()["computation"]) >= 0.25 - 1e-9, 45.0)
+		var after_repair: Dictionary = _stock()
+		m.evidence.check("seeded mining funds authentic Fix_It restoration",
+			repaired and after_repair["consumed"] > after_mine["consumed"] and
+			after_repair["energy"] < energy_before_repair and
+			_invariant(after_mine, after_repair),
+			"repaired=%s energy %.0f->%.0f J, Fix_It consumed %.3f kg; %s" %
+			[repaired, energy_before_repair, after_repair["energy"],
+				after_repair["consumed"], m.first_loop.fix_it_line()])
 	else:
 		m.evidence.check("seeded recovery reaches mining", false,
 			"seed=%d, surveyed=%s, arm_ready=%s" % [test_seed, surveyed, arm_ready])
