@@ -1,62 +1,56 @@
 # Everward Engine Direction
 
-## Product decision
+## Accepted production direction — November 27, 2026
 
-Everward is an **Unreal Engine-first** production project.
+**Godot is Everward's active production development engine**, as approved by the owner and recorded in [ADR-0014](DECISION_LOG.md). The prior Unreal-first decision (ADR-0001) is **superseded**, not erased. Unreal feature work is frozen; keep `unreal/` as historical/reference material until the G5 retirement gate is met. Do not schedule or implement new production Unreal features by default.
 
-This is a product-direction decision, not merely a tool preference.
+This is a product and engineering direction, not permission to reduce visual ambition or change the game's identity. The player is the probe, embodied in a scientifically credible, visually compelling physical 3D universe.
 
-Everward must not drift into a primarily 2D, 2.5D, abstract-map, deliberately quirky, or visually lightweight interpretation simply because that path is easier to implement. The intended experience is cinematic, immersive, high-fidelity 3D scientific realism.
+## Why the direction changed
 
-The player is the probe. They should feel physically present in a universe that is worth stopping to look at.
+Unreal native verification and iteration were constrained by RAM and toolchain demands on the available non-upgradable development laptop. The owner-approved Godot feasibility path has demonstrated a playable world spike on the laptop's Intel Iris Xe (reported 44–60 FPS in the scripted route, with a significant transient drilling dip), native C++ simulation binding, and deterministic headless test routes. These are meaningful iteration/verification advantages, **not** proof of final art quality, shipping performance, or every Phase 2 gameplay gate.
 
-## Visual standard
+The exact migration status and limits live in [Godot Path Plan](GODOT_PATH_PLAN.md) and the `tools/godot/` READMEs. A dated report must not override current code, PRs, or exact-commit verification.
 
-Everward should pursue:
+## Visual standard — unchanged
+
+Everward must still pursue:
 
 - physically convincing large-scale space environments;
-- high-end real-time lighting and materials;
-- volumetrics, particles, shadows, atmospheric and stellar effects;
-- detailed probes, mining systems, stations, infrastructure, and eventually megastructures;
-- cinematic camera composition without sacrificing gameplay legibility;
-- strong local-scale embodiment near machinery, asteroids, moons, planets, rings, stars, and extreme astronomical phenomena;
-- smooth transitions between local, system, and strategic scales;
-- photo/HUD-off views capable of producing wallpaper-quality imagery.
+- high-quality real-time lighting, PBR materials, atmospheres, volumetrics, particles and shadows;
+- detailed probes, mining systems, infrastructure, and eventually megastructures;
+- cinematic composition without sacrificing player controls or gameplay legibility;
+- physical embodiment near asteroids, moons, planets, rings, stars and machinery;
+- transitions across local, system and strategic views;
+- HUD-off/photo-quality scenes that reward exploration.
 
-The visual target remains **cinematic scientific realism**: grounded enough to feel scientifically credible, spectacular enough that exploration itself is a reward.
+The target remains **cinematic scientific realism**. Godot is not a rationale for defaulting to a 2D map game, intentionally crude low-poly identity, or a feature-incomplete low-spec build. Achieve the target through appropriate scene craft, shaders, assets, procedural tools, and measured graphics tiers, not by assuming parity with Unreal's renderer.
 
-## What Everward is not
+## Responsibilities and hard boundaries
 
-The production game is not intended to become:
+- **`src/simulation/`**: authoritative deterministic mechanics, timing, physical state, inventory, repairs, save rules, and outcomes; remains testable without an engine.
+- **Godot/GDExtension**: validated player commands and simulation snapshots/events; Godot scenes and UI render state but do not create independent mechanical truth.
+- **Native + Godot headless tests**: objective correctness and parity on the exact source commit.
+- **Godot in-engine captures and runs**: practical performance, interaction legibility and presentation evidence.
+- **Human visual/game-feel review**: only genuinely subjective acceptance, separately identified from machine-verifiable PASS.
 
-- a 2D star-map game with occasional 3D decoration;
-- a primarily icon-driven strategy interface;
-- a deliberately low-poly or quirky visual experience;
-- a flat presentation where astronomical phenomena are mostly abstract UI;
-- a game whose core visual ambition is sacrificed simply to reduce engine complexity.
+Do not imply that a green GitHub check, a simulation unit test, an illustrative screenshot, or a high frame-rate scene by itself proves the full game is fun or finished.
 
-Strategic maps, telemetry, overlays, charts, lineage views, engineering interfaces, and schematic modes will still exist where they serve gameplay. They complement the physical 3D universe; they do not replace it.
+## Current migration stages
 
-## Unreal Engine role
+The [Godot Path Plan](GODOT_PATH_PLAN.md) is authoritative for G0–G5:
 
-Unreal Engine is the accepted production direction because its toolset aligns with the project's visual and presentation requirements, including high-end 3D rendering, lighting, material systems, particles, volumetrics, cinematic tools, and large-environment workflows.
+- **G0**: feasibility world spike, merged (#433).
+- **G1**: simulation GDExtension and native/Godot parity foundation, merged (#437).
+- **G2**: simulation-driven Godot movement/contact experiments with acknowledged approximation limits.
+- **G3**: the integrated scan/mining/Fix_It first loop is progressing (#443, #444); all legacy #378 equivalence gates are not yet accepted.
+- **G4**: complete visual, gameplay capture, performance-tier and owner-art acceptance evidence remains pending.
+- **G5**: archive the historical Unreal project only after required parity/acceptance evidence and a normal reviewed PR.
 
-The simulation architecture remains renderer-independent in principle. Unreal must consume authoritative simulation state rather than becoming the only place where mechanical truth exists.
-
-## Phase 1 benchmark interpretation
-
-The existing Godot/Unreal benchmark should still be completed because it provides valuable evidence about performance, integration complexity, large-coordinate behavior, memory, UI workflow, save/load implications, and development friction.
-
-However, the benchmark is now a **validation and risk-discovery gate for Unreal**, not an unconstrained vote between two equally preferred artistic directions.
-
-A result that shows Godot is lighter or easier does not automatically change the production engine. A result that exposes a serious Unreal blocker must trigger investigation and, if necessary, a new explicit ADR. The visual promise cannot be silently weakened to make a technical problem disappear.
-
-## Phase 2 authorization
-
-Phase 2 — One Probe should begin only after the Phase 1 hardware evidence is decision-ready and validates Unreal as the production engine under the current project constraints.
-
-If the evidence does not support Unreal, Phase 1 remains open until the blocker is resolved or the product decision is explicitly reconsidered.
+The historical Phase 1 Unreal exit gate does not have to be relitigated to continue Phase 2 in Godot. Earlier Unreal-specific runtime tests do not become `GODOT_VERIFIED` automatically.
 
 ## Development rule
 
-Future roadmap work, automated hourly development, architecture choices, asset planning, UI decisions, and prototype priorities should assume Unreal Engine as the production target unless a later accepted ADR explicitly supersedes this direction.
+All new Phase 2 production gameplay, HUD, rendering, audio, asset integration, interaction, autonomous QA, and runtime tooling should target **Godot**, subject to the existing review/CI, worker, IP, payment and owner-approval restrictions. Keep core simulation development engine-independent.
+
+Any future switch away from Godot requires another explicit accepted ADR. Historical Unreal reports are evidence, not current development instructions.

@@ -1,7 +1,9 @@
 # Everward — Cross-Disciplinary Production Quality Gates
 
-**Status:** Owner-authorized production standard proposal (2026-11-05). Effective for review when this PR is merged; not proof that any gameplay milestone passed.
-**Authority:** Additive to ROADMAP.md, PHASE2_VERTICAL_SLICE_PLAN.md, CONTINUOUS_VISUAL_QUALITY.md, UNATTENDED_VERIFICATION.md, DESIGN_PILLARS.md, and AGENTS.md. Earlier incomplete player outcomes and existing owner-control rules still govern priority.
+**Status:** Owner-authorized cross-disciplinary production-quality standard, initiated November 2026 and currently applied to the Godot path. This document defines acceptance evidence; it does not assert that any milestone already passed.
+**Authority:** Additive to ROADMAP.md, PHASE2_VERTICAL_SLICE_PLAN.md, CONTINUOUS_VISUAL_QUALITY.md, UNATTENDED_VERIFICATION.md, DESIGN_PILLARS.md, and AGENTS.md.
+
+**Current production-engine rule (2026-11-27):** Godot is the active engine (ADR-0014); the Unreal-era status labels below are preserved as historical evidence, not current production gates. Apply `GODOT_VERIFIED` when the exact-source Godot headless test is evidenced and keep actual Godot visual/player acceptance separate. Preserve every R0–R6 player-experience standard. Earlier incomplete player outcomes and existing owner-control rules still govern priority.
 
 ## Why this exists
 
@@ -12,12 +14,13 @@ A merged code feature, a passing simulation test, a 3D asset, and a compelling g
 | State | Meaning | Required evidence |
 |---|---|---|
 | PLANNED | Reviewed design and dependency only | Player outcome, constraints, ownership, intended acceptance |
-| IMPLEMENTED | Code/assets and relevant deterministic/contract tests exist | Exact source commit, tests and data contracts; not an Unreal pass |
-| UNREAL_VERIFIED | Reproducible exact-build game run demonstrates behavior | Build SHA, map/seed, machine/preset, input sequence, logs, screenshots/video or captured signals |
-| PRODUCT_ACCEPTED | Unreal proof plus applicable player comprehension, art, sound, accessibility and performance reviews passed | Signed-off milestone evidence and failures/limits disclosed |
+| IMPLEMENTED | Code/assets and relevant deterministic/contract tests exist | Exact source commit, tests and data contracts; not a Godot runtime pass |
+| GODOT_VERIFIED | Exact-commit automated headless Godot run demonstrates the tested behavior | Godot version/build, exact source SHA, scene/seed, machine/preset where relevant, test commands, logs and captured evidence; not automatically a human playtest |
+| UNREAL_VERIFIED (historical) | Prior engine-specific Unreal run demonstrated historical behavior | Preserve older SHA/map/seed/build evidence; does not substitute for Godot tests |
+| PRODUCT_ACCEPTED | Integrated Godot gameplay proof plus applicable player comprehension, art, sound, accessibility and performance reviews passed | Signed-off milestone evidence and failures/limits disclosed |
 | BLOCKED / REVIEW_REQUIRED | Critical evidence is missing or failed | Explicit failure, dependency and next safe test; never silently promote |
 
-An acceptance gate may have separate IMPLEMENTED and UNREAL_VERIFIED markers for mechanics, art, audio, UI and persistence. Do not collapse these into one optimistic label. Older August 2026 playtest scores are historical baselines, not November performance measures.
+An acceptance gate may have separate IMPLEMENTED and GODOT_VERIFIED markers for mechanics, art, audio, UI and persistence. Do not collapse these into one optimistic label. Older August 2026 playtest scores are historical baselines, not November performance measures.
 
 ## Complete player-facing slice contract
 
@@ -25,12 +28,12 @@ Each player-visible milestone must record:
 
 1. **Player intent:** what the player tries to achieve, why it matters and the visible next opportunity.
 2. **Game design:** rules, meaningful choice, failure and recovery, pacing and difficulty consequences.
-3. **Mechanical authority:** engine-independent simulation state and deterministic/event tests. Unreal renders truth and submits commands, never fabricates results.
+3. **Mechanical authority:** engine-independent simulation state and deterministic/event tests. Godot renders truth and submits commands, never fabricates results.
 4. **Interaction design:** contextual discovery, true spatial reach, feedback, readable HUD, control override/recovery and input mapping. Do not rely on undocumented keyboard shortcuts.
 5. **Experience production:** canonical Prime A and setting, coherent lighting, real animation/pose, VFX, haptics where applicable, and sound from the same authoritative event.
 6. **Accessibility:** alternatives for sound-only or color-only information, readable text, remapping plan, mix options, subtitles/captions where appropriate; safety cues available from the start.
 7. **Operational quality:** save/load during the action, controlled-error behavior, memory/frame-time and low-spec parity on the declared target.
-8. **Verification:** exact-head unattended CI/local Unreal test and evidence; human judgment only for genuinely subjective quality and player comprehension.
+8. **Verification:** exact-head unattended CI/local Godot test and evidence; human judgment only for genuinely subjective quality and player comprehension.
 9. **Review/closure:** what changed from the previous accepted build, what remains missing, linked issues, and next dependency.
 
 A slice can be merged under the current reversible parallel-safe lane with IMPLEMENTED status when its Product Reality dependency is pending. **That does not close the milestone** or authorize a phase transition.
@@ -41,14 +44,14 @@ A slice can be merged under the current reversible parallel-safe lane with IMPLE
 |---|---|---|
 | Gameplay and simulation | Movement, scan, extraction, repair, fabrication, industry, successors | Accurate, deterministic state and real cause/effect |
 | Visual / player experience | Model, animation, VFX, camera, world composition, controls/HUD, onboarding | Unedited in-game capture and novice understanding |
-| Quality and Product Reality | C++ tests, Unreal build, packaged smoke, input replay, saves, performance, reports | Exact SHA and explicit PASS/FAIL/REVIEW_REQUIRED evidence |
+| Quality and Product Reality | C++ tests, Godot headless/build and packaged smoke when available, input replay, saves, performance, reports | Exact SHA and explicit PASS/FAIL/REVIEW_REQUIRED evidence |
 | Audio / evolving sensorium | Event cues, machine contact, generative layers, mix/accessibility | Perception-bound sound, correct event origins and fatigue/CPU checks |
 
 Audio and visuals are not end-of-project polish. They begin with the same small canonical opening, while their ambitious future systems remain separately gated.
 
 ## Player-experience gate for the opening
 
-**R0 — Recover trust:** physical mining/contact, named material, Fix_It action and an authoritative repair objective; a seeded, repeatable Unreal run with appropriate sensory feedback.
+**R0 — Recover trust:** physical mining/contact, named material, Fix_It action and an authoritative repair objective; a seeded, repeatable Godot run with appropriate sensory feedback.
 
 **R1 — Believable awakening:** recognizable damaged Prime A, restrained visual and audio language, comprehensible first-10-minute interaction, and visible restoration of a capability. The proposed first-time study is six independent sessions, with candidate targets of five completing a first repair, five identifying the newly available capability and a median desire-to-continue rating of at least 4/5. These are design targets, not observed outcomes or statistical proof.
 
@@ -81,7 +84,7 @@ The idle Windows worker currently supplies only a subset of this evidence; start
 
 - All seven canonical design pillars and the player-as-probe identity.
 - Canonical scientific Prime Probe A and visibly meaningful Repair → Replacement → Upgrade → Redesign → Evolution via Fix_It.
-- Unreal Engine 5.8 production direction; C++ simulation owns game truth.
+- Godot production direction (ADR-0014); C++ simulation owns game truth.
 - Direct → Task → Operational → Doctrine control without arbitrary machine-count caps, using LOD not unlimited physical simulation.
 - Single-player PC-first, offline-capable game; native mobile remains an independent future project.
 - Existing asset provenance, owner-control gates, protected branches and Iron God scheduling.

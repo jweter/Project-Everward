@@ -12,7 +12,9 @@ Everward uses lightweight Architecture/Design Decision Records (ADRs) to prevent
 
 ## ADR-0001 — Production engine selection
 
-**Status:** ACCEPTED
+**Status:** SUPERSEDED by ADR-0014 (2026-11-27)
+
+**Historical record:** This decision governed the original Unreal-first production work. Its constraints and consequences below describe that earlier period, not the current Godot production mandate.
 
 **Decision:** Unreal Engine is Everward's production engine direction.
 
@@ -208,6 +210,37 @@ See `docs/PHASE2_KICKOFF_SCAFFOLD.md`, `ARCHITECTURE.md`, `SIMULATION_PHILOSOPHY
 - future polygon/material/texture budgets, Nanite/LOD analysis, scale/collision checks, and unattended Unreal import smoke tests should extend this registry rather than create parallel provenance systems.
 
 See `docs/ASSET_ACQUISITION_PIPELINE.md`, `docs/IP_AND_LICENSES.md`, and `assets/pipeline/policy.json`.
+
+## ADR-0014 — Godot becomes the production development engine (2026-11-27)
+
+**Status:** ACCEPTED — owner-approved on November 27, 2026
+
+**Supersedes:** ADR-0001's Unreal-first engine decision and the forward-looking Unreal-only portions of ADR-0012. The historical work and evidence remain part of the repository record.
+
+**Question / context:** How can Everward deliver a credible, physically embodied one-probe experience while keeping development, unattended testing and visual iteration feasible on the available non-upgradable laptop?
+
+**Evidence:** Unreal Editor/UBT and the existing native verification path were constrained by available RAM and toolchain overhead. The Godot world spike in `tools/godot/world-spike/` (merged #433) demonstrated a 44–60 FPS scripted route on the laptop's integrated graphics, but with a momentary drilling dip near 13 FPS and placeholder art. The C++ simulation binding and native/headless Godot parity foundation merged in #437; first-loop scan/mining and Fix_It work followed in #443 and #444. These results demonstrate meaningful iteration progress, not completed production/art/performance acceptance.
+
+**Decision:** **Godot is the active presentation/input/runtime development engine for Everward.** Continue Phase 2 — One Probe on the owner-approved G0–G5 Godot path. Freeze new Unreal feature development. Keep `unreal/` and prior Unreal evidence intact as historical/reference work until the G5 retirement gate is met.
+
+**Non-negotiable invariants:**
+
+- `src/simulation/` continues to own deterministic mechanical truth, integrity, resource transactions, physical contact and save behavior. Godot and the GDExtension binding expose validated commands and render authoritative state; neither may silently duplicate or replace mechanics.
+- Everward remains a cinematic, immersive 3D game in which **the player is the probe**. Faster iteration must not become justification to lower the canonical visual, physical, sensorium or game-feel ambitions.
+- Native C++ tests, exact-source-commit headless Godot tests and in-engine visual/performance evidence remain separate acceptance layers. `GODOT_VERIFIED` requires automated headless Godot evidence on the exact source commit; it is not interchangeable with `UNREAL_VERIFIED` or human aesthetic acceptance.
+- The G3 damaged-awakening → scan → physically approach and mine → spend materials/energy → Fix_It → restored capability loop precedes broad content expansion. Legacy #378 G01–G13 items must be mapped to equivalent Godot tests and individually closed with evidence, not assumed closed by an engine change.
+- Existing PR/CI checks, owner-only paid tooling, security/IP restrictions, worker leases and owner-control gates remain unchanged; no automatic paid Aura or Claude work is authorized by this decision.
+
+**Known risks / open gates:** Godot visual realism relative to the final art target; frame-time spikes during terrain editing; Godot 4.7.x/Voxel Tools provenance, packaging and portability; a documented first-import GDExtension crash/workaround; approximated terrain contact; incomplete save/first-loop acceptance; human art/game-feel evaluation; GPU evidence beyond the integrated laptop.
+
+**Consequences:**
+
+- The active docs, agent instructions, automated development backlog, engine integration and visual-quality work must target Godot; historical Unreal-only tasks are not active production tasks.
+- G0/G1 evidence is not permission to mark G3/G4/G5 complete. Keep the earliest incomplete acceptance gate and separate machine results from subjective review.
+- Retire or archive `unreal/` **only** in a future reviewed PR after Godot gate parity and owner-authorized G5 decision; do not destroy historical source or evidence prematurely.
+- A new engine switch requires its own explicitly accepted ADR.
+
+**Current execution authority:** `docs/GODOT_PATH_PLAN.md`, `docs/ENGINE_DIRECTION.md`, `docs/PROJECT_STATUS.md`, and verified source/CI/PR state. The original ADR-0001 rationale remains preserved for historical traceability.
 
 ## ADR template
 

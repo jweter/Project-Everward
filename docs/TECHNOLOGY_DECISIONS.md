@@ -4,33 +4,15 @@ This document records current technical constraints and open gates. It is not a 
 
 ## TD-001 — Production engine
 
-**Status:** ACCEPTED — UNREAL ENGINE
+**Status:** ACCEPTED — GODOT (2026-11-27; supersedes earlier Unreal direction)
 
-**Decision:** Everward is being developed toward **Unreal Engine** as its production presentation/runtime engine.
+**Decision:** Godot is Everward's active production development engine. The existing engine-independent C++20 simulation remains authoritative. Godot's GDExtension supplies validated simulation input and read-only presentation state; Godot scenes supply rendered 3D world, flight controls, HUD, feedback and player experience. Historical Unreal material is retained until migration G5.
 
-**Product rationale:** Everward is not intended to become a primarily 2D, 2.5D, abstract-map, or deliberately quirky-looking strategy game. Its visual identity is a first-class product requirement: cinematic, immersive, high-fidelity 3D scientific realism across local machinery, planetary environments, stellar phenomena, and large-scale space scenes.
+**Rationale and evidence:** The owner approved the Godot path to avoid Unreal's resource-heavy development and native test bottleneck on the available laptop. The Godot world spike (#433), native/Godot parity foundation (#437), first scan/mining loop (#443), and Fix_It integration (#444) provide bounded evidence of faster development and headless testing. They do **not** prove final quality, full save compatibility, packaging, first playable completion or subjective experience.
 
-The player should feel physically present as the probe. Space itself is part of the reward. The project therefore prioritizes an engine/toolchain capable of supporting high-end real-time 3D rendering, lighting, materials, particles, volumetrics, cinematic cameras, large environments, and a long-term path toward wallpaper-quality astronomical scenes.
+**Non-negotiable product constraint:** Cinematic scientific realism, physically inhabited space, meaningful equipment, scalable graphics presets, and the Prime Generation-1 probe identity remain design requirements. Godot is not a pivot to an intentionally lightweight 2D/2.5D or abstract-map game.
 
-**Phase 1 benchmark role:** the existing Godot/Unreal benchmark remains useful, but its purpose is now technical validation and risk discovery rather than an unconstrained product-direction vote. It should establish:
-
-- whether the current Unreal prototype runs correctly on target development hardware;
-- performance and memory characteristics of the representative Everward workload;
-- large-coordinate behavior;
-- simulation-core integration boundaries;
-- procedural scene workflow;
-- UI/HUD workflow;
-- save/load implications;
-- development/package friction;
-- and any technical blocker serious enough to require a new explicit ADR.
-
-A Godot benchmark result may remain as comparative evidence, but a numerically better lightweight result does **not** by itself supersede the accepted visual/product direction. Replacing Unreal requires a later explicit decision documenting a material blocker and the consequences for Everward's visual promise.
-
-**Benchmark scene:** probe mining an icy asteroid near a large planet with stellar lighting, volumetric effects, particles, moving machinery, HUD telemetry, and accelerated time.
-
-**Phase 1 exit constraint:** production gameplay may proceed only after a real, decision-ready hardware artifact validates **Unreal** for the current Phase 1 gate. A decision packet recommending Godot does not authorize Phase 2; it indicates that Unreal-specific blockers must be understood or the engine decision must be explicitly reconsidered.
-
-See `ENGINE_DIRECTION.md`, `VISUAL_DIRECTION.md`, and ADR-0001 in `DECISION_LOG.md`.
+**Current acceptance gates:** G3 Godot-first playable equivalence; G4 integrated art, player experience and performance; G5 eventual Unreal archival only after verified parity and owner approval. See `GODOT_PATH_PLAN.md`, `ENGINE_DIRECTION.md`, and ADR-0014 in `DECISION_LOG.md`.
 
 ## TD-002 — Simulation/presentation separation
 
@@ -38,7 +20,7 @@ See `ENGINE_DIRECTION.md`, `VISUAL_DIRECTION.md`, and ADR-0001 in `DECISION_LOG.
 
 The simulation core owns mechanical truth. Rendering, UI, audio, narrative presentation, and future AI-assisted presentation consume simulation state but do not determine outcomes.
 
-This decision survives the Unreal selection: Unreal is the presentation/runtime integration layer, not the owner of independent simulation truth.
+This decision survives the Godot switch: Godot is the presentation/input runtime, not the owner of independent simulation truth.
 
 ## TD-003 — Headless simulation
 
@@ -46,7 +28,7 @@ This decision survives the Unreal selection: Unreal is the presentation/runtime 
 
 Everward must support non-rendered simulation suitable for deterministic tests, long-duration runs, balance experiments, save verification, and performance analysis.
 
-The production Unreal integration must preserve this capability rather than forcing core simulation tests through the renderer.
+The production Godot integration must preserve this capability rather than forcing core simulation tests through the renderer.
 
 ## TD-004 — Deterministic procedural generation
 

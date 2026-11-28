@@ -2,23 +2,23 @@
 
 This file is the durable operational continuation record for human and scheduled development. It answers: **where are we now, what is verified, what remains open, and what should happen next?** Detailed historical implementation narratives belong in Git history, PRs, playtest evidence, and `ERROR_RESOLUTION_LEDGER.md`.
 
-## Current phase
+## Current phase — Godot production path (2026-11-27)
 
-**Phase 2 — One Probe: ACTIVE.**
+**Phase 2 — One Probe: ACTIVE.** The owner approved Godot as Everward's active engine direction on November 27, 2026; ADR-0014 supersedes Unreal-first ADR-0001. New Unreal feature development is frozen, but `unreal/` stays as a reference and historical verification record until G5 is accepted. Phase 1 technical proofs remain complete; switching the presentation engine does **not** change the simulation-owned mechanics or retroactively close legacy Unreal/Product Reality gates.
 
-Phase 1 is complete and Unreal Engine 5.8 is the accepted production direction. The first serious local Phase-2 run proved the integrated simulation/Unreal shell works, but the product gate **“simply existing as the probe is compelling”** is not yet met.
+**Verified repository progress this date:**
+- #433 merged: Godot voxel-world/cloud/tree/drilling feasibility spike with measured laptop route and explicit visual/performance limitations;
+- #436/#439 merged: owner-reference-derived look palettes and procedural tree improvements; raw owner/third-party references are kept outside this public repository;
+- #437 merged: native C++ simulation through the `EverwardSim` GDExtension with native/headless Godot parity;
+- #440/#442 merged: simulation-driven Godot flight, contact, controls, and explicitly approximate terrain proxy contacts;
+- #443 merged: survey/scan, staging, collision-aware arm path, and physical mining first loop;
+- #444 merged: damaged-awakening Fix_It repair funded by material/energy, including review fixes for save/load executor reset and independent material accounting.
 
-Canonical first-run evidence remains:
+**Current acceptance:** G0 and G1 are implemented with bounded engine evidence; G2 is implemented for its described test paths; G3 is progressing but **not accepted in full**; G4 integrated presentation/art/player experience and G5 Unreal retirement remain open. `GODOT_VERIFIED` means a headless Godot test on the exact source commit with evidence, not a human playtest or full packaged-game proof. Do not substitute historic `UNREAL_VERIFIED` for these gates.
 
-- `playtests/phase2/observations/phase2-first-run-20260824-225821.json`
-- `docs/PHASE2_FIRST_RUN_FINDINGS_2026-08-24.md`
-- tested commit: `7f9ea88b8e7857f44f80b2f2327fde758dd2ca1a`
+**Next highest-value work:** finish the missing G3 first-loop contract and re-map each #378 G01–G13 item to Godot with genuine exact-head evidence; close world deposit persistence and remaining failure/refusal routes; keep scan → mine → stored material/energy → Fix_It → restored capability readable and repeatable; build the Prime A art/HUD/audio experience and record frame-time spikes as well as averages. Prioritize failed CI/reviews and incomplete active PRs first. See `GODOT_PATH_PLAN.md`, `ENGINE_DIRECTION.md`, `ROADMAP.md` and current GitHub state.
 
-The repository has advanced substantially beyond that first-run build through the explicit parallel-safe lane. Those later mechanics are **implemented but do not count as locally accepted Product Reality until the exact Unreal test passes.**
-
-Current `main`: `b63fa54eb1a60143e8374b075847953bad1c56f4`, after Slice 7 gained deterministic target cycling (#150) on top of nearest-target selection and range telemetry (#131). The evolving-sensorium-audio foundation (#122) and the Prime Generation-1 body blockout (#123, Slice 5) are folded in below alongside the manipulator arm work.
-
-The documentation debt previously flagged here for #125–#128 (Prime functional material pass, the Prime A tube-body/visible-arm-geometry replacement, and the fore-aft cylinder axis fix) is resolved by this pass: see the updated Slice 5 and Slice 6 sections below, and the expanded Product Reality sequence, which now also exercises `PHASE2_SIMPLE_PRIME_A_EMBODIMENT_PASS.md`.
+**Historical baseline only:** the following long-form material documents the earlier Unreal implementation and August 2026 first-playtest baseline. Its dated SHA, old Unreal requirements and old local acceptance steps are **not** current production instructions; it is preserved to protect design lessons and mechanical provenance.
 
 ## Verified local foundation
 
@@ -1767,7 +1767,7 @@ Everward continues to preserve:
 - Slice 11 science-knowledge foundation: `science_knowledge.hpp`'s `TargetKnowledgeState`/`apply_observation()` are now wired into `SimulationCore::integrate_scan()`'s existing per-tick scan progress, persisted as an additive `target_knowledge` save field, and surfaced read-only through `UProbeSimulationAdapter::GetSelectedTargetKnowledgeStatus()` and a new telemetry-panel `KNOWLEDGE` row for whichever target is currently selected (implemented, Product Reality pending; see "Science knowledge foundation wired into the scan lifecycle (Slice 11)" above and `PHASE2_SCIENCE_KNOWLEDGE_TEST.md`). A follow-on pass closed the classification/composition-estimate gap this bullet previously named: a registered `StaticSphereBody`'s optional ground-truth `material_id` (only `SCAN-001` has one today, matching mining's own material) is revealed through `ProbeRuntime::reveal_full_confidence_target_classifications()`/`SimulationCore::set_target_classification()` once a scan's confidence reaches full, surfaced as `KNOWLEDGE  CHARACTERIZED // <material_id>` (implemented, Product Reality pending; no passive-observation trigger or composition *estimation* with uncertainty yet — see "Target composition/classification reveal (Slice 11 follow-up)" above). A further follow-on pass closed the "persistent discoveries" gap: `UProbeSimulationAdapter::GetDiscoveredTargets()` surfaces every target `target_knowledge` has ever accumulated evidence for -- not only whichever target `KNOWLEDGE` currently has selected -- as a new `DISCOVERIES` telemetry row below `INVENTORY`, so a discovery stays reviewable after deselecting the target or after its registered body is later mined out/collected (implemented, Product Reality pending; still read-only telemetry, not a codex UI or a decision-enabling gameplay consequence — see "Persistent discoveries catalogue (Slice 11 follow-up)" above). A further follow-on pass closed the "passive-observation trigger" gap: `ProbeRuntime::observe_passive_targets()` now calls the already-existing `record_passive_observation()` boundary for every registered body within sensor range whenever sensors are powered, at a far slower confidence rate than an active scan, with no active-scan double-crediting (implemented, Product Reality pending; composition *estimation* with uncertainty and a decision-enabling discoveries UI remain the two open gaps — see "Passive-observation trigger (Slice 11 follow-up)" above). A further follow-on pass closed the composition-estimation gap at the engine-independent layer: `ProbeRuntime::composition_estimate_for_target()` (forwarded by `DamageAwareProbeRuntime`) wires the previously-standalone `composition_estimate.hpp` (#319) into the existing scan/classification state, reporting a confidence-scaled `CompositionEstimate` for a registered body's known material -- fraction/confidence equal to the scan's own accumulated `TargetKnowledgeState::confidence`, uncertainty equal to its complement -- well before `reveal_full_confidence_target_classifications()` reveals the deterministic classification outright at confidence 1.0, and failing closed to `std::nullopt` for a never-observed target, a plain reference body with no known `material_id`, or an unregistered id (implemented, Product Reality pending; no adapter/HUD surface exists yet, so a decision-enabling discoveries UI remains the one open gap — see the new coverage in `software_policy_tests.cpp` and `docs/PHASE2_VERTICAL_SLICE_PLAN.md`'s Slice 11 section).
 - Generated-world persistence (issue #270, the decomposed generated-world remainder of #167): `generated_region.hpp` (new) implements `docs/SAVE_FORMAT.md`'s `LoadedRegion = Generate(seed, coordinate, algorithm_version) + PersistedObservations + PersistedModifications` rule for `generation_algorithm_version` 1 -- `generate_region_baseline` is `Generate(...)` (a deterministic, portable splitmix64-seeded minor-body generator reusing the existing `StaticSphereBody` type), `GeneratedRegionRecord` is the persisted per-region observation (reusing `science_knowledge.hpp`'s `TargetKnowledgeState`, keyed by generated `body_id`) / modification (`removed` or a reduced `remaining_sample_mass_kg`) delta, and `reconstruct_region_entities` recombines them; `validate_generated_regions` fails closed on a `region_id` inconsistent with its own coordinate, a duplicate region, or an observation/modification naming a body no generator run would ever produce. Wired into `SaveGameV1` as a new top-level `generated_regions` field and bumped `kSaveFormatVersion` from 1 to 2 -- the first real (non-empty) use of the pre-existing migration framework, via a new `migrate_v1_generated_regions_to_v2` step and fixture coverage proving a genuine pre-#270 legacy save migrates cleanly. This is, like `lineages`, a data-only persistence contract ahead of the mechanic: no gameplay/UI/Unreal system yet creates, explores, or presents a generated region, so Unreal Product Reality is correctly not a gate for this slice (engine-independent `src/simulation/` change only, full local `ctest` plus `tools/quality_preflight.py --full` both green). Remaining scope is a live region/exploration mechanic and its Unreal presentation, which this slice deliberately does not invent (implemented, no gameplay wiring yet).
 
-## Exact next local UE 5.8 Product Reality pass
+## Historical Unreal baseline — former local UE 5.8 Product Reality pass (superseded)
 
 Use the exact passed build and validate the accumulated Phase-2 chain in order:
 
@@ -1807,7 +1807,7 @@ HUD before attempting later mining/contact acceptance.
 
 A failure in orientation/control or physical contact outranks later roadmap work. A damage-layer failure blocks Slice 4 completion. Portable CI is not a substitute for this test.
 
-## Authorized next development
+## Historical Unreal baseline — former authorized next development (superseded)
 
 Priority order:
 
@@ -1854,7 +1854,7 @@ Basic Survival remains an architectural proof. Richer scripts, priorities, diagn
 
 Current component integrity is the authoritative bridge into staged Self Repair, but exact repair recipes, minimum useful thresholds, fabrication requirements, and field-repair rates remain later industrial/recovery design work.
 
-## Phase-2 production rules
+## Historical Unreal baseline — former Phase-2 production rules (superseded)
 
 - Simulation owns mechanical truth.
 - Unreal consumes authoritative state and submits commands through the adapter boundary.

@@ -2,6 +2,10 @@
 
 Everward's most dangerous failures will often appear only after long simulated time, many autonomous entities, save migrations, or procedural edge cases. Testing therefore needs to be designed into the simulation architecture from the first implementation PR.
 
+**Current Godot test matrix (owner-approved 2026-11-27):** Continue native C++20 unit/integration/determinism/property/save tests under `src/simulation/` and `tests/`. For the active runtime, test `tools/godot/sim-binding/` with native-versus-headless-Godot parity and `tools/godot/world-spike/` with exact-commit `--autotest`, `--simflight`, `--selftest-sim`, `--firstloop` and required negative controls. Record source SHA, compiler/GDExtension/Godot version, scenario/seed, machine/preset, exit codes, script-error counts, captured behavior and frame-time spikes; a run exiting zero without the expected assertions is insufficient.
+
+**Evidence rules:** `GODOT_VERIFIED` requires automated headless Godot test evidence for the exact commit; it does not imply `UNREAL_VERIFIED`, real visual quality, packaging or human playtest acceptance. The known first-import GDExtension crash is a documented environment issue, not a general permission to accept a crashing or missing test run. Historic Unreal test evidence remains separately labeled and cannot pass new Godot gates. Missing test infrastructure must be recorded as `ENVIRONMENT_FAILURE` or `REVIEW_REQUIRED`, never invented as `PASS`.
+
 ## Principles
 
 1. **Test simulation without rendering.** Core mechanics must run headlessly.
@@ -148,7 +152,7 @@ A successful low-spec run should record at least:
 
 The goal is **full-game functional parity at reduced fidelity**, not merely a successful process launch.
 
-Issue #216's iPhone evidence surface may display deterministic/state PASS/FAIL results, but it must continue to distinguish those from Unreal-only visual, interaction-feel, and performance Product Reality.
+Issue #216's iPhone evidence surface may display deterministic/state PASS/FAIL results, but it must continue to distinguish native/headless Godot state checks from actual Godot visual, interaction-feel, and performance Product Reality.
 
 ## Phase 1 acceptance tests
 

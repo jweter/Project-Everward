@@ -1,5 +1,8 @@
 # Everward Unattended Windows Product Reality
 
+**Legacy Unreal worker specification (superseded for active production, 2026-11-27):** This file preserves the former Unreal 5.8 Windows worker setup and validation behavior for historical reference. Do not activate, install, schedule or interpret its UBT/Unreal commands as the current Godot test contract. Active unattended verification is governed by `UNATTENDED_VERIFICATION.md`, `GODOT_PATH_PLAN.md` and applicable Godot tool READMEs; require exact-head native C++/GDExtension/headless Godot evidence. This notice does not remove owner-control or worker/admission constraints, and no paid test is authorized.
+
+
 Issue: #240
 
 ## Product requirement
