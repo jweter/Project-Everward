@@ -36,7 +36,7 @@ from pathlib import Path
 SCHEMA = "everward.godot.playtest/1"
 HERE = Path(__file__).resolve().parent
 WORLD = HERE.parent / "world-spike"
-DEFAULT_MODES = ["firstloop", "powertest", "hudtest", "approachtest", "contacttest", "exploretest"]
+DEFAULT_MODES = ["firstloop", "powertest", "hudtest", "approachtest", "contacttest", "exploretest", "controltest"]
 MACHINE_JUDGED_VISUAL = "visualtest"   # checks the frames themselves; the others only capture them
 # How many usable frames a rendered mode has to save before its result means anything. This is per mode because the
 # modes photograph different amounts: --firstloop takes 9 screenshots across the loop, --visualtest takes 3 and

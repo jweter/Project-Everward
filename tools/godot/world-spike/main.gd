@@ -88,6 +88,7 @@ const TERRAIN_PROXY_IDS := ["terrain-down", "terrain-velocity", "terrain-nose"]
 const FirstLoop = preload("res://first_loop.gd")
 const ExploreTest = preload("res://explore_test.gd")
 const SoakTest = preload("res://soak_test.gd")
+const ControlTest = preload("res://control_test.gd")
 var first_loop = null
 var firstloop_test := false      # --firstloop: headless acceptance run of the whole loop
 var powertest := false           # --powertest: headless run of the G09 sensor-power drop and recovery
@@ -98,6 +99,7 @@ var visualtest := false           # --visualtest: RENDERED run; checks real fram
 var exploretest := false          # --exploretest: seeded, real-key-command exploratory gameplay acceptance
 var soaktest := false             # --soaktest: a long session, judged on drift in memory, nodes and frame rate
 var soak_minutes := 2.0
+var controltest := false          # --controltest: every control pressed, with the effect each one must have
 var explore_seed := 1
 var explore_steps := 12
 # G04/G12: the acceptance runs write report.json (exact build, timed events, checks, PASS/FAIL/INCONCLUSIVE).
@@ -121,6 +123,7 @@ func _ready() -> void:
 	visualtest = "--visualtest" in args
 	exploretest = "--exploretest" in args
 	soaktest = "--soaktest" in args
+	controltest = "--controltest" in args
 	for la in args:
 		if la.begins_with("--minutes="):
 			soak_minutes = maxf(0.0, la.substr(10).to_float())
@@ -175,6 +178,8 @@ func _ready() -> void:
 		_run_visualtest.call_deferred()
 	elif soaktest:
 		_run_soaktest.call_deferred()
+	elif controltest:
+		_run_controltest.call_deferred()
 	elif exploretest:
 		_run_exploretest.call_deferred()
 	elif contacttest:
@@ -676,6 +681,11 @@ func _until(cond: Callable, limit_s: float) -> bool:
 func _run_soaktest() -> void:
 	# The long run: the only mode that can see a leak or a slow slide in frame rate.
 	await SoakTest.new(self).run(soak_minutes)
+
+func _run_controltest() -> void:
+	# Every control, with the effect it must have. Deliberately NOT a _scripted() mode: scripted runs switch manual
+	# flight off, and a flight control cannot be tested with flight off.
+	await ControlTest.new(self).run()
 
 func _run_exploretest() -> void:
 	# G3 exploratory player: command trace and invariants are bound to an exact build and seed.
@@ -1341,7 +1351,7 @@ func _input(event: InputEvent) -> void:
 		return
 	if sim_active and first_loop != null and first_loop.busy() and event is InputEventMouseMotion:
 		return   # the solved staging pose holds for the attitude it was solved at
-	if sim_active and event is InputEventMouseMotion and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or selftest_sim):
+	if sim_active and event is InputEventMouseMotion and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or selftest_sim or controltest):
 		# mouse right turns right (+yaw in the simulation frame), mouse up raises the nose
 		sim.adjust_attitude(event.relative.x * 0.12, -event.relative.y * 0.12, 0.0)
 		return
