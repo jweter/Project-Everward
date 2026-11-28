@@ -149,15 +149,34 @@ int main() {
         assert(advance_rotation(AngularRateDegPerS{}, RotationCommand{}, a, -1.0).rejected);
     }
 
-    // A zero-length step changes nothing but is not an error: fixed-step engines pass 0 at the edges.
+    // A zero-length step changes nothing but is not an error: fixed-step engines pass 0 at the edges of a frame.
+    // Every branch has to honour that, not just the one that was tested first (Codex #464): Direct mode used to
+    // apply a full commanded turn for no elapsed time, and a roll-disabled scheme used to clear an inherited roll.
     {
-        RotationAuthority a{};
-        a.authority = 60.0;
+        RotationAuthority rate_mode{};
+        rate_mode.authority = 60.0;
         const AngularRateDegPerS spinning{.yaw = 30.0};
-        const auto step = advance_rotation(spinning, RotationCommand{.yaw = 1.0}, a, 0.0);
+        const auto step = advance_rotation(spinning, RotationCommand{.yaw = 1.0}, rate_mode, 0.0);
         assert(!step.rejected);
         assert(nearly(step.rate.yaw, 30.0));
         assert(nearly(step.attitude_delta.yaw, 0.0));
+
+        RotationAuthority direct{};
+        direct.model = RotationModel::Direct;
+        direct.authority = 90.0;
+        const auto no_time = advance_rotation(AngularRateDegPerS{}, RotationCommand{.yaw = 1.0}, direct, 0.0);
+        assert(!no_time.rejected);
+        assert(nearly(no_time.attitude_delta.yaw, 0.0));   // was a 90-degree turn in no time
+
+        RotationAuthority no_roll{};
+        no_roll.roll_enabled = false;
+        no_roll.authority = 60.0;
+        const auto kept = advance_rotation(AngularRateDegPerS{.roll = 42.0}, RotationCommand{}, no_roll, 0.0);
+        assert(!kept.rejected);
+        assert(nearly(kept.rate.roll, 42.0));   // a zero step may not quietly arrest an inherited spin
+        // With time to act, the same scheme does still clear it.
+        const auto cleared = advance_rotation(AngularRateDegPerS{.roll = 42.0}, RotationCommand{}, no_roll, dt);
+        assert(nearly(cleared.rate.roll, 0.0));
     }
 
     // Arresting a spin is deliberate and reaches exactly zero rather than approaching it forever, so a stability

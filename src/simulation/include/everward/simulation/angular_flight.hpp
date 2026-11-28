@@ -113,6 +113,14 @@ namespace detail {
         out.rate = detail::finite_rate(rate) ? rate : AngularRateDegPerS{};
         return out;
     }
+    // Nothing happens in no time, and that has to be decided BEFORE anything is modified. An earlier version
+    // checked it only inside the Rate branch, so a zero-length step in Direct mode still applied a full
+    // commanded turn -- a 90-degree yaw for no elapsed time -- and a roll-disabled scheme still cleared an
+    // inherited roll rate. A fixed-step engine passes 0 at the edges of a frame, so that was a real path.
+    if (seconds == 0.0) {
+        out.rate = rate;
+        return out;
+    }
     if (!authority.roll_enabled) {
         command.roll = 0.0;
         rate.roll = 0.0;   // a scheme without roll must not leave an old spin running
