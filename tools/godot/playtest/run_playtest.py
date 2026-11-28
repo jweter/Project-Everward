@@ -186,7 +186,64 @@ def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeou
     return entry
 
 
+# What the machine cannot judge, per mode. A green suite says the mechanics hold and the frames were drawn; it says
+# nothing about whether any of it feels right, and no amount of checks will. These are the specific things to go and
+# try on the machine afterwards -- named so they can be done in a minute, not "see if it feels good".
+FEEL = {
+    "firstloop": [
+        "Hold P through the whole auto-approach and watch the last metre: does the arm settle, or snap into the "
+        "mining pose?",
+        "Mine with the port arm, then the starboard one. Do they read as the same machine, or does one look wrong?",
+        "Let Fix_It repair computation from 18% and watch the HUD: can you tell what improved without reading the "
+        "numbers?",
+    ],
+    "powertest": [
+        "Drop sensor power mid-scan and read the HUD's recovery hint. Is it obvious what to press next?",
+    ],
+    "hudtest": [
+        "Open the systems panel with Tab while the probe is damaged. Can you tell at a glance which system is the "
+        "problem?",
+    ],
+    "approachtest": [
+        "Put a rock between the probe and the deposit and press P. Does the refusal tell you what to do about it?",
+    ],
+    "contacttest": [
+        "Fly into terrain at speed, then brush it gently. Do the two impacts feel different?",
+    ],
+    "exploretest": [
+        "Press keys in the wrong order on purpose for a minute. Does the probe ever leave you stuck with no hint?",
+    ],
+    "visualtest": [
+        "Look at the saved frames at full size: does the probe read as the Mark 1 from the canon sheets, or just as "
+        "boxes in roughly the right places?",
+        "Watch the arm deploy in the window rather than in a screenshot. Does the motion look mechanical or floaty?",
+    ],
+}
+
+
+def feel_notes(summary: dict, limit: int = 5) -> list[str]:
+    """Three to five specific things to go and try, drawn from what actually ran."""
+    notes: list[str] = []
+    ran = [r for r in summary["runs"] if r.get("classification") in ("PASS", "REVIEW_REQUIRED")]
+    for r in ran:
+        for hint in FEEL.get(r["mode"], []):
+            if hint not in notes:
+                notes.append(hint)
+    # Anything measured that a number cannot settle gets named with its number, so the question is concrete.
+    for r in ran:
+        if r["mode"] == "visualtest" and r.get("frames"):
+            where = r["out"]
+            notes.insert(0, f"The visual checks passed on frames in `{where}` -- they prove the arm is drawn where "
+                            f"the simulation says, not that the probe looks right. That judgement is still yours.")
+            break
+    return notes[:limit]
+
+
 def write_reports(out: Path, summary: dict) -> None:
+    # Computed before the JSON is written so the machine-readable report carries it too: Iron God and the other
+    # agents should see what is still unjudged, not just the verdicts.
+    notes = feel_notes(summary)
+    summary["feel"] = notes
     (out / "playtest.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     lines = [f"# Everward playtest {summary['started_utc']}", "",
              f"Overall: **{summary['overall']}**. Commit `{summary['commit']}` (dirty: {summary['dirty']}), "
@@ -207,6 +264,11 @@ def write_reports(out: Path, summary: dict) -> None:
             for f in r.get("frames", []):
                 lines.append(f"- Frame: `{f}`")
             lines.append("")
+    if notes:
+        lines += ["", "## What the machine could not judge", "",
+                  "Everything above is mechanical. None of it says the game feels right. Specific things to try:", ""]
+        lines += [f"{i + 1}. {n}" for i, n in enumerate(notes)]
+        lines.append("")
     md = "\n".join(lines) + "\n"
     (out / "playtest.md").write_text(md, encoding="utf-8")
     body = "".join(f"<p>{html.escape(l)}</p>" if not l.startswith("|") else f"<pre>{html.escape(l)}</pre>" for l in lines)
