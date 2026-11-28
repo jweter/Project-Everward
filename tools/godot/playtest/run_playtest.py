@@ -38,7 +38,11 @@ HERE = Path(__file__).resolve().parent
 WORLD = HERE.parent / "world-spike"
 DEFAULT_MODES = ["firstloop", "powertest", "hudtest", "approachtest", "contacttest"]
 MACHINE_JUDGED_VISUAL = "visualtest"   # checks the frames themselves; the others only capture them
-RENDERED_FRAMES_MIN = 5          # --firstloop takes 9 screenshots when a renderer exists
+# How many usable frames a rendered mode has to save before its result means anything. This is per mode because the
+# modes photograph different amounts: --firstloop takes 9 screenshots across the loop, --visualtest takes 3 and
+# inspects them. One flat minimum of 5 classified every successful --visualtest as ENVIRONMENT_FAILURE (Codex #458).
+RENDERED_FRAMES_MIN = {"visualtest": 3, "firstloop": 5}
+RENDERED_FRAMES_MIN_DEFAULT = 3  # a rendered mode nobody has characterised still has to produce something to look at
 
 
 def free_ram_gb() -> float | None:
@@ -151,10 +155,13 @@ def run_mode(godot: str, mode: str, out: Path, rendered: bool, seed: int, timeou
         frames = sorted(str(f.name) for f in run_dir.glob("*.png")
                         if f.stat().st_size > 20000 and f.stat().st_mtime >= started.timestamp())
         entry["frames"] = frames
-        if len(frames) < RENDERED_FRAMES_MIN:
-            entry["visual"] = f"ENVIRONMENT_FAILURE ({len(frames)} rendered frames captured)"
+        least = RENDERED_FRAMES_MIN.get(mode, RENDERED_FRAMES_MIN_DEFAULT)
+        if len(frames) < least:
+            entry["visual"] = f"ENVIRONMENT_FAILURE ({len(frames)} of the {least} frames this mode saves)"
             if entry["classification"] == "PASS":
-                entry.update(classification="ENVIRONMENT_FAILURE", reason="rendered run produced no usable frames")
+                entry.update(classification="ENVIRONMENT_FAILURE",
+                             reason=f"rendered run saved {len(frames)} usable frames, fewer than the {least} "
+                                    f"{mode} captures: the run did not get far enough to be believed")
         elif judged:
             entry["visual"] = (f"VERIFIED ({entry.get('checks_total', 0)} deterministic checks on {len(frames)} "
                                "rendered frames; artistic quality not judged)")
